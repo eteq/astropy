@@ -9,3 +9,4 @@ between coordinate systems.
 from core import *
 from conversions import *
 from coordsystems import *
+from errors import *
