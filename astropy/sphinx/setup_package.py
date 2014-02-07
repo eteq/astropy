@@ -7,3 +7,7 @@ def get_package_data():
             'ext/templates/*/*',
             'themes/bootstrap-astropy/*.*',
             'themes/bootstrap-astropy/static/*.*']}
+
+
+def requires_2to3():
+    return False
