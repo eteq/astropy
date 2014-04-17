@@ -1,9 +1,8 @@
-# In this file, we define the coordinate representation classes, which are
-# used to represent low-level cartesian, spherical, cylindrical, and other #
-# coordinate. All classes should define a to_cartesian method and a
-# from_cartesian class method. By default, transformations are done via the
-# cartesian system, but classes that want to define a smarter transformation
-# path can overload the ``represent_as`` method.
+"""
+In this module, we define the coordinate representation classes, which are
+used to represent low-level cartesian, spherical, cylindrical, and other
+coordinates.
+"""
 
 from __future__ import (absolute_import, division, print_function,
                         unicode_literals)
@@ -17,16 +16,9 @@ from .angles import Angle, Longitude, Latitude
 from .distances import Distance
 from ..extern import six
 
-# Suggestions to improve API
-#
-# - change PhysicistSphericalRepresentation to PhysicsSphericalRepresentation
-# (implemented below).
-#
-# - add a rotated() method that can rotate the 3D coordinates
-
-__all__ = ["CartesianRepresentation", "SphericalRepresentation",
-           "UnitSphericalRepresentation", "PhysicsSphericalRepresentation",
-           "CylindricalRepresentation"]
+__all__ = ["BaseRepresentation", "CartesianRepresentation",
+           "SphericalRepresentation", "UnitSphericalRepresentation",
+           "PhysicsSphericalRepresentation", "CylindricalRepresentation"]
 
 
 def broadcast_quantity(*args, **kwargs):
@@ -43,7 +35,16 @@ def broadcast_quantity(*args, **kwargs):
 @six.add_metaclass(abc.ABCMeta)
 class BaseRepresentation(object):
     """
-    Base Representation object, for representing a point in a 3D coordinate system
+    Base Representation object, for representing a point in a 3D coordinate
+    system.
+
+    Notes
+    -----
+    All representation classes should subclass this base representation
+    class. All subclasses should then define a ``to_cartesian`` method and a
+    ``from_cartesian`` class method. By default, transformations are done via
+    the cartesian system, but classes that want to define a smarter
+    transformation path can overload the ``represent_as`` method.
     """
 
     def represent_as(self, other_class):
@@ -120,7 +121,7 @@ class CartesianRepresentation(BaseRepresentation):
     @property
     def x(self):
         """
-        The x position of the point(s).
+        The x componen of the point(s).
         """
         return self._x
 
@@ -232,9 +233,10 @@ class SphericalRepresentation(BaseRepresentation):
         """
 
         # We need to convert Distance to Quantity to allow negative values.
-        # At the moment, there is no easy way to convert Distance objects to
-        # Quantity objects (https://github.com/astropy/astropy/issues/2259)
-        d = self.distance.view(u.Quantity)
+        if isinstance(self.distance, Distance):
+            d = self.distance.view(u.Quantity)
+        else:
+            d = self.distance
 
         x = d * np.cos(self.lat) * np.cos(self.lon)
         y = d * np.cos(self.lat) * np.sin(self.lon)
@@ -249,12 +251,8 @@ class SphericalRepresentation(BaseRepresentation):
         coordinates.
         """
 
-        xsq = cart.x ** 2
-        ysq = cart.y ** 2
-        zsq = cart.z ** 2
-
-        r = (xsq + ysq + zsq) ** 0.5
-        s = (xsq + ysq) ** 0.5
+        s = np.hypot(cart.x, cart.y)
+        r = np.hypot(s, cart.z)
 
         lon = np.arctan2(cart.y, cart.x)
         lat = np.arctan2(cart.z, s)
@@ -331,11 +329,7 @@ class UnitSphericalRepresentation(BaseRepresentation):
         coordinates.
         """
 
-        xsq = cart.x ** 2
-        ysq = cart.y ** 2
-        zsq = cart.z ** 2
-
-        s = (xsq + ysq) ** 0.5
+        s = np.hypot(cart.x, cart.y)
 
         lon = np.arctan2(cart.y, cart.x)
         lat = np.arctan2(cart.z, s)
@@ -423,9 +417,10 @@ class PhysicsSphericalRepresentation(BaseRepresentation):
         """
 
         # We need to convert Distance to Quantity to allow negative values.
-        # At the moment, there is no easy way to convert Distance objects to
-        # Quantity objects (https://github.com/astropy/astropy/issues/2259)
-        d = self.distance.view(u.Quantity)
+        if isinstance(self.distance, Distance):
+            d = self.distance.view(u.Quantity)
+        else:
+            d = self.distance
 
         x = d * np.sin(self.theta) * np.cos(self.phi)
         y = d * np.sin(self.theta) * np.sin(self.phi)
@@ -440,12 +435,8 @@ class PhysicsSphericalRepresentation(BaseRepresentation):
         coordinates.
         """
 
-        xsq = cart.x ** 2
-        ysq = cart.y ** 2
-        zsq = cart.z ** 2
-
-        r = (xsq + ysq + zsq) ** 0.5
-        s = (xsq + ysq) ** 0.5
+        s = np.hypot(cart.x, cart.y)
+        r = np.hypot(s, cart.z)
 
         phi = np.arctan2(cart.y, cart.x)
         theta = np.arctan2(s, cart.z)
@@ -520,11 +511,8 @@ class CylindricalRepresentation(BaseRepresentation):
         coordinates.
         """
 
-        rho = np.sqrt(cart.x ** 2 + cart.y ** 2)
-
-        phi = np.zeros(cart.x.shape) * u.deg
-        phi[rho > 0] = np.arctan2(cart.y, cart.x)
-
+        rho = np.hypot(cart.x, cart.y)
+        phi = np.arctan2(cart.y, cart.x)
         z = cart.z
 
         return CylindricalRepresentation(rho=rho, phi=phi, z=z)
