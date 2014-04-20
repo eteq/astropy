@@ -31,8 +31,10 @@ def test_transform_classes():
     """
     Tests the class-based/OO syntax for creating transforms
     """
-    t.FunctionTransform(TestCoo1, TestCoo2,
-        lambda c: TestCoo2(c.ra.radian, c.dec.radian, unit=(u.radian, u.radian)))
+
+    tfun = lambda c: TestCoo2(c.ra.radian, c.dec.radian, unit=(u.radian, u.radian))
+    trans1 = t.FunctionTransform(tfun, TestCoo1, TestCoo2,
+                        register_graph=t.master_transform_graph)
 
     c1 = TestCoo1(1, 0.5, unit=(u.radian, u.radian))
     c1._make_cart()
@@ -40,11 +42,13 @@ def test_transform_classes():
     npt.assert_allclose(c2.ra.radian, 1)
     npt.assert_allclose(c2.dec.radian, 0.5)
 
+
     def matfunc(coo):
         return [[1, 0, 0],
                 [0, coo.ra.degree, 0],
                 [0, 0, 1]]
-    t.DynamicMatrixTransform(TestCoo1, TestCoo2, matfunc)
+    trans2 = t.DynamicMatrixTransform(matfunc, TestCoo1, TestCoo2)
+    trans2.register(t.master_transform_graph)
 
     c3 = TestCoo1(1, 2, unit=(u.degree, u.degree))
     c3._make_cart()
@@ -52,6 +56,10 @@ def test_transform_classes():
 
     npt.assert_allclose(c4.ra.degree, 1)
     npt.assert_allclose(c4.ra.degree, 1)
+
+    # be sure to unregister the second one - no need for trans1 because it
+    # already got unregistered when trans2 was created.
+    trans2.unregister(t.master_transform_graph)
 
 
 def test_transform_decos():
@@ -91,11 +99,15 @@ def test_coo_alias():
     """
     t.coordinate_alias('coo2', TestCoo2)
 
-    t.FunctionTransform(TestCoo1, TestCoo2, lambda c: TestCoo2(c.ra, c.dec))
+    trans = t.FunctionTransform(lambda c: TestCoo2(c.ra, c.dec),
+                                TestCoo1, TestCoo2,
+                                register_graph=t.master_transform_graph)
 
     c1 = TestCoo1(1, 2, unit=(u.degree, u.degree))
     assert c1.coo2.ra.degree == c1.ra.degree
     assert c1.coo2.dec.degree == c1.dec.degree
+
+    trans.unregister(t.master_transform_graph)
 
 def test_shortest_path():
     class FakeTransform(object):
@@ -312,7 +324,7 @@ def test_obstime():
 
 def test_composite_static_matrix_transform():
     """
-    Checks to make sure that CompositeStaticMatrixTransform 
+    Checks to make sure that CompositeStaticMatrixTransform
     correctly combines multiple transformations
     """
     half_sqrt_two = 0.5*np.sqrt(2)
@@ -321,9 +333,8 @@ def test_composite_static_matrix_transform():
                                 [0, 0, 1]])
     backwards_45_mat = forwards_45_mat.T
     id_mat = np.identity(3)
-    
-    id_transform = t.CompositeStaticMatrixTransform(ICRS, ICRS, 
-                                                    [forwards_45_mat, 
-                                                    backwards_45_mat])
+
+    mats = [forwards_45_mat, backwards_45_mat]
+    id_transform = t.CompositeStaticMatrixTransform(mats, ICRS, ICRS)
 
     npt.assert_allclose(id_transform.matrix, id_mat)
