@@ -13,7 +13,7 @@ from . import vos_catalog
 from .async import AsyncBase
 from ... import units as u
 from ...config.configuration import ConfigurationItem
-from ...coordinates import Angle, ICRS, SphericalCoordinatesBase
+from ...coordinates import Angle, ICRS, BaseCoordinateFrame, Longitude, Latitude
 from ...logger import log
 from ...utils.data import REMOTE_TIMEOUT
 from ...utils.timer import timefunc, RunTimePredictor
@@ -52,7 +52,7 @@ class AsyncConeSearch(AsyncBase):
     --------
     >>> from astropy import coordinates as coord
     >>> from astropy import units as u
-    >>> c = coord.ICRS(6.0223, -72.0814, unit=(u.degree, u.degree))
+    >>> c = coord.ICRS(6.0223 * u.degree, -72.0814 * u.degree)
     >>> async_search = conesearch.AsyncConeSearch(
     ...     c, 0.5 * u.degree,
     ...     catalog_db='The PMM USNO-A1.0 Catalogue (Monet 1997) 1')
@@ -212,7 +212,7 @@ class AsyncSearchAll(AsyncBase):
     --------
     >>> from astropy import coordinates as coord
     >>> from astropy import units as u
-    >>> c = coord.ICRS(6.0223, -72.0814, unit=(u.degree, u.degree))
+    >>> c = coord.ICRS(6.0223 * u.degree, -72.0814 * u.degree)
     >>> async_searchall = conesearch.AsyncSearchAll(c, 0.5 * u.degree)
 
     Check search status:
@@ -488,10 +488,11 @@ def _local_conversion(func, x):
 
 def _validate_coord(center):
     """Validate coordinates."""
-    if isinstance(center, SphericalCoordinatesBase):
+    if isinstance(center, BaseCoordinateFrame):
         icrscoord = center.transform_to(ICRS)
     else:
-        icrscoord = ICRS(*center, unit=(u.degree, u.degree))
+        icrscoord = ICRS(Longitude(center[0], unit=u.degree),
+                         Latitude(center[1], unit=u.degree))
 
     return icrscoord.ra.degree, icrscoord.dec.degree
 
