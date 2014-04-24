@@ -19,7 +19,7 @@ import socket
 from ..config import ConfigurationItem
 from ..extern.six.moves import urllib
 from .. import units as u
-from .builtin_systems import ICRS
+from .builtin_frames import ICRS
 
 __all__ = ["get_icrs_coordinates"]
 
