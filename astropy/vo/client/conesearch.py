@@ -13,7 +13,7 @@ from . import vos_catalog
 from .async import AsyncBase
 from ... import units as u
 from ...config.configuration import ConfigurationItem
-from ...coordinates import Angle, ICRS, SphericalCoordinatesBase
+from ...coordinates import Angle, ICRS, BaseCoordinateFrame
 from ...logger import log
 from ...utils.data import REMOTE_TIMEOUT
 from ...utils.timer import timefunc, RunTimePredictor
@@ -488,7 +488,7 @@ def _local_conversion(func, x):
 
 def _validate_coord(center):
     """Validate coordinates."""
-    if isinstance(center, SphericalCoordinatesBase):
+    if isinstance(center, BaseCoordinateFrame):
         icrscoord = center.transform_to(ICRS)
     else:
         icrscoord = ICRS(*center, unit=(u.degree, u.degree))
