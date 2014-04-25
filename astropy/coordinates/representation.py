@@ -45,6 +45,8 @@ class BaseRepresentation(object):
     ``from_cartesian`` class method. By default, transformations are done via
     the cartesian system, but classes that want to define a smarter
     transformation path can overload the ``represent_as`` method.
+    Furthermore, all classes should define a ``components`` property, which
+    returns a tuple with the names of the coordinate components.
     """
 
     def represent_as(self, other_class):
@@ -66,6 +68,74 @@ class BaseRepresentation(object):
     @abc.abstractmethod
     def to_cartesian(self):
         raise NotImplementedError()
+
+    @abc.abstractproperty
+    def components(self):
+        """Return tuple with the names of the coordinate components"""
+        raise NotImplementedError()
+
+    def __getitem__(self, view):
+        return self.__class__(*(getattr(self, component)[view]
+                                for component in self.components))
+
+    @property
+    def isscalar(self):
+        return getattr(self, self.components[0]).isscalar
+
+    @property
+    def _values(self):
+        """Turn the coordinates into a record array with the coordinate values.
+
+        The record array fields will have the component names.
+        """
+        allcomp = np.array([getattr(self, component).value
+                            for component in self.components])
+        dtype = np.dtype([(str(component), np.float)
+                          for component in self.components])
+        return (np.rollaxis(allcomp, 0, len(allcomp.shape))
+                .copy().view(dtype).squeeze())
+
+    @property
+    def _units(self):
+        """Return a dictionary with the units of the coordinate components."""
+        return {component: getattr(self, component).unit
+                for component in self.components}
+
+    @property
+    def _unitstr(self):
+        units_set = set(self._units.values())
+        if len(units_set) == 1:
+            unitstr = units_set.pop().to_string()
+        else:
+            unitstr = '({0})'.format(
+                ', '.join([self._units[component].to_string()
+                           for component in self.components]))
+        return unitstr
+
+    def __str__(self):
+        if self.isscalar and len(set(self._units.values())) > 1:
+            return '({0})'.format(', '.join(
+                ['{0}'.format(getattr(self, component))
+                 for component in self.components]))
+        else:
+            return '{0} {1:s}'.format(self._values, self._unitstr)
+
+    def __repr__(self):
+        if self.isscalar:
+            return '<{0} {1}>'.format(
+                self.__class__.__name__,
+                ', '.join(['{0}={1}'.format(component,
+                                            getattr(self, component))
+                           for component in self.components]))
+
+        else:
+            prefixstr = '    '
+            arrstr = np.array2string(self._values, separator=', ',
+                                     prefix=prefixstr)
+
+            return '<{0} ({1}) in {2:s}\n{3}{4}>'.format(
+                self.__class__.__name__, ', '.join(self.components),
+                self._unitstr, prefixstr, arrstr)
 
 
 class CartesianRepresentation(BaseRepresentation):
@@ -118,9 +188,6 @@ class CartesianRepresentation(BaseRepresentation):
         self._y = y
         self._z = z
 
-    def __getitem__(self, view):
-        return self.__class__(self.x[view], self.y[view], self.z[view])
-
     @property
     def x(self):
         """
@@ -152,6 +219,10 @@ class CartesianRepresentation(BaseRepresentation):
 
     def to_cartesian(self):
         return self
+
+    @property
+    def components(self):
+        return 'x', 'y', 'z'
 
 
 class SphericalRepresentation(BaseRepresentation):
@@ -197,9 +268,6 @@ class SphericalRepresentation(BaseRepresentation):
         self._lon = lon
         self._lat = lat
         self._distance = distance
-
-    def __getitem__(self, view):
-        return self.__class__(self.lon[view], self.lat[view], self.distance[view])
 
     @property
     def lon(self):
@@ -264,6 +332,10 @@ class SphericalRepresentation(BaseRepresentation):
 
         return SphericalRepresentation(lon=lon, lat=lat, distance=r)
 
+    @property
+    def components(self):
+        return 'lon', 'lat', 'distance'
+
 
 class UnitSphericalRepresentation(BaseRepresentation):
     """
@@ -298,9 +370,6 @@ class UnitSphericalRepresentation(BaseRepresentation):
 
         self._lon = lon
         self._lat = lat
-
-    def __getitem__(self, view):
-        return self.__class__(self.lon[view], self.lat[view])
 
     @property
     def lon(self):
@@ -344,6 +413,10 @@ class UnitSphericalRepresentation(BaseRepresentation):
 
         return UnitSphericalRepresentation(lon=lon, lat=lat)
 
+    @property
+    def components(self):
+        return 'lon', 'lat'
+
 
 class PhysicsSphericalRepresentation(BaseRepresentation):
     """
@@ -386,9 +459,6 @@ class PhysicsSphericalRepresentation(BaseRepresentation):
         self._phi = phi
         self._theta = theta
         self._distance = r
-
-    def __getitem__(self, view):
-        return self.__class__(self.phi[view], self.theta[view], self.r[view])
 
     @property
     def phi(self):
@@ -453,6 +523,10 @@ class PhysicsSphericalRepresentation(BaseRepresentation):
 
         return PhysicsSphericalRepresentation(phi=phi, theta=theta, r=r)
 
+    @property
+    def components(self):
+        return 'phi', 'theta', 'r'
+
 
 class CylindricalRepresentation(BaseRepresentation):
     """
@@ -492,9 +566,6 @@ class CylindricalRepresentation(BaseRepresentation):
         self._rho = rho
         self._phi = phi
         self._z = z
-
-    def __getitem__(self, view):
-        return self.__class__(self.rho[view], self.phi[view], self.z[view])
 
     @property
     def rho(self):
@@ -540,3 +611,7 @@ class CylindricalRepresentation(BaseRepresentation):
         z = self.z
 
         return CartesianRepresentation(x=x, y=y, z=z)
+
+    @property
+    def components(self):
+        return 'rho', 'phi', 'z'
