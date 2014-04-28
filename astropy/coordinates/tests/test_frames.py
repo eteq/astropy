@@ -95,6 +95,29 @@ def test_frame_repr():
     assert repr(i3) == ('<ICRS Coordinate: ra=1.0 deg, dec=2.0 deg, '
                         'distance=3.0 kpc>')
 
+def test_converting_units():
+    from ..builtin_frames import ICRS, FK5
+
+    i2 = ICRS(ra=1*u.deg, dec=2*u.deg)
+
+    #converting from FK5 to ICRS and back changes the *internal* representation,
+    # but it should still come out in the preferred form
+
+    i4 = i2.transform_to(FK5).transform_to(ICRS)
+    assert repr(i2) == repr(i4)
+
+    #but that *shouldn't* hold if we turn off preferred_attr_units
+    class FakeICRS(ICRS):
+        preferred_attr_units = {}
+
+    fi = FakeICRS(i4.data)
+    assert repr(i2) != repr(fi)
+
+    # the attributes should also get the right units
+    assert i2.ra.unit == i4.ra.unit
+    # unless no preferred_attr_units
+    assert i2.ra.unit != fi.ra.unit
+
 
 def test_realizing():
     from ..builtin_frames import ICRS, FK5

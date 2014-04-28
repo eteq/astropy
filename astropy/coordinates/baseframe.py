@@ -53,11 +53,10 @@ class FrameMeta(type):
             raise ValueError('Could not find the expected BaseCoordinateFrame '
                              'class attributes.  Are you mis-using FrameMeta?')
 
-
         if pref_repr:
             # create properties for the preferred_attr_names
-            for propnm, reprnm in six.iteritems(pref_attrs):
-                clsdct[propnm] = property(FrameMeta.repr_getter_factory(reprnm))
+            for propnm, reprnm in pref_attrs.items():
+                clsdct[propnm] = property(FrameMeta.repr_getter_factory(reprnm, propnm))
 
         #also make properties for the frame_attr_names to make them immutible
         #after creation
@@ -74,16 +73,20 @@ class FrameMeta(type):
         return super(FrameMeta, cls).__new__(cls, name, parents, clsdct)
 
     @staticmethod
-    def repr_getter_factory(reprnm):
+    def repr_getter_factory(reprnm, propertynm):
         def getter(self):
             rep = self.represent_as(self.preferred_representation)
-            return getattr(rep, reprnm)
+            val = getattr(rep, reprnm)
+            if propertynm in self.preferred_attr_units:
+                return val.to(self.preferred_attr_units[propertynm])
+            else:
+                return val
         return getter
 
     @staticmethod
     def frame_attr_factory(attrnm):
         def getter(self):
-            return getattr(self, '_'+ attrnm)
+            return getattr(self, '_' + attrnm)
         return getter
 
 
@@ -102,8 +105,12 @@ class BaseCoordinateFrame(object):
 
     * `preferred_attr_names`
         A dictionary mapping attribute names to be created on *this* class to
-        names of attributes on the `preferred_representation`.  If
+        names of attributes on the `preferred_representation`. If
         `preferred_representation` is None, this does nothing.
+
+    * `preferred_attr_units`
+        A dictionary mapping attribute names to their preferred human-readable
+        units. Keys must also be keys in `preferred_attr_names`.
 
     * `frame_attr_names`
         A dictionary with keys that are the additional attributes necessary to
@@ -120,6 +127,7 @@ class BaseCoordinateFrame(object):
 
     preferred_representation = None
     preferred_attr_names = {}  # maps preferred name to "real" name on repr obj
+    preferred_attr_units = {}  # maps preferred name to the "standard" unit/string repr
     frame_attr_names = {}  # maps attribute to default value
     time_attr_names = ('equinox', 'obstime')  # Attributes that must be Time objects
 
@@ -130,7 +138,7 @@ class BaseCoordinateFrame(object):
 
         representation = None  # if not set below, this is a frame with no data
 
-        for fnm, fdefault in six.iteritems(self.frame_attr_names):
+        for fnm, fdefault in self.frame_attr_names.items():
 
             # read-only properties for these attributes are made in the
             # metaclass  so we set the 'real' attrbiutes as the name prefaced
@@ -157,7 +165,7 @@ class BaseCoordinateFrame(object):
 
         elif pref_rep:
             pref_kwargs = {}
-            for nmkw, nmrep in six.iteritems(self.preferred_attr_names):
+            for nmkw, nmrep in self.preferred_attr_names.items():
                 if len(args) > 0:
                     #first gather up positional args
                     pref_kwargs[nmrep] = args.pop(0)
@@ -324,8 +332,29 @@ class BaseCoordinateFrame(object):
                 else:
                     data = self.data.represent_as(self.preferred_representation)
 
+                # if necessary, make a new representation with preferred units
+                if self.preferred_attr_units:
+                    # first figure out how to map *representation* attribute
+                    # names to units
+                    comp_to_unit = {}
+                    for attnm, unit in self.preferred_attr_units.items():
+                        if attnm not in self.preferred_attr_names:
+                            msg = ('The attribute {0} in `preferred_attr_units`'
+                                   ' is not in `preferred_attr_names`')
+                            raise ValueError(msg.format(attnm))
+                        comp_to_unit[self.preferred_attr_names[attnm]] = unit
+
+                    #now actually create a new representation with the new units
+                    datakwargs = {}
+                    for comp in data.components:
+                        datakwargs[comp] = getattr(data, comp)
+                        newu = comp_to_unit.get(comp, None)
+                        if newu:
+                            datakwargs[comp] = datakwargs[comp].to(newu)
+                    data = data.__class__(**datakwargs)
+
                 data_repr = repr(data)
-                for nmpref, nmrepr in six.iteritems(self.preferred_attr_names):
+                for nmpref, nmrepr in self.preferred_attr_names.items():
                     data_repr = data_repr.replace(nmrepr, nmpref)
 
             else:
@@ -475,7 +504,7 @@ class GenericFrame(BaseCoordinateFrame):
         super(GenericFrame, self).__init__(None)
 
         self.frame_attr_names = frame_attrs
-        for attrnm, attrval in six.iteritems(frame_attrs):
+        for attrnm, attrval in frame_attrs.items():
             setattr(self, attrnm, attrval)
 
     def __setattr__(self, name, value):
