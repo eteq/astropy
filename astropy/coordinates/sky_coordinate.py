@@ -9,7 +9,7 @@ from ..units import Unit
 
 from .angles import Latitude, Longitude
 from .distances import Distance
-from .baseframe import BaseCoordinateFrame, frame_transform_graph
+from .baseframe import BaseCoordinateFrame, frame_transform_graph, GenericFrame
 
 __all__ = ['SkyCoord']
 
@@ -123,7 +123,7 @@ class SkyCoord(object):
 
         Parameters
         ----------
-        system : str
+        system : `~astropy.coordinates.BaseFrame` or str
             The system to transform this coordinate into.
 
         Returns
@@ -146,25 +146,47 @@ class SkyCoord(object):
             if system not in FRAME_CLASSES:
                 raise ValueError('Coordinate system {0} not in allowed values {1}'
                                  .format(system, sorted(FRAME_CLASSES)))
-            new_frame = FRAME_CLASSES[system]
+            new_frame = FRAME_CLASSES[system]()
+            new_frame_explicit = False
+        elif inspect.isclass(system):
+            # frame class
+            new_frame = system()
+            new_frame_explicit = False
         else:
-            # Allow for a frame class or a frame class instance
+            # frame class instance
             new_frame = system
-            coord_cls = new_frame if inspect.isclass(new_frame) else new_frame.__class__
-            if (not issubclass(coord_cls, BaseCoordinateFrame)
-                    or coord_cls not in CLASS_TO_NAME_MAP):
-                raise ValueError('Coordinate system {0} must be a frame class or '
-                                 'frame class instance'.format(new_frame))
-            system = CLASS_TO_NAME_MAP[coord_cls]
+            new_frame_explicit = True
 
-        out = deepcopy(self)
-        out._system = system
-        out._coord = self._coord.transform_to(new_frame)
-        if out._coord is None:
-            raise ConvertError('Cannot transform from {0} to '
-                               '{1}'.format(self.system, system))
 
-        return out
+
+
+        trans = frame_transform_graph.get_transform(self.__class__,
+                                                    new_frame.__class__)
+        if trans is None:
+            if new_frame is self.__class__:
+                # no transform needed, because it's self-to-self
+                return copy.deepcopy(self)
+            msg = 'Cannot transform from {0} to {1}'
+            raise ConvertError(msg.format(self.__class__, new_frame.__class__))
+
+        #get the attributes for the intermediate/final stages from self first,
+        #but then overwrite with the new frame if it has attributes
+
+        #THIS SHOULD BE GENERIFIED FOR OTHER FRAME ATTRIBUTES!
+        frattrs = dict([(nm, getattr(self, nm)) for nm in ('equinox', 'obstime', 'location')])
+
+        if new_frame_explicit:
+            #if the user didn't actually request specific attributes, don't
+            #switch to defaults
+            for attrnm in new_frame.frame_attr_names:
+                frattrs[attrnm] = getattr(new_frame, attrnm)
+
+        genframe = GenericFrame(**frattrs)
+        newcoord = trans(self._coord, genframe)
+
+        frattrs['system'] = new_frame.__class__.__name__
+        return SkyCoord(newcoord, **frattrs)
+
 
     def __getattr__(self, attr):
         """
