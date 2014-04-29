@@ -17,6 +17,8 @@ import numpy as np
 from ..extern import six
 from .. import units as u
 from .transformations import TransformGraph
+from .representation import BaseRepresentation, CartesianRepresentation, \
+                            SphericalRepresentation, UnitSphericalRepresentation
 
 __all__ = ['BaseCoordinateFrame', 'frame_transform_graph', 'GenericFrame']
 
@@ -119,7 +121,7 @@ class BaseCoordinateFrame(object):
 
     * `time_attr_names`
         A sequence of attribute names that must be `~astropy.time.Time` objects.
-        When given  as keywords in the initializer, these will be converted if
+        When given as keywords in the initializer, these will be converted if
         possible (e.g. from the string 'J2000' to the appropriate
         `~astropy.time.Time` object).  Defaults to ``('equinox', 'obstime')``.
 
@@ -132,14 +134,11 @@ class BaseCoordinateFrame(object):
     time_attr_names = ('equinox', 'obstime')  # Attributes that must be Time objects
 
     def __init__(self, *args, **kwargs):
-        from .representation import SphericalRepresentation, \
-                                    UnitSphericalRepresentation, \
-                                    BaseRepresentation
+        self._attr_names_with_defaults = []
 
         representation = None  # if not set below, this is a frame with no data
 
         for fnm, fdefault in self.frame_attr_names.items():
-
             # read-only properties for these attributes are made in the
             # metaclass  so we set the 'real' attrbiutes as the name prefaced
             # with an underscore
@@ -153,6 +152,7 @@ class BaseCoordinateFrame(object):
                 setattr(self, '_' + fnm, value)
             else:
                 setattr(self, '_' + fnm, fdefault)
+                self._attr_names_with_defaults.append(fnm)
 
         pref_rep = self.preferred_representation
         args = list(args)  # need to be able to pop them
@@ -199,6 +199,11 @@ class BaseCoordinateFrame(object):
 
     @property
     def data(self):
+        """
+        The coordinate data for this object.  If this frame has no data, an
+        `AttributeError` will be raised.  Use `had_data` to check if data is
+        present on this frame object.
+        """
         if self._data is None:
             raise AttributeError('The frame object "{0}" does not have '
                                  'associated data'.format(repr(self)))
@@ -206,11 +211,15 @@ class BaseCoordinateFrame(object):
 
     @property
     def has_data(self):
+        """
+        True if this frame has `data`, False otherwise.
+        """
         return self._data is not None
 
     def realize_frame(self, representation):
         """
-        Generates a new frame *with data* from a frame without data.
+        Generates a new frame *with new data* from another frame (which may or
+        may not have data).
 
         Parameters
         ----------
@@ -223,10 +232,38 @@ class BaseCoordinateFrame(object):
             A new object with the same frame attributes as this one, but
             with the `representation` as the data.
         """
-        frattrs = dict([(nm, getattr(self, nm))for nm in self.frame_attr_names])
+        frattrs = dict([(nm, getattr(self, nm)) for nm in self.frame_attr_names
+                        if nm not in self._attr_names_with_defaults])
         return self.__class__(representation, **frattrs)
 
     def represent_as(self, new_representation):
+        """
+        Generate and return a new representation of this frame's `data`.
+
+        Parameters
+        ----------
+        new_representation : subclass of BaseRepresentation
+            The type of representation to generate, as a *class* (not an
+            instance).
+
+        Returns
+        -------
+        newrep : whatever `new_representation` is
+            A new representation object of this frame's `data`.
+
+        Raises
+        ------
+        AttributeError
+            If this object had no `data`
+
+        Examples
+        --------
+        >>> from astropy import units as u
+        >>> from astropy.coordinates import ICRS, CartesianRepresentation
+        >>> coord = ICRS(0*u.deg, 0*u.deg)
+        >>> coord.represent_as(CartesianRepresentation)
+        <CartesianRepresentation x=1.0 , y=0.0 , z=0.0 >
+        """
         cached_repr = self._rep_cache.get(new_representation.__name__, None)
         if not cached_repr:
             rep = self.data.represent_as(new_representation)
@@ -317,10 +354,26 @@ class BaseCoordinateFrame(object):
         else:
             return True
 
-    def __repr__(self):
-        from .representation import SphericalRepresentation, \
-                                    UnitSphericalRepresentation
+    def is_frame_attr_default(self, attrnm):
+        """
+        Determine whether or not a frame attribute has its value because it's
+        the default value, or because this frame was created with that value
+        explicitly requested.
 
+        Parameters
+        ----------
+        attrnm : str
+            The name of the attribute to check.
+
+        Returns
+        -------
+        isdefault : bool
+            True if the attribute `attrnm` has its value by default, False if it
+            was specified at creation of this frame.
+        """
+        return attrnm in self._attr_names_with_defaults
+
+    def __repr__(self):
         frameattrs = ', '.join([attrnm + '=' + str(getattr(self, attrnm))
                                 for attrnm in self.frame_attr_names])
 
@@ -328,10 +381,9 @@ class BaseCoordinateFrame(object):
             if self.preferred_representation:
                 if (self.preferred_representation == SphericalRepresentation and
                     isinstance(self.data, UnitSphericalRepresentation)):
-                    data = self.data.represent_as(UnitSphericalRepresentation)
+                    data = self.represent_as(UnitSphericalRepresentation)
                 else:
-                    data = self.data.represent_as(self.preferred_representation)
-
+                    data = self.represent_as(self.preferred_representation)
                 # if necessary, make a new representation with preferred units
                 if self.preferred_attr_units:
                     # first figure out how to map *representation* attribute
@@ -411,7 +463,6 @@ class BaseCoordinateFrame(object):
         .. [1] http://en.wikipedia.org/wiki/Great-circle_distance
 
         """
-        from .representation import UnitSphericalRepresentation
         from .angle_utilities import angular_separation
         from .angles import Angle
 
@@ -443,7 +494,6 @@ class BaseCoordinateFrame(object):
         ValueError
             If this or the other coordinate do not have distances.
         """
-        from .representation import UnitSphericalRepresentation
         from .distances import Distance
 
         if self.data.__class__ == UnitSphericalRepresentation:
@@ -471,8 +521,6 @@ class BaseCoordinateFrame(object):
         """
         # TODO: if representations are updated to use a full transform graph,
         #       the representation aliases should not be hard-coded like this
-        from .representation import CartesianRepresentation
-
         return self.represent_as(CartesianRepresentation)
 
     @property
@@ -482,8 +530,6 @@ class BaseCoordinateFrame(object):
         """
         # TODO: if representations are updated to use a full transform graph,
         #       the representation aliases should not be hard-coded like this
-        from .representation import SphericalRepresentation
-
         return self.represent_as(SphericalRepresentation)
 
 
