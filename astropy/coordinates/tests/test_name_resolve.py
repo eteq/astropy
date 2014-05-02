@@ -14,7 +14,7 @@ import time
 import numpy as np
 
 from ..name_resolve import (get_icrs_coordinates, NameResolveError,
-                            SESAME_DATABASE, _parse_response)
+                            SESAME_DATABASE, _parse_response, SESAME_URL)
 from ..sky_coordinate import SkyCoord
 from ...extern.six.moves import urllib
 from ...tests.helper import remote_data, pytest
@@ -137,31 +137,21 @@ def test_names():
     np.testing.assert_almost_equal(icrs.dec.degree, icrs_true.dec.degree, 3)
 
 @remote_data
-def test_database_specify():
-
+@pytest.mark.parametrize(("name","db_dict"), [('ngc 3642', _cached_ngc3642),
+                                              ('castor', _cached_castor)])
+def test_database_specify(name, db_dict):
     # First check that sesame is up
-    if urllib.request.urlopen("http://cdsweb.u-strasbg.fr/cgi-bin/nph-sesame").getcode() != 200:
-        pytest.skip("SESAME appears to be down, skipping test_database_specify.py:test_names()...")
+    sesame_url = SESAME_URL()[0]
+    if urllib.request.urlopen(sesame_url).getcode() != 200:
+        pytest.skip("SESAME appears to be down, skipping "
+                    "test_name_resolve.py:test_database_specify()...")
 
-    name = "ngc 3642"
-    for db in ["simbad", "vizier", "all"]:
+    for db in db_dict.keys():
         SESAME_DATABASE.set(db)
         try:
             icrs = SkyCoord.from_name(name)
         except NameResolveError:
-            ra,dec = _cached_ngc3642[db]
-            icrs = SkyCoord(ra=float(ra)*u.degree, dec=float(dec)*u.degree)
-
-        time.sleep(1)
-
-    name = "castor"
-    # Don't search ned or vizier since castor isn't in either
-    for db in ["simbad",  "all"]:
-        SESAME_DATABASE.set(db)
-        try:
-            icrs = SkyCoord.from_name(name)
-        except NameResolveError:
-            ra,dec = _cached_castor[db]
+            ra,dec = db_dict[db]
             icrs = SkyCoord(ra=float(ra)*u.degree, dec=float(dec)*u.degree)
 
         time.sleep(1)
