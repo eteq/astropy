@@ -619,8 +619,8 @@ class Table(object):
     def __repr__(self):
         names = ("'{0}'".format(x) for x in self.colnames)
         if any(col.unit for col in self.columns.values()):
-            units = ("{0}".format( 
-                    col.unit if col.unit is None else '\''+str(col.unit)+'\'') 
+            units = ("{0}".format(
+                    col.unit if col.unit is None else '\''+str(col.unit)+'\'')
                     for col in self.columns.values())
             s = "<{3} rows={0} names=({1}) units=({4})>\n{2}".format(
                 self.__len__(), ','.join(names), repr(self._data), self.__class__.__name__
@@ -679,8 +679,46 @@ class Table(object):
             else:
                 print(line)
 
+    __DEFAULT_SHOW_IN_BROWSER_CSS = """
+    table {
+        font-family: 'Open Sans', sans-serif;
+        font-size:12px;
+        text-align:left;
+        margin:15px;
+        border-collapse: collapse;
+        }
+    table th {
+        font-size:14px;
+        font-weight:bold;
+        color:#fff;
+        border-bottom:2px solid #111;
+        padding:8px;
+        background-image: -o-linear-gradient(to bottom, #FC9468 0%, #FF5100 89%);
+        background-image: -moz-linear-gradient(to bottom, #FC9468 0%, #FF5100 89%);
+        background-image: -webkit-linear-gradient(to bottom, #FC9468 0%, #FF5100 89%);
+        background-image: -ms-linear-gradient(to bottom, #FC9468 0%, #FF5100 89%);
+        background-image: linear-gradient(to bottom, #FC9468 0%, #FF5100 89%);
+        }
+    table td {
+        border-bottom:1px solid #333;
+        padding:8px;
+        }
+    table tr:hover td {
+        background:#FF7b00;
+        color:#333;
+        }
+    table tr:nth-child(even) {
+        background:#fff;
+        color:#333
+        }
+    table tr:nth-child(odd) {
+        background:#FF9000;
+        color:#fff
+        }
+    """
+
     def show_in_browser(self,
-                        css="table,th,td,tr,tbody {border: 1px solid black; border-collapse: collapse;}",
+                        css=__DEFAULT_SHOW_IN_BROWSER_CSS,
                         max_lines=5000,
                         jsviewer=False,
                         jskwargs={},
