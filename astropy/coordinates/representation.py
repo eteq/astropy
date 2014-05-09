@@ -158,37 +158,33 @@ class CartesianRepresentation(BaseRepresentation):
 
     Parameters
     ----------
-    x, y, z : `~astropy.units.Quantity` or float or `~numpy.ndarray`
-        The x, y, and z coordinates of the point(s), which should either be
-        `~astropy.units.Quantity` instances, or can be passed as
-        float or `numpy.ndarray` provided that the ``unit`` parameter is
-        specified. If ``x``, ``y``, and ``z`` have different shapes, they
-        should be broadcastable.
-
-    unit : `~astropy.units.Unit`, optional
-        If ``x``, ``y``, or ``z`` are specified as float or
-        ``numpy.ndarray``, then ``unit`` should be specified to indicate the
-        units for these parameters. If ``x``, ``y``, or ``z`` are
-        `~astropy.units.Quantity` instances, and ``unit`` is specified, they
-        are converted to ``unit``.
+    x, y, z : `~astropy.units.Quantity`
+        The x, y, and z coordinates of the point(s). If ``x``, ``y``, and
+        ``z`` have different shapes, they should be broadcastable.
 
     copy : bool, optional
         If True arrays will be copied rather than referenced.
     """
 
-    def __init__(self, x, y=None, z=None, unit=None, copy=True):
+    def __init__(self, x, y=None, z=None, copy=True):
 
         if y is None and z is None:
             x, y, z = x
         elif (y is None and z is not None) or (y is not None and z is None):
             raise ValueError("x, y, and z are required to instantiate CartesianRepresentation")
 
-        if unit is not None:
-            unit = u.Unit(unit)
+        if not isinstance(x, u.Quantity):
+            raise TypeError('x should be a Quantity')
 
-        x = u.Quantity(x, unit=unit, copy=copy)
-        y = u.Quantity(y, unit=unit, copy=copy)
-        z = u.Quantity(z, unit=unit, copy=copy)
+        if not isinstance(y, u.Quantity):
+            raise TypeError('y should be a Quantity')
+
+        if not isinstance(z, u.Quantity):
+            raise TypeError('z should be a Quantity')
+
+        x = u.Quantity(x, copy=copy)
+        y = u.Quantity(y, copy=copy)
+        z = u.Quantity(z, copy=copy)
 
         if not (x.unit.physical_type == y.unit.physical_type == z.unit.physical_type):
             raise u.UnitsError("x, y, and z should have matching physical types")
@@ -245,15 +241,12 @@ class SphericalRepresentation(BaseRepresentation):
 
     Parameters
     ----------
-    lon, lat : `~astropy.units.Quantity` or str
-        The longitude and latitude of the point(s). The input values are
-        passed to the `~astropy.coordinates.Longitude` and
-        `~astropy.coordinates.Latitude` class respectively, so any valid
-        input for these classes is acceptable. This includes
-        `~astropy.units.Quantity` instances, strings, lists of strings, and
-        so on. `~astropy.coordinates.Longitude` instances can only be passed
-        to ``lon``, and `~astropy.coordinates.Latitude` instances can only be
-        passed to ``lat``.
+    lon, lat : `~astropy.units.Quantity`
+        The longitude and latitude of the point(s), in angular units. The
+        latitude should be between -90 and 90 degrees, and the longitude will
+        be wrapped to an angle between 0 and 360 degrees. These can also be
+        instances of `~astropy.coordinates.Angle`,
+        `~astropy.coordinates.Longitude`, or `~astropy.coordinates.Latitude`.
 
     distance : `~astropy.units.Quantity`
         The distance to the point(s). If the distance is a length, it is
@@ -265,6 +258,12 @@ class SphericalRepresentation(BaseRepresentation):
     """
 
     def __init__(self, lon, lat, distance, copy=True):
+
+        if not isinstance(lon, u.Quantity) or isinstance(lon, Latitude):
+            raise TypeError('lon should be a Quantity, Angle, or Longitude')
+
+        if not isinstance(lat, u.Quantity) or isinstance(lat, Longitude):
+            raise TypeError('lat should be a Quantity, Angle, or Latitude')
 
         # Let the Longitude and Latitude classes deal with e.g. parsing
         lon = Longitude(lon, copy=copy)
@@ -358,20 +357,23 @@ class UnitSphericalRepresentation(BaseRepresentation):
     Parameters
     ----------
     lon, lat : `~astropy.units.Quantity` or str
-        The longitude and latitude of the point(s). The input values are
-        passed to the `~astropy.coordinates.Longitude` and
-        `~astropy.coordinates.Latitude` class respectively, so any valid
-        input for these classes is acceptable. This includes
-        `~astropy.units.Quantity` instances, strings, lists of strings, and
-        so on. `~astropy.coordinates.Longitude` instances can only be passed
-        to ``lon``, and `~astropy.coordinates.Latitude` instances can only be
-        passed to ``lat``.
+        The longitude and latitude of the point(s), in angular units. The
+        latitude should be between -90 and 90 degrees, and the longitude will
+        be wrapped to an angle between 0 and 360 degrees. These can also be
+        instances of `~astropy.coordinates.Angle`,
+        `~astropy.coordinates.Longitude`, or `~astropy.coordinates.Latitude`.
 
     copy : bool, optional
         If True arrays will be copied rather than referenced.
     """
 
     def __init__(self, lon, lat, copy=True):
+
+        if not isinstance(lon, u.Quantity) or isinstance(lon, Latitude):
+            raise TypeError('lon should be a Quantity, Angle, or Longitude')
+
+        if not isinstance(lat, u.Quantity) or isinstance(lat, Longitude):
+            raise TypeError('lat should be a Quantity, Angle, or Latitude')
 
         # Let the Longitude and Latitude classes deal with e.g. parsing
         lon = Longitude(lon, copy=copy)
@@ -441,10 +443,10 @@ class PhysicsSphericalRepresentation(BaseRepresentation):
     Parameters
     ----------
     phi, theta : `~astropy.units.Quantity` or str
-        The azimuth and inclination of the point(s). The input values are
-        passed to the `~astropy.coordinates.Angle`, so any valid
-        input for these classes is acceptable. This includes
-        `~astropy.units.Quantity` instances, strings, and lists of strings.
+        The azimuth and inclination of the point(s), in angular units. The
+        inclination should be between 0 and 180 degrees, and the azimuth will
+        be wrapped to an angle between 0 and 360 degrees. These can also be
+        instances of `~astropy.coordinates.Angle`.
 
     r : `~astropy.units.Quantity`
         The distance to the point(s). If the distance is a length, it is
@@ -457,9 +459,21 @@ class PhysicsSphericalRepresentation(BaseRepresentation):
 
     def __init__(self, phi, theta, r, copy=True):
 
+        if not isinstance(phi, u.Quantity) or isinstance(phi, Latitude):
+            raise TypeError('phi should be a Quantity or Angle')
+
+        if not isinstance(theta, u.Quantity) or isinstance(theta, Longitude):
+            raise TypeError('phi should be a Quantity or Angle')
+
         # Let the Longitude and Latitude classes deal with e.g. parsing
         phi = Angle(phi, copy=copy)
         theta = Angle(theta, copy=copy)
+
+        # Wrap/validate phi/theta
+        phi = phi.wrap_at(360 * u.deg)
+        if np.any(theta.value < 0.) or np.any(theta.value > 180.):
+            raise ValueError('Inclination angle(s) must be within 0 deg <= angle <= 180 deg, '
+                             'got {0}'.format(theta.to(u.degree)))
 
         r = u.Quantity(r, copy=copy)
         if r.unit.physical_type == 'length':
@@ -551,10 +565,10 @@ class CylindricalRepresentation(BaseRepresentation):
     rho : `~astropy.units.Quantity`
         The distance from the z axis to the point(s).
 
-    phi : `~astropy.units.Quantity` or str
-        The azimuth of the point(s). The input is passed to the
-        `~astropy.coordinates.Angle` class, so any valid input for that class
-        is acceptable
+    phi : `~astropy.units.Quantity`
+        The azimuth of the point(s), in angular units, which will be wrapped
+        to an angle between 0 and 360 degrees. This can also be instances of
+        `~astropy.coordinates.Angle`,
 
     z : `~astropy.units.Quantity`
         The z coordinate(s) of the point(s)
@@ -564,6 +578,9 @@ class CylindricalRepresentation(BaseRepresentation):
     """
 
     def __init__(self, rho, phi, z, copy=True):
+
+        if not isinstance(phi, u.Quantity) or isinstance(phi, Latitude):
+            raise TypeError('phi should be a Quantity or Angle')
 
         rho = u.Quantity(rho, copy=copy)
         phi = Angle(phi, copy=copy)

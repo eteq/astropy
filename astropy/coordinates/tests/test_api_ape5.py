@@ -61,7 +61,7 @@ def test_representations_api():
 
     # strings are parsed by `Latitude` and `Longitude` constructors, so no need to
     # implement parsing in the Representation classes
-    UnitSphericalRepresentation(lon='2h6m3.3s', lat='0.1rad')
+    UnitSphericalRepresentation(lon=Angle('2h6m3.3s'), lat=Angle('0.1rad'))
 
     # Or, you can give `Quantity`s with keywords, and they will be internally
     # converted to Angle/Distance
@@ -83,8 +83,8 @@ def test_representations_api():
     # It's also possible to pass in scalar quantity lists with mixed units. These
     # are converted to array quantities following the same rule as `Quantity`: all
     # elements are converted to match the first element's units.
-    c2 = UnitSphericalRepresentation(lon=[8*u.hourangle, 135*u.deg],
-                                        lat=[5*u.deg, (6*np.pi/180)*u.rad])
+    c2 = UnitSphericalRepresentation(lon=Angle([8*u.hourangle, 135*u.deg]),
+                                     lat=Angle([5*u.deg, (6*np.pi/180)*u.rad]))
     assert c2.lat.unit == u.deg and c2.lon.unit == u.hourangle
     npt.assert_almost_equal(c2.lon[1].value, 9)
 
@@ -128,12 +128,6 @@ def test_representations_api():
     c2 = CartesianRepresentation(x=xarr*u.kpc, y=yarr*u.kpc, z=zarr*u.pc)
     assert c1.xyz.unit ==  c2.xyz.unit == u.kpc
     npt.assert_allclose((c1.z / 1000) - c2.z, 0, atol=1e-10)
-
-    # CartesianRepresentation can also accept raw arrays and a `unit` keyword
-    # instead of having units attached to each of `x`, `y`, and `z`. Note that this
-    # is *not* the case for other representations - it's only sensible for
-    # Cartesian, because all of the data axes all have the same unit.
-    CartesianRepresentation(x=randn(100), y=randn(100), z=randn(100), unit=u.kpc)
 
     # representations convert into other representations via  `represent_as`
     srep = SphericalRepresentation(lon=90*u.deg, lat=0*u.deg, distance=1*u.pc)
