@@ -255,9 +255,9 @@ def cal2jd(iy, im, id):
     Derived, with permission, from the SOFA library.  See notes at end of file.
   
     """
-    shape = numpy.broadcast(iy, im, id).shape
-    djm0_out = numpy.empty(shape, dtype=numpy.double)
-    djm_out = numpy.empty(shape, dtype=numpy.double)
+    in_shape = numpy.broadcast(iy, im, id).shape
+    djm0_out = numpy.empty(in_shape, dtype=numpy.double)
+    djm_out = numpy.empty(in_shape, dtype=numpy.double)
     
     cdef numpy.broadcast it = numpy.broadcast(iy, im, id, djm0_out, djm_out)
     cdef int _iy
@@ -316,8 +316,8 @@ def epb(dj1, dj2):
     Derived, with permission, from the SOFA library.  See notes at end of file.
   
     """
-    shape = numpy.broadcast(dj1, dj2).shape
-    ret_out = numpy.empty(shape, dtype=numpy.double)
+    in_shape = numpy.broadcast(dj1, dj2).shape
+    ret_out = numpy.empty(in_shape, dtype=numpy.double)
     
     cdef numpy.broadcast it = numpy.broadcast(dj1, dj2, ret_out)
     cdef double _dj1
@@ -372,9 +372,9 @@ def epb2jd(epb):
     Derived, with permission, from the SOFA library.  See notes at end of file.
   
     """
-    shape = numpy.broadcast(epb).shape
-    djm0_out = numpy.empty(shape, dtype=numpy.double)
-    djm_out = numpy.empty(shape, dtype=numpy.double)
+    in_shape = numpy.broadcast(epb, 0).shape
+    djm0_out = numpy.empty(in_shape, dtype=numpy.double)
+    djm_out = numpy.empty(in_shape, dtype=numpy.double)
     
     cdef numpy.broadcast it = numpy.broadcast(epb, djm0_out, djm_out)
     cdef double _epb
@@ -429,8 +429,8 @@ def epj(dj1, dj2):
     Derived, with permission, from the SOFA library.  See notes at end of file.
   
     """
-    shape = numpy.broadcast(dj1, dj2).shape
-    ret_out = numpy.empty(shape, dtype=numpy.double)
+    in_shape = numpy.broadcast(dj1, dj2).shape
+    ret_out = numpy.empty(in_shape, dtype=numpy.double)
     
     cdef numpy.broadcast it = numpy.broadcast(dj1, dj2, ret_out)
     cdef double _dj1
@@ -485,9 +485,9 @@ def epj2jd(epj):
     Derived, with permission, from the SOFA library.  See notes at end of file.
   
     """
-    shape = numpy.broadcast(epj).shape
-    djm0_out = numpy.empty(shape, dtype=numpy.double)
-    djm_out = numpy.empty(shape, dtype=numpy.double)
+    in_shape = numpy.broadcast(epj, 0).shape
+    djm0_out = numpy.empty(in_shape, dtype=numpy.double)
+    djm_out = numpy.empty(in_shape, dtype=numpy.double)
     
     cdef numpy.broadcast it = numpy.broadcast(epj, djm0_out, djm_out)
     cdef double _epj
@@ -565,11 +565,11 @@ def jd2cal(dj1, dj2):
     Derived, with permission, from the SOFA library.  See notes at end of file.
   
     """
-    shape = numpy.broadcast(dj1, dj2).shape
-    iy_out = numpy.empty(shape, dtype=numpy.int)
-    im_out = numpy.empty(shape, dtype=numpy.int)
-    id_out = numpy.empty(shape, dtype=numpy.int)
-    fd_out = numpy.empty(shape, dtype=numpy.double)
+    in_shape = numpy.broadcast(dj1, dj2).shape
+    iy_out = numpy.empty(in_shape, dtype=numpy.int)
+    im_out = numpy.empty(in_shape, dtype=numpy.int)
+    id_out = numpy.empty(in_shape, dtype=numpy.int)
+    fd_out = numpy.empty(in_shape, dtype=numpy.double)
     
     cdef numpy.broadcast it = numpy.broadcast(dj1, dj2, iy_out, im_out, id_out, fd_out)
     cdef double _dj1
@@ -659,8 +659,8 @@ def jdcalf(ndp, dj1, dj2):
     Derived, with permission, from the SOFA library.  See notes at end of file.
   
     """
-    shape = numpy.broadcast(ndp, dj1, dj2).shape
-    iymdf_out = numpy.empty(shape, dtype=numpy.dtype([('', 'i', (4,))]))
+    in_shape = numpy.broadcast(ndp, dj1, dj2).shape
+    iymdf_out = numpy.empty(in_shape, dtype=numpy.dtype([('', 'i', (4,))]))
     
     cdef numpy.broadcast it = numpy.broadcast(ndp, dj1, dj2, iymdf_out)
     cdef int _ndp
@@ -738,8 +738,8 @@ def ab(pnat, v, s, bm1):
     Derived, with permission, from the SOFA library.  See notes at end of file.
   
     """
-    shape = numpy.broadcast(pnat, v, s, bm1).shape
-    ppr_out = numpy.empty(shape, dtype=numpy.dtype([('p', 'd', (3,))]))
+    in_shape = numpy.broadcast(pnat, v, s, bm1).shape
+    ppr_out = numpy.empty(in_shape, dtype=numpy.dtype([('p', 'd', (3,))]))
     
     cdef numpy.broadcast it = numpy.broadcast(pnat, v, s, bm1, ppr_out)
     cdef double * _pnat
@@ -872,8 +872,8 @@ def apcg(date1, date2, ebpv, ehp):
     Derived, with permission, from the SOFA library.  See notes at end of file.
   
     """
-    shape = numpy.broadcast(date1, date2, ebpv, ehp).shape
-    astrom_out = numpy.empty(shape, dtype=dt_eraASTROM)
+    in_shape = numpy.broadcast(date1, date2, ebpv, ehp).shape
+    astrom_out = numpy.empty(in_shape, dtype=dt_eraASTROM)
     
     cdef numpy.broadcast it = numpy.broadcast(date1, date2, ebpv, ehp, astrom_out)
     cdef double _date1
@@ -1010,8 +1010,8 @@ def apcg13(date1, date2):
     Derived, with permission, from the SOFA library.  See notes at end of file.
   
     """
-    shape = numpy.broadcast(date1, date2).shape
-    astrom_out = numpy.empty(shape, dtype=dt_eraASTROM)
+    in_shape = numpy.broadcast(date1, date2).shape
+    astrom_out = numpy.empty(in_shape, dtype=dt_eraASTROM)
     
     cdef numpy.broadcast it = numpy.broadcast(date1, date2, astrom_out)
     cdef double _date1
@@ -1149,8 +1149,8 @@ def apci(date1, date2, ebpv, ehp, x, y, s):
     Derived, with permission, from the SOFA library.  See notes at end of file.
   
     """
-    shape = numpy.broadcast(date1, date2, ebpv, ehp, x, y, s).shape
-    astrom_out = numpy.empty(shape, dtype=dt_eraASTROM)
+    in_shape = numpy.broadcast(date1, date2, ebpv, ehp, x, y, s).shape
+    astrom_out = numpy.empty(in_shape, dtype=dt_eraASTROM)
     
     cdef numpy.broadcast it = numpy.broadcast(date1, date2, ebpv, ehp, x, y, s, astrom_out)
     cdef double _date1
@@ -1298,9 +1298,9 @@ def apci13(date1, date2):
     Derived, with permission, from the SOFA library.  See notes at end of file.
   
     """
-    shape = numpy.broadcast(date1, date2).shape
-    astrom_out = numpy.empty(shape, dtype=dt_eraASTROM)
-    eo_out = numpy.empty(shape, dtype=numpy.double)
+    in_shape = numpy.broadcast(date1, date2).shape
+    astrom_out = numpy.empty(in_shape, dtype=dt_eraASTROM)
+    eo_out = numpy.empty(in_shape, dtype=numpy.double)
     
     cdef numpy.broadcast it = numpy.broadcast(date1, date2, astrom_out, eo_out)
     cdef double _date1
@@ -1477,8 +1477,8 @@ def apco(date1, date2, ebpv, ehp, x, y, s, theta, elong, phi, hm, xp, yp, sp, re
     Derived, with permission, from the SOFA library.  See notes at end of file.
   
     """
-    shape = numpy.broadcast(date1, date2, ebpv, ehp, x, y, s, theta, elong, phi, hm, xp, yp, sp, refa, refb).shape
-    astrom_out = numpy.empty(shape, dtype=dt_eraASTROM)
+    in_shape = numpy.broadcast(date1, date2, ebpv, ehp, x, y, s, theta, elong, phi, hm, xp, yp, sp, refa, refb).shape
+    astrom_out = numpy.empty(in_shape, dtype=dt_eraASTROM)
     refa_out = numpy.array(numpy.broadcast_arrays(date1, date2, ebpv, ehp, x, y, s, theta, elong, phi, hm, xp, yp, sp, refa, refb)[14], dtype=numpy.double)
     refb_out = numpy.array(numpy.broadcast_arrays(date1, date2, ebpv, ehp, x, y, s, theta, elong, phi, hm, xp, yp, sp, refa, refb)[15], dtype=numpy.double)
     
@@ -1707,9 +1707,9 @@ def apco13(utc1, utc2, dut1, elong, phi, hm, xp, yp, phpa, tc, rh, wl):
     Derived, with permission, from the SOFA library.  See notes at end of file.
   
     """
-    shape = numpy.broadcast(utc1, utc2, dut1, elong, phi, hm, xp, yp, phpa, tc, rh, wl).shape
-    astrom_out = numpy.empty(shape, dtype=dt_eraASTROM)
-    eo_out = numpy.empty(shape, dtype=numpy.double)
+    in_shape = numpy.broadcast(utc1, utc2, dut1, elong, phi, hm, xp, yp, phpa, tc, rh, wl).shape
+    astrom_out = numpy.empty(in_shape, dtype=dt_eraASTROM)
+    eo_out = numpy.empty(in_shape, dtype=numpy.double)
     
     cdef numpy.broadcast it = numpy.broadcast(utc1, utc2, dut1, elong, phi, hm, xp, yp, phpa, tc, rh, wl, astrom_out, eo_out)
     cdef double _utc1
@@ -1880,8 +1880,8 @@ def apcs(date1, date2, pv, ebpv, ehp):
     Derived, with permission, from the SOFA library.  See notes at end of file.
   
     """
-    shape = numpy.broadcast(date1, date2, pv, ebpv, ehp).shape
-    astrom_out = numpy.empty(shape, dtype=dt_eraASTROM)
+    in_shape = numpy.broadcast(date1, date2, pv, ebpv, ehp).shape
+    astrom_out = numpy.empty(in_shape, dtype=dt_eraASTROM)
     
     cdef numpy.broadcast it = numpy.broadcast(date1, date2, pv, ebpv, ehp, astrom_out)
     cdef double _date1
@@ -2026,8 +2026,8 @@ def apcs13(date1, date2, pv):
     Derived, with permission, from the SOFA library.  See notes at end of file.
   
     """
-    shape = numpy.broadcast(date1, date2, pv).shape
-    astrom_out = numpy.empty(shape, dtype=dt_eraASTROM)
+    in_shape = numpy.broadcast(date1, date2, pv).shape
+    astrom_out = numpy.empty(in_shape, dtype=dt_eraASTROM)
     
     cdef numpy.broadcast it = numpy.broadcast(date1, date2, pv, astrom_out)
     cdef double _date1
@@ -2147,7 +2147,7 @@ def aper(theta, astrom):
     Derived, with permission, from the SOFA library.  See notes at end of file.
   
     """
-    shape = numpy.broadcast(theta, astrom).shape
+    in_shape = numpy.broadcast(theta, astrom).shape
     astrom_out = numpy.array(numpy.broadcast_arrays(theta, astrom)[1], dtype=dt_eraASTROM)
     
     cdef numpy.broadcast it = numpy.broadcast(theta, astrom_out)
@@ -2283,7 +2283,7 @@ def aper13(ut11, ut12, astrom):
     Derived, with permission, from the SOFA library.  See notes at end of file.
   
     """
-    shape = numpy.broadcast(ut11, ut12, astrom).shape
+    in_shape = numpy.broadcast(ut11, ut12, astrom).shape
     astrom_out = numpy.array(numpy.broadcast_arrays(ut11, ut12, astrom)[2], dtype=dt_eraASTROM)
     
     cdef numpy.broadcast it = numpy.broadcast(ut11, ut12, astrom_out)
@@ -2423,8 +2423,8 @@ def apio(sp, theta, elong, phi, hm, xp, yp, refa, refb):
     Derived, with permission, from the SOFA library.  See notes at end of file.
   
     """
-    shape = numpy.broadcast(sp, theta, elong, phi, hm, xp, yp, refa, refb).shape
-    astrom_out = numpy.empty(shape, dtype=dt_eraASTROM)
+    in_shape = numpy.broadcast(sp, theta, elong, phi, hm, xp, yp, refa, refb).shape
+    astrom_out = numpy.empty(in_shape, dtype=dt_eraASTROM)
     refa_out = numpy.array(numpy.broadcast_arrays(sp, theta, elong, phi, hm, xp, yp, refa, refb)[7], dtype=numpy.double)
     refb_out = numpy.array(numpy.broadcast_arrays(sp, theta, elong, phi, hm, xp, yp, refa, refb)[8], dtype=numpy.double)
     
@@ -2628,8 +2628,8 @@ def apio13(utc1, utc2, dut1, elong, phi, hm, xp, yp, phpa, tc, rh, wl):
     Derived, with permission, from the SOFA library.  See notes at end of file.
   
     """
-    shape = numpy.broadcast(utc1, utc2, dut1, elong, phi, hm, xp, yp, phpa, tc, rh, wl).shape
-    astrom_out = numpy.empty(shape, dtype=dt_eraASTROM)
+    in_shape = numpy.broadcast(utc1, utc2, dut1, elong, phi, hm, xp, yp, phpa, tc, rh, wl).shape
+    astrom_out = numpy.empty(in_shape, dtype=dt_eraASTROM)
     
     cdef numpy.broadcast it = numpy.broadcast(utc1, utc2, dut1, elong, phi, hm, xp, yp, phpa, tc, rh, wl, astrom_out)
     cdef double _utc1
@@ -2753,10 +2753,10 @@ def atci13(rc, dc, pr, pd, px, rv, date1, date2):
     Derived, with permission, from the SOFA library.  See notes at end of file.
   
     """
-    shape = numpy.broadcast(rc, dc, pr, pd, px, rv, date1, date2).shape
-    ri_out = numpy.empty(shape, dtype=numpy.double)
-    di_out = numpy.empty(shape, dtype=numpy.double)
-    eo_out = numpy.empty(shape, dtype=numpy.double)
+    in_shape = numpy.broadcast(rc, dc, pr, pd, px, rv, date1, date2).shape
+    ri_out = numpy.empty(in_shape, dtype=numpy.double)
+    di_out = numpy.empty(in_shape, dtype=numpy.double)
+    eo_out = numpy.empty(in_shape, dtype=numpy.double)
     
     cdef numpy.broadcast it = numpy.broadcast(rc, dc, pr, pd, px, rv, date1, date2, ri_out, di_out, eo_out)
     cdef double _rc
@@ -2863,9 +2863,9 @@ def atciq(rc, dc, pr, pd, px, rv, astrom):
     Derived, with permission, from the SOFA library.  See notes at end of file.
   
     """
-    shape = numpy.broadcast(rc, dc, pr, pd, px, rv, astrom).shape
-    ri_out = numpy.empty(shape, dtype=numpy.double)
-    di_out = numpy.empty(shape, dtype=numpy.double)
+    in_shape = numpy.broadcast(rc, dc, pr, pd, px, rv, astrom).shape
+    ri_out = numpy.empty(in_shape, dtype=numpy.double)
+    di_out = numpy.empty(in_shape, dtype=numpy.double)
     
     cdef numpy.broadcast it = numpy.broadcast(rc, dc, pr, pd, px, rv, astrom, ri_out, di_out)
     cdef double _rc
@@ -3005,9 +3005,9 @@ def atciqn(rc, dc, pr, pd, px, rv, astrom, n, b):
     Derived, with permission, from the SOFA library.  See notes at end of file.
   
     """
-    shape = numpy.broadcast(rc, dc, pr, pd, px, rv, astrom, n, b).shape
-    ri_out = numpy.empty(shape, dtype=numpy.double)
-    di_out = numpy.empty(shape, dtype=numpy.double)
+    in_shape = numpy.broadcast(rc, dc, pr, pd, px, rv, astrom, n, b).shape
+    ri_out = numpy.empty(in_shape, dtype=numpy.double)
+    di_out = numpy.empty(in_shape, dtype=numpy.double)
     
     cdef numpy.broadcast it = numpy.broadcast(rc, dc, pr, pd, px, rv, astrom, n, b, ri_out, di_out)
     cdef double _rc
@@ -3114,9 +3114,9 @@ def atciqz(rc, dc, astrom):
     Derived, with permission, from the SOFA library.  See notes at end of file.
   
     """
-    shape = numpy.broadcast(rc, dc, astrom).shape
-    ri_out = numpy.empty(shape, dtype=numpy.double)
-    di_out = numpy.empty(shape, dtype=numpy.double)
+    in_shape = numpy.broadcast(rc, dc, astrom).shape
+    ri_out = numpy.empty(in_shape, dtype=numpy.double)
+    di_out = numpy.empty(in_shape, dtype=numpy.double)
     
     cdef numpy.broadcast it = numpy.broadcast(rc, dc, astrom, ri_out, di_out)
     cdef double _rc
@@ -3294,13 +3294,13 @@ def atco13(rc, dc, pr, pd, px, rv, utc1, utc2, dut1, elong, phi, hm, xp, yp, php
     Derived, with permission, from the SOFA library.  See notes at end of file.
   
     """
-    shape = numpy.broadcast(rc, dc, pr, pd, px, rv, utc1, utc2, dut1, elong, phi, hm, xp, yp, phpa, tc, rh, wl).shape
-    aob_out = numpy.empty(shape, dtype=numpy.double)
-    zob_out = numpy.empty(shape, dtype=numpy.double)
-    hob_out = numpy.empty(shape, dtype=numpy.double)
-    dob_out = numpy.empty(shape, dtype=numpy.double)
-    rob_out = numpy.empty(shape, dtype=numpy.double)
-    eo_out = numpy.empty(shape, dtype=numpy.double)
+    in_shape = numpy.broadcast(rc, dc, pr, pd, px, rv, utc1, utc2, dut1, elong, phi, hm, xp, yp, phpa, tc, rh, wl).shape
+    aob_out = numpy.empty(in_shape, dtype=numpy.double)
+    zob_out = numpy.empty(in_shape, dtype=numpy.double)
+    hob_out = numpy.empty(in_shape, dtype=numpy.double)
+    dob_out = numpy.empty(in_shape, dtype=numpy.double)
+    rob_out = numpy.empty(in_shape, dtype=numpy.double)
+    eo_out = numpy.empty(in_shape, dtype=numpy.double)
     
     cdef numpy.broadcast it = numpy.broadcast(rc, dc, pr, pd, px, rv, utc1, utc2, dut1, elong, phi, hm, xp, yp, phpa, tc, rh, wl, aob_out, zob_out, hob_out, dob_out, rob_out, eo_out)
     cdef double _rc
@@ -3441,10 +3441,10 @@ def atic13(ri, di, date1, date2):
     Derived, with permission, from the SOFA library.  See notes at end of file.
   
     """
-    shape = numpy.broadcast(ri, di, date1, date2).shape
-    rc_out = numpy.empty(shape, dtype=numpy.double)
-    dc_out = numpy.empty(shape, dtype=numpy.double)
-    eo_out = numpy.empty(shape, dtype=numpy.double)
+    in_shape = numpy.broadcast(ri, di, date1, date2).shape
+    rc_out = numpy.empty(in_shape, dtype=numpy.double)
+    dc_out = numpy.empty(in_shape, dtype=numpy.double)
+    eo_out = numpy.empty(in_shape, dtype=numpy.double)
     
     cdef numpy.broadcast it = numpy.broadcast(ri, di, date1, date2, rc_out, dc_out, eo_out)
     cdef double _ri
@@ -3539,9 +3539,9 @@ def aticq(ri, di, astrom):
     Derived, with permission, from the SOFA library.  See notes at end of file.
   
     """
-    shape = numpy.broadcast(ri, di, astrom).shape
-    rc_out = numpy.empty(shape, dtype=numpy.double)
-    dc_out = numpy.empty(shape, dtype=numpy.double)
+    in_shape = numpy.broadcast(ri, di, astrom).shape
+    rc_out = numpy.empty(in_shape, dtype=numpy.double)
+    dc_out = numpy.empty(in_shape, dtype=numpy.double)
     
     cdef numpy.broadcast it = numpy.broadcast(ri, di, astrom, rc_out, dc_out)
     cdef double _ri
@@ -3670,9 +3670,9 @@ def aticqn(ri, di, astrom, n, b):
     Derived, with permission, from the SOFA library.  See notes at end of file.
   
     """
-    shape = numpy.broadcast(ri, di, astrom, n, b).shape
-    rc_out = numpy.empty(shape, dtype=numpy.double)
-    dc_out = numpy.empty(shape, dtype=numpy.double)
+    in_shape = numpy.broadcast(ri, di, astrom, n, b).shape
+    rc_out = numpy.empty(in_shape, dtype=numpy.double)
+    dc_out = numpy.empty(in_shape, dtype=numpy.double)
     
     cdef numpy.broadcast it = numpy.broadcast(ri, di, astrom, n, b, rc_out, dc_out)
     cdef double _ri
@@ -3838,12 +3838,12 @@ def atio13(ri, di, utc1, utc2, dut1, elong, phi, hm, xp, yp, phpa, tc, rh, wl):
     Derived, with permission, from the SOFA library.  See notes at end of file.
   
     """
-    shape = numpy.broadcast(ri, di, utc1, utc2, dut1, elong, phi, hm, xp, yp, phpa, tc, rh, wl).shape
-    aob_out = numpy.empty(shape, dtype=numpy.double)
-    zob_out = numpy.empty(shape, dtype=numpy.double)
-    hob_out = numpy.empty(shape, dtype=numpy.double)
-    dob_out = numpy.empty(shape, dtype=numpy.double)
-    rob_out = numpy.empty(shape, dtype=numpy.double)
+    in_shape = numpy.broadcast(ri, di, utc1, utc2, dut1, elong, phi, hm, xp, yp, phpa, tc, rh, wl).shape
+    aob_out = numpy.empty(in_shape, dtype=numpy.double)
+    zob_out = numpy.empty(in_shape, dtype=numpy.double)
+    hob_out = numpy.empty(in_shape, dtype=numpy.double)
+    dob_out = numpy.empty(in_shape, dtype=numpy.double)
+    rob_out = numpy.empty(in_shape, dtype=numpy.double)
     
     cdef numpy.broadcast it = numpy.broadcast(ri, di, utc1, utc2, dut1, elong, phi, hm, xp, yp, phpa, tc, rh, wl, aob_out, zob_out, hob_out, dob_out, rob_out)
     cdef double _ri
@@ -3997,12 +3997,12 @@ def atioq(ri, di, astrom):
     Derived, with permission, from the SOFA library.  See notes at end of file.
   
     """
-    shape = numpy.broadcast(ri, di, astrom).shape
-    aob_out = numpy.empty(shape, dtype=numpy.double)
-    zob_out = numpy.empty(shape, dtype=numpy.double)
-    hob_out = numpy.empty(shape, dtype=numpy.double)
-    dob_out = numpy.empty(shape, dtype=numpy.double)
-    rob_out = numpy.empty(shape, dtype=numpy.double)
+    in_shape = numpy.broadcast(ri, di, astrom).shape
+    aob_out = numpy.empty(in_shape, dtype=numpy.double)
+    zob_out = numpy.empty(in_shape, dtype=numpy.double)
+    hob_out = numpy.empty(in_shape, dtype=numpy.double)
+    dob_out = numpy.empty(in_shape, dtype=numpy.double)
+    rob_out = numpy.empty(in_shape, dtype=numpy.double)
     
     cdef numpy.broadcast it = numpy.broadcast(ri, di, astrom, aob_out, zob_out, hob_out, dob_out, rob_out)
     cdef double _ri
@@ -4178,9 +4178,9 @@ def atoc13(type, ob1, ob2, utc1, utc2, dut1, elong, phi, hm, xp, yp, phpa, tc, r
     Derived, with permission, from the SOFA library.  See notes at end of file.
   
     """
-    shape = numpy.broadcast(type, ob1, ob2, utc1, utc2, dut1, elong, phi, hm, xp, yp, phpa, tc, rh, wl).shape
-    rc_out = numpy.empty(shape, dtype=numpy.double)
-    dc_out = numpy.empty(shape, dtype=numpy.double)
+    in_shape = numpy.broadcast(type, ob1, ob2, utc1, utc2, dut1, elong, phi, hm, xp, yp, phpa, tc, rh, wl).shape
+    rc_out = numpy.empty(in_shape, dtype=numpy.double)
+    dc_out = numpy.empty(in_shape, dtype=numpy.double)
     
     cdef numpy.broadcast it = numpy.broadcast(type, ob1, ob2, utc1, utc2, dut1, elong, phi, hm, xp, yp, phpa, tc, rh, wl, rc_out, dc_out)
     cdef char * _type
@@ -4373,9 +4373,9 @@ def atoi13(type, ob1, ob2, utc1, utc2, dut1, elong, phi, hm, xp, yp, phpa, tc, r
     Derived, with permission, from the SOFA library.  See notes at end of file.
   
     """
-    shape = numpy.broadcast(type, ob1, ob2, utc1, utc2, dut1, elong, phi, hm, xp, yp, phpa, tc, rh, wl).shape
-    ri_out = numpy.empty(shape, dtype=numpy.double)
-    di_out = numpy.empty(shape, dtype=numpy.double)
+    in_shape = numpy.broadcast(type, ob1, ob2, utc1, utc2, dut1, elong, phi, hm, xp, yp, phpa, tc, rh, wl).shape
+    ri_out = numpy.empty(in_shape, dtype=numpy.double)
+    di_out = numpy.empty(in_shape, dtype=numpy.double)
     
     cdef numpy.broadcast it = numpy.broadcast(type, ob1, ob2, utc1, utc2, dut1, elong, phi, hm, xp, yp, phpa, tc, rh, wl, ri_out, di_out)
     cdef char * _type
@@ -4518,9 +4518,9 @@ def atoiq(type, ob1, ob2, astrom):
     Derived, with permission, from the SOFA library.  See notes at end of file.
   
     """
-    shape = numpy.broadcast(type, ob1, ob2, astrom).shape
-    ri_out = numpy.empty(shape, dtype=numpy.double)
-    di_out = numpy.empty(shape, dtype=numpy.double)
+    in_shape = numpy.broadcast(type, ob1, ob2, astrom).shape
+    ri_out = numpy.empty(in_shape, dtype=numpy.double)
+    di_out = numpy.empty(in_shape, dtype=numpy.double)
     
     cdef numpy.broadcast it = numpy.broadcast(type, ob1, ob2, astrom, ri_out, di_out)
     cdef char * _type
@@ -4622,8 +4622,8 @@ def ld(bm, p, q, e, em, dlim):
     Derived, with permission, from the SOFA library.  See notes at end of file.
   
     """
-    shape = numpy.broadcast(bm, p, q, e, em, dlim).shape
-    p1_out = numpy.empty(shape, dtype=numpy.dtype([('p', 'd', (3,))]))
+    in_shape = numpy.broadcast(bm, p, q, e, em, dlim).shape
+    p1_out = numpy.empty(in_shape, dtype=numpy.dtype([('p', 'd', (3,))]))
     
     cdef numpy.broadcast it = numpy.broadcast(bm, p, q, e, em, dlim, p1_out)
     cdef double _bm
@@ -4737,8 +4737,8 @@ def ldn(n, b, ob, sc):
     Derived, with permission, from the SOFA library.  See notes at end of file.
   
     """
-    shape = numpy.broadcast(n, b, ob, sc).shape
-    sn_out = numpy.empty(shape, dtype=numpy.dtype([('p', 'd', (3,))]))
+    in_shape = numpy.broadcast(n, b, ob, sc).shape
+    sn_out = numpy.empty(in_shape, dtype=numpy.dtype([('p', 'd', (3,))]))
     
     cdef numpy.broadcast it = numpy.broadcast(n, b, ob, sc, sn_out)
     cdef int _n
@@ -4803,8 +4803,8 @@ def ldsun(p, e, em):
     Derived, with permission, from the SOFA library.  See notes at end of file.
   
     """
-    shape = numpy.broadcast(p, e, em).shape
-    p1_out = numpy.empty(shape, dtype=numpy.dtype([('p', 'd', (3,))]))
+    in_shape = numpy.broadcast(p, e, em).shape
+    p1_out = numpy.empty(in_shape, dtype=numpy.dtype([('p', 'd', (3,))]))
     
     cdef numpy.broadcast it = numpy.broadcast(p, e, em, p1_out)
     cdef double * _p
@@ -4879,8 +4879,8 @@ def pmpx(rc, dc, pr, pd, px, rv, pmt, pob):
     Derived, with permission, from the SOFA library.  See notes at end of file.
   
     """
-    shape = numpy.broadcast(rc, dc, pr, pd, px, rv, pmt, pob).shape
-    pco_out = numpy.empty(shape, dtype=numpy.dtype([('p', 'd', (3,))]))
+    in_shape = numpy.broadcast(rc, dc, pr, pd, px, rv, pmt, pob).shape
+    pco_out = numpy.empty(in_shape, dtype=numpy.dtype([('p', 'd', (3,))]))
     
     cdef numpy.broadcast it = numpy.broadcast(rc, dc, pr, pd, px, rv, pmt, pob, pco_out)
     cdef double _rc
@@ -5022,13 +5022,13 @@ def pmsafe(ra1, dec1, pmr1, pmd1, px1, rv1, ep1a, ep1b, ep2a, ep2b):
     Derived, with permission, from the SOFA library.  See notes at end of file.
   
     """
-    shape = numpy.broadcast(ra1, dec1, pmr1, pmd1, px1, rv1, ep1a, ep1b, ep2a, ep2b).shape
-    ra2_out = numpy.empty(shape, dtype=numpy.double)
-    dec2_out = numpy.empty(shape, dtype=numpy.double)
-    pmr2_out = numpy.empty(shape, dtype=numpy.double)
-    pmd2_out = numpy.empty(shape, dtype=numpy.double)
-    px2_out = numpy.empty(shape, dtype=numpy.double)
-    rv2_out = numpy.empty(shape, dtype=numpy.double)
+    in_shape = numpy.broadcast(ra1, dec1, pmr1, pmd1, px1, rv1, ep1a, ep1b, ep2a, ep2b).shape
+    ra2_out = numpy.empty(in_shape, dtype=numpy.double)
+    dec2_out = numpy.empty(in_shape, dtype=numpy.double)
+    pmr2_out = numpy.empty(in_shape, dtype=numpy.double)
+    pmd2_out = numpy.empty(in_shape, dtype=numpy.double)
+    px2_out = numpy.empty(in_shape, dtype=numpy.double)
+    rv2_out = numpy.empty(in_shape, dtype=numpy.double)
     
     cdef numpy.broadcast it = numpy.broadcast(ra1, dec1, pmr1, pmd1, px1, rv1, ep1a, ep1b, ep2a, ep2b, ra2_out, dec2_out, pmr2_out, pmd2_out, px2_out, rv2_out)
     cdef double _ra1
@@ -5227,9 +5227,9 @@ def refco(phpa, tc, rh, wl):
     Derived, with permission, from the SOFA library.  See notes at end of file.
   
     """
-    shape = numpy.broadcast(phpa, tc, rh, wl).shape
-    refa_out = numpy.empty(shape, dtype=numpy.double)
-    refb_out = numpy.empty(shape, dtype=numpy.double)
+    in_shape = numpy.broadcast(phpa, tc, rh, wl).shape
+    refa_out = numpy.empty(in_shape, dtype=numpy.double)
+    refb_out = numpy.empty(in_shape, dtype=numpy.double)
     
     cdef numpy.broadcast it = numpy.broadcast(phpa, tc, rh, wl, refa_out, refb_out)
     cdef double _phpa
@@ -5357,9 +5357,9 @@ def epv00(date1, date2):
     Derived, with permission, from the SOFA library.  See notes at end of file.
   
     """
-    shape = numpy.broadcast(date1, date2).shape
-    pvh_out = numpy.empty(shape, dtype=numpy.dtype([('pv', 'd', (2,3))]))
-    pvb_out = numpy.empty(shape, dtype=numpy.dtype([('pv', 'd', (2,3))]))
+    in_shape = numpy.broadcast(date1, date2).shape
+    pvh_out = numpy.empty(in_shape, dtype=numpy.dtype([('pv', 'd', (2,3))]))
+    pvb_out = numpy.empty(in_shape, dtype=numpy.dtype([('pv', 'd', (2,3))]))
     
     cdef numpy.broadcast it = numpy.broadcast(date1, date2, pvh_out, pvb_out)
     cdef double _date1
@@ -5547,8 +5547,8 @@ def plan94(date1, date2, np):
     Derived, with permission, from the SOFA library.  See notes at end of file.
   
     """
-    shape = numpy.broadcast(date1, date2, np).shape
-    pv_out = numpy.empty(shape, dtype=numpy.dtype([('pv', 'd', (2,3))]))
+    in_shape = numpy.broadcast(date1, date2, np).shape
+    pv_out = numpy.empty(in_shape, dtype=numpy.dtype([('pv', 'd', (2,3))]))
     
     cdef numpy.broadcast it = numpy.broadcast(date1, date2, np, pv_out)
     cdef double _date1
@@ -5610,8 +5610,8 @@ def fad03(t):
     Derived, with permission, from the SOFA library.  See notes at end of file.
   
     """
-    shape = numpy.broadcast(t).shape
-    ret_out = numpy.empty(shape, dtype=numpy.double)
+    in_shape = numpy.broadcast(t, 0).shape
+    ret_out = numpy.empty(in_shape, dtype=numpy.double)
     
     cdef numpy.broadcast it = numpy.broadcast(t, ret_out)
     cdef double _t
@@ -5672,8 +5672,8 @@ def fae03(t):
     Derived, with permission, from the SOFA library.  See notes at end of file.
   
     """
-    shape = numpy.broadcast(t).shape
-    ret_out = numpy.empty(shape, dtype=numpy.double)
+    in_shape = numpy.broadcast(t, 0).shape
+    ret_out = numpy.empty(in_shape, dtype=numpy.double)
     
     cdef numpy.broadcast it = numpy.broadcast(t, ret_out)
     cdef double _t
@@ -5732,8 +5732,8 @@ def faf03(t):
     Derived, with permission, from the SOFA library.  See notes at end of file.
   
     """
-    shape = numpy.broadcast(t).shape
-    ret_out = numpy.empty(shape, dtype=numpy.double)
+    in_shape = numpy.broadcast(t, 0).shape
+    ret_out = numpy.empty(in_shape, dtype=numpy.double)
     
     cdef numpy.broadcast it = numpy.broadcast(t, ret_out)
     cdef double _t
@@ -5794,8 +5794,8 @@ def faju03(t):
     Derived, with permission, from the SOFA library.  See notes at end of file.
   
     """
-    shape = numpy.broadcast(t).shape
-    ret_out = numpy.empty(shape, dtype=numpy.double)
+    in_shape = numpy.broadcast(t, 0).shape
+    ret_out = numpy.empty(in_shape, dtype=numpy.double)
     
     cdef numpy.broadcast it = numpy.broadcast(t, ret_out)
     cdef double _t
@@ -5853,8 +5853,8 @@ def fal03(t):
     Derived, with permission, from the SOFA library.  See notes at end of file.
   
     """
-    shape = numpy.broadcast(t).shape
-    ret_out = numpy.empty(shape, dtype=numpy.double)
+    in_shape = numpy.broadcast(t, 0).shape
+    ret_out = numpy.empty(in_shape, dtype=numpy.double)
     
     cdef numpy.broadcast it = numpy.broadcast(t, ret_out)
     cdef double _t
@@ -5912,8 +5912,8 @@ def falp03(t):
     Derived, with permission, from the SOFA library.  See notes at end of file.
   
     """
-    shape = numpy.broadcast(t).shape
-    ret_out = numpy.empty(shape, dtype=numpy.double)
+    in_shape = numpy.broadcast(t, 0).shape
+    ret_out = numpy.empty(in_shape, dtype=numpy.double)
     
     cdef numpy.broadcast it = numpy.broadcast(t, ret_out)
     cdef double _t
@@ -5974,8 +5974,8 @@ def fama03(t):
     Derived, with permission, from the SOFA library.  See notes at end of file.
   
     """
-    shape = numpy.broadcast(t).shape
-    ret_out = numpy.empty(shape, dtype=numpy.double)
+    in_shape = numpy.broadcast(t, 0).shape
+    ret_out = numpy.empty(in_shape, dtype=numpy.double)
     
     cdef numpy.broadcast it = numpy.broadcast(t, ret_out)
     cdef double _t
@@ -6036,8 +6036,8 @@ def fame03(t):
     Derived, with permission, from the SOFA library.  See notes at end of file.
   
     """
-    shape = numpy.broadcast(t).shape
-    ret_out = numpy.empty(shape, dtype=numpy.double)
+    in_shape = numpy.broadcast(t, 0).shape
+    ret_out = numpy.empty(in_shape, dtype=numpy.double)
     
     cdef numpy.broadcast it = numpy.broadcast(t, ret_out)
     cdef double _t
@@ -6095,8 +6095,8 @@ def fane03(t):
     Derived, with permission, from the SOFA library.  See notes at end of file.
   
     """
-    shape = numpy.broadcast(t).shape
-    ret_out = numpy.empty(shape, dtype=numpy.double)
+    in_shape = numpy.broadcast(t, 0).shape
+    ret_out = numpy.empty(in_shape, dtype=numpy.double)
     
     cdef numpy.broadcast it = numpy.broadcast(t, ret_out)
     cdef double _t
@@ -6154,8 +6154,8 @@ def faom03(t):
     Derived, with permission, from the SOFA library.  See notes at end of file.
   
     """
-    shape = numpy.broadcast(t).shape
-    ret_out = numpy.empty(shape, dtype=numpy.double)
+    in_shape = numpy.broadcast(t, 0).shape
+    ret_out = numpy.empty(in_shape, dtype=numpy.double)
     
     cdef numpy.broadcast it = numpy.broadcast(t, ret_out)
     cdef double _t
@@ -6217,8 +6217,8 @@ def fapa03(t):
     Derived, with permission, from the SOFA library.  See notes at end of file.
   
     """
-    shape = numpy.broadcast(t).shape
-    ret_out = numpy.empty(shape, dtype=numpy.double)
+    in_shape = numpy.broadcast(t, 0).shape
+    ret_out = numpy.empty(in_shape, dtype=numpy.double)
     
     cdef numpy.broadcast it = numpy.broadcast(t, ret_out)
     cdef double _t
@@ -6279,8 +6279,8 @@ def fasa03(t):
     Derived, with permission, from the SOFA library.  See notes at end of file.
   
     """
-    shape = numpy.broadcast(t).shape
-    ret_out = numpy.empty(shape, dtype=numpy.double)
+    in_shape = numpy.broadcast(t, 0).shape
+    ret_out = numpy.empty(in_shape, dtype=numpy.double)
     
     cdef numpy.broadcast it = numpy.broadcast(t, ret_out)
     cdef double _t
@@ -6338,8 +6338,8 @@ def faur03(t):
     Derived, with permission, from the SOFA library.  See notes at end of file.
   
     """
-    shape = numpy.broadcast(t).shape
-    ret_out = numpy.empty(shape, dtype=numpy.double)
+    in_shape = numpy.broadcast(t, 0).shape
+    ret_out = numpy.empty(in_shape, dtype=numpy.double)
     
     cdef numpy.broadcast it = numpy.broadcast(t, ret_out)
     cdef double _t
@@ -6400,8 +6400,8 @@ def fave03(t):
     Derived, with permission, from the SOFA library.  See notes at end of file.
   
     """
-    shape = numpy.broadcast(t).shape
-    ret_out = numpy.empty(shape, dtype=numpy.double)
+    in_shape = numpy.broadcast(t, 0).shape
+    ret_out = numpy.empty(in_shape, dtype=numpy.double)
     
     cdef numpy.broadcast it = numpy.broadcast(t, ret_out)
     cdef double _t
@@ -6469,10 +6469,10 @@ def bi00():
     Derived, with permission, from the SOFA library.  See notes at end of file.
   
     """
-    shape = []
-    dpsibi_out = numpy.empty(shape, dtype=numpy.double)
-    depsbi_out = numpy.empty(shape, dtype=numpy.double)
-    dra_out = numpy.empty(shape, dtype=numpy.double)
+    in_shape = ()
+    dpsibi_out = numpy.empty(in_shape, dtype=numpy.double)
+    depsbi_out = numpy.empty(in_shape, dtype=numpy.double)
+    dra_out = numpy.empty(in_shape, dtype=numpy.double)
     
     cdef numpy.broadcast it = numpy.broadcast(dpsibi_out, depsbi_out, dra_out)
     cdef double * _dpsibi
@@ -6570,10 +6570,10 @@ def bp00(date1, date2):
     Derived, with permission, from the SOFA library.  See notes at end of file.
   
     """
-    shape = numpy.broadcast(date1, date2).shape
-    rb_out = numpy.empty(shape, dtype=numpy.dtype([('r', 'd', (3,3))]))
-    rp_out = numpy.empty(shape, dtype=numpy.dtype([('r', 'd', (3,3))]))
-    rbp_out = numpy.empty(shape, dtype=numpy.dtype([('r', 'd', (3,3))]))
+    in_shape = numpy.broadcast(date1, date2).shape
+    rb_out = numpy.empty(in_shape, dtype=numpy.dtype([('r', 'd', (3,3))]))
+    rp_out = numpy.empty(in_shape, dtype=numpy.dtype([('r', 'd', (3,3))]))
+    rbp_out = numpy.empty(in_shape, dtype=numpy.dtype([('r', 'd', (3,3))]))
     
     cdef numpy.broadcast it = numpy.broadcast(date1, date2, rb_out, rp_out, rbp_out)
     cdef double _date1
@@ -6669,10 +6669,10 @@ def bp06(date1, date2):
     Derived, with permission, from the SOFA library.  See notes at end of file.
   
     """
-    shape = numpy.broadcast(date1, date2).shape
-    rb_out = numpy.empty(shape, dtype=numpy.dtype([('r', 'd', (3,3))]))
-    rp_out = numpy.empty(shape, dtype=numpy.dtype([('r', 'd', (3,3))]))
-    rbp_out = numpy.empty(shape, dtype=numpy.dtype([('r', 'd', (3,3))]))
+    in_shape = numpy.broadcast(date1, date2).shape
+    rb_out = numpy.empty(in_shape, dtype=numpy.dtype([('r', 'd', (3,3))]))
+    rp_out = numpy.empty(in_shape, dtype=numpy.dtype([('r', 'd', (3,3))]))
+    rbp_out = numpy.empty(in_shape, dtype=numpy.dtype([('r', 'd', (3,3))]))
     
     cdef numpy.broadcast it = numpy.broadcast(date1, date2, rb_out, rp_out, rbp_out)
     cdef double _date1
@@ -6739,9 +6739,9 @@ def bpn2xy(rbpn):
     Derived, with permission, from the SOFA library.  See notes at end of file.
   
     """
-    shape = numpy.broadcast(rbpn).shape
-    x_out = numpy.empty(shape, dtype=numpy.double)
-    y_out = numpy.empty(shape, dtype=numpy.double)
+    in_shape = numpy.broadcast(rbpn, 0).shape
+    x_out = numpy.empty(in_shape, dtype=numpy.double)
+    y_out = numpy.empty(in_shape, dtype=numpy.double)
     
     cdef numpy.broadcast it = numpy.broadcast(rbpn, x_out, y_out)
     cdef double * _rbpn
@@ -6838,8 +6838,8 @@ def c2i00a(date1, date2):
     Derived, with permission, from the SOFA library.  See notes at end of file.
   
     """
-    shape = numpy.broadcast(date1, date2).shape
-    rc2i_out = numpy.empty(shape, dtype=numpy.dtype([('r', 'd', (3,3))]))
+    in_shape = numpy.broadcast(date1, date2).shape
+    rc2i_out = numpy.empty(in_shape, dtype=numpy.dtype([('r', 'd', (3,3))]))
     
     cdef numpy.broadcast it = numpy.broadcast(date1, date2, rc2i_out)
     cdef double _date1
@@ -6936,8 +6936,8 @@ def c2i00b(date1, date2):
     Derived, with permission, from the SOFA library.  See notes at end of file.
   
     """
-    shape = numpy.broadcast(date1, date2).shape
-    rc2i_out = numpy.empty(shape, dtype=numpy.dtype([('r', 'd', (3,3))]))
+    in_shape = numpy.broadcast(date1, date2).shape
+    rc2i_out = numpy.empty(in_shape, dtype=numpy.dtype([('r', 'd', (3,3))]))
     
     cdef numpy.broadcast it = numpy.broadcast(date1, date2, rc2i_out)
     cdef double _date1
@@ -7025,8 +7025,8 @@ def c2i06a(date1, date2):
     Derived, with permission, from the SOFA library.  See notes at end of file.
   
     """
-    shape = numpy.broadcast(date1, date2).shape
-    rc2i_out = numpy.empty(shape, dtype=numpy.dtype([('r', 'd', (3,3))]))
+    in_shape = numpy.broadcast(date1, date2).shape
+    rc2i_out = numpy.empty(in_shape, dtype=numpy.dtype([('r', 'd', (3,3))]))
     
     cdef numpy.broadcast it = numpy.broadcast(date1, date2, rc2i_out)
     cdef double _date1
@@ -7125,8 +7125,8 @@ def c2ibpn(date1, date2, rbpn):
     Derived, with permission, from the SOFA library.  See notes at end of file.
   
     """
-    shape = numpy.broadcast(date1, date2, rbpn).shape
-    rc2i_out = numpy.empty(shape, dtype=numpy.dtype([('r', 'd', (3,3))]))
+    in_shape = numpy.broadcast(date1, date2, rbpn).shape
+    rc2i_out = numpy.empty(in_shape, dtype=numpy.dtype([('r', 'd', (3,3))]))
     
     cdef numpy.broadcast it = numpy.broadcast(date1, date2, rbpn, rc2i_out)
     cdef double _date1
@@ -7221,8 +7221,8 @@ def c2ixy(date1, date2, x, y):
     Derived, with permission, from the SOFA library.  See notes at end of file.
   
     """
-    shape = numpy.broadcast(date1, date2, x, y).shape
-    rc2i_out = numpy.empty(shape, dtype=numpy.dtype([('r', 'd', (3,3))]))
+    in_shape = numpy.broadcast(date1, date2, x, y).shape
+    rc2i_out = numpy.empty(in_shape, dtype=numpy.dtype([('r', 'd', (3,3))]))
     
     cdef numpy.broadcast it = numpy.broadcast(date1, date2, x, y, rc2i_out)
     cdef double _date1
@@ -7302,8 +7302,8 @@ def c2ixys(x, y, s):
     Derived, with permission, from the SOFA library.  See notes at end of file.
   
     """
-    shape = numpy.broadcast(x, y, s).shape
-    rc2i_out = numpy.empty(shape, dtype=numpy.dtype([('r', 'd', (3,3))]))
+    in_shape = numpy.broadcast(x, y, s).shape
+    rc2i_out = numpy.empty(in_shape, dtype=numpy.dtype([('r', 'd', (3,3))]))
     
     cdef numpy.broadcast it = numpy.broadcast(x, y, s, rc2i_out)
     cdef double _x
@@ -7407,8 +7407,8 @@ def c2t00a(tta, ttb, uta, utb, xp, yp):
     Derived, with permission, from the SOFA library.  See notes at end of file.
   
     """
-    shape = numpy.broadcast(tta, ttb, uta, utb, xp, yp).shape
-    rc2t_out = numpy.empty(shape, dtype=numpy.dtype([('r', 'd', (3,3))]))
+    in_shape = numpy.broadcast(tta, ttb, uta, utb, xp, yp).shape
+    rc2t_out = numpy.empty(in_shape, dtype=numpy.dtype([('r', 'd', (3,3))]))
     
     cdef numpy.broadcast it = numpy.broadcast(tta, ttb, uta, utb, xp, yp, rc2t_out)
     cdef double _tta
@@ -7517,8 +7517,8 @@ def c2t00b(tta, ttb, uta, utb, xp, yp):
     Derived, with permission, from the SOFA library.  See notes at end of file.
   
     """
-    shape = numpy.broadcast(tta, ttb, uta, utb, xp, yp).shape
-    rc2t_out = numpy.empty(shape, dtype=numpy.dtype([('r', 'd', (3,3))]))
+    in_shape = numpy.broadcast(tta, ttb, uta, utb, xp, yp).shape
+    rc2t_out = numpy.empty(in_shape, dtype=numpy.dtype([('r', 'd', (3,3))]))
     
     cdef numpy.broadcast it = numpy.broadcast(tta, ttb, uta, utb, xp, yp, rc2t_out)
     cdef double _tta
@@ -7626,8 +7626,8 @@ def c2t06a(tta, ttb, uta, utb, xp, yp):
     Derived, with permission, from the SOFA library.  See notes at end of file.
   
     """
-    shape = numpy.broadcast(tta, ttb, uta, utb, xp, yp).shape
-    rc2t_out = numpy.empty(shape, dtype=numpy.dtype([('r', 'd', (3,3))]))
+    in_shape = numpy.broadcast(tta, ttb, uta, utb, xp, yp).shape
+    rc2t_out = numpy.empty(in_shape, dtype=numpy.dtype([('r', 'd', (3,3))]))
     
     cdef numpy.broadcast it = numpy.broadcast(tta, ttb, uta, utb, xp, yp, rc2t_out)
     cdef double _tta
@@ -7715,8 +7715,8 @@ def c2tcio(rc2i, era, rpom):
     Derived, with permission, from the SOFA library.  See notes at end of file.
   
     """
-    shape = numpy.broadcast(rc2i, era, rpom).shape
-    rc2t_out = numpy.empty(shape, dtype=numpy.dtype([('r', 'd', (3,3))]))
+    in_shape = numpy.broadcast(rc2i, era, rpom).shape
+    rc2t_out = numpy.empty(in_shape, dtype=numpy.dtype([('r', 'd', (3,3))]))
     
     cdef numpy.broadcast it = numpy.broadcast(rc2i, era, rpom, rc2t_out)
     cdef double * _rc2i
@@ -7798,8 +7798,8 @@ def c2teqx(rbpn, gst, rpom):
     Derived, with permission, from the SOFA library.  See notes at end of file.
   
     """
-    shape = numpy.broadcast(rbpn, gst, rpom).shape
-    rc2t_out = numpy.empty(shape, dtype=numpy.dtype([('r', 'd', (3,3))]))
+    in_shape = numpy.broadcast(rbpn, gst, rpom).shape
+    rc2t_out = numpy.empty(in_shape, dtype=numpy.dtype([('r', 'd', (3,3))]))
     
     cdef numpy.broadcast it = numpy.broadcast(rbpn, gst, rpom, rc2t_out)
     cdef double * _rbpn
@@ -7911,8 +7911,8 @@ def c2tpe(tta, ttb, uta, utb, dpsi, deps, xp, yp):
     Derived, with permission, from the SOFA library.  See notes at end of file.
   
     """
-    shape = numpy.broadcast(tta, ttb, uta, utb, dpsi, deps, xp, yp).shape
-    rc2t_out = numpy.empty(shape, dtype=numpy.dtype([('r', 'd', (3,3))]))
+    in_shape = numpy.broadcast(tta, ttb, uta, utb, dpsi, deps, xp, yp).shape
+    rc2t_out = numpy.empty(in_shape, dtype=numpy.dtype([('r', 'd', (3,3))]))
     
     cdef numpy.broadcast it = numpy.broadcast(tta, ttb, uta, utb, dpsi, deps, xp, yp, rc2t_out)
     cdef double _tta
@@ -8030,8 +8030,8 @@ def c2txy(tta, ttb, uta, utb, x, y, xp, yp):
     Derived, with permission, from the SOFA library.  See notes at end of file.
   
     """
-    shape = numpy.broadcast(tta, ttb, uta, utb, x, y, xp, yp).shape
-    rc2t_out = numpy.empty(shape, dtype=numpy.dtype([('r', 'd', (3,3))]))
+    in_shape = numpy.broadcast(tta, ttb, uta, utb, x, y, xp, yp).shape
+    rc2t_out = numpy.empty(in_shape, dtype=numpy.dtype([('r', 'd', (3,3))]))
     
     cdef numpy.broadcast it = numpy.broadcast(tta, ttb, uta, utb, x, y, xp, yp, rc2t_out)
     cdef double _tta
@@ -8126,8 +8126,8 @@ def eo06a(date1, date2):
     Derived, with permission, from the SOFA library.  See notes at end of file.
   
     """
-    shape = numpy.broadcast(date1, date2).shape
-    ret_out = numpy.empty(shape, dtype=numpy.double)
+    in_shape = numpy.broadcast(date1, date2).shape
+    ret_out = numpy.empty(in_shape, dtype=numpy.double)
     
     cdef numpy.broadcast it = numpy.broadcast(date1, date2, ret_out)
     cdef double _date1
@@ -8189,8 +8189,8 @@ def eors(rnpb, s):
     Derived, with permission, from the SOFA library.  See notes at end of file.
   
     """
-    shape = numpy.broadcast(rnpb, s).shape
-    ret_out = numpy.empty(shape, dtype=numpy.double)
+    in_shape = numpy.broadcast(rnpb, s).shape
+    ret_out = numpy.empty(in_shape, dtype=numpy.double)
     
     cdef numpy.broadcast it = numpy.broadcast(rnpb, s, ret_out)
     cdef double * _rnpb
@@ -8283,8 +8283,8 @@ def fw2m(gamb, phib, psi, eps):
     Derived, with permission, from the SOFA library.  See notes at end of file.
   
     """
-    shape = numpy.broadcast(gamb, phib, psi, eps).shape
-    r_out = numpy.empty(shape, dtype=numpy.dtype([('r', 'd', (3,3))]))
+    in_shape = numpy.broadcast(gamb, phib, psi, eps).shape
+    r_out = numpy.empty(in_shape, dtype=numpy.dtype([('r', 'd', (3,3))]))
     
     cdef numpy.broadcast it = numpy.broadcast(gamb, phib, psi, eps, r_out)
     cdef double _gamb
@@ -8366,9 +8366,9 @@ def fw2xy(gamb, phib, psi, eps):
     Derived, with permission, from the SOFA library.  See notes at end of file.
   
     """
-    shape = numpy.broadcast(gamb, phib, psi, eps).shape
-    x_out = numpy.empty(shape, dtype=numpy.double)
-    y_out = numpy.empty(shape, dtype=numpy.double)
+    in_shape = numpy.broadcast(gamb, phib, psi, eps).shape
+    x_out = numpy.empty(in_shape, dtype=numpy.double)
+    y_out = numpy.empty(in_shape, dtype=numpy.double)
     
     cdef numpy.broadcast it = numpy.broadcast(gamb, phib, psi, eps, x_out, y_out)
     cdef double _gamb
@@ -8455,8 +8455,8 @@ def num00a(date1, date2):
     Derived, with permission, from the SOFA library.  See notes at end of file.
   
     """
-    shape = numpy.broadcast(date1, date2).shape
-    rmatn_out = numpy.empty(shape, dtype=numpy.dtype([('r', 'd', (3,3))]))
+    in_shape = numpy.broadcast(date1, date2).shape
+    rmatn_out = numpy.empty(in_shape, dtype=numpy.dtype([('r', 'd', (3,3))]))
     
     cdef numpy.broadcast it = numpy.broadcast(date1, date2, rmatn_out)
     cdef double _date1
@@ -8537,8 +8537,8 @@ def num00b(date1, date2):
     Derived, with permission, from the SOFA library.  See notes at end of file.
   
     """
-    shape = numpy.broadcast(date1, date2).shape
-    rmatn_out = numpy.empty(shape, dtype=numpy.dtype([('r', 'd', (3,3))]))
+    in_shape = numpy.broadcast(date1, date2).shape
+    rmatn_out = numpy.empty(in_shape, dtype=numpy.dtype([('r', 'd', (3,3))]))
     
     cdef numpy.broadcast it = numpy.broadcast(date1, date2, rmatn_out)
     cdef double _date1
@@ -8618,8 +8618,8 @@ def num06a(date1, date2):
     Derived, with permission, from the SOFA library.  See notes at end of file.
   
     """
-    shape = numpy.broadcast(date1, date2).shape
-    rmatn_out = numpy.empty(shape, dtype=numpy.dtype([('r', 'd', (3,3))]))
+    in_shape = numpy.broadcast(date1, date2).shape
+    rmatn_out = numpy.empty(in_shape, dtype=numpy.dtype([('r', 'd', (3,3))]))
     
     cdef numpy.broadcast it = numpy.broadcast(date1, date2, rmatn_out)
     cdef double _date1
@@ -8689,8 +8689,8 @@ def numat(epsa, dpsi, deps):
     Derived, with permission, from the SOFA library.  See notes at end of file.
   
     """
-    shape = numpy.broadcast(epsa, dpsi, deps).shape
-    rmatn_out = numpy.empty(shape, dtype=numpy.dtype([('r', 'd', (3,3))]))
+    in_shape = numpy.broadcast(epsa, dpsi, deps).shape
+    rmatn_out = numpy.empty(in_shape, dtype=numpy.dtype([('r', 'd', (3,3))]))
     
     cdef numpy.broadcast it = numpy.broadcast(epsa, dpsi, deps, rmatn_out)
     cdef double _epsa
@@ -8869,9 +8869,9 @@ def nut00a(date1, date2):
     Derived, with permission, from the SOFA library.  See notes at end of file.
   
     """
-    shape = numpy.broadcast(date1, date2).shape
-    dpsi_out = numpy.empty(shape, dtype=numpy.double)
-    deps_out = numpy.empty(shape, dtype=numpy.double)
+    in_shape = numpy.broadcast(date1, date2).shape
+    dpsi_out = numpy.empty(in_shape, dtype=numpy.double)
+    deps_out = numpy.empty(in_shape, dtype=numpy.double)
     
     cdef numpy.broadcast it = numpy.broadcast(date1, date2, dpsi_out, deps_out)
     cdef double _date1
@@ -9018,9 +9018,9 @@ def nut00b(date1, date2):
     Derived, with permission, from the SOFA library.  See notes at end of file.
   
     """
-    shape = numpy.broadcast(date1, date2).shape
-    dpsi_out = numpy.empty(shape, dtype=numpy.double)
-    deps_out = numpy.empty(shape, dtype=numpy.double)
+    in_shape = numpy.broadcast(date1, date2).shape
+    dpsi_out = numpy.empty(in_shape, dtype=numpy.double)
+    deps_out = numpy.empty(in_shape, dtype=numpy.double)
     
     cdef numpy.broadcast it = numpy.broadcast(date1, date2, dpsi_out, deps_out)
     cdef double _date1
@@ -9126,9 +9126,9 @@ def nut06a(date1, date2):
     Derived, with permission, from the SOFA library.  See notes at end of file.
   
     """
-    shape = numpy.broadcast(date1, date2).shape
-    dpsi_out = numpy.empty(shape, dtype=numpy.double)
-    deps_out = numpy.empty(shape, dtype=numpy.double)
+    in_shape = numpy.broadcast(date1, date2).shape
+    dpsi_out = numpy.empty(in_shape, dtype=numpy.double)
+    deps_out = numpy.empty(in_shape, dtype=numpy.double)
     
     cdef numpy.broadcast it = numpy.broadcast(date1, date2, dpsi_out, deps_out)
     cdef double _date1
@@ -9207,9 +9207,9 @@ def nut80(date1, date2):
     Derived, with permission, from the SOFA library.  See notes at end of file.
   
     """
-    shape = numpy.broadcast(date1, date2).shape
-    dpsi_out = numpy.empty(shape, dtype=numpy.double)
-    deps_out = numpy.empty(shape, dtype=numpy.double)
+    in_shape = numpy.broadcast(date1, date2).shape
+    dpsi_out = numpy.empty(in_shape, dtype=numpy.double)
+    deps_out = numpy.empty(in_shape, dtype=numpy.double)
     
     cdef numpy.broadcast it = numpy.broadcast(date1, date2, dpsi_out, deps_out)
     cdef double _date1
@@ -9285,8 +9285,8 @@ def nutm80(date1, date2):
     Derived, with permission, from the SOFA library.  See notes at end of file.
   
     """
-    shape = numpy.broadcast(date1, date2).shape
-    rmatn_out = numpy.empty(shape, dtype=numpy.dtype([('r', 'd', (3,3))]))
+    in_shape = numpy.broadcast(date1, date2).shape
+    rmatn_out = numpy.empty(in_shape, dtype=numpy.dtype([('r', 'd', (3,3))]))
     
     cdef numpy.broadcast it = numpy.broadcast(date1, date2, rmatn_out)
     cdef double _date1
@@ -9357,8 +9357,8 @@ def obl06(date1, date2):
     Derived, with permission, from the SOFA library.  See notes at end of file.
   
     """
-    shape = numpy.broadcast(date1, date2).shape
-    ret_out = numpy.empty(shape, dtype=numpy.double)
+    in_shape = numpy.broadcast(date1, date2).shape
+    ret_out = numpy.empty(in_shape, dtype=numpy.double)
     
     cdef numpy.broadcast it = numpy.broadcast(date1, date2, ret_out)
     cdef double _date1
@@ -9431,8 +9431,8 @@ def obl80(date1, date2):
     Derived, with permission, from the SOFA library.  See notes at end of file.
   
     """
-    shape = numpy.broadcast(date1, date2).shape
-    ret_out = numpy.empty(shape, dtype=numpy.double)
+    in_shape = numpy.broadcast(date1, date2).shape
+    ret_out = numpy.empty(in_shape, dtype=numpy.double)
     
     cdef numpy.broadcast it = numpy.broadcast(date1, date2, ret_out)
     cdef double _date1
@@ -9576,23 +9576,23 @@ def p06e(date1, date2):
     Derived, with permission, from the SOFA library.  See notes at end of file.
   
     """
-    shape = numpy.broadcast(date1, date2).shape
-    eps0_out = numpy.empty(shape, dtype=numpy.double)
-    psia_out = numpy.empty(shape, dtype=numpy.double)
-    oma_out = numpy.empty(shape, dtype=numpy.double)
-    bpa_out = numpy.empty(shape, dtype=numpy.double)
-    bqa_out = numpy.empty(shape, dtype=numpy.double)
-    pia_out = numpy.empty(shape, dtype=numpy.double)
-    bpia_out = numpy.empty(shape, dtype=numpy.double)
-    epsa_out = numpy.empty(shape, dtype=numpy.double)
-    chia_out = numpy.empty(shape, dtype=numpy.double)
-    za_out = numpy.empty(shape, dtype=numpy.double)
-    zetaa_out = numpy.empty(shape, dtype=numpy.double)
-    thetaa_out = numpy.empty(shape, dtype=numpy.double)
-    pa_out = numpy.empty(shape, dtype=numpy.double)
-    gam_out = numpy.empty(shape, dtype=numpy.double)
-    phi_out = numpy.empty(shape, dtype=numpy.double)
-    psi_out = numpy.empty(shape, dtype=numpy.double)
+    in_shape = numpy.broadcast(date1, date2).shape
+    eps0_out = numpy.empty(in_shape, dtype=numpy.double)
+    psia_out = numpy.empty(in_shape, dtype=numpy.double)
+    oma_out = numpy.empty(in_shape, dtype=numpy.double)
+    bpa_out = numpy.empty(in_shape, dtype=numpy.double)
+    bqa_out = numpy.empty(in_shape, dtype=numpy.double)
+    pia_out = numpy.empty(in_shape, dtype=numpy.double)
+    bpia_out = numpy.empty(in_shape, dtype=numpy.double)
+    epsa_out = numpy.empty(in_shape, dtype=numpy.double)
+    chia_out = numpy.empty(in_shape, dtype=numpy.double)
+    za_out = numpy.empty(in_shape, dtype=numpy.double)
+    zetaa_out = numpy.empty(in_shape, dtype=numpy.double)
+    thetaa_out = numpy.empty(in_shape, dtype=numpy.double)
+    pa_out = numpy.empty(in_shape, dtype=numpy.double)
+    gam_out = numpy.empty(in_shape, dtype=numpy.double)
+    phi_out = numpy.empty(in_shape, dtype=numpy.double)
+    psi_out = numpy.empty(in_shape, dtype=numpy.double)
     
     cdef numpy.broadcast it = numpy.broadcast(date1, date2, eps0_out, psia_out, oma_out, bpa_out, bqa_out, pia_out, bpia_out, epsa_out, chia_out, za_out, zetaa_out, thetaa_out, pa_out, gam_out, phi_out, psi_out)
     cdef double _date1
@@ -9713,10 +9713,10 @@ def pb06(date1, date2):
     Derived, with permission, from the SOFA library.  See notes at end of file.
   
     """
-    shape = numpy.broadcast(date1, date2).shape
-    bzeta_out = numpy.empty(shape, dtype=numpy.double)
-    bz_out = numpy.empty(shape, dtype=numpy.double)
-    btheta_out = numpy.empty(shape, dtype=numpy.double)
+    in_shape = numpy.broadcast(date1, date2).shape
+    bzeta_out = numpy.empty(in_shape, dtype=numpy.double)
+    bz_out = numpy.empty(in_shape, dtype=numpy.double)
+    btheta_out = numpy.empty(in_shape, dtype=numpy.double)
     
     cdef numpy.broadcast it = numpy.broadcast(date1, date2, bzeta_out, bz_out, btheta_out)
     cdef double _date1
@@ -9821,11 +9821,11 @@ def pfw06(date1, date2):
     Derived, with permission, from the SOFA library.  See notes at end of file.
   
     """
-    shape = numpy.broadcast(date1, date2).shape
-    gamb_out = numpy.empty(shape, dtype=numpy.double)
-    phib_out = numpy.empty(shape, dtype=numpy.double)
-    psib_out = numpy.empty(shape, dtype=numpy.double)
-    epsa_out = numpy.empty(shape, dtype=numpy.double)
+    in_shape = numpy.broadcast(date1, date2).shape
+    gamb_out = numpy.empty(in_shape, dtype=numpy.double)
+    phib_out = numpy.empty(in_shape, dtype=numpy.double)
+    psib_out = numpy.empty(in_shape, dtype=numpy.double)
+    epsa_out = numpy.empty(in_shape, dtype=numpy.double)
     
     cdef numpy.broadcast it = numpy.broadcast(date1, date2, gamb_out, phib_out, psib_out, epsa_out)
     cdef double _date1
@@ -9910,8 +9910,8 @@ def pmat00(date1, date2):
     Derived, with permission, from the SOFA library.  See notes at end of file.
   
     """
-    shape = numpy.broadcast(date1, date2).shape
-    rbp_out = numpy.empty(shape, dtype=numpy.dtype([('r', 'd', (3,3))]))
+    in_shape = numpy.broadcast(date1, date2).shape
+    rbp_out = numpy.empty(in_shape, dtype=numpy.dtype([('r', 'd', (3,3))]))
     
     cdef numpy.broadcast it = numpy.broadcast(date1, date2, rbp_out)
     cdef double _date1
@@ -9991,8 +9991,8 @@ def pmat06(date1, date2):
     Derived, with permission, from the SOFA library.  See notes at end of file.
   
     """
-    shape = numpy.broadcast(date1, date2).shape
-    rbp_out = numpy.empty(shape, dtype=numpy.dtype([('r', 'd', (3,3))]))
+    in_shape = numpy.broadcast(date1, date2).shape
+    rbp_out = numpy.empty(in_shape, dtype=numpy.dtype([('r', 'd', (3,3))]))
     
     cdef numpy.broadcast it = numpy.broadcast(date1, date2, rbp_out)
     cdef double _date1
@@ -10087,8 +10087,8 @@ def pmat76(date1, date2):
     Derived, with permission, from the SOFA library.  See notes at end of file.
   
     """
-    shape = numpy.broadcast(date1, date2).shape
-    rmatp_out = numpy.empty(shape, dtype=numpy.dtype([('r', 'd', (3,3))]))
+    in_shape = numpy.broadcast(date1, date2).shape
+    rmatp_out = numpy.empty(in_shape, dtype=numpy.dtype([('r', 'd', (3,3))]))
     
     cdef numpy.broadcast it = numpy.broadcast(date1, date2, rmatp_out)
     cdef double _date1
@@ -10209,13 +10209,13 @@ def pn00(date1, date2, dpsi, deps):
     Derived, with permission, from the SOFA library.  See notes at end of file.
   
     """
-    shape = numpy.broadcast(date1, date2, dpsi, deps).shape
-    epsa_out = numpy.empty(shape, dtype=numpy.double)
-    rb_out = numpy.empty(shape, dtype=numpy.dtype([('r', 'd', (3,3))]))
-    rp_out = numpy.empty(shape, dtype=numpy.dtype([('r', 'd', (3,3))]))
-    rbp_out = numpy.empty(shape, dtype=numpy.dtype([('r', 'd', (3,3))]))
-    rn_out = numpy.empty(shape, dtype=numpy.dtype([('r', 'd', (3,3))]))
-    rbpn_out = numpy.empty(shape, dtype=numpy.dtype([('r', 'd', (3,3))]))
+    in_shape = numpy.broadcast(date1, date2, dpsi, deps).shape
+    epsa_out = numpy.empty(in_shape, dtype=numpy.double)
+    rb_out = numpy.empty(in_shape, dtype=numpy.dtype([('r', 'd', (3,3))]))
+    rp_out = numpy.empty(in_shape, dtype=numpy.dtype([('r', 'd', (3,3))]))
+    rbp_out = numpy.empty(in_shape, dtype=numpy.dtype([('r', 'd', (3,3))]))
+    rn_out = numpy.empty(in_shape, dtype=numpy.dtype([('r', 'd', (3,3))]))
+    rbpn_out = numpy.empty(in_shape, dtype=numpy.dtype([('r', 'd', (3,3))]))
     
     cdef numpy.broadcast it = numpy.broadcast(date1, date2, dpsi, deps, epsa_out, rb_out, rp_out, rbp_out, rn_out, rbpn_out)
     cdef double _date1
@@ -10350,15 +10350,15 @@ def pn00a(date1, date2):
     Derived, with permission, from the SOFA library.  See notes at end of file.
   
     """
-    shape = numpy.broadcast(date1, date2).shape
-    dpsi_out = numpy.empty(shape, dtype=numpy.double)
-    deps_out = numpy.empty(shape, dtype=numpy.double)
-    epsa_out = numpy.empty(shape, dtype=numpy.double)
-    rb_out = numpy.empty(shape, dtype=numpy.dtype([('r', 'd', (3,3))]))
-    rp_out = numpy.empty(shape, dtype=numpy.dtype([('r', 'd', (3,3))]))
-    rbp_out = numpy.empty(shape, dtype=numpy.dtype([('r', 'd', (3,3))]))
-    rn_out = numpy.empty(shape, dtype=numpy.dtype([('r', 'd', (3,3))]))
-    rbpn_out = numpy.empty(shape, dtype=numpy.dtype([('r', 'd', (3,3))]))
+    in_shape = numpy.broadcast(date1, date2).shape
+    dpsi_out = numpy.empty(in_shape, dtype=numpy.double)
+    deps_out = numpy.empty(in_shape, dtype=numpy.double)
+    epsa_out = numpy.empty(in_shape, dtype=numpy.double)
+    rb_out = numpy.empty(in_shape, dtype=numpy.dtype([('r', 'd', (3,3))]))
+    rp_out = numpy.empty(in_shape, dtype=numpy.dtype([('r', 'd', (3,3))]))
+    rbp_out = numpy.empty(in_shape, dtype=numpy.dtype([('r', 'd', (3,3))]))
+    rn_out = numpy.empty(in_shape, dtype=numpy.dtype([('r', 'd', (3,3))]))
+    rbpn_out = numpy.empty(in_shape, dtype=numpy.dtype([('r', 'd', (3,3))]))
     
     cdef numpy.broadcast it = numpy.broadcast(date1, date2, dpsi_out, deps_out, epsa_out, rb_out, rp_out, rbp_out, rn_out, rbpn_out)
     cdef double _date1
@@ -10493,15 +10493,15 @@ def pn00b(date1, date2):
     Derived, with permission, from the SOFA library.  See notes at end of file.
   
     """
-    shape = numpy.broadcast(date1, date2).shape
-    dpsi_out = numpy.empty(shape, dtype=numpy.double)
-    deps_out = numpy.empty(shape, dtype=numpy.double)
-    epsa_out = numpy.empty(shape, dtype=numpy.double)
-    rb_out = numpy.empty(shape, dtype=numpy.dtype([('r', 'd', (3,3))]))
-    rp_out = numpy.empty(shape, dtype=numpy.dtype([('r', 'd', (3,3))]))
-    rbp_out = numpy.empty(shape, dtype=numpy.dtype([('r', 'd', (3,3))]))
-    rn_out = numpy.empty(shape, dtype=numpy.dtype([('r', 'd', (3,3))]))
-    rbpn_out = numpy.empty(shape, dtype=numpy.dtype([('r', 'd', (3,3))]))
+    in_shape = numpy.broadcast(date1, date2).shape
+    dpsi_out = numpy.empty(in_shape, dtype=numpy.double)
+    deps_out = numpy.empty(in_shape, dtype=numpy.double)
+    epsa_out = numpy.empty(in_shape, dtype=numpy.double)
+    rb_out = numpy.empty(in_shape, dtype=numpy.dtype([('r', 'd', (3,3))]))
+    rp_out = numpy.empty(in_shape, dtype=numpy.dtype([('r', 'd', (3,3))]))
+    rbp_out = numpy.empty(in_shape, dtype=numpy.dtype([('r', 'd', (3,3))]))
+    rn_out = numpy.empty(in_shape, dtype=numpy.dtype([('r', 'd', (3,3))]))
+    rbpn_out = numpy.empty(in_shape, dtype=numpy.dtype([('r', 'd', (3,3))]))
     
     cdef numpy.broadcast it = numpy.broadcast(date1, date2, dpsi_out, deps_out, epsa_out, rb_out, rp_out, rbp_out, rn_out, rbpn_out)
     cdef double _date1
@@ -10634,13 +10634,13 @@ def pn06(date1, date2, dpsi, deps):
     Derived, with permission, from the SOFA library.  See notes at end of file.
   
     """
-    shape = numpy.broadcast(date1, date2, dpsi, deps).shape
-    epsa_out = numpy.empty(shape, dtype=numpy.double)
-    rb_out = numpy.empty(shape, dtype=numpy.dtype([('r', 'd', (3,3))]))
-    rp_out = numpy.empty(shape, dtype=numpy.dtype([('r', 'd', (3,3))]))
-    rbp_out = numpy.empty(shape, dtype=numpy.dtype([('r', 'd', (3,3))]))
-    rn_out = numpy.empty(shape, dtype=numpy.dtype([('r', 'd', (3,3))]))
-    rbpn_out = numpy.empty(shape, dtype=numpy.dtype([('r', 'd', (3,3))]))
+    in_shape = numpy.broadcast(date1, date2, dpsi, deps).shape
+    epsa_out = numpy.empty(in_shape, dtype=numpy.double)
+    rb_out = numpy.empty(in_shape, dtype=numpy.dtype([('r', 'd', (3,3))]))
+    rp_out = numpy.empty(in_shape, dtype=numpy.dtype([('r', 'd', (3,3))]))
+    rbp_out = numpy.empty(in_shape, dtype=numpy.dtype([('r', 'd', (3,3))]))
+    rn_out = numpy.empty(in_shape, dtype=numpy.dtype([('r', 'd', (3,3))]))
+    rbpn_out = numpy.empty(in_shape, dtype=numpy.dtype([('r', 'd', (3,3))]))
     
     cdef numpy.broadcast it = numpy.broadcast(date1, date2, dpsi, deps, epsa_out, rb_out, rp_out, rbp_out, rn_out, rbpn_out)
     cdef double _date1
@@ -10765,15 +10765,15 @@ def pn06a(date1, date2):
     Derived, with permission, from the SOFA library.  See notes at end of file.
   
     """
-    shape = numpy.broadcast(date1, date2).shape
-    dpsi_out = numpy.empty(shape, dtype=numpy.double)
-    deps_out = numpy.empty(shape, dtype=numpy.double)
-    epsa_out = numpy.empty(shape, dtype=numpy.double)
-    rb_out = numpy.empty(shape, dtype=numpy.dtype([('r', 'd', (3,3))]))
-    rp_out = numpy.empty(shape, dtype=numpy.dtype([('r', 'd', (3,3))]))
-    rbp_out = numpy.empty(shape, dtype=numpy.dtype([('r', 'd', (3,3))]))
-    rn_out = numpy.empty(shape, dtype=numpy.dtype([('r', 'd', (3,3))]))
-    rbpn_out = numpy.empty(shape, dtype=numpy.dtype([('r', 'd', (3,3))]))
+    in_shape = numpy.broadcast(date1, date2).shape
+    dpsi_out = numpy.empty(in_shape, dtype=numpy.double)
+    deps_out = numpy.empty(in_shape, dtype=numpy.double)
+    epsa_out = numpy.empty(in_shape, dtype=numpy.double)
+    rb_out = numpy.empty(in_shape, dtype=numpy.dtype([('r', 'd', (3,3))]))
+    rp_out = numpy.empty(in_shape, dtype=numpy.dtype([('r', 'd', (3,3))]))
+    rbp_out = numpy.empty(in_shape, dtype=numpy.dtype([('r', 'd', (3,3))]))
+    rn_out = numpy.empty(in_shape, dtype=numpy.dtype([('r', 'd', (3,3))]))
+    rbpn_out = numpy.empty(in_shape, dtype=numpy.dtype([('r', 'd', (3,3))]))
     
     cdef numpy.broadcast it = numpy.broadcast(date1, date2, dpsi_out, deps_out, epsa_out, rb_out, rp_out, rbp_out, rn_out, rbpn_out)
     cdef double _date1
@@ -10869,8 +10869,8 @@ def pnm00a(date1, date2):
     Derived, with permission, from the SOFA library.  See notes at end of file.
   
     """
-    shape = numpy.broadcast(date1, date2).shape
-    rbpn_out = numpy.empty(shape, dtype=numpy.dtype([('r', 'd', (3,3))]))
+    in_shape = numpy.broadcast(date1, date2).shape
+    rbpn_out = numpy.empty(in_shape, dtype=numpy.dtype([('r', 'd', (3,3))]))
     
     cdef numpy.broadcast it = numpy.broadcast(date1, date2, rbpn_out)
     cdef double _date1
@@ -10952,8 +10952,8 @@ def pnm00b(date1, date2):
     Derived, with permission, from the SOFA library.  See notes at end of file.
   
     """
-    shape = numpy.broadcast(date1, date2).shape
-    rbpn_out = numpy.empty(shape, dtype=numpy.dtype([('r', 'd', (3,3))]))
+    in_shape = numpy.broadcast(date1, date2).shape
+    rbpn_out = numpy.empty(in_shape, dtype=numpy.dtype([('r', 'd', (3,3))]))
     
     cdef numpy.broadcast it = numpy.broadcast(date1, date2, rbpn_out)
     cdef double _date1
@@ -11032,8 +11032,8 @@ def pnm06a(date1, date2):
     Derived, with permission, from the SOFA library.  See notes at end of file.
   
     """
-    shape = numpy.broadcast(date1, date2).shape
-    rnpb_out = numpy.empty(shape, dtype=numpy.dtype([('r', 'd', (3,3))]))
+    in_shape = numpy.broadcast(date1, date2).shape
+    rnpb_out = numpy.empty(in_shape, dtype=numpy.dtype([('r', 'd', (3,3))]))
     
     cdef numpy.broadcast it = numpy.broadcast(date1, date2, rnpb_out)
     cdef double _date1
@@ -11114,8 +11114,8 @@ def pnm80(date1, date2):
     Derived, with permission, from the SOFA library.  See notes at end of file.
   
     """
-    shape = numpy.broadcast(date1, date2).shape
-    rmatpn_out = numpy.empty(shape, dtype=numpy.dtype([('r', 'd', (3,3))]))
+    in_shape = numpy.broadcast(date1, date2).shape
+    rmatpn_out = numpy.empty(in_shape, dtype=numpy.dtype([('r', 'd', (3,3))]))
     
     cdef numpy.broadcast it = numpy.broadcast(date1, date2, rmatpn_out)
     cdef double _date1
@@ -11190,8 +11190,8 @@ def pom00(xp, yp, sp):
     Derived, with permission, from the SOFA library.  See notes at end of file.
   
     """
-    shape = numpy.broadcast(xp, yp, sp).shape
-    rpom_out = numpy.empty(shape, dtype=numpy.dtype([('r', 'd', (3,3))]))
+    in_shape = numpy.broadcast(xp, yp, sp).shape
+    rpom_out = numpy.empty(in_shape, dtype=numpy.dtype([('r', 'd', (3,3))]))
     
     cdef numpy.broadcast it = numpy.broadcast(xp, yp, sp, rpom_out)
     cdef double _xp
@@ -11288,9 +11288,9 @@ def pr00(date1, date2):
     Derived, with permission, from the SOFA library.  See notes at end of file.
   
     """
-    shape = numpy.broadcast(date1, date2).shape
-    dpsipr_out = numpy.empty(shape, dtype=numpy.double)
-    depspr_out = numpy.empty(shape, dtype=numpy.double)
+    in_shape = numpy.broadcast(date1, date2).shape
+    dpsipr_out = numpy.empty(in_shape, dtype=numpy.double)
+    depspr_out = numpy.empty(in_shape, dtype=numpy.double)
     
     cdef numpy.broadcast it = numpy.broadcast(date1, date2, dpsipr_out, depspr_out)
     cdef double _date1
@@ -11386,10 +11386,10 @@ def prec76(date01, date02, date11, date12):
     Derived, with permission, from the SOFA library.  See notes at end of file.
   
     """
-    shape = numpy.broadcast(date01, date02, date11, date12).shape
-    zeta_out = numpy.empty(shape, dtype=numpy.double)
-    z_out = numpy.empty(shape, dtype=numpy.double)
-    theta_out = numpy.empty(shape, dtype=numpy.double)
+    in_shape = numpy.broadcast(date01, date02, date11, date12).shape
+    zeta_out = numpy.empty(in_shape, dtype=numpy.double)
+    z_out = numpy.empty(in_shape, dtype=numpy.double)
+    theta_out = numpy.empty(in_shape, dtype=numpy.double)
     
     cdef numpy.broadcast it = numpy.broadcast(date01, date02, date11, date12, zeta_out, z_out, theta_out)
     cdef double _date01
@@ -11502,8 +11502,8 @@ def s00(date1, date2, x, y):
     Derived, with permission, from the SOFA library.  See notes at end of file.
   
     """
-    shape = numpy.broadcast(date1, date2, x, y).shape
-    ret_out = numpy.empty(shape, dtype=numpy.double)
+    in_shape = numpy.broadcast(date1, date2, x, y).shape
+    ret_out = numpy.empty(in_shape, dtype=numpy.double)
     
     cdef numpy.broadcast it = numpy.broadcast(date1, date2, x, y, ret_out)
     cdef double _date1
@@ -11605,8 +11605,8 @@ def s00a(date1, date2):
     Derived, with permission, from the SOFA library.  See notes at end of file.
   
     """
-    shape = numpy.broadcast(date1, date2).shape
-    ret_out = numpy.empty(shape, dtype=numpy.double)
+    in_shape = numpy.broadcast(date1, date2).shape
+    ret_out = numpy.empty(in_shape, dtype=numpy.double)
     
     cdef numpy.broadcast it = numpy.broadcast(date1, date2, ret_out)
     cdef double _date1
@@ -11704,8 +11704,8 @@ def s00b(date1, date2):
     Derived, with permission, from the SOFA library.  See notes at end of file.
   
     """
-    shape = numpy.broadcast(date1, date2).shape
-    ret_out = numpy.empty(shape, dtype=numpy.double)
+    in_shape = numpy.broadcast(date1, date2).shape
+    ret_out = numpy.empty(in_shape, dtype=numpy.double)
     
     cdef numpy.broadcast it = numpy.broadcast(date1, date2, ret_out)
     cdef double _date1
@@ -11807,8 +11807,8 @@ def s06(date1, date2, x, y):
     Derived, with permission, from the SOFA library.  See notes at end of file.
   
     """
-    shape = numpy.broadcast(date1, date2, x, y).shape
-    ret_out = numpy.empty(shape, dtype=numpy.double)
+    in_shape = numpy.broadcast(date1, date2, x, y).shape
+    ret_out = numpy.empty(in_shape, dtype=numpy.double)
     
     cdef numpy.broadcast it = numpy.broadcast(date1, date2, x, y, ret_out)
     cdef double _date1
@@ -11912,8 +11912,8 @@ def s06a(date1, date2):
     Derived, with permission, from the SOFA library.  See notes at end of file.
   
     """
-    shape = numpy.broadcast(date1, date2).shape
-    ret_out = numpy.empty(shape, dtype=numpy.double)
+    in_shape = numpy.broadcast(date1, date2).shape
+    ret_out = numpy.empty(in_shape, dtype=numpy.double)
     
     cdef numpy.broadcast it = numpy.broadcast(date1, date2, ret_out)
     cdef double _date1
@@ -11989,8 +11989,8 @@ def sp00(date1, date2):
     Derived, with permission, from the SOFA library.  See notes at end of file.
   
     """
-    shape = numpy.broadcast(date1, date2).shape
-    ret_out = numpy.empty(shape, dtype=numpy.double)
+    in_shape = numpy.broadcast(date1, date2).shape
+    ret_out = numpy.empty(in_shape, dtype=numpy.double)
     
     cdef numpy.broadcast it = numpy.broadcast(date1, date2, ret_out)
     cdef double _date1
@@ -12104,9 +12104,9 @@ def xy06(date1, date2):
     Derived, with permission, from the SOFA library.  See notes at end of file.
   
     """
-    shape = numpy.broadcast(date1, date2).shape
-    x_out = numpy.empty(shape, dtype=numpy.double)
-    y_out = numpy.empty(shape, dtype=numpy.double)
+    in_shape = numpy.broadcast(date1, date2).shape
+    x_out = numpy.empty(in_shape, dtype=numpy.double)
+    y_out = numpy.empty(in_shape, dtype=numpy.double)
     
     cdef numpy.broadcast it = numpy.broadcast(date1, date2, x_out, y_out)
     cdef double _date1
@@ -12195,10 +12195,10 @@ def xys00a(date1, date2):
     Derived, with permission, from the SOFA library.  See notes at end of file.
   
     """
-    shape = numpy.broadcast(date1, date2).shape
-    x_out = numpy.empty(shape, dtype=numpy.double)
-    y_out = numpy.empty(shape, dtype=numpy.double)
-    s_out = numpy.empty(shape, dtype=numpy.double)
+    in_shape = numpy.broadcast(date1, date2).shape
+    x_out = numpy.empty(in_shape, dtype=numpy.double)
+    y_out = numpy.empty(in_shape, dtype=numpy.double)
+    s_out = numpy.empty(in_shape, dtype=numpy.double)
     
     cdef numpy.broadcast it = numpy.broadcast(date1, date2, x_out, y_out, s_out)
     cdef double _date1
@@ -12289,10 +12289,10 @@ def xys00b(date1, date2):
     Derived, with permission, from the SOFA library.  See notes at end of file.
   
     """
-    shape = numpy.broadcast(date1, date2).shape
-    x_out = numpy.empty(shape, dtype=numpy.double)
-    y_out = numpy.empty(shape, dtype=numpy.double)
-    s_out = numpy.empty(shape, dtype=numpy.double)
+    in_shape = numpy.broadcast(date1, date2).shape
+    x_out = numpy.empty(in_shape, dtype=numpy.double)
+    y_out = numpy.empty(in_shape, dtype=numpy.double)
+    s_out = numpy.empty(in_shape, dtype=numpy.double)
     
     cdef numpy.broadcast it = numpy.broadcast(date1, date2, x_out, y_out, s_out)
     cdef double _date1
@@ -12383,10 +12383,10 @@ def xys06a(date1, date2):
     Derived, with permission, from the SOFA library.  See notes at end of file.
   
     """
-    shape = numpy.broadcast(date1, date2).shape
-    x_out = numpy.empty(shape, dtype=numpy.double)
-    y_out = numpy.empty(shape, dtype=numpy.double)
-    s_out = numpy.empty(shape, dtype=numpy.double)
+    in_shape = numpy.broadcast(date1, date2).shape
+    x_out = numpy.empty(in_shape, dtype=numpy.double)
+    y_out = numpy.empty(in_shape, dtype=numpy.double)
+    s_out = numpy.empty(in_shape, dtype=numpy.double)
     
     cdef numpy.broadcast it = numpy.broadcast(date1, date2, x_out, y_out, s_out)
     cdef double _date1
@@ -12479,8 +12479,8 @@ def ee00(date1, date2, epsa, dpsi):
     Derived, with permission, from the SOFA library.  See notes at end of file.
   
     """
-    shape = numpy.broadcast(date1, date2, epsa, dpsi).shape
-    ret_out = numpy.empty(shape, dtype=numpy.double)
+    in_shape = numpy.broadcast(date1, date2, epsa, dpsi).shape
+    ret_out = numpy.empty(in_shape, dtype=numpy.double)
     
     cdef numpy.broadcast it = numpy.broadcast(date1, date2, epsa, dpsi, ret_out)
     cdef double _date1
@@ -12571,8 +12571,8 @@ def ee00a(date1, date2):
     Derived, with permission, from the SOFA library.  See notes at end of file.
   
     """
-    shape = numpy.broadcast(date1, date2).shape
-    ret_out = numpy.empty(shape, dtype=numpy.double)
+    in_shape = numpy.broadcast(date1, date2).shape
+    ret_out = numpy.empty(in_shape, dtype=numpy.double)
     
     cdef numpy.broadcast it = numpy.broadcast(date1, date2, ret_out)
     cdef double _date1
@@ -12665,8 +12665,8 @@ def ee00b(date1, date2):
     Derived, with permission, from the SOFA library.  See notes at end of file.
   
     """
-    shape = numpy.broadcast(date1, date2).shape
-    ret_out = numpy.empty(shape, dtype=numpy.double)
+    in_shape = numpy.broadcast(date1, date2).shape
+    ret_out = numpy.empty(in_shape, dtype=numpy.double)
     
     cdef numpy.broadcast it = numpy.broadcast(date1, date2, ret_out)
     cdef double _date1
@@ -12745,8 +12745,8 @@ def ee06a(date1, date2):
     Derived, with permission, from the SOFA library.  See notes at end of file.
   
     """
-    shape = numpy.broadcast(date1, date2).shape
-    ret_out = numpy.empty(shape, dtype=numpy.double)
+    in_shape = numpy.broadcast(date1, date2).shape
+    ret_out = numpy.empty(in_shape, dtype=numpy.double)
     
     cdef numpy.broadcast it = numpy.broadcast(date1, date2, ret_out)
     cdef double _date1
@@ -12866,8 +12866,8 @@ def eect00(date1, date2):
     Derived, with permission, from the SOFA library.  See notes at end of file.
   
     """
-    shape = numpy.broadcast(date1, date2).shape
-    ret_out = numpy.empty(shape, dtype=numpy.double)
+    in_shape = numpy.broadcast(date1, date2).shape
+    ret_out = numpy.empty(in_shape, dtype=numpy.double)
     
     cdef numpy.broadcast it = numpy.broadcast(date1, date2, ret_out)
     cdef double _date1
@@ -12947,8 +12947,8 @@ def eqeq94(date1, date2):
     Derived, with permission, from the SOFA library.  See notes at end of file.
   
     """
-    shape = numpy.broadcast(date1, date2).shape
-    ret_out = numpy.empty(shape, dtype=numpy.double)
+    in_shape = numpy.broadcast(date1, date2).shape
+    ret_out = numpy.empty(in_shape, dtype=numpy.double)
     
     cdef numpy.broadcast it = numpy.broadcast(date1, date2, ret_out)
     cdef double _date1
@@ -13031,8 +13031,8 @@ def era00(dj1, dj2):
     Derived, with permission, from the SOFA library.  See notes at end of file.
   
     """
-    shape = numpy.broadcast(dj1, dj2).shape
-    ret_out = numpy.empty(shape, dtype=numpy.double)
+    in_shape = numpy.broadcast(dj1, dj2).shape
+    ret_out = numpy.empty(in_shape, dtype=numpy.double)
     
     cdef numpy.broadcast it = numpy.broadcast(dj1, dj2, ret_out)
     cdef double _dj1
@@ -13129,8 +13129,8 @@ def gmst00(uta, utb, tta, ttb):
     Derived, with permission, from the SOFA library.  See notes at end of file.
   
     """
-    shape = numpy.broadcast(uta, utb, tta, ttb).shape
-    ret_out = numpy.empty(shape, dtype=numpy.double)
+    in_shape = numpy.broadcast(uta, utb, tta, ttb).shape
+    ret_out = numpy.empty(in_shape, dtype=numpy.double)
     
     cdef numpy.broadcast it = numpy.broadcast(uta, utb, tta, ttb, ret_out)
     cdef double _uta
@@ -13221,8 +13221,8 @@ def gmst06(uta, utb, tta, ttb):
     Derived, with permission, from the SOFA library.  See notes at end of file.
   
     """
-    shape = numpy.broadcast(uta, utb, tta, ttb).shape
-    ret_out = numpy.empty(shape, dtype=numpy.double)
+    in_shape = numpy.broadcast(uta, utb, tta, ttb).shape
+    ret_out = numpy.empty(in_shape, dtype=numpy.double)
     
     cdef numpy.broadcast it = numpy.broadcast(uta, utb, tta, ttb, ret_out)
     cdef double _uta
@@ -13315,8 +13315,8 @@ def gmst82(dj1, dj2):
     Derived, with permission, from the SOFA library.  See notes at end of file.
   
     """
-    shape = numpy.broadcast(dj1, dj2).shape
-    ret_out = numpy.empty(shape, dtype=numpy.double)
+    in_shape = numpy.broadcast(dj1, dj2).shape
+    ret_out = numpy.empty(in_shape, dtype=numpy.double)
     
     cdef numpy.broadcast it = numpy.broadcast(dj1, dj2, ret_out)
     cdef double _dj1
@@ -13414,8 +13414,8 @@ def gst00a(uta, utb, tta, ttb):
     Derived, with permission, from the SOFA library.  See notes at end of file.
   
     """
-    shape = numpy.broadcast(uta, utb, tta, ttb).shape
-    ret_out = numpy.empty(shape, dtype=numpy.double)
+    in_shape = numpy.broadcast(uta, utb, tta, ttb).shape
+    ret_out = numpy.empty(in_shape, dtype=numpy.double)
     
     cdef numpy.broadcast it = numpy.broadcast(uta, utb, tta, ttb, ret_out)
     cdef double _uta
@@ -13525,8 +13525,8 @@ def gst00b(uta, utb):
     Derived, with permission, from the SOFA library.  See notes at end of file.
   
     """
-    shape = numpy.broadcast(uta, utb).shape
-    ret_out = numpy.empty(shape, dtype=numpy.double)
+    in_shape = numpy.broadcast(uta, utb).shape
+    ret_out = numpy.empty(in_shape, dtype=numpy.double)
     
     cdef numpy.broadcast it = numpy.broadcast(uta, utb, ret_out)
     cdef double _uta
@@ -13618,8 +13618,8 @@ def gst06(uta, utb, tta, ttb, rnpb):
     Derived, with permission, from the SOFA library.  See notes at end of file.
   
     """
-    shape = numpy.broadcast(uta, utb, tta, ttb, rnpb).shape
-    ret_out = numpy.empty(shape, dtype=numpy.double)
+    in_shape = numpy.broadcast(uta, utb, tta, ttb, rnpb).shape
+    ret_out = numpy.empty(in_shape, dtype=numpy.double)
     
     cdef numpy.broadcast it = numpy.broadcast(uta, utb, tta, ttb, rnpb, ret_out)
     cdef double _uta
@@ -13714,8 +13714,8 @@ def gst06a(uta, utb, tta, ttb):
     Derived, with permission, from the SOFA library.  See notes at end of file.
   
     """
-    shape = numpy.broadcast(uta, utb, tta, ttb).shape
-    ret_out = numpy.empty(shape, dtype=numpy.double)
+    in_shape = numpy.broadcast(uta, utb, tta, ttb).shape
+    ret_out = numpy.empty(in_shape, dtype=numpy.double)
     
     cdef numpy.broadcast it = numpy.broadcast(uta, utb, tta, ttb, ret_out)
     cdef double _uta
@@ -13810,8 +13810,8 @@ def gst94(uta, utb):
     Derived, with permission, from the SOFA library.  See notes at end of file.
   
     """
-    shape = numpy.broadcast(uta, utb).shape
-    ret_out = numpy.empty(shape, dtype=numpy.double)
+    in_shape = numpy.broadcast(uta, utb).shape
+    ret_out = numpy.empty(in_shape, dtype=numpy.double)
     
     cdef numpy.broadcast it = numpy.broadcast(uta, utb, ret_out)
     cdef double _uta
@@ -13941,13 +13941,13 @@ def pmsafe(ra1, dec1, pmr1, pmd1, px1, rv1, ep1a, ep1b, ep2a, ep2b):
     Derived, with permission, from the SOFA library.  See notes at end of file.
   
     """
-    shape = numpy.broadcast(ra1, dec1, pmr1, pmd1, px1, rv1, ep1a, ep1b, ep2a, ep2b).shape
-    ra2_out = numpy.empty(shape, dtype=numpy.double)
-    dec2_out = numpy.empty(shape, dtype=numpy.double)
-    pmr2_out = numpy.empty(shape, dtype=numpy.double)
-    pmd2_out = numpy.empty(shape, dtype=numpy.double)
-    px2_out = numpy.empty(shape, dtype=numpy.double)
-    rv2_out = numpy.empty(shape, dtype=numpy.double)
+    in_shape = numpy.broadcast(ra1, dec1, pmr1, pmd1, px1, rv1, ep1a, ep1b, ep2a, ep2b).shape
+    ra2_out = numpy.empty(in_shape, dtype=numpy.double)
+    dec2_out = numpy.empty(in_shape, dtype=numpy.double)
+    pmr2_out = numpy.empty(in_shape, dtype=numpy.double)
+    pmd2_out = numpy.empty(in_shape, dtype=numpy.double)
+    px2_out = numpy.empty(in_shape, dtype=numpy.double)
+    rv2_out = numpy.empty(in_shape, dtype=numpy.double)
     
     cdef numpy.broadcast it = numpy.broadcast(ra1, dec1, pmr1, pmd1, px1, rv1, ep1a, ep1b, ep2a, ep2b, ra2_out, dec2_out, pmr2_out, pmd2_out, px2_out, rv2_out)
     cdef double _ra1
@@ -14094,13 +14094,13 @@ def pvstar(pv):
     Derived, with permission, from the SOFA library.  See notes at end of file.
   
     """
-    shape = numpy.broadcast(pv).shape
-    ra_out = numpy.empty(shape, dtype=numpy.double)
-    dec_out = numpy.empty(shape, dtype=numpy.double)
-    pmr_out = numpy.empty(shape, dtype=numpy.double)
-    pmd_out = numpy.empty(shape, dtype=numpy.double)
-    px_out = numpy.empty(shape, dtype=numpy.double)
-    rv_out = numpy.empty(shape, dtype=numpy.double)
+    in_shape = numpy.broadcast(pv, 0).shape
+    ra_out = numpy.empty(in_shape, dtype=numpy.double)
+    dec_out = numpy.empty(in_shape, dtype=numpy.double)
+    pmr_out = numpy.empty(in_shape, dtype=numpy.double)
+    pmd_out = numpy.empty(in_shape, dtype=numpy.double)
+    px_out = numpy.empty(in_shape, dtype=numpy.double)
+    rv_out = numpy.empty(in_shape, dtype=numpy.double)
     
     cdef numpy.broadcast it = numpy.broadcast(pv, ra_out, dec_out, pmr_out, pmd_out, px_out, rv_out)
     cdef double * _pv
@@ -14248,8 +14248,8 @@ def starpv(ra, dec, pmr, pmd, px, rv):
     Derived, with permission, from the SOFA library.  See notes at end of file.
   
     """
-    shape = numpy.broadcast(ra, dec, pmr, pmd, px, rv).shape
-    pv_out = numpy.empty(shape, dtype=numpy.dtype([('pv', 'd', (2,3))]))
+    in_shape = numpy.broadcast(ra, dec, pmr, pmd, px, rv).shape
+    pv_out = numpy.empty(in_shape, dtype=numpy.dtype([('pv', 'd', (2,3))]))
     
     cdef numpy.broadcast it = numpy.broadcast(ra, dec, pmr, pmd, px, rv, pv_out)
     cdef double _ra
@@ -14336,13 +14336,13 @@ def fk52h(r5, d5, dr5, dd5, px5, rv5):
     Derived, with permission, from the SOFA library.  See notes at end of file.
   
     """
-    shape = numpy.broadcast(r5, d5, dr5, dd5, px5, rv5).shape
-    rh_out = numpy.empty(shape, dtype=numpy.double)
-    dh_out = numpy.empty(shape, dtype=numpy.double)
-    drh_out = numpy.empty(shape, dtype=numpy.double)
-    ddh_out = numpy.empty(shape, dtype=numpy.double)
-    pxh_out = numpy.empty(shape, dtype=numpy.double)
-    rvh_out = numpy.empty(shape, dtype=numpy.double)
+    in_shape = numpy.broadcast(r5, d5, dr5, dd5, px5, rv5).shape
+    rh_out = numpy.empty(in_shape, dtype=numpy.double)
+    dh_out = numpy.empty(in_shape, dtype=numpy.double)
+    drh_out = numpy.empty(in_shape, dtype=numpy.double)
+    ddh_out = numpy.empty(in_shape, dtype=numpy.double)
+    pxh_out = numpy.empty(in_shape, dtype=numpy.double)
+    rvh_out = numpy.empty(in_shape, dtype=numpy.double)
     
     cdef numpy.broadcast it = numpy.broadcast(r5, d5, dr5, dd5, px5, rv5, rh_out, dh_out, drh_out, ddh_out, pxh_out, rvh_out)
     cdef double _r5
@@ -14425,9 +14425,9 @@ def fk5hip():
     Derived, with permission, from the SOFA library.  See notes at end of file.
   
     """
-    shape = []
-    r5h_out = numpy.empty(shape, dtype=numpy.dtype([('r', 'd', (3,3))]))
-    s5h_out = numpy.empty(shape, dtype=numpy.dtype([('p', 'd', (3,))]))
+    in_shape = ()
+    r5h_out = numpy.empty(in_shape, dtype=numpy.dtype([('r', 'd', (3,3))]))
+    s5h_out = numpy.empty(in_shape, dtype=numpy.dtype([('p', 'd', (3,))]))
     
     cdef numpy.broadcast it = numpy.broadcast(r5h_out, s5h_out)
     cdef double * _r5h
@@ -14522,9 +14522,9 @@ def fk5hz(r5, d5, date1, date2):
     Derived, with permission, from the SOFA library.  See notes at end of file.
   
     """
-    shape = numpy.broadcast(r5, d5, date1, date2).shape
-    rh_out = numpy.empty(shape, dtype=numpy.double)
-    dh_out = numpy.empty(shape, dtype=numpy.double)
+    in_shape = numpy.broadcast(r5, d5, date1, date2).shape
+    rh_out = numpy.empty(in_shape, dtype=numpy.double)
+    dh_out = numpy.empty(in_shape, dtype=numpy.double)
     
     cdef numpy.broadcast it = numpy.broadcast(r5, d5, date1, date2, rh_out, dh_out)
     cdef double _r5
@@ -14611,13 +14611,13 @@ def h2fk5(rh, dh, drh, ddh, pxh, rvh):
     Derived, with permission, from the SOFA library.  See notes at end of file.
   
     """
-    shape = numpy.broadcast(rh, dh, drh, ddh, pxh, rvh).shape
-    r5_out = numpy.empty(shape, dtype=numpy.double)
-    d5_out = numpy.empty(shape, dtype=numpy.double)
-    dr5_out = numpy.empty(shape, dtype=numpy.double)
-    dd5_out = numpy.empty(shape, dtype=numpy.double)
-    px5_out = numpy.empty(shape, dtype=numpy.double)
-    rv5_out = numpy.empty(shape, dtype=numpy.double)
+    in_shape = numpy.broadcast(rh, dh, drh, ddh, pxh, rvh).shape
+    r5_out = numpy.empty(in_shape, dtype=numpy.double)
+    d5_out = numpy.empty(in_shape, dtype=numpy.double)
+    dr5_out = numpy.empty(in_shape, dtype=numpy.double)
+    dd5_out = numpy.empty(in_shape, dtype=numpy.double)
+    px5_out = numpy.empty(in_shape, dtype=numpy.double)
+    rv5_out = numpy.empty(in_shape, dtype=numpy.double)
     
     cdef numpy.broadcast it = numpy.broadcast(rh, dh, drh, ddh, pxh, rvh, r5_out, d5_out, dr5_out, dd5_out, px5_out, rv5_out)
     cdef double _rh
@@ -14737,11 +14737,11 @@ def hfk5z(rh, dh, date1, date2):
     Derived, with permission, from the SOFA library.  See notes at end of file.
   
     """
-    shape = numpy.broadcast(rh, dh, date1, date2).shape
-    r5_out = numpy.empty(shape, dtype=numpy.double)
-    d5_out = numpy.empty(shape, dtype=numpy.double)
-    dr5_out = numpy.empty(shape, dtype=numpy.double)
-    dd5_out = numpy.empty(shape, dtype=numpy.double)
+    in_shape = numpy.broadcast(rh, dh, date1, date2).shape
+    r5_out = numpy.empty(in_shape, dtype=numpy.double)
+    d5_out = numpy.empty(in_shape, dtype=numpy.double)
+    dr5_out = numpy.empty(in_shape, dtype=numpy.double)
+    dd5_out = numpy.empty(in_shape, dtype=numpy.double)
     
     cdef numpy.broadcast it = numpy.broadcast(rh, dh, date1, date2, r5_out, d5_out, dr5_out, dd5_out)
     cdef double _rh
@@ -14882,13 +14882,13 @@ def starpm(ra1, dec1, pmr1, pmd1, px1, rv1, ep1a, ep1b, ep2a, ep2b):
     Derived, with permission, from the SOFA library.  See notes at end of file.
   
     """
-    shape = numpy.broadcast(ra1, dec1, pmr1, pmd1, px1, rv1, ep1a, ep1b, ep2a, ep2b).shape
-    ra2_out = numpy.empty(shape, dtype=numpy.double)
-    dec2_out = numpy.empty(shape, dtype=numpy.double)
-    pmr2_out = numpy.empty(shape, dtype=numpy.double)
-    pmd2_out = numpy.empty(shape, dtype=numpy.double)
-    px2_out = numpy.empty(shape, dtype=numpy.double)
-    rv2_out = numpy.empty(shape, dtype=numpy.double)
+    in_shape = numpy.broadcast(ra1, dec1, pmr1, pmd1, px1, rv1, ep1a, ep1b, ep2a, ep2b).shape
+    ra2_out = numpy.empty(in_shape, dtype=numpy.double)
+    dec2_out = numpy.empty(in_shape, dtype=numpy.double)
+    pmr2_out = numpy.empty(in_shape, dtype=numpy.double)
+    pmd2_out = numpy.empty(in_shape, dtype=numpy.double)
+    px2_out = numpy.empty(in_shape, dtype=numpy.double)
+    rv2_out = numpy.empty(in_shape, dtype=numpy.double)
     
     cdef numpy.broadcast it = numpy.broadcast(ra1, dec1, pmr1, pmd1, px1, rv1, ep1a, ep1b, ep2a, ep2b, ra2_out, dec2_out, pmr2_out, pmd2_out, px2_out, rv2_out)
     cdef double _ra1
@@ -14998,9 +14998,9 @@ def eform(n):
     Derived, with permission, from the SOFA library.  See notes at end of file.
   
     """
-    shape = numpy.broadcast(n).shape
-    a_out = numpy.empty(shape, dtype=numpy.double)
-    f_out = numpy.empty(shape, dtype=numpy.double)
+    in_shape = numpy.broadcast(n, 0).shape
+    a_out = numpy.empty(in_shape, dtype=numpy.double)
+    f_out = numpy.empty(in_shape, dtype=numpy.double)
     
     cdef numpy.broadcast it = numpy.broadcast(n, a_out, f_out)
     cdef int _n
@@ -15079,10 +15079,10 @@ def gc2gd(n, xyz):
     Derived, with permission, from the SOFA library.  See notes at end of file.
   
     """
-    shape = numpy.broadcast(n, xyz).shape
-    elong_out = numpy.empty(shape, dtype=numpy.double)
-    phi_out = numpy.empty(shape, dtype=numpy.double)
-    height_out = numpy.empty(shape, dtype=numpy.double)
+    in_shape = numpy.broadcast(n, xyz).shape
+    elong_out = numpy.empty(in_shape, dtype=numpy.double)
+    phi_out = numpy.empty(in_shape, dtype=numpy.double)
+    height_out = numpy.empty(in_shape, dtype=numpy.double)
     
     cdef numpy.broadcast it = numpy.broadcast(n, xyz, elong_out, phi_out, height_out)
     cdef int _n
@@ -15170,10 +15170,10 @@ def gc2gde(a, f, xyz):
     Derived, with permission, from the SOFA library.  See notes at end of file.
   
     """
-    shape = numpy.broadcast(a, f, xyz).shape
-    elong_out = numpy.empty(shape, dtype=numpy.double)
-    phi_out = numpy.empty(shape, dtype=numpy.double)
-    height_out = numpy.empty(shape, dtype=numpy.double)
+    in_shape = numpy.broadcast(a, f, xyz).shape
+    elong_out = numpy.empty(in_shape, dtype=numpy.double)
+    phi_out = numpy.empty(in_shape, dtype=numpy.double)
+    height_out = numpy.empty(in_shape, dtype=numpy.double)
     
     cdef numpy.broadcast it = numpy.broadcast(a, f, xyz, elong_out, phi_out, height_out)
     cdef double _a
@@ -15261,8 +15261,8 @@ def gd2gc(n, elong, phi, height):
     Derived, with permission, from the SOFA library.  See notes at end of file.
   
     """
-    shape = numpy.broadcast(n, elong, phi, height).shape
-    xyz_out = numpy.empty(shape, dtype=numpy.dtype([('p', 'd', (3,))]))
+    in_shape = numpy.broadcast(n, elong, phi, height).shape
+    xyz_out = numpy.empty(in_shape, dtype=numpy.dtype([('p', 'd', (3,))]))
     
     cdef numpy.broadcast it = numpy.broadcast(n, elong, phi, height, xyz_out)
     cdef int _n
@@ -15349,8 +15349,8 @@ def gd2gce(a, f, elong, phi, height):
     Derived, with permission, from the SOFA library.  See notes at end of file.
   
     """
-    shape = numpy.broadcast(a, f, elong, phi, height).shape
-    xyz_out = numpy.empty(shape, dtype=numpy.dtype([('p', 'd', (3,))]))
+    in_shape = numpy.broadcast(a, f, elong, phi, height).shape
+    xyz_out = numpy.empty(in_shape, dtype=numpy.dtype([('p', 'd', (3,))]))
     
     cdef numpy.broadcast it = numpy.broadcast(a, f, elong, phi, height, xyz_out)
     cdef double _a
@@ -15444,8 +15444,8 @@ def pvtob(elong, phi, hm, xp, yp, sp, theta):
     Derived, with permission, from the SOFA library.  See notes at end of file.
   
     """
-    shape = numpy.broadcast(elong, phi, hm, xp, yp, sp, theta).shape
-    pv_out = numpy.empty(shape, dtype=numpy.dtype([('pv', 'd', (2,3))]))
+    in_shape = numpy.broadcast(elong, phi, hm, xp, yp, sp, theta).shape
+    pv_out = numpy.empty(in_shape, dtype=numpy.dtype([('pv', 'd', (2,3))]))
     
     cdef numpy.broadcast it = numpy.broadcast(elong, phi, hm, xp, yp, sp, theta, pv_out)
     cdef double _elong
@@ -15553,11 +15553,11 @@ def d2dtf(scale, ndp, d1, d2):
     Derived, with permission, from the SOFA library.  See notes at end of file.
   
     """
-    shape = numpy.broadcast(scale, ndp, d1, d2).shape
-    iy_out = numpy.empty(shape, dtype=numpy.int)
-    im_out = numpy.empty(shape, dtype=numpy.int)
-    id_out = numpy.empty(shape, dtype=numpy.int)
-    ihmsf_out = numpy.empty(shape, dtype=numpy.dtype([('', 'i', (4,))]))
+    in_shape = numpy.broadcast(scale, ndp, d1, d2).shape
+    iy_out = numpy.empty(in_shape, dtype=numpy.int)
+    im_out = numpy.empty(in_shape, dtype=numpy.int)
+    id_out = numpy.empty(in_shape, dtype=numpy.int)
+    ihmsf_out = numpy.empty(in_shape, dtype=numpy.dtype([('', 'i', (4,))]))
     
     cdef numpy.broadcast it = numpy.broadcast(scale, ndp, d1, d2, iy_out, im_out, id_out, ihmsf_out)
     cdef char * _scale
@@ -15711,8 +15711,8 @@ def dat(iy, im, id, fd):
     Derived, with permission, from the SOFA library.  See notes at end of file.
   
     """
-    shape = numpy.broadcast(iy, im, id, fd).shape
-    deltat_out = numpy.empty(shape, dtype=numpy.double)
+    in_shape = numpy.broadcast(iy, im, id, fd).shape
+    deltat_out = numpy.empty(in_shape, dtype=numpy.double)
     
     cdef numpy.broadcast it = numpy.broadcast(iy, im, id, fd, deltat_out)
     cdef int _iy
@@ -15901,8 +15901,8 @@ def dtdb(date1, date2, ut, elong, u, v):
     Derived, with permission, from the SOFA library.  See notes at end of file.
   
     """
-    shape = numpy.broadcast(date1, date2, ut, elong, u, v).shape
-    ret_out = numpy.empty(shape, dtype=numpy.double)
+    in_shape = numpy.broadcast(date1, date2, ut, elong, u, v).shape
+    ret_out = numpy.empty(in_shape, dtype=numpy.double)
     
     cdef numpy.broadcast it = numpy.broadcast(date1, date2, ut, elong, u, v, ret_out)
     cdef double _date1
@@ -16012,9 +16012,9 @@ def dtf2d(scale, iy, im, id, ihr, imn, sec):
     Derived, with permission, from the SOFA library.  See notes at end of file.
   
     """
-    shape = numpy.broadcast(scale, iy, im, id, ihr, imn, sec).shape
-    d1_out = numpy.empty(shape, dtype=numpy.double)
-    d2_out = numpy.empty(shape, dtype=numpy.double)
+    in_shape = numpy.broadcast(scale, iy, im, id, ihr, imn, sec).shape
+    d1_out = numpy.empty(in_shape, dtype=numpy.double)
+    d2_out = numpy.empty(in_shape, dtype=numpy.double)
     
     cdef numpy.broadcast it = numpy.broadcast(scale, iy, im, id, ihr, imn, sec, d1_out, d2_out)
     cdef char * _scale
@@ -16088,9 +16088,9 @@ def taitt(tai1, tai2):
     Derived, with permission, from the SOFA library.  See notes at end of file.
   
     """
-    shape = numpy.broadcast(tai1, tai2).shape
-    tt1_out = numpy.empty(shape, dtype=numpy.double)
-    tt2_out = numpy.empty(shape, dtype=numpy.double)
+    in_shape = numpy.broadcast(tai1, tai2).shape
+    tt1_out = numpy.empty(in_shape, dtype=numpy.double)
+    tt2_out = numpy.empty(in_shape, dtype=numpy.double)
     
     cdef numpy.broadcast it = numpy.broadcast(tai1, tai2, tt1_out, tt2_out)
     cdef double _tai1
@@ -16155,9 +16155,9 @@ def taiut1(tai1, tai2, dta):
     Derived, with permission, from the SOFA library.  See notes at end of file.
   
     """
-    shape = numpy.broadcast(tai1, tai2, dta).shape
-    ut11_out = numpy.empty(shape, dtype=numpy.double)
-    ut12_out = numpy.empty(shape, dtype=numpy.double)
+    in_shape = numpy.broadcast(tai1, tai2, dta).shape
+    ut11_out = numpy.empty(in_shape, dtype=numpy.double)
+    ut12_out = numpy.empty(in_shape, dtype=numpy.double)
     
     cdef numpy.broadcast it = numpy.broadcast(tai1, tai2, dta, ut11_out, ut12_out)
     cdef double _tai1
@@ -16246,9 +16246,9 @@ def taiutc(tai1, tai2):
     Derived, with permission, from the SOFA library.  See notes at end of file.
   
     """
-    shape = numpy.broadcast(tai1, tai2).shape
-    utc1_out = numpy.empty(shape, dtype=numpy.double)
-    utc2_out = numpy.empty(shape, dtype=numpy.double)
+    in_shape = numpy.broadcast(tai1, tai2).shape
+    utc1_out = numpy.empty(in_shape, dtype=numpy.double)
+    utc2_out = numpy.empty(in_shape, dtype=numpy.double)
     
     cdef numpy.broadcast it = numpy.broadcast(tai1, tai2, utc1_out, utc2_out)
     cdef double _tai1
@@ -16326,9 +16326,9 @@ def tcbtdb(tcb1, tcb2):
     Derived, with permission, from the SOFA library.  See notes at end of file.
   
     """
-    shape = numpy.broadcast(tcb1, tcb2).shape
-    tdb1_out = numpy.empty(shape, dtype=numpy.double)
-    tdb2_out = numpy.empty(shape, dtype=numpy.double)
+    in_shape = numpy.broadcast(tcb1, tcb2).shape
+    tdb1_out = numpy.empty(in_shape, dtype=numpy.double)
+    tdb2_out = numpy.empty(in_shape, dtype=numpy.double)
     
     cdef numpy.broadcast it = numpy.broadcast(tcb1, tcb2, tdb1_out, tdb2_out)
     cdef double _tcb1
@@ -16391,9 +16391,9 @@ def tcgtt(tcg1, tcg2):
     Derived, with permission, from the SOFA library.  See notes at end of file.
   
     """
-    shape = numpy.broadcast(tcg1, tcg2).shape
-    tt1_out = numpy.empty(shape, dtype=numpy.double)
-    tt2_out = numpy.empty(shape, dtype=numpy.double)
+    in_shape = numpy.broadcast(tcg1, tcg2).shape
+    tt1_out = numpy.empty(in_shape, dtype=numpy.double)
+    tt2_out = numpy.empty(in_shape, dtype=numpy.double)
     
     cdef numpy.broadcast it = numpy.broadcast(tcg1, tcg2, tt1_out, tt2_out)
     cdef double _tcg1
@@ -16471,9 +16471,9 @@ def tdbtcb(tdb1, tdb2):
     Derived, with permission, from the SOFA library.  See notes at end of file.
   
     """
-    shape = numpy.broadcast(tdb1, tdb2).shape
-    tcb1_out = numpy.empty(shape, dtype=numpy.double)
-    tcb2_out = numpy.empty(shape, dtype=numpy.double)
+    in_shape = numpy.broadcast(tdb1, tdb2).shape
+    tcb1_out = numpy.empty(in_shape, dtype=numpy.double)
+    tcb2_out = numpy.empty(in_shape, dtype=numpy.double)
     
     cdef numpy.broadcast it = numpy.broadcast(tdb1, tdb2, tcb1_out, tcb2_out)
     cdef double _tdb1
@@ -16548,9 +16548,9 @@ def tdbtt(tdb1, tdb2, dtr):
     Derived, with permission, from the SOFA library.  See notes at end of file.
   
     """
-    shape = numpy.broadcast(tdb1, tdb2, dtr).shape
-    tt1_out = numpy.empty(shape, dtype=numpy.double)
-    tt2_out = numpy.empty(shape, dtype=numpy.double)
+    in_shape = numpy.broadcast(tdb1, tdb2, dtr).shape
+    tt1_out = numpy.empty(in_shape, dtype=numpy.double)
+    tt2_out = numpy.empty(in_shape, dtype=numpy.double)
     
     cdef numpy.broadcast it = numpy.broadcast(tdb1, tdb2, dtr, tt1_out, tt2_out)
     cdef double _tdb1
@@ -16616,9 +16616,9 @@ def tttai(tt1, tt2):
     Derived, with permission, from the SOFA library.  See notes at end of file.
   
     """
-    shape = numpy.broadcast(tt1, tt2).shape
-    tai1_out = numpy.empty(shape, dtype=numpy.double)
-    tai2_out = numpy.empty(shape, dtype=numpy.double)
+    in_shape = numpy.broadcast(tt1, tt2).shape
+    tai1_out = numpy.empty(in_shape, dtype=numpy.double)
+    tai2_out = numpy.empty(in_shape, dtype=numpy.double)
     
     cdef numpy.broadcast it = numpy.broadcast(tt1, tt2, tai1_out, tai2_out)
     cdef double _tt1
@@ -16681,9 +16681,9 @@ def tttcg(tt1, tt2):
     Derived, with permission, from the SOFA library.  See notes at end of file.
   
     """
-    shape = numpy.broadcast(tt1, tt2).shape
-    tcg1_out = numpy.empty(shape, dtype=numpy.double)
-    tcg2_out = numpy.empty(shape, dtype=numpy.double)
+    in_shape = numpy.broadcast(tt1, tt2).shape
+    tcg1_out = numpy.empty(in_shape, dtype=numpy.double)
+    tcg2_out = numpy.empty(in_shape, dtype=numpy.double)
     
     cdef numpy.broadcast it = numpy.broadcast(tt1, tt2, tcg1_out, tcg2_out)
     cdef double _tt1
@@ -16758,9 +16758,9 @@ def tttdb(tt1, tt2, dtr):
     Derived, with permission, from the SOFA library.  See notes at end of file.
   
     """
-    shape = numpy.broadcast(tt1, tt2, dtr).shape
-    tdb1_out = numpy.empty(shape, dtype=numpy.double)
-    tdb2_out = numpy.empty(shape, dtype=numpy.double)
+    in_shape = numpy.broadcast(tt1, tt2, dtr).shape
+    tdb1_out = numpy.empty(in_shape, dtype=numpy.double)
+    tdb2_out = numpy.empty(in_shape, dtype=numpy.double)
     
     cdef numpy.broadcast it = numpy.broadcast(tt1, tt2, dtr, tdb1_out, tdb2_out)
     cdef double _tt1
@@ -16826,9 +16826,9 @@ def ttut1(tt1, tt2, dt):
     Derived, with permission, from the SOFA library.  See notes at end of file.
   
     """
-    shape = numpy.broadcast(tt1, tt2, dt).shape
-    ut11_out = numpy.empty(shape, dtype=numpy.double)
-    ut12_out = numpy.empty(shape, dtype=numpy.double)
+    in_shape = numpy.broadcast(tt1, tt2, dt).shape
+    ut11_out = numpy.empty(in_shape, dtype=numpy.double)
+    ut12_out = numpy.empty(in_shape, dtype=numpy.double)
     
     cdef numpy.broadcast it = numpy.broadcast(tt1, tt2, dt, ut11_out, ut12_out)
     cdef double _tt1
@@ -16895,9 +16895,9 @@ def ut1tai(ut11, ut12, dta):
     Derived, with permission, from the SOFA library.  See notes at end of file.
   
     """
-    shape = numpy.broadcast(ut11, ut12, dta).shape
-    tai1_out = numpy.empty(shape, dtype=numpy.double)
-    tai2_out = numpy.empty(shape, dtype=numpy.double)
+    in_shape = numpy.broadcast(ut11, ut12, dta).shape
+    tai1_out = numpy.empty(in_shape, dtype=numpy.double)
+    tai2_out = numpy.empty(in_shape, dtype=numpy.double)
     
     cdef numpy.broadcast it = numpy.broadcast(ut11, ut12, dta, tai1_out, tai2_out)
     cdef double _ut11
@@ -16963,9 +16963,9 @@ def ut1tt(ut11, ut12, dt):
     Derived, with permission, from the SOFA library.  See notes at end of file.
   
     """
-    shape = numpy.broadcast(ut11, ut12, dt).shape
-    tt1_out = numpy.empty(shape, dtype=numpy.double)
-    tt2_out = numpy.empty(shape, dtype=numpy.double)
+    in_shape = numpy.broadcast(ut11, ut12, dt).shape
+    tt1_out = numpy.empty(in_shape, dtype=numpy.double)
+    tt2_out = numpy.empty(in_shape, dtype=numpy.double)
     
     cdef numpy.broadcast it = numpy.broadcast(ut11, ut12, dt, tt1_out, tt2_out)
     cdef double _ut11
@@ -17059,9 +17059,9 @@ def ut1utc(ut11, ut12, dut1):
     Derived, with permission, from the SOFA library.  See notes at end of file.
   
     """
-    shape = numpy.broadcast(ut11, ut12, dut1).shape
-    utc1_out = numpy.empty(shape, dtype=numpy.double)
-    utc2_out = numpy.empty(shape, dtype=numpy.double)
+    in_shape = numpy.broadcast(ut11, ut12, dut1).shape
+    utc1_out = numpy.empty(in_shape, dtype=numpy.double)
+    utc2_out = numpy.empty(in_shape, dtype=numpy.double)
     
     cdef numpy.broadcast it = numpy.broadcast(ut11, ut12, dut1, utc1_out, utc2_out)
     cdef double _ut11
@@ -17152,9 +17152,9 @@ def utctai(utc1, utc2):
     Derived, with permission, from the SOFA library.  See notes at end of file.
   
     """
-    shape = numpy.broadcast(utc1, utc2).shape
-    tai1_out = numpy.empty(shape, dtype=numpy.double)
-    tai2_out = numpy.empty(shape, dtype=numpy.double)
+    in_shape = numpy.broadcast(utc1, utc2).shape
+    tai1_out = numpy.empty(in_shape, dtype=numpy.double)
+    tai2_out = numpy.empty(in_shape, dtype=numpy.double)
     
     cdef numpy.broadcast it = numpy.broadcast(utc1, utc2, tai1_out, tai2_out)
     cdef double _utc1
@@ -17247,9 +17247,9 @@ def utcut1(utc1, utc2, dut1):
     Derived, with permission, from the SOFA library.  See notes at end of file.
   
     """
-    shape = numpy.broadcast(utc1, utc2, dut1).shape
-    ut11_out = numpy.empty(shape, dtype=numpy.double)
-    ut12_out = numpy.empty(shape, dtype=numpy.double)
+    in_shape = numpy.broadcast(utc1, utc2, dut1).shape
+    ut11_out = numpy.empty(in_shape, dtype=numpy.double)
+    ut12_out = numpy.empty(in_shape, dtype=numpy.double)
     
     cdef numpy.broadcast it = numpy.broadcast(utc1, utc2, dut1, ut11_out, ut12_out)
     cdef double _utc1
