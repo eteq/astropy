@@ -18,7 +18,8 @@ cimport numpy
 numpy.import_array()
 
 
-__all__ = ['cal2jd', 'epb', 'epb2jd', 'epj', 'epj2jd', 'jd2cal', 'jdcalf', 'ab', 'apcg', 'apcg13', 'apci', 'apci13', 'apco', 'apco13', 'apcs', 'apcs13', 'aper', 'aper13', 'apio', 'apio13', 'atci13', 'atciq', 'atciqn', 'atciqz', 'atco13', 'atic13', 'aticq', 'aticqn', 'atio13', 'atioq', 'atoc13', 'atoi13', 'atoiq', 'ld', 'ldn', 'ldsun', 'pmpx', 'pmsafe', 'refco', 'epv00', 'plan94', 'fad03', 'fae03', 'faf03', 'faju03', 'fal03', 'falp03', 'fama03', 'fame03', 'fane03', 'faom03', 'fapa03', 'fasa03', 'faur03', 'fave03', 'bi00', 'bp00', 'bp06', 'bpn2xy', 'c2i00a', 'c2i00b', 'c2i06a', 'c2ibpn', 'c2ixy', 'c2ixys', 'c2t00a', 'c2t00b', 'c2t06a', 'c2tcio', 'c2teqx', 'c2tpe', 'c2txy', 'eo06a', 'eors', 'fw2m', 'fw2xy', 'num00a', 'num00b', 'num06a', 'numat', 'nut00a', 'nut00b', 'nut06a', 'nut80', 'nutm80', 'obl06', 'obl80', 'p06e', 'pb06', 'pfw06', 'pmat00', 'pmat06', 'pmat76', 'pn00', 'pn00a', 'pn00b', 'pn06', 'pn06a', 'pnm00a', 'pnm00b', 'pnm06a', 'pnm80', 'pom00', 'pr00', 'prec76', 's00', 's00a', 's00b', 's06', 's06a', 'sp00', 'xy06', 'xys00a', 'xys00b', 'xys06a', 'ee00', 'ee00a', 'ee00b', 'ee06a', 'eect00', 'eqeq94', 'era00', 'gmst00', 'gmst06', 'gmst82', 'gst00a', 'gst00b', 'gst06', 'gst06a', 'gst94', 'pmsafe', 'pvstar', 'starpv', 'fk52h', 'fk5hip', 'fk5hz', 'h2fk5', 'hfk5z', 'starpm', 'eform', 'gc2gd', 'gc2gde', 'gd2gc', 'gd2gce', 'pvtob', 'd2dtf', 'dat', 'dtdb', 'dtf2d', 'taitt', 'taiut1', 'taiutc', 'tcbtdb', 'tcgtt', 'tdbtcb', 'tdbtt', 'tttai', 'tttcg', 'tttdb', 'ttut1', 'ut1tai', 'ut1tt', 'ut1utc', 'utctai', 'utcut1', 'dt_eraASTROM']
+__all__ = ['ErfaError', 'ErfaWarning',
+           'cal2jd', 'epb', 'epb2jd', 'epj', 'epj2jd', 'jd2cal', 'jdcalf', 'ab', 'apcg', 'apcg13', 'apci', 'apci13', 'apco', 'apco13', 'apcs', 'apcs13', 'aper', 'aper13', 'apio', 'apio13', 'atci13', 'atciq', 'atciqn', 'atciqz', 'atco13', 'atic13', 'aticq', 'aticqn', 'atio13', 'atioq', 'atoc13', 'atoi13', 'atoiq', 'ld', 'ldn', 'ldsun', 'pmpx', 'pmsafe', 'refco', 'epv00', 'plan94', 'fad03', 'fae03', 'faf03', 'faju03', 'fal03', 'falp03', 'fama03', 'fame03', 'fane03', 'faom03', 'fapa03', 'fasa03', 'faur03', 'fave03', 'bi00', 'bp00', 'bp06', 'bpn2xy', 'c2i00a', 'c2i00b', 'c2i06a', 'c2ibpn', 'c2ixy', 'c2ixys', 'c2t00a', 'c2t00b', 'c2t06a', 'c2tcio', 'c2teqx', 'c2tpe', 'c2txy', 'eo06a', 'eors', 'fw2m', 'fw2xy', 'num00a', 'num00b', 'num06a', 'numat', 'nut00a', 'nut00b', 'nut06a', 'nut80', 'nutm80', 'obl06', 'obl80', 'p06e', 'pb06', 'pfw06', 'pmat00', 'pmat06', 'pmat76', 'pn00', 'pn00a', 'pn00b', 'pn06', 'pn06a', 'pnm00a', 'pnm00b', 'pnm06a', 'pnm80', 'pom00', 'pr00', 'prec76', 's00', 's00a', 's00b', 's06', 's06a', 'sp00', 'xy06', 'xys00a', 'xys00b', 'xys06a', 'ee00', 'ee00a', 'ee00b', 'ee06a', 'eect00', 'eqeq94', 'era00', 'gmst00', 'gmst06', 'gmst82', 'gst00a', 'gst00b', 'gst06', 'gst06a', 'gst94', 'pmsafe', 'pvstar', 'starpv', 'fk52h', 'fk5hip', 'fk5hz', 'h2fk5', 'hfk5z', 'starpm', 'eform', 'gc2gd', 'gc2gde', 'gd2gc', 'gd2gce', 'pvtob', 'd2dtf', 'dat', 'dtdb', 'dtf2d', 'taitt', 'taiut1', 'taiutc', 'tcbtdb', 'tcgtt', 'tdbtcb', 'tdbtt', 'tttai', 'tttcg', 'tttdb', 'ttut1', 'ut1tai', 'ut1tt', 'ut1utc', 'utctai', 'utcut1', 'dt_eraASTROM']
 
 
 #<---------------------------------Error-handling----------------------------->
@@ -35,8 +36,7 @@ class ErfaWarning(AstropyUserWarning):
     """
 
 
-ERROR_INFOS = {}
-WARN_INFOS = {}
+STATUS_CODES = {}  # populated below before each function that returns an int
 
 def check_errwarn(statcodes, func_name):
     if numpy.any(statcodes<0):
@@ -45,22 +45,30 @@ def check_errwarn(statcodes, func_name):
         errcodes = numpy.unique(statcodes[statcodes<0])
 
         errcounts = dict([(e, numpy.sum(statcodes==e)) for e in errcodes])
-        errmsgs = dict([(e, ERROR_INFOS.get(e, 'Return code ' + str(e))) for e in errcodes])
+
+        elsemsg = STATUS_CODES[func_name].get('else', None)
+        if elsemsg is None:
+            errmsgs = dict([(e, STATUS_CODES[func_name].get(e, 'Return code ' + str(e))) for e in errcodes])
+        else:
+            errmsgs = dict([(e, STATUS_CODES[func_name].get(e, elsemsg)) for e in errcodes])
 
         emsg = ', '.join(['{0} of "{1}"'.format(errcounts[e], errmsgs[e]) for e in errcodes])
-
-        raise ErfaError(func_name + ' : ' + emsg)
+        raise ErfaError('ERFA function "' + func_name + '" yielded ' + emsg)
 
     elif numpy.any(statcodes>0):
         #only warnings present
         warncodes = numpy.unique(statcodes[statcodes>0])
 
         warncounts = dict([(w, numpy.sum(statcodes==w)) for w in warncodes])
-        warnmsgs = dict([(w, WARN_INFOS.get(w, 'Return code ' + str(w))) for w in warncodes])
+
+        elsemsg = STATUS_CODES[func_name].get('else', None)
+        if elsemsg is None:
+            warnmsgs = dict([(w, STATUS_CODES[func_name].get(w, 'Return code ' + str(w))) for w in warncodes])
+        else:
+            warnmsgs = dict([(w, STATUS_CODES[func_name].get(w, elsemsg)) for w in warncodes])
 
         wmsg = ', '.join(['{0} of "{1}"'.format(warncounts[w], warnmsgs[w]) for w in warncodes])
-
-        warnings.warn(func_name + ' : ' + wmsg, ErfaWarning)
+        warnings.warn('ERFA function "' + func_name + '" yielded ' + wmsg, ErfaWarning)
 
 
 #<--------------------------Actual ERFA-wrapping code------------------------->
@@ -314,7 +322,7 @@ def cal2jd(iy, im, id):
     in_shape = numpy.broadcast(iy, im, id).shape
     djm0_out = numpy.empty(in_shape, dtype=numpy.double)
     djm_out = numpy.empty(in_shape, dtype=numpy.double)
-    c_retval_out = numpy.empty(in_shape, dtype=numpy.int)
+    c_retval_out = numpy.empty(in_shape, dtype=numpy.intc)
     
     cdef numpy.broadcast it = numpy.broadcast(iy, im, id, djm0_out, djm_out, c_retval_out)
     cdef int _iy
@@ -323,6 +331,7 @@ def cal2jd(iy, im, id):
     cdef double * _djm0
     cdef double * _djm
     cdef int _c_retval
+    cdef bint stat_ok = True
     
     while numpy.PyArray_MultiIter_NOTDONE(it):
         _iy = (<int*>numpy.PyArray_MultiIter_DATA(it, 0))[0]
@@ -333,15 +342,16 @@ def cal2jd(iy, im, id):
         
         _c_retval = eraCal2jd(_iy, _im, _id, _djm0, _djm)
         (<int*>numpy.PyArray_MultiIter_DATA(it, 5))[0] = _c_retval
+        if _c_retval != 0:
+            stat_ok = False
         
         numpy.PyArray_MultiIter_NEXT(it)
-    check_errwarn(c_retval_out, cal2jd)
+
+    if not stat_ok:
+        check_errwarn(c_retval_out, 'cal2jd')
     
     return djm0_out, djm_out
-BLROK: 0 = OK
-BLROK: -2 = bad month  (JD not computed)
-BLROK: -1 = bad year   (Note 3: JD not computed)
-BLROK: -3 = bad day    (JD computed)
+STATUS_CODES['cal2jd'] = {0: u'OK', -2: u'bad month  (JD not computed)', -1: u'bad year   (Note 3: JD not computed)', -3: u'bad day    (JD computed)'}
 
 
 def epb(dj1, dj2):
@@ -399,7 +409,6 @@ def epb(dj1, dj2):
     
     return c_retval_out
 
-
 def epb2jd(epb):
     """
     epb2jd(epb)
@@ -456,7 +465,6 @@ def epb2jd(epb):
     
     return djm0_out, djm_out
 
-
 def epj(dj1, dj2):
     """
     epj(dj1, dj2)
@@ -511,7 +519,6 @@ def epj(dj1, dj2):
         numpy.PyArray_MultiIter_NEXT(it)
     
     return c_retval_out
-
 
 def epj2jd(epj):
     """
@@ -568,7 +575,6 @@ def epj2jd(epj):
         numpy.PyArray_MultiIter_NEXT(it)
     
     return djm0_out, djm_out
-
 
 def jd2cal(dj1, dj2):
     """
@@ -630,11 +636,11 @@ def jd2cal(dj1, dj2):
   
     """
     in_shape = numpy.broadcast(dj1, dj2).shape
-    iy_out = numpy.empty(in_shape, dtype=numpy.int)
-    im_out = numpy.empty(in_shape, dtype=numpy.int)
-    id_out = numpy.empty(in_shape, dtype=numpy.int)
+    iy_out = numpy.empty(in_shape, dtype=numpy.intc)
+    im_out = numpy.empty(in_shape, dtype=numpy.intc)
+    id_out = numpy.empty(in_shape, dtype=numpy.intc)
     fd_out = numpy.empty(in_shape, dtype=numpy.double)
-    c_retval_out = numpy.empty(in_shape, dtype=numpy.int)
+    c_retval_out = numpy.empty(in_shape, dtype=numpy.intc)
     
     cdef numpy.broadcast it = numpy.broadcast(dj1, dj2, iy_out, im_out, id_out, fd_out, c_retval_out)
     cdef double _dj1
@@ -644,6 +650,7 @@ def jd2cal(dj1, dj2):
     cdef int * _id
     cdef double * _fd
     cdef int _c_retval
+    cdef bint stat_ok = True
     
     while numpy.PyArray_MultiIter_NOTDONE(it):
         _dj1 = (<double*>numpy.PyArray_MultiIter_DATA(it, 0))[0]
@@ -655,13 +662,16 @@ def jd2cal(dj1, dj2):
         
         _c_retval = eraJd2cal(_dj1, _dj2, _iy, _im, _id, _fd)
         (<int*>numpy.PyArray_MultiIter_DATA(it, 6))[0] = _c_retval
+        if _c_retval != 0:
+            stat_ok = False
         
         numpy.PyArray_MultiIter_NEXT(it)
-    check_errwarn(c_retval_out, jd2cal)
+
+    if not stat_ok:
+        check_errwarn(c_retval_out, 'jd2cal')
     
     return iy_out, im_out, id_out, fd_out
-BLROK: 0 = OK
-BLROK: -1 = unacceptable date (Note 3)
+STATUS_CODES['jd2cal'] = {0: u'OK', -1: u'unacceptable date (Note 3)'}
 
 
 def jdcalf(ndp, dj1, dj2):
@@ -731,7 +741,7 @@ def jdcalf(ndp, dj1, dj2):
     """
     in_shape = numpy.broadcast(ndp, dj1, dj2).shape
     iymdf_out = numpy.empty(in_shape, dtype=numpy.dtype([('', 'i', (4,))]))
-    c_retval_out = numpy.empty(in_shape, dtype=numpy.int)
+    c_retval_out = numpy.empty(in_shape, dtype=numpy.intc)
     
     cdef numpy.broadcast it = numpy.broadcast(ndp, dj1, dj2, iymdf_out, c_retval_out)
     cdef int _ndp
@@ -739,6 +749,7 @@ def jdcalf(ndp, dj1, dj2):
     cdef double _dj2
     cdef int * _iymdf
     cdef int _c_retval
+    cdef bint stat_ok = True
     
     while numpy.PyArray_MultiIter_NOTDONE(it):
         _ndp = (<int*>numpy.PyArray_MultiIter_DATA(it, 0))[0]
@@ -748,14 +759,16 @@ def jdcalf(ndp, dj1, dj2):
         
         _c_retval = eraJdcalf(_ndp, _dj1, _dj2, _iymdf)
         (<int*>numpy.PyArray_MultiIter_DATA(it, 4))[0] = _c_retval
+        if _c_retval != 0:
+            stat_ok = False
         
         numpy.PyArray_MultiIter_NEXT(it)
-    check_errwarn(c_retval_out, jdcalf)
+
+    if not stat_ok:
+        check_errwarn(c_retval_out, 'jdcalf')
     
     return iymdf_out
-BLROK: 0 = OK
-BLROK: 1 = NDP not 0-9 (interpreted as 0)
-BLROK: -1 = date out of range
+STATUS_CODES['jdcalf'] = {0: u'OK', 1: u'NDP not 0-9 (interpreted as 0)', -1: u'date out of range'}
 
 
 def ab(pnat, v, s, bm1):
@@ -837,7 +850,6 @@ def ab(pnat, v, s, bm1):
         numpy.PyArray_MultiIter_NEXT(it)
     
     return ppr_out
-
 
 def apcg(date1, date2, ebpv, ehp):
     """
@@ -972,7 +984,6 @@ def apcg(date1, date2, ebpv, ehp):
     
     return astrom_out
 
-
 def apcg13(date1, date2):
     """
     apcg13(date1, date2)
@@ -1105,7 +1116,6 @@ def apcg13(date1, date2):
         numpy.PyArray_MultiIter_NEXT(it)
     
     return astrom_out
-
 
 def apci(date1, date2, ebpv, ehp, x, y, s):
     """
@@ -1255,7 +1265,6 @@ def apci(date1, date2, ebpv, ehp, x, y, s):
     
     return astrom_out
 
-
 def apci13(date1, date2):
     """
     apci13(date1, date2)
@@ -1396,7 +1405,6 @@ def apci13(date1, date2):
         numpy.PyArray_MultiIter_NEXT(it)
     
     return astrom_out, eo_out
-
 
 def apco(date1, date2, ebpv, ehp, x, y, s, theta, elong, phi, hm, xp, yp, sp, refa, refb):
     """
@@ -1603,7 +1611,6 @@ def apco(date1, date2, ebpv, ehp, x, y, s, theta, elong, phi, hm, xp, yp, sp, re
     
     return refa_out, refb_out, astrom_out
 
-
 def apco13(utc1, utc2, dut1, elong, phi, hm, xp, yp, phpa, tc, rh, wl):
     """
     apco13(utc1, utc2, dut1, elong, phi, hm, xp, yp, phpa, tc, rh, wl)
@@ -1787,7 +1794,7 @@ def apco13(utc1, utc2, dut1, elong, phi, hm, xp, yp, phpa, tc, rh, wl):
     in_shape = numpy.broadcast(utc1, utc2, dut1, elong, phi, hm, xp, yp, phpa, tc, rh, wl).shape
     astrom_out = numpy.empty(in_shape, dtype=dt_eraASTROM)
     eo_out = numpy.empty(in_shape, dtype=numpy.double)
-    c_retval_out = numpy.empty(in_shape, dtype=numpy.int)
+    c_retval_out = numpy.empty(in_shape, dtype=numpy.intc)
     
     cdef numpy.broadcast it = numpy.broadcast(utc1, utc2, dut1, elong, phi, hm, xp, yp, phpa, tc, rh, wl, astrom_out, eo_out, c_retval_out)
     cdef double _utc1
@@ -1805,6 +1812,7 @@ def apco13(utc1, utc2, dut1, elong, phi, hm, xp, yp, phpa, tc, rh, wl):
     cdef eraASTROM * _astrom
     cdef double * _eo
     cdef int _c_retval
+    cdef bint stat_ok = True
     
     while numpy.PyArray_MultiIter_NOTDONE(it):
         _utc1 = (<double*>numpy.PyArray_MultiIter_DATA(it, 0))[0]
@@ -1824,11 +1832,16 @@ def apco13(utc1, utc2, dut1, elong, phi, hm, xp, yp, phpa, tc, rh, wl):
         
         _c_retval = eraApco13(_utc1, _utc2, _dut1, _elong, _phi, _hm, _xp, _yp, _phpa, _tc, _rh, _wl, _astrom, _eo)
         (<int*>numpy.PyArray_MultiIter_DATA(it, 14))[0] = _c_retval
+        if _c_retval != 0:
+            stat_ok = False
         
         numpy.PyArray_MultiIter_NEXT(it)
-    check_errwarn(c_retval_out, apco13)
+
+    if not stat_ok:
+        check_errwarn(c_retval_out, 'apco13')
     
     return astrom_out, eo_out
+STATUS_CODES['apco13'] = {0: u'OK', 1: u'dubious year (Note 2)', -1: u'unacceptable date'}
 
 
 def apcs(date1, date2, pv, ebpv, ehp):
@@ -1986,7 +1999,6 @@ def apcs(date1, date2, pv, ebpv, ehp):
     
     return astrom_out
 
-
 def apcs13(date1, date2, pv):
     """
     apcs13(date1, date2, pv)
@@ -2128,7 +2140,6 @@ def apcs13(date1, date2, pv):
     
     return astrom_out
 
-
 def aper(theta, astrom):
     """
     aper(theta, astrom)
@@ -2244,7 +2255,6 @@ def aper(theta, astrom):
         numpy.PyArray_MultiIter_NEXT(it)
     
     return astrom_out
-
 
 def aper13(ut11, ut12, astrom):
     """
@@ -2382,7 +2392,6 @@ def aper13(ut11, ut12, astrom):
         numpy.PyArray_MultiIter_NEXT(it)
     
     return astrom_out
-
 
 def apio(sp, theta, elong, phi, hm, xp, yp, refa, refb):
     """
@@ -2538,7 +2547,6 @@ def apio(sp, theta, elong, phi, hm, xp, yp, refa, refb):
         numpy.PyArray_MultiIter_NEXT(it)
     
     return refa_out, refb_out, astrom_out
-
 
 def apio13(utc1, utc2, dut1, elong, phi, hm, xp, yp, phpa, tc, rh, wl):
     """
@@ -2711,7 +2719,7 @@ def apio13(utc1, utc2, dut1, elong, phi, hm, xp, yp, phpa, tc, rh, wl):
     """
     in_shape = numpy.broadcast(utc1, utc2, dut1, elong, phi, hm, xp, yp, phpa, tc, rh, wl).shape
     astrom_out = numpy.empty(in_shape, dtype=dt_eraASTROM)
-    c_retval_out = numpy.empty(in_shape, dtype=numpy.int)
+    c_retval_out = numpy.empty(in_shape, dtype=numpy.intc)
     
     cdef numpy.broadcast it = numpy.broadcast(utc1, utc2, dut1, elong, phi, hm, xp, yp, phpa, tc, rh, wl, astrom_out, c_retval_out)
     cdef double _utc1
@@ -2728,6 +2736,7 @@ def apio13(utc1, utc2, dut1, elong, phi, hm, xp, yp, phpa, tc, rh, wl):
     cdef double _wl
     cdef eraASTROM * _astrom
     cdef int _c_retval
+    cdef bint stat_ok = True
     
     while numpy.PyArray_MultiIter_NOTDONE(it):
         _utc1 = (<double*>numpy.PyArray_MultiIter_DATA(it, 0))[0]
@@ -2746,11 +2755,16 @@ def apio13(utc1, utc2, dut1, elong, phi, hm, xp, yp, phpa, tc, rh, wl):
         
         _c_retval = eraApio13(_utc1, _utc2, _dut1, _elong, _phi, _hm, _xp, _yp, _phpa, _tc, _rh, _wl, _astrom)
         (<int*>numpy.PyArray_MultiIter_DATA(it, 13))[0] = _c_retval
+        if _c_retval != 0:
+            stat_ok = False
         
         numpy.PyArray_MultiIter_NEXT(it)
-    check_errwarn(c_retval_out, apio13)
+
+    if not stat_ok:
+        check_errwarn(c_retval_out, 'apio13')
     
     return astrom_out
+STATUS_CODES['apio13'] = {0: u'OK', 1: u'dubious year (Note 2)', -1: u'unacceptable date'}
 
 
 def atci13(rc, dc, pr, pd, px, rv, date1, date2):
@@ -2875,7 +2889,6 @@ def atci13(rc, dc, pr, pd, px, rv, date1, date2):
     
     return ri_out, di_out, eo_out
 
-
 def atciq(rc, dc, pr, pd, px, rv, astrom):
     """
     atciq(rc, dc, pr, pd, px, rv, astrom)
@@ -2979,7 +2992,6 @@ def atciq(rc, dc, pr, pd, px, rv, astrom):
         numpy.PyArray_MultiIter_NEXT(it)
     
     return ri_out, di_out
-
 
 def atciqn(rc, dc, pr, pd, px, rv, astrom, n, b):
     """
@@ -3126,7 +3138,6 @@ def atciqn(rc, dc, pr, pd, px, rv, astrom, n, b):
     
     return ri_out, di_out
 
-
 def atciqz(rc, dc, astrom):
     """
     atciqz(rc, dc, astrom)
@@ -3222,7 +3233,6 @@ def atciqz(rc, dc, astrom):
         numpy.PyArray_MultiIter_NEXT(it)
     
     return ri_out, di_out
-
 
 def atco13(rc, dc, pr, pd, px, rv, utc1, utc2, dut1, elong, phi, hm, xp, yp, phpa, tc, rh, wl):
     """
@@ -3386,7 +3396,7 @@ def atco13(rc, dc, pr, pd, px, rv, utc1, utc2, dut1, elong, phi, hm, xp, yp, php
     dob_out = numpy.empty(in_shape, dtype=numpy.double)
     rob_out = numpy.empty(in_shape, dtype=numpy.double)
     eo_out = numpy.empty(in_shape, dtype=numpy.double)
-    c_retval_out = numpy.empty(in_shape, dtype=numpy.int)
+    c_retval_out = numpy.empty(in_shape, dtype=numpy.intc)
     
     cdef numpy.broadcast it = numpy.broadcast(rc, dc, pr, pd, px, rv, utc1, utc2, dut1, elong, phi, hm, xp, yp, phpa, tc, rh, wl, aob_out, zob_out, hob_out, dob_out, rob_out, eo_out, c_retval_out)
     cdef double _rc
@@ -3414,6 +3424,7 @@ def atco13(rc, dc, pr, pd, px, rv, utc1, utc2, dut1, elong, phi, hm, xp, yp, php
     cdef double * _rob
     cdef double * _eo
     cdef int _c_retval
+    cdef bint stat_ok = True
     
     while numpy.PyArray_MultiIter_NOTDONE(it):
         _rc = (<double*>numpy.PyArray_MultiIter_DATA(it, 0))[0]
@@ -3443,11 +3454,16 @@ def atco13(rc, dc, pr, pd, px, rv, utc1, utc2, dut1, elong, phi, hm, xp, yp, php
         
         _c_retval = eraAtco13(_rc, _dc, _pr, _pd, _px, _rv, _utc1, _utc2, _dut1, _elong, _phi, _hm, _xp, _yp, _phpa, _tc, _rh, _wl, _aob, _zob, _hob, _dob, _rob, _eo)
         (<int*>numpy.PyArray_MultiIter_DATA(it, 24))[0] = _c_retval
+        if _c_retval != 0:
+            stat_ok = False
         
         numpy.PyArray_MultiIter_NEXT(it)
-    check_errwarn(c_retval_out, atco13)
+
+    if not stat_ok:
+        check_errwarn(c_retval_out, 'atco13')
     
     return aob_out, zob_out, hob_out, dob_out, rob_out, eo_out
+STATUS_CODES['atco13'] = {0: u'OK', 1: u'dubious year (Note 4)', -1: u'unacceptable date'}
 
 
 def atic13(ri, di, date1, date2):
@@ -3559,7 +3575,6 @@ def atic13(ri, di, date1, date2):
     
     return rc_out, dc_out, eo_out
 
-
 def aticq(ri, di, astrom):
     """
     aticq(ri, di, astrom)
@@ -3651,7 +3666,6 @@ def aticq(ri, di, astrom):
         numpy.PyArray_MultiIter_NEXT(it)
     
     return rc_out, dc_out
-
 
 def aticqn(ri, di, astrom, n, b):
     """
@@ -3786,7 +3800,6 @@ def aticqn(ri, di, astrom, n, b):
         numpy.PyArray_MultiIter_NEXT(it)
     
     return rc_out, dc_out
-
 
 def atio13(ri, di, utc1, utc2, dut1, elong, phi, hm, xp, yp, phpa, tc, rh, wl):
     """
@@ -3933,7 +3946,7 @@ def atio13(ri, di, utc1, utc2, dut1, elong, phi, hm, xp, yp, phpa, tc, rh, wl):
     hob_out = numpy.empty(in_shape, dtype=numpy.double)
     dob_out = numpy.empty(in_shape, dtype=numpy.double)
     rob_out = numpy.empty(in_shape, dtype=numpy.double)
-    c_retval_out = numpy.empty(in_shape, dtype=numpy.int)
+    c_retval_out = numpy.empty(in_shape, dtype=numpy.intc)
     
     cdef numpy.broadcast it = numpy.broadcast(ri, di, utc1, utc2, dut1, elong, phi, hm, xp, yp, phpa, tc, rh, wl, aob_out, zob_out, hob_out, dob_out, rob_out, c_retval_out)
     cdef double _ri
@@ -3956,6 +3969,7 @@ def atio13(ri, di, utc1, utc2, dut1, elong, phi, hm, xp, yp, phpa, tc, rh, wl):
     cdef double * _dob
     cdef double * _rob
     cdef int _c_retval
+    cdef bint stat_ok = True
     
     while numpy.PyArray_MultiIter_NOTDONE(it):
         _ri = (<double*>numpy.PyArray_MultiIter_DATA(it, 0))[0]
@@ -3980,11 +3994,16 @@ def atio13(ri, di, utc1, utc2, dut1, elong, phi, hm, xp, yp, phpa, tc, rh, wl):
         
         _c_retval = eraAtio13(_ri, _di, _utc1, _utc2, _dut1, _elong, _phi, _hm, _xp, _yp, _phpa, _tc, _rh, _wl, _aob, _zob, _hob, _dob, _rob)
         (<int*>numpy.PyArray_MultiIter_DATA(it, 19))[0] = _c_retval
+        if _c_retval != 0:
+            stat_ok = False
         
         numpy.PyArray_MultiIter_NEXT(it)
-    check_errwarn(c_retval_out, atio13)
+
+    if not stat_ok:
+        check_errwarn(c_retval_out, 'atio13')
     
     return aob_out, zob_out, hob_out, dob_out, rob_out
+STATUS_CODES['atio13'] = {0: u'OK', 1: u'dubious year (Note 2)', -1: u'unacceptable date'}
 
 
 def atioq(ri, di, astrom):
@@ -4122,7 +4141,6 @@ def atioq(ri, di, astrom):
         numpy.PyArray_MultiIter_NEXT(it)
     
     return aob_out, zob_out, hob_out, dob_out, rob_out
-
 
 def atoc13(type, ob1, ob2, utc1, utc2, dut1, elong, phi, hm, xp, yp, phpa, tc, rh, wl):
     """
@@ -4274,7 +4292,7 @@ def atoc13(type, ob1, ob2, utc1, utc2, dut1, elong, phi, hm, xp, yp, phpa, tc, r
     in_shape = numpy.broadcast(type, ob1, ob2, utc1, utc2, dut1, elong, phi, hm, xp, yp, phpa, tc, rh, wl).shape
     rc_out = numpy.empty(in_shape, dtype=numpy.double)
     dc_out = numpy.empty(in_shape, dtype=numpy.double)
-    c_retval_out = numpy.empty(in_shape, dtype=numpy.int)
+    c_retval_out = numpy.empty(in_shape, dtype=numpy.intc)
     
     cdef numpy.broadcast it = numpy.broadcast(type, ob1, ob2, utc1, utc2, dut1, elong, phi, hm, xp, yp, phpa, tc, rh, wl, rc_out, dc_out, c_retval_out)
     cdef char * _type
@@ -4295,6 +4313,7 @@ def atoc13(type, ob1, ob2, utc1, utc2, dut1, elong, phi, hm, xp, yp, phpa, tc, r
     cdef double * _rc
     cdef double * _dc
     cdef int _c_retval
+    cdef bint stat_ok = True
     
     while numpy.PyArray_MultiIter_NOTDONE(it):
         _type = (<char *>numpy.PyArray_MultiIter_DATA(it, 0))
@@ -4317,11 +4336,16 @@ def atoc13(type, ob1, ob2, utc1, utc2, dut1, elong, phi, hm, xp, yp, phpa, tc, r
         
         _c_retval = eraAtoc13(_type, _ob1, _ob2, _utc1, _utc2, _dut1, _elong, _phi, _hm, _xp, _yp, _phpa, _tc, _rh, _wl, _rc, _dc)
         (<int*>numpy.PyArray_MultiIter_DATA(it, 17))[0] = _c_retval
+        if _c_retval != 0:
+            stat_ok = False
         
         numpy.PyArray_MultiIter_NEXT(it)
-    check_errwarn(c_retval_out, atoc13)
+
+    if not stat_ok:
+        check_errwarn(c_retval_out, 'atoc13')
     
     return rc_out, dc_out
+STATUS_CODES['atoc13'] = {0: u'OK', 1: u'dubious year (Note 4)', -1: u'unacceptable date'}
 
 
 def atoi13(type, ob1, ob2, utc1, utc2, dut1, elong, phi, hm, xp, yp, phpa, tc, rh, wl):
@@ -4473,7 +4497,7 @@ def atoi13(type, ob1, ob2, utc1, utc2, dut1, elong, phi, hm, xp, yp, phpa, tc, r
     in_shape = numpy.broadcast(type, ob1, ob2, utc1, utc2, dut1, elong, phi, hm, xp, yp, phpa, tc, rh, wl).shape
     ri_out = numpy.empty(in_shape, dtype=numpy.double)
     di_out = numpy.empty(in_shape, dtype=numpy.double)
-    c_retval_out = numpy.empty(in_shape, dtype=numpy.int)
+    c_retval_out = numpy.empty(in_shape, dtype=numpy.intc)
     
     cdef numpy.broadcast it = numpy.broadcast(type, ob1, ob2, utc1, utc2, dut1, elong, phi, hm, xp, yp, phpa, tc, rh, wl, ri_out, di_out, c_retval_out)
     cdef char * _type
@@ -4494,6 +4518,7 @@ def atoi13(type, ob1, ob2, utc1, utc2, dut1, elong, phi, hm, xp, yp, phpa, tc, r
     cdef double * _ri
     cdef double * _di
     cdef int _c_retval
+    cdef bint stat_ok = True
     
     while numpy.PyArray_MultiIter_NOTDONE(it):
         _type = (<char *>numpy.PyArray_MultiIter_DATA(it, 0))
@@ -4516,11 +4541,16 @@ def atoi13(type, ob1, ob2, utc1, utc2, dut1, elong, phi, hm, xp, yp, phpa, tc, r
         
         _c_retval = eraAtoi13(_type, _ob1, _ob2, _utc1, _utc2, _dut1, _elong, _phi, _hm, _xp, _yp, _phpa, _tc, _rh, _wl, _ri, _di)
         (<int*>numpy.PyArray_MultiIter_DATA(it, 17))[0] = _c_retval
+        if _c_retval != 0:
+            stat_ok = False
         
         numpy.PyArray_MultiIter_NEXT(it)
-    check_errwarn(c_retval_out, atoi13)
+
+    if not stat_ok:
+        check_errwarn(c_retval_out, 'atoi13')
     
     return ri_out, di_out
+STATUS_CODES['atoi13'] = {0: u'OK', 1: u'dubious year (Note 2)', -1: u'unacceptable date'}
 
 
 def atoiq(type, ob1, ob2, astrom):
@@ -4645,7 +4675,6 @@ def atoiq(type, ob1, ob2, astrom):
     
     return ri_out, di_out
 
-
 def ld(bm, p, q, e, em, dlim):
     """
     ld(bm, p, q, e, em, dlim)
@@ -4749,7 +4778,6 @@ def ld(bm, p, q, e, em, dlim):
         numpy.PyArray_MultiIter_NEXT(it)
     
     return p1_out
-
 
 def ldn(n, b, ob, sc):
     """
@@ -4861,7 +4889,6 @@ def ldn(n, b, ob, sc):
     
     return sn_out
 
-
 def ldsun(p, e, em):
     """
     ldsun(p, e, em)
@@ -4924,7 +4951,6 @@ def ldsun(p, e, em):
         numpy.PyArray_MultiIter_NEXT(it)
     
     return p1_out
-
 
 def pmpx(rc, dc, pr, pd, px, rv, pmt, pob):
     """
@@ -5010,7 +5036,6 @@ def pmpx(rc, dc, pr, pd, px, rv, pmt, pob):
         numpy.PyArray_MultiIter_NEXT(it)
     
     return pco_out
-
 
 def pmsafe(ra1, dec1, pmr1, pmd1, px1, rv1, ep1a, ep1b, ep2a, ep2b):
     """
@@ -5130,7 +5155,7 @@ def pmsafe(ra1, dec1, pmr1, pmd1, px1, rv1, ep1a, ep1b, ep2a, ep2b):
     pmd2_out = numpy.empty(in_shape, dtype=numpy.double)
     px2_out = numpy.empty(in_shape, dtype=numpy.double)
     rv2_out = numpy.empty(in_shape, dtype=numpy.double)
-    c_retval_out = numpy.empty(in_shape, dtype=numpy.int)
+    c_retval_out = numpy.empty(in_shape, dtype=numpy.intc)
     
     cdef numpy.broadcast it = numpy.broadcast(ra1, dec1, pmr1, pmd1, px1, rv1, ep1a, ep1b, ep2a, ep2b, ra2_out, dec2_out, pmr2_out, pmd2_out, px2_out, rv2_out, c_retval_out)
     cdef double _ra1
@@ -5150,6 +5175,7 @@ def pmsafe(ra1, dec1, pmr1, pmd1, px1, rv1, ep1a, ep1b, ep2a, ep2b):
     cdef double * _px2
     cdef double * _rv2
     cdef int _c_retval
+    cdef bint stat_ok = True
     
     while numpy.PyArray_MultiIter_NOTDONE(it):
         _ra1 = (<double*>numpy.PyArray_MultiIter_DATA(it, 0))[0]
@@ -5171,17 +5197,16 @@ def pmsafe(ra1, dec1, pmr1, pmd1, px1, rv1, ep1a, ep1b, ep2a, ep2b):
         
         _c_retval = eraPmsafe(_ra1, _dec1, _pmr1, _pmd1, _px1, _rv1, _ep1a, _ep1b, _ep2a, _ep2b, _ra2, _dec2, _pmr2, _pmd2, _px2, _rv2)
         (<int*>numpy.PyArray_MultiIter_DATA(it, 16))[0] = _c_retval
+        if _c_retval != 0:
+            stat_ok = False
         
         numpy.PyArray_MultiIter_NEXT(it)
-    check_errwarn(c_retval_out, pmsafe)
+
+    if not stat_ok:
+        check_errwarn(c_retval_out, 'pmsafe')
     
     return ra2_out, dec2_out, pmr2_out, pmd2_out, px2_out, rv2_out
-BLROK: 0 = no warnings or errors
-BLROK: 1 = distance overridden (Note 6)
-BLROK: 2 = excessive velocity (Note 7)
-BLROK: 4 = solution didn't converge (Note 8)
-BLROK: else = binary logical OR of the above warnings
-BLROK: -1 = system error (should not occur)
+STATUS_CODES['pmsafe'] = {0: u'no warnings or errors', 1: u'distance overridden (Note 6)', 2: u'excessive velocity (Note 7)', 4: u"solution didn't converge (Note 8)", u'else': u'binary logical OR of the above warnings', -1: u'system error (should not occur)'}
 
 
 def refco(phpa, tc, rh, wl):
@@ -5364,7 +5389,6 @@ def refco(phpa, tc, rh, wl):
     
     return refa_out, refb_out
 
-
 def epv00(date1, date2):
     """
     epv00(date1, date2)
@@ -5471,7 +5495,7 @@ def epv00(date1, date2):
     in_shape = numpy.broadcast(date1, date2).shape
     pvh_out = numpy.empty(in_shape, dtype=numpy.dtype([('pv', 'd', (2,3))]))
     pvb_out = numpy.empty(in_shape, dtype=numpy.dtype([('pv', 'd', (2,3))]))
-    c_retval_out = numpy.empty(in_shape, dtype=numpy.int)
+    c_retval_out = numpy.empty(in_shape, dtype=numpy.intc)
     
     cdef numpy.broadcast it = numpy.broadcast(date1, date2, pvh_out, pvb_out, c_retval_out)
     cdef double _date1
@@ -5479,6 +5503,7 @@ def epv00(date1, date2):
     cdef double * _pvh
     cdef double * _pvb
     cdef int _c_retval
+    cdef bint stat_ok = True
     
     while numpy.PyArray_MultiIter_NOTDONE(it):
         _date1 = (<double*>numpy.PyArray_MultiIter_DATA(it, 0))[0]
@@ -5488,11 +5513,16 @@ def epv00(date1, date2):
         
         _c_retval = eraEpv00(_date1, _date2, _pvh, _pvb)
         (<int*>numpy.PyArray_MultiIter_DATA(it, 4))[0] = _c_retval
+        if _c_retval != 0:
+            stat_ok = False
         
         numpy.PyArray_MultiIter_NEXT(it)
-    check_errwarn(c_retval_out, epv00)
+
+    if not stat_ok:
+        check_errwarn(c_retval_out, 'epv00')
     
     return pvh_out, pvb_out
+STATUS_CODES['epv00'] = {0: u'OK', 1: u'warning: date outsidethe range 1900-2100 AD'}
 
 
 def plan94(date1, date2, np):
@@ -5664,7 +5694,7 @@ def plan94(date1, date2, np):
     """
     in_shape = numpy.broadcast(date1, date2, np).shape
     pv_out = numpy.empty(in_shape, dtype=numpy.dtype([('pv', 'd', (2,3))]))
-    c_retval_out = numpy.empty(in_shape, dtype=numpy.int)
+    c_retval_out = numpy.empty(in_shape, dtype=numpy.intc)
     
     cdef numpy.broadcast it = numpy.broadcast(date1, date2, np, pv_out, c_retval_out)
     cdef double _date1
@@ -5672,6 +5702,7 @@ def plan94(date1, date2, np):
     cdef int _np
     cdef double * _pv
     cdef int _c_retval
+    cdef bint stat_ok = True
     
     while numpy.PyArray_MultiIter_NOTDONE(it):
         _date1 = (<double*>numpy.PyArray_MultiIter_DATA(it, 0))[0]
@@ -5681,11 +5712,16 @@ def plan94(date1, date2, np):
         
         _c_retval = eraPlan94(_date1, _date2, _np, _pv)
         (<int*>numpy.PyArray_MultiIter_DATA(it, 4))[0] = _c_retval
+        if _c_retval != 0:
+            stat_ok = False
         
         numpy.PyArray_MultiIter_NEXT(it)
-    check_errwarn(c_retval_out, plan94)
+
+    if not stat_ok:
+        check_errwarn(c_retval_out, 'plan94')
     
     return pv_out
+STATUS_CODES['plan94'] = {0: u'OK', 1: u'warning: year outside 1000-3000', 2: u'warning: failed to converge', -1: u'illegal NP (outside 1-8)'}
 
 
 def fad03(t):
@@ -5745,7 +5781,6 @@ def fad03(t):
         numpy.PyArray_MultiIter_NEXT(it)
     
     return c_retval_out
-
 
 def fae03(t):
     """
@@ -5808,7 +5843,6 @@ def fae03(t):
     
     return c_retval_out
 
-
 def faf03(t):
     """
     faf03(t)
@@ -5867,7 +5901,6 @@ def faf03(t):
         numpy.PyArray_MultiIter_NEXT(it)
     
     return c_retval_out
-
 
 def faju03(t):
     """
@@ -5930,7 +5963,6 @@ def faju03(t):
     
     return c_retval_out
 
-
 def fal03(t):
     """
     fal03(t)
@@ -5989,7 +6021,6 @@ def fal03(t):
     
     return c_retval_out
 
-
 def falp03(t):
     """
     falp03(t)
@@ -6047,7 +6078,6 @@ def falp03(t):
         numpy.PyArray_MultiIter_NEXT(it)
     
     return c_retval_out
-
 
 def fama03(t):
     """
@@ -6110,7 +6140,6 @@ def fama03(t):
     
     return c_retval_out
 
-
 def fame03(t):
     """
     fame03(t)
@@ -6172,7 +6201,6 @@ def fame03(t):
     
     return c_retval_out
 
-
 def fane03(t):
     """
     fane03(t)
@@ -6231,7 +6259,6 @@ def fane03(t):
     
     return c_retval_out
 
-
 def faom03(t):
     """
     faom03(t)
@@ -6289,7 +6316,6 @@ def faom03(t):
         numpy.PyArray_MultiIter_NEXT(it)
     
     return c_retval_out
-
 
 def fapa03(t):
     """
@@ -6353,7 +6379,6 @@ def fapa03(t):
     
     return c_retval_out
 
-
 def fasa03(t):
     """
     fasa03(t)
@@ -6415,7 +6440,6 @@ def fasa03(t):
     
     return c_retval_out
 
-
 def faur03(t):
     """
     faur03(t)
@@ -6473,7 +6497,6 @@ def faur03(t):
         numpy.PyArray_MultiIter_NEXT(it)
     
     return c_retval_out
-
 
 def fave03(t):
     """
@@ -6535,7 +6558,6 @@ def fave03(t):
         numpy.PyArray_MultiIter_NEXT(it)
     
     return c_retval_out
-
 
 def bi00():
     """
@@ -6608,7 +6630,6 @@ def bi00():
         numpy.PyArray_MultiIter_NEXT(it)
     
     return dpsibi_out, depsbi_out, dra_out
-
 
 def bp00(date1, date2):
     """
@@ -6714,7 +6735,6 @@ def bp00(date1, date2):
     
     return rb_out, rp_out, rbp_out
 
-
 def bp06(date1, date2):
     """
     bp06(date1, date2)
@@ -6813,7 +6833,6 @@ def bp06(date1, date2):
     
     return rb_out, rp_out, rbp_out
 
-
 def bpn2xy(rbpn):
     """
     bpn2xy(rbpn)
@@ -6877,7 +6896,6 @@ def bpn2xy(rbpn):
         numpy.PyArray_MultiIter_NEXT(it)
     
     return x_out, y_out
-
 
 def c2i00a(date1, date2):
     """
@@ -6976,7 +6994,6 @@ def c2i00a(date1, date2):
     
     return rc2i_out
 
-
 def c2i00b(date1, date2):
     """
     c2i00b(date1, date2)
@@ -7074,7 +7091,6 @@ def c2i00b(date1, date2):
     
     return rc2i_out
 
-
 def c2i06a(date1, date2):
     """
     c2i06a(date1, date2)
@@ -7162,7 +7178,6 @@ def c2i06a(date1, date2):
         numpy.PyArray_MultiIter_NEXT(it)
     
     return rc2i_out
-
 
 def c2ibpn(date1, date2, rbpn):
     """
@@ -7265,7 +7280,6 @@ def c2ibpn(date1, date2, rbpn):
     
     return rc2i_out
 
-
 def c2ixy(date1, date2, x, y):
     """
     c2ixy(date1, date2, x, y)
@@ -7363,7 +7377,6 @@ def c2ixy(date1, date2, x, y):
     
     return rc2i_out
 
-
 def c2ixys(x, y, s):
     """
     c2ixys(x, y, s)
@@ -7441,7 +7454,6 @@ def c2ixys(x, y, s):
         numpy.PyArray_MultiIter_NEXT(it)
     
     return rc2i_out
-
 
 def c2t00a(tta, ttb, uta, utb, xp, yp):
     """
@@ -7553,7 +7565,6 @@ def c2t00a(tta, ttb, uta, utb, xp, yp):
     
     return rc2t_out
 
-
 def c2t00b(tta, ttb, uta, utb, xp, yp):
     """
     c2t00b(tta, ttb, uta, utb, xp, yp)
@@ -7663,7 +7674,6 @@ def c2t00b(tta, ttb, uta, utb, xp, yp):
     
     return rc2t_out
 
-
 def c2t06a(tta, ttb, uta, utb, xp, yp):
     """
     c2t06a(tta, ttb, uta, utb, xp, yp)
@@ -7772,7 +7782,6 @@ def c2t06a(tta, ttb, uta, utb, xp, yp):
     
     return rc2t_out
 
-
 def c2tcio(rc2i, era, rpom):
     """
     c2tcio(rc2i, era, rpom)
@@ -7855,7 +7864,6 @@ def c2tcio(rc2i, era, rpom):
     
     return rc2t_out
 
-
 def c2teqx(rbpn, gst, rpom):
     """
     c2teqx(rbpn, gst, rpom)
@@ -7937,7 +7945,6 @@ def c2teqx(rbpn, gst, rpom):
         numpy.PyArray_MultiIter_NEXT(it)
     
     return rc2t_out
-
 
 def c2tpe(tta, ttb, uta, utb, dpsi, deps, xp, yp):
     """
@@ -8061,7 +8068,6 @@ def c2tpe(tta, ttb, uta, utb, dpsi, deps, xp, yp):
     
     return rc2t_out
 
-
 def c2txy(tta, ttb, uta, utb, x, y, xp, yp):
     """
     c2txy(tta, ttb, uta, utb, x, y, xp, yp)
@@ -8180,7 +8186,6 @@ def c2txy(tta, ttb, uta, utb, x, y, xp, yp):
     
     return rc2t_out
 
-
 def eo06a(date1, date2):
     """
     eo06a(date1, date2)
@@ -8264,7 +8269,6 @@ def eo06a(date1, date2):
     
     return c_retval_out
 
-
 def eors(rnpb, s):
     """
     eors(rnpb, s)
@@ -8326,7 +8330,6 @@ def eors(rnpb, s):
         numpy.PyArray_MultiIter_NEXT(it)
     
     return c_retval_out
-
 
 def fw2m(gamb, phib, psi, eps):
     """
@@ -8425,7 +8428,6 @@ def fw2m(gamb, phib, psi, eps):
     
     return r_out
 
-
 def fw2xy(gamb, phib, psi, eps):
     """
     fw2xy(gamb, phib, psi, eps)
@@ -8511,7 +8513,6 @@ def fw2xy(gamb, phib, psi, eps):
     
     return x_out, y_out
 
-
 def num00a(date1, date2):
     """
     num00a(date1, date2)
@@ -8592,7 +8593,6 @@ def num00a(date1, date2):
         numpy.PyArray_MultiIter_NEXT(it)
     
     return rmatn_out
-
 
 def num00b(date1, date2):
     """
@@ -8675,7 +8675,6 @@ def num00b(date1, date2):
     
     return rmatn_out
 
-
 def num06a(date1, date2):
     """
     num06a(date1, date2)
@@ -8756,7 +8755,6 @@ def num06a(date1, date2):
     
     return rmatn_out
 
-
 def numat(epsa, dpsi, deps):
     """
     numat(epsa, dpsi, deps)
@@ -8828,7 +8826,6 @@ def numat(epsa, dpsi, deps):
         numpy.PyArray_MultiIter_NEXT(it)
     
     return rmatn_out
-
 
 def nut00a(date1, date2):
     """
@@ -9010,7 +9007,6 @@ def nut00a(date1, date2):
     
     return dpsi_out, deps_out
 
-
 def nut00b(date1, date2):
     """
     nut00b(date1, date2)
@@ -9159,7 +9155,6 @@ def nut00b(date1, date2):
     
     return dpsi_out, deps_out
 
-
 def nut06a(date1, date2):
     """
     nut06a(date1, date2)
@@ -9267,7 +9262,6 @@ def nut06a(date1, date2):
     
     return dpsi_out, deps_out
 
-
 def nut80(date1, date2):
     """
     nut80(date1, date2)
@@ -9348,7 +9342,6 @@ def nut80(date1, date2):
     
     return dpsi_out, deps_out
 
-
 def nutm80(date1, date2):
     """
     nutm80(date1, date2)
@@ -9423,7 +9416,6 @@ def nutm80(date1, date2):
     
     return rmatn_out
 
-
 def obl06(date1, date2):
     """
     obl06(date1, date2)
@@ -9494,7 +9486,6 @@ def obl06(date1, date2):
         numpy.PyArray_MultiIter_NEXT(it)
     
     return c_retval_out
-
 
 def obl80(date1, date2):
     """
@@ -9568,7 +9559,6 @@ def obl80(date1, date2):
         numpy.PyArray_MultiIter_NEXT(it)
     
     return c_retval_out
-
 
 def p06e(date1, date2):
     """
@@ -9759,7 +9749,6 @@ def p06e(date1, date2):
     
     return eps0_out, psia_out, oma_out, bpa_out, bqa_out, pia_out, bpia_out, epsa_out, chia_out, za_out, zetaa_out, thetaa_out, pa_out, gam_out, phi_out, psi_out
 
-
 def pb06(date1, date2):
     """
     pb06(date1, date2)
@@ -9856,7 +9845,6 @@ def pb06(date1, date2):
         numpy.PyArray_MultiIter_NEXT(it)
     
     return bzeta_out, bz_out, btheta_out
-
 
 def pfw06(date1, date2):
     """
@@ -9968,7 +9956,6 @@ def pfw06(date1, date2):
     
     return gamb_out, phib_out, psib_out, epsa_out
 
-
 def pmat00(date1, date2):
     """
     pmat00(date1, date2)
@@ -10047,7 +10034,6 @@ def pmat00(date1, date2):
         numpy.PyArray_MultiIter_NEXT(it)
     
     return rbp_out
-
 
 def pmat06(date1, date2):
     """
@@ -10128,7 +10114,6 @@ def pmat06(date1, date2):
         numpy.PyArray_MultiIter_NEXT(it)
     
     return rbp_out
-
 
 def pmat76(date1, date2):
     """
@@ -10224,7 +10209,6 @@ def pmat76(date1, date2):
         numpy.PyArray_MultiIter_NEXT(it)
     
     return rmatp_out
-
 
 def pn00(date1, date2, dpsi, deps):
     """
@@ -10365,7 +10349,6 @@ def pn00(date1, date2, dpsi, deps):
         numpy.PyArray_MultiIter_NEXT(it)
     
     return epsa_out, rb_out, rp_out, rbp_out, rn_out, rbpn_out
-
 
 def pn00a(date1, date2):
     """
@@ -10509,7 +10492,6 @@ def pn00a(date1, date2):
     
     return dpsi_out, deps_out, epsa_out, rb_out, rp_out, rbp_out, rn_out, rbpn_out
 
-
 def pn00b(date1, date2):
     """
     pn00b(date1, date2)
@@ -10652,7 +10634,6 @@ def pn00b(date1, date2):
     
     return dpsi_out, deps_out, epsa_out, rb_out, rp_out, rbp_out, rn_out, rbpn_out
 
-
 def pn06(date1, date2, dpsi, deps):
     """
     pn06(date1, date2, dpsi, deps)
@@ -10791,7 +10772,6 @@ def pn06(date1, date2, dpsi, deps):
     
     return epsa_out, rb_out, rp_out, rbp_out, rn_out, rbpn_out
 
-
 def pn06a(date1, date2):
     """
     pn06a(date1, date2)
@@ -10924,7 +10904,6 @@ def pn06a(date1, date2):
     
     return dpsi_out, deps_out, epsa_out, rb_out, rp_out, rbp_out, rn_out, rbpn_out
 
-
 def pnm00a(date1, date2):
     """
     pnm00a(date1, date2)
@@ -11006,7 +10985,6 @@ def pnm00a(date1, date2):
         numpy.PyArray_MultiIter_NEXT(it)
     
     return rbpn_out
-
 
 def pnm00b(date1, date2):
     """
@@ -11090,7 +11068,6 @@ def pnm00b(date1, date2):
     
     return rbpn_out
 
-
 def pnm06a(date1, date2):
     """
     pnm06a(date1, date2)
@@ -11169,7 +11146,6 @@ def pnm06a(date1, date2):
         numpy.PyArray_MultiIter_NEXT(it)
     
     return rnpb_out
-
 
 def pnm80(date1, date2):
     """
@@ -11252,7 +11228,6 @@ def pnm80(date1, date2):
     
     return rmatpn_out
 
-
 def pom00(xp, yp, sp):
     """
     pom00(xp, yp, sp)
@@ -11329,7 +11304,6 @@ def pom00(xp, yp, sp):
         numpy.PyArray_MultiIter_NEXT(it)
     
     return rpom_out
-
 
 def pr00(date1, date2):
     """
@@ -11428,7 +11402,6 @@ def pr00(date1, date2):
         numpy.PyArray_MultiIter_NEXT(it)
     
     return dpsipr_out, depspr_out
-
 
 def prec76(date01, date02, date11, date12):
     """
@@ -11533,7 +11506,6 @@ def prec76(date01, date02, date11, date12):
         numpy.PyArray_MultiIter_NEXT(it)
     
     return zeta_out, z_out, theta_out
-
 
 def s00(date1, date2, x, y):
     """
@@ -11644,7 +11616,6 @@ def s00(date1, date2, x, y):
     
     return c_retval_out
 
-
 def s00a(date1, date2):
     """
     s00a(date1, date2)
@@ -11743,7 +11714,6 @@ def s00a(date1, date2):
     
     return c_retval_out
 
-
 def s00b(date1, date2):
     """
     s00b(date1, date2)
@@ -11841,7 +11811,6 @@ def s00b(date1, date2):
         numpy.PyArray_MultiIter_NEXT(it)
     
     return c_retval_out
-
 
 def s06(date1, date2, x, y):
     """
@@ -11949,7 +11918,6 @@ def s06(date1, date2, x, y):
     
     return c_retval_out
 
-
 def s06a(date1, date2):
     """
     s06a(date1, date2)
@@ -12050,7 +12018,6 @@ def s06a(date1, date2):
     
     return c_retval_out
 
-
 def sp00(date1, date2):
     """
     sp00(date1, date2)
@@ -12126,7 +12093,6 @@ def sp00(date1, date2):
         numpy.PyArray_MultiIter_NEXT(it)
     
     return c_retval_out
-
 
 def xy06(date1, date2):
     """
@@ -12245,7 +12211,6 @@ def xy06(date1, date2):
     
     return x_out, y_out
 
-
 def xys00a(date1, date2):
     """
     xys00a(date1, date2)
@@ -12338,7 +12303,6 @@ def xys00a(date1, date2):
         numpy.PyArray_MultiIter_NEXT(it)
     
     return x_out, y_out, s_out
-
 
 def xys00b(date1, date2):
     """
@@ -12433,7 +12397,6 @@ def xys00b(date1, date2):
     
     return x_out, y_out, s_out
 
-
 def xys06a(date1, date2):
     """
     xys06a(date1, date2)
@@ -12526,7 +12489,6 @@ def xys06a(date1, date2):
         numpy.PyArray_MultiIter_NEXT(it)
     
     return x_out, y_out, s_out
-
 
 def ee00(date1, date2, epsa, dpsi):
     """
@@ -12621,7 +12583,6 @@ def ee00(date1, date2, epsa, dpsi):
     
     return c_retval_out
 
-
 def ee00a(date1, date2):
     """
     ee00a(date1, date2)
@@ -12708,7 +12669,6 @@ def ee00a(date1, date2):
         numpy.PyArray_MultiIter_NEXT(it)
     
     return c_retval_out
-
 
 def ee00b(date1, date2):
     """
@@ -12803,7 +12763,6 @@ def ee00b(date1, date2):
     
     return c_retval_out
 
-
 def ee06a(date1, date2):
     """
     ee06a(date1, date2)
@@ -12882,7 +12841,6 @@ def ee06a(date1, date2):
         numpy.PyArray_MultiIter_NEXT(it)
     
     return c_retval_out
-
 
 def eect00(date1, date2):
     """
@@ -13004,7 +12962,6 @@ def eect00(date1, date2):
     
     return c_retval_out
 
-
 def eqeq94(date1, date2):
     """
     eqeq94(date1, date2)
@@ -13084,7 +13041,6 @@ def eqeq94(date1, date2):
         numpy.PyArray_MultiIter_NEXT(it)
     
     return c_retval_out
-
 
 def era00(dj1, dj2):
     """
@@ -13168,7 +13124,6 @@ def era00(dj1, dj2):
         numpy.PyArray_MultiIter_NEXT(it)
     
     return c_retval_out
-
 
 def gmst00(uta, utb, tta, ttb):
     """
@@ -13271,7 +13226,6 @@ def gmst00(uta, utb, tta, ttb):
     
     return c_retval_out
 
-
 def gmst06(uta, utb, tta, ttb):
     """
     gmst06(uta, utb, tta, ttb)
@@ -13363,7 +13317,6 @@ def gmst06(uta, utb, tta, ttb):
     
     return c_retval_out
 
-
 def gmst82(dj1, dj2):
     """
     gmst82(dj1, dj2)
@@ -13452,7 +13405,6 @@ def gmst82(dj1, dj2):
         numpy.PyArray_MultiIter_NEXT(it)
     
     return c_retval_out
-
 
 def gst00a(uta, utb, tta, ttb):
     """
@@ -13555,7 +13507,6 @@ def gst00a(uta, utb, tta, ttb):
         numpy.PyArray_MultiIter_NEXT(it)
     
     return c_retval_out
-
 
 def gst00b(uta, utb):
     """
@@ -13663,7 +13614,6 @@ def gst00b(uta, utb):
     
     return c_retval_out
 
-
 def gst06(uta, utb, tta, ttb, rnpb):
     """
     gst06(uta, utb, tta, ttb, rnpb)
@@ -13762,7 +13712,6 @@ def gst06(uta, utb, tta, ttb, rnpb):
     
     return c_retval_out
 
-
 def gst06a(uta, utb, tta, ttb):
     """
     gst06a(uta, utb, tta, ttb)
@@ -13856,7 +13805,6 @@ def gst06a(uta, utb, tta, ttb):
     
     return c_retval_out
 
-
 def gst94(uta, utb):
     """
     gst94(uta, utb)
@@ -13947,7 +13895,6 @@ def gst94(uta, utb):
         numpy.PyArray_MultiIter_NEXT(it)
     
     return c_retval_out
-
 
 def pmsafe(ra1, dec1, pmr1, pmd1, px1, rv1, ep1a, ep1b, ep2a, ep2b):
     """
@@ -14067,7 +14014,7 @@ def pmsafe(ra1, dec1, pmr1, pmd1, px1, rv1, ep1a, ep1b, ep2a, ep2b):
     pmd2_out = numpy.empty(in_shape, dtype=numpy.double)
     px2_out = numpy.empty(in_shape, dtype=numpy.double)
     rv2_out = numpy.empty(in_shape, dtype=numpy.double)
-    c_retval_out = numpy.empty(in_shape, dtype=numpy.int)
+    c_retval_out = numpy.empty(in_shape, dtype=numpy.intc)
     
     cdef numpy.broadcast it = numpy.broadcast(ra1, dec1, pmr1, pmd1, px1, rv1, ep1a, ep1b, ep2a, ep2b, ra2_out, dec2_out, pmr2_out, pmd2_out, px2_out, rv2_out, c_retval_out)
     cdef double _ra1
@@ -14087,6 +14034,7 @@ def pmsafe(ra1, dec1, pmr1, pmd1, px1, rv1, ep1a, ep1b, ep2a, ep2b):
     cdef double * _px2
     cdef double * _rv2
     cdef int _c_retval
+    cdef bint stat_ok = True
     
     while numpy.PyArray_MultiIter_NOTDONE(it):
         _ra1 = (<double*>numpy.PyArray_MultiIter_DATA(it, 0))[0]
@@ -14108,17 +14056,16 @@ def pmsafe(ra1, dec1, pmr1, pmd1, px1, rv1, ep1a, ep1b, ep2a, ep2b):
         
         _c_retval = eraPmsafe(_ra1, _dec1, _pmr1, _pmd1, _px1, _rv1, _ep1a, _ep1b, _ep2a, _ep2b, _ra2, _dec2, _pmr2, _pmd2, _px2, _rv2)
         (<int*>numpy.PyArray_MultiIter_DATA(it, 16))[0] = _c_retval
+        if _c_retval != 0:
+            stat_ok = False
         
         numpy.PyArray_MultiIter_NEXT(it)
-    check_errwarn(c_retval_out, pmsafe)
+
+    if not stat_ok:
+        check_errwarn(c_retval_out, 'pmsafe')
     
     return ra2_out, dec2_out, pmr2_out, pmd2_out, px2_out, rv2_out
-BLROK: 0 = no warnings or errors
-BLROK: 1 = distance overridden (Note 6)
-BLROK: 2 = excessive velocity (Note 7)
-BLROK: 4 = solution didn't converge (Note 8)
-BLROK: else = binary logical OR of the above warnings
-BLROK: -1 = system error (should not occur)
+STATUS_CODES['pmsafe'] = {0: u'no warnings or errors', 1: u'distance overridden (Note 6)', 2: u'excessive velocity (Note 7)', 4: u"solution didn't converge (Note 8)", u'else': u'binary logical OR of the above warnings', -1: u'system error (should not occur)'}
 
 
 def pvstar(pv):
@@ -14230,7 +14177,7 @@ def pvstar(pv):
     pmd_out = numpy.empty(in_shape, dtype=numpy.double)
     px_out = numpy.empty(in_shape, dtype=numpy.double)
     rv_out = numpy.empty(in_shape, dtype=numpy.double)
-    c_retval_out = numpy.empty(in_shape, dtype=numpy.int)
+    c_retval_out = numpy.empty(in_shape, dtype=numpy.intc)
     
     cdef numpy.broadcast it = numpy.broadcast(pv, ra_out, dec_out, pmr_out, pmd_out, px_out, rv_out, c_retval_out)
     cdef double * _pv
@@ -14241,6 +14188,7 @@ def pvstar(pv):
     cdef double * _px
     cdef double * _rv
     cdef int _c_retval
+    cdef bint stat_ok = True
     
     while numpy.PyArray_MultiIter_NOTDONE(it):
         _pv = (<double *>numpy.PyArray_MultiIter_DATA(it, 0))
@@ -14253,14 +14201,16 @@ def pvstar(pv):
         
         _c_retval = eraPvstar(_pv, _ra, _dec, _pmr, _pmd, _px, _rv)
         (<int*>numpy.PyArray_MultiIter_DATA(it, 7))[0] = _c_retval
+        if _c_retval != 0:
+            stat_ok = False
         
         numpy.PyArray_MultiIter_NEXT(it)
-    check_errwarn(c_retval_out, pvstar)
+
+    if not stat_ok:
+        check_errwarn(c_retval_out, 'pvstar')
     
     return ra_out, dec_out, pmr_out, pmd_out, px_out, rv_out
-BLROK: 0 = OK
-BLROK: -2 = null position vector
-BLROK: -1 = superluminal speed (Note 5)
+STATUS_CODES['pvstar'] = {0: u'OK', -2: u'null position vector', -1: u'superluminal speed (Note 5)'}
 
 
 def starpv(ra, dec, pmr, pmd, px, rv):
@@ -14386,7 +14336,7 @@ def starpv(ra, dec, pmr, pmd, px, rv):
     """
     in_shape = numpy.broadcast(ra, dec, pmr, pmd, px, rv).shape
     pv_out = numpy.empty(in_shape, dtype=numpy.dtype([('pv', 'd', (2,3))]))
-    c_retval_out = numpy.empty(in_shape, dtype=numpy.int)
+    c_retval_out = numpy.empty(in_shape, dtype=numpy.intc)
     
     cdef numpy.broadcast it = numpy.broadcast(ra, dec, pmr, pmd, px, rv, pv_out, c_retval_out)
     cdef double _ra
@@ -14397,6 +14347,7 @@ def starpv(ra, dec, pmr, pmd, px, rv):
     cdef double _rv
     cdef double * _pv
     cdef int _c_retval
+    cdef bint stat_ok = True
     
     while numpy.PyArray_MultiIter_NOTDONE(it):
         _ra = (<double*>numpy.PyArray_MultiIter_DATA(it, 0))[0]
@@ -14409,16 +14360,16 @@ def starpv(ra, dec, pmr, pmd, px, rv):
         
         _c_retval = eraStarpv(_ra, _dec, _pmr, _pmd, _px, _rv, _pv)
         (<int*>numpy.PyArray_MultiIter_DATA(it, 7))[0] = _c_retval
+        if _c_retval != 0:
+            stat_ok = False
         
         numpy.PyArray_MultiIter_NEXT(it)
-    check_errwarn(c_retval_out, starpv)
+
+    if not stat_ok:
+        check_errwarn(c_retval_out, 'starpv')
     
     return pv_out
-BLROK: 0 = no warnings
-BLROK: 1 = distance overridden (Note 6)
-BLROK: 2 = excessive speed (Note 7)
-BLROK: 4 = solution didn't converge (Note 8)
-BLROK: else = binary logical OR of the above
+STATUS_CODES['starpv'] = {0: u'no warnings', 1: u'distance overridden (Note 6)', 2: u'excessive speed (Note 7)', 4: u"solution didn't converge (Note 8)", u'else': u'binary logical OR of the above'}
 
 
 def fk52h(r5, d5, dr5, dd5, px5, rv5):
@@ -14523,7 +14474,6 @@ def fk52h(r5, d5, dr5, dd5, px5, rv5):
     
     return rh_out, dh_out, drh_out, ddh_out, pxh_out, rvh_out
 
-
 def fk5hip():
     """
     fk5hip()
@@ -14587,7 +14537,6 @@ def fk5hip():
         numpy.PyArray_MultiIter_NEXT(it)
     
     return r5h_out, s5h_out
-
 
 def fk5hz(r5, d5, date1, date2):
     """
@@ -14693,7 +14642,6 @@ def fk5hz(r5, d5, date1, date2):
     
     return rh_out, dh_out
 
-
 def h2fk5(rh, dh, drh, ddh, pxh, rvh):
     """
     h2fk5(rh, dh, drh, ddh, pxh, rvh)
@@ -14797,7 +14745,6 @@ def h2fk5(rh, dh, drh, ddh, pxh, rvh):
         numpy.PyArray_MultiIter_NEXT(it)
     
     return r5_out, d5_out, dr5_out, dd5_out, px5_out, rv5_out
-
 
 def hfk5z(rh, dh, date1, date2):
     """
@@ -14913,7 +14860,6 @@ def hfk5z(rh, dh, date1, date2):
         numpy.PyArray_MultiIter_NEXT(it)
     
     return r5_out, d5_out, dr5_out, dd5_out
-
 
 def starpm(ra1, dec1, pmr1, pmd1, px1, rv1, ep1a, ep1b, ep2a, ep2b):
     """
@@ -15034,7 +14980,7 @@ def starpm(ra1, dec1, pmr1, pmd1, px1, rv1, ep1a, ep1b, ep2a, ep2b):
     pmd2_out = numpy.empty(in_shape, dtype=numpy.double)
     px2_out = numpy.empty(in_shape, dtype=numpy.double)
     rv2_out = numpy.empty(in_shape, dtype=numpy.double)
-    c_retval_out = numpy.empty(in_shape, dtype=numpy.int)
+    c_retval_out = numpy.empty(in_shape, dtype=numpy.intc)
     
     cdef numpy.broadcast it = numpy.broadcast(ra1, dec1, pmr1, pmd1, px1, rv1, ep1a, ep1b, ep2a, ep2b, ra2_out, dec2_out, pmr2_out, pmd2_out, px2_out, rv2_out, c_retval_out)
     cdef double _ra1
@@ -15054,6 +15000,7 @@ def starpm(ra1, dec1, pmr1, pmd1, px1, rv1, ep1a, ep1b, ep2a, ep2b):
     cdef double * _px2
     cdef double * _rv2
     cdef int _c_retval
+    cdef bint stat_ok = True
     
     while numpy.PyArray_MultiIter_NOTDONE(it):
         _ra1 = (<double*>numpy.PyArray_MultiIter_DATA(it, 0))[0]
@@ -15075,17 +15022,16 @@ def starpm(ra1, dec1, pmr1, pmd1, px1, rv1, ep1a, ep1b, ep2a, ep2b):
         
         _c_retval = eraStarpm(_ra1, _dec1, _pmr1, _pmd1, _px1, _rv1, _ep1a, _ep1b, _ep2a, _ep2b, _ra2, _dec2, _pmr2, _pmd2, _px2, _rv2)
         (<int*>numpy.PyArray_MultiIter_DATA(it, 16))[0] = _c_retval
+        if _c_retval != 0:
+            stat_ok = False
         
         numpy.PyArray_MultiIter_NEXT(it)
-    check_errwarn(c_retval_out, starpm)
+
+    if not stat_ok:
+        check_errwarn(c_retval_out, 'starpm')
     
     return ra2_out, dec2_out, pmr2_out, pmd2_out, px2_out, rv2_out
-BLROK: 0 = no warnings or errors
-BLROK: 1 = distance overridden (Note 6)
-BLROK: 2 = excessive velocity (Note 7)
-BLROK: 4 = solution didn't converge (Note 8)
-BLROK: else = binary logical OR of the above warnings
-BLROK: -1 = system error (should not occur)
+STATUS_CODES['starpm'] = {0: u'no warnings or errors', 1: u'distance overridden (Note 6)', 2: u'excessive velocity (Note 7)', 4: u"solution didn't converge (Note 8)", u'else': u'binary logical OR of the above warnings', -1: u'system error (should not occur)'}
 
 
 def eform(n):
@@ -15156,13 +15102,14 @@ def eform(n):
     in_shape = numpy.broadcast(n, 0).shape
     a_out = numpy.empty(in_shape, dtype=numpy.double)
     f_out = numpy.empty(in_shape, dtype=numpy.double)
-    c_retval_out = numpy.empty(in_shape, dtype=numpy.int)
+    c_retval_out = numpy.empty(in_shape, dtype=numpy.intc)
     
     cdef numpy.broadcast it = numpy.broadcast(n, a_out, f_out, c_retval_out)
     cdef int _n
     cdef double * _a
     cdef double * _f
     cdef int _c_retval
+    cdef bint stat_ok = True
     
     while numpy.PyArray_MultiIter_NOTDONE(it):
         _n = (<int*>numpy.PyArray_MultiIter_DATA(it, 0))[0]
@@ -15171,11 +15118,16 @@ def eform(n):
         
         _c_retval = eraEform(_n, _a, _f)
         (<int*>numpy.PyArray_MultiIter_DATA(it, 3))[0] = _c_retval
+        if _c_retval != 0:
+            stat_ok = False
         
         numpy.PyArray_MultiIter_NEXT(it)
-    check_errwarn(c_retval_out, eform)
+
+    if not stat_ok:
+        check_errwarn(c_retval_out, 'eform')
     
     return a_out, f_out
+STATUS_CODES['eform'] = {0: u'OK', -1: u'illegal identifier (Note 3)'}
 
 
 def gc2gd(n, xyz):
@@ -15242,7 +15194,7 @@ def gc2gd(n, xyz):
     elong_out = numpy.empty(in_shape, dtype=numpy.double)
     phi_out = numpy.empty(in_shape, dtype=numpy.double)
     height_out = numpy.empty(in_shape, dtype=numpy.double)
-    c_retval_out = numpy.empty(in_shape, dtype=numpy.int)
+    c_retval_out = numpy.empty(in_shape, dtype=numpy.intc)
     
     cdef numpy.broadcast it = numpy.broadcast(n, xyz, elong_out, phi_out, height_out, c_retval_out)
     cdef int _n
@@ -15251,6 +15203,7 @@ def gc2gd(n, xyz):
     cdef double * _phi
     cdef double * _height
     cdef int _c_retval
+    cdef bint stat_ok = True
     
     while numpy.PyArray_MultiIter_NOTDONE(it):
         _n = (<int*>numpy.PyArray_MultiIter_DATA(it, 0))[0]
@@ -15261,11 +15214,16 @@ def gc2gd(n, xyz):
         
         _c_retval = eraGc2gd(_n, _xyz, _elong, _phi, _height)
         (<int*>numpy.PyArray_MultiIter_DATA(it, 5))[0] = _c_retval
+        if _c_retval != 0:
+            stat_ok = False
         
         numpy.PyArray_MultiIter_NEXT(it)
-    check_errwarn(c_retval_out, gc2gd)
+
+    if not stat_ok:
+        check_errwarn(c_retval_out, 'gc2gd')
     
     return elong_out, phi_out, height_out
+STATUS_CODES['gc2gd'] = {0: u'OK', -2: u'internal error (Note 3)', -1: u'illegal identifier (Note 3)'}
 
 
 def gc2gde(a, f, xyz):
@@ -15337,7 +15295,7 @@ def gc2gde(a, f, xyz):
     elong_out = numpy.empty(in_shape, dtype=numpy.double)
     phi_out = numpy.empty(in_shape, dtype=numpy.double)
     height_out = numpy.empty(in_shape, dtype=numpy.double)
-    c_retval_out = numpy.empty(in_shape, dtype=numpy.int)
+    c_retval_out = numpy.empty(in_shape, dtype=numpy.intc)
     
     cdef numpy.broadcast it = numpy.broadcast(a, f, xyz, elong_out, phi_out, height_out, c_retval_out)
     cdef double _a
@@ -15347,6 +15305,7 @@ def gc2gde(a, f, xyz):
     cdef double * _phi
     cdef double * _height
     cdef int _c_retval
+    cdef bint stat_ok = True
     
     while numpy.PyArray_MultiIter_NOTDONE(it):
         _a = (<double*>numpy.PyArray_MultiIter_DATA(it, 0))[0]
@@ -15358,11 +15317,16 @@ def gc2gde(a, f, xyz):
         
         _c_retval = eraGc2gde(_a, _f, _xyz, _elong, _phi, _height)
         (<int*>numpy.PyArray_MultiIter_DATA(it, 6))[0] = _c_retval
+        if _c_retval != 0:
+            stat_ok = False
         
         numpy.PyArray_MultiIter_NEXT(it)
-    check_errwarn(c_retval_out, gc2gde)
+
+    if not stat_ok:
+        check_errwarn(c_retval_out, 'gc2gde')
     
     return elong_out, phi_out, height_out
+STATUS_CODES['gc2gde'] = {0: u'OK', -2: u'illegal a', -1: u'illegal f'}
 
 
 def gd2gc(n, elong, phi, height):
@@ -15430,7 +15394,7 @@ def gd2gc(n, elong, phi, height):
     """
     in_shape = numpy.broadcast(n, elong, phi, height).shape
     xyz_out = numpy.empty(in_shape, dtype=numpy.dtype([('p', 'd', (3,))]))
-    c_retval_out = numpy.empty(in_shape, dtype=numpy.int)
+    c_retval_out = numpy.empty(in_shape, dtype=numpy.intc)
     
     cdef numpy.broadcast it = numpy.broadcast(n, elong, phi, height, xyz_out, c_retval_out)
     cdef int _n
@@ -15439,6 +15403,7 @@ def gd2gc(n, elong, phi, height):
     cdef double _height
     cdef double * _xyz
     cdef int _c_retval
+    cdef bint stat_ok = True
     
     while numpy.PyArray_MultiIter_NOTDONE(it):
         _n = (<int*>numpy.PyArray_MultiIter_DATA(it, 0))[0]
@@ -15449,11 +15414,16 @@ def gd2gc(n, elong, phi, height):
         
         _c_retval = eraGd2gc(_n, _elong, _phi, _height, _xyz)
         (<int*>numpy.PyArray_MultiIter_DATA(it, 5))[0] = _c_retval
+        if _c_retval != 0:
+            stat_ok = False
         
         numpy.PyArray_MultiIter_NEXT(it)
-    check_errwarn(c_retval_out, gd2gc)
+
+    if not stat_ok:
+        check_errwarn(c_retval_out, 'gd2gc')
     
     return xyz_out
+STATUS_CODES['gd2gc'] = {0: u'OK', -2: u'illegal case (Note 3)', -1: u'illegal identifier (Note 3)'}
 
 
 def gd2gce(a, f, elong, phi, height):
@@ -15522,7 +15492,7 @@ def gd2gce(a, f, elong, phi, height):
     """
     in_shape = numpy.broadcast(a, f, elong, phi, height).shape
     xyz_out = numpy.empty(in_shape, dtype=numpy.dtype([('p', 'd', (3,))]))
-    c_retval_out = numpy.empty(in_shape, dtype=numpy.int)
+    c_retval_out = numpy.empty(in_shape, dtype=numpy.intc)
     
     cdef numpy.broadcast it = numpy.broadcast(a, f, elong, phi, height, xyz_out, c_retval_out)
     cdef double _a
@@ -15532,6 +15502,7 @@ def gd2gce(a, f, elong, phi, height):
     cdef double _height
     cdef double * _xyz
     cdef int _c_retval
+    cdef bint stat_ok = True
     
     while numpy.PyArray_MultiIter_NOTDONE(it):
         _a = (<double*>numpy.PyArray_MultiIter_DATA(it, 0))[0]
@@ -15543,11 +15514,16 @@ def gd2gce(a, f, elong, phi, height):
         
         _c_retval = eraGd2gce(_a, _f, _elong, _phi, _height, _xyz)
         (<int*>numpy.PyArray_MultiIter_DATA(it, 6))[0] = _c_retval
+        if _c_retval != 0:
+            stat_ok = False
         
         numpy.PyArray_MultiIter_NEXT(it)
-    check_errwarn(c_retval_out, gd2gce)
+
+    if not stat_ok:
+        check_errwarn(c_retval_out, 'gd2gce')
     
     return xyz_out
+STATUS_CODES['gd2gce'] = {0: u'OK', -1: u'illegal case (Note 4)Notes:'}
 
 
 def pvtob(elong, phi, hm, xp, yp, sp, theta):
@@ -15648,7 +15624,6 @@ def pvtob(elong, phi, hm, xp, yp, sp, theta):
     
     return pv_out
 
-
 def d2dtf(scale, ndp, d1, d2):
     """
     d2dtf(scale, ndp, d1, d2)
@@ -15729,11 +15704,11 @@ def d2dtf(scale, ndp, d1, d2):
   
     """
     in_shape = numpy.broadcast(scale, ndp, d1, d2).shape
-    iy_out = numpy.empty(in_shape, dtype=numpy.int)
-    im_out = numpy.empty(in_shape, dtype=numpy.int)
-    id_out = numpy.empty(in_shape, dtype=numpy.int)
+    iy_out = numpy.empty(in_shape, dtype=numpy.intc)
+    im_out = numpy.empty(in_shape, dtype=numpy.intc)
+    id_out = numpy.empty(in_shape, dtype=numpy.intc)
     ihmsf_out = numpy.empty(in_shape, dtype=numpy.dtype([('', 'i', (4,))]))
-    c_retval_out = numpy.empty(in_shape, dtype=numpy.int)
+    c_retval_out = numpy.empty(in_shape, dtype=numpy.intc)
     
     cdef numpy.broadcast it = numpy.broadcast(scale, ndp, d1, d2, iy_out, im_out, id_out, ihmsf_out, c_retval_out)
     cdef char * _scale
@@ -15745,6 +15720,7 @@ def d2dtf(scale, ndp, d1, d2):
     cdef int * _id
     cdef int * _ihmsf
     cdef int _c_retval
+    cdef bint stat_ok = True
     
     while numpy.PyArray_MultiIter_NOTDONE(it):
         _scale = (<char *>numpy.PyArray_MultiIter_DATA(it, 0))
@@ -15758,11 +15734,16 @@ def d2dtf(scale, ndp, d1, d2):
         
         _c_retval = eraD2dtf(_scale, _ndp, _d1, _d2, _iy, _im, _id, _ihmsf)
         (<int*>numpy.PyArray_MultiIter_DATA(it, 8))[0] = _c_retval
+        if _c_retval != 0:
+            stat_ok = False
         
         numpy.PyArray_MultiIter_NEXT(it)
-    check_errwarn(c_retval_out, d2dtf)
+
+    if not stat_ok:
+        check_errwarn(c_retval_out, 'd2dtf')
     
     return iy_out, im_out, id_out, ihmsf_out
+STATUS_CODES['d2dtf'] = {0: u'OK', 1: u'dubious year (Note 5)', -1: u'unacceptable date (Note 6)'}
 
 
 def dat(iy, im, id, fd):
@@ -15892,7 +15873,7 @@ def dat(iy, im, id, fd):
     """
     in_shape = numpy.broadcast(iy, im, id, fd).shape
     deltat_out = numpy.empty(in_shape, dtype=numpy.double)
-    c_retval_out = numpy.empty(in_shape, dtype=numpy.int)
+    c_retval_out = numpy.empty(in_shape, dtype=numpy.intc)
     
     cdef numpy.broadcast it = numpy.broadcast(iy, im, id, fd, deltat_out, c_retval_out)
     cdef int _iy
@@ -15901,6 +15882,7 @@ def dat(iy, im, id, fd):
     cdef double _fd
     cdef double * _deltat
     cdef int _c_retval
+    cdef bint stat_ok = True
     
     while numpy.PyArray_MultiIter_NOTDONE(it):
         _iy = (<int*>numpy.PyArray_MultiIter_DATA(it, 0))[0]
@@ -15911,11 +15893,16 @@ def dat(iy, im, id, fd):
         
         _c_retval = eraDat(_iy, _im, _id, _fd, _deltat)
         (<int*>numpy.PyArray_MultiIter_DATA(it, 5))[0] = _c_retval
+        if _c_retval != 0:
+            stat_ok = False
         
         numpy.PyArray_MultiIter_NEXT(it)
-    check_errwarn(c_retval_out, dat)
+
+    if not stat_ok:
+        check_errwarn(c_retval_out, 'dat')
     
     return deltat_out
+STATUS_CODES['dat'] = {0: u'OK', 1: u'dubious year (Note 1)', -1: u'bad year', -5: u'internal error', -4: u'bad fraction (Note 4)', -3: u'bad day (Note 3)', -2: u'bad month'}
 
 
 def dtdb(date1, date2, ut, elong, u, v):
@@ -16111,7 +16098,6 @@ def dtdb(date1, date2, ut, elong, u, v):
     
     return c_retval_out
 
-
 def dtf2d(scale, iy, im, id, ihr, imn, sec):
     """
     dtf2d(scale, iy, im, id, ihr, imn, sec)
@@ -16198,7 +16184,7 @@ def dtf2d(scale, iy, im, id, ihr, imn, sec):
     in_shape = numpy.broadcast(scale, iy, im, id, ihr, imn, sec).shape
     d1_out = numpy.empty(in_shape, dtype=numpy.double)
     d2_out = numpy.empty(in_shape, dtype=numpy.double)
-    c_retval_out = numpy.empty(in_shape, dtype=numpy.int)
+    c_retval_out = numpy.empty(in_shape, dtype=numpy.intc)
     
     cdef numpy.broadcast it = numpy.broadcast(scale, iy, im, id, ihr, imn, sec, d1_out, d2_out, c_retval_out)
     cdef char * _scale
@@ -16211,6 +16197,7 @@ def dtf2d(scale, iy, im, id, ihr, imn, sec):
     cdef double * _d1
     cdef double * _d2
     cdef int _c_retval
+    cdef bint stat_ok = True
     
     while numpy.PyArray_MultiIter_NOTDONE(it):
         _scale = (<char *>numpy.PyArray_MultiIter_DATA(it, 0))
@@ -16225,11 +16212,16 @@ def dtf2d(scale, iy, im, id, ihr, imn, sec):
         
         _c_retval = eraDtf2d(_scale, _iy, _im, _id, _ihr, _imn, _sec, _d1, _d2)
         (<int*>numpy.PyArray_MultiIter_DATA(it, 9))[0] = _c_retval
+        if _c_retval != 0:
+            stat_ok = False
         
         numpy.PyArray_MultiIter_NEXT(it)
-    check_errwarn(c_retval_out, dtf2d)
+
+    if not stat_ok:
+        check_errwarn(c_retval_out, 'dtf2d')
     
     return d1_out, d2_out
+STATUS_CODES['dtf2d'] = {0: u'OK', 1: u'dubious year (Note 6)', 2: u'time is after end of day (Note 5)', 3: u'both of next two', -1: u'bad year', -6: u'bad second (<0)', -5: u'bad minute', -4: u'bad hour', -3: u'bad day', -2: u'bad month'}
 
 
 def taitt(tai1, tai2):
@@ -16278,7 +16270,7 @@ def taitt(tai1, tai2):
     in_shape = numpy.broadcast(tai1, tai2).shape
     tt1_out = numpy.empty(in_shape, dtype=numpy.double)
     tt2_out = numpy.empty(in_shape, dtype=numpy.double)
-    c_retval_out = numpy.empty(in_shape, dtype=numpy.int)
+    c_retval_out = numpy.empty(in_shape, dtype=numpy.intc)
     
     cdef numpy.broadcast it = numpy.broadcast(tai1, tai2, tt1_out, tt2_out, c_retval_out)
     cdef double _tai1
@@ -16286,6 +16278,7 @@ def taitt(tai1, tai2):
     cdef double * _tt1
     cdef double * _tt2
     cdef int _c_retval
+    cdef bint stat_ok = True
     
     while numpy.PyArray_MultiIter_NOTDONE(it):
         _tai1 = (<double*>numpy.PyArray_MultiIter_DATA(it, 0))[0]
@@ -16295,11 +16288,16 @@ def taitt(tai1, tai2):
         
         _c_retval = eraTaitt(_tai1, _tai2, _tt1, _tt2)
         (<int*>numpy.PyArray_MultiIter_DATA(it, 4))[0] = _c_retval
+        if _c_retval != 0:
+            stat_ok = False
         
         numpy.PyArray_MultiIter_NEXT(it)
-    check_errwarn(c_retval_out, taitt)
+
+    if not stat_ok:
+        check_errwarn(c_retval_out, 'taitt')
     
     return tt1_out, tt2_out
+STATUS_CODES['taitt'] = {0: u'OK'}
 
 
 def taiut1(tai1, tai2, dta):
@@ -16349,7 +16347,7 @@ def taiut1(tai1, tai2, dta):
     in_shape = numpy.broadcast(tai1, tai2, dta).shape
     ut11_out = numpy.empty(in_shape, dtype=numpy.double)
     ut12_out = numpy.empty(in_shape, dtype=numpy.double)
-    c_retval_out = numpy.empty(in_shape, dtype=numpy.int)
+    c_retval_out = numpy.empty(in_shape, dtype=numpy.intc)
     
     cdef numpy.broadcast it = numpy.broadcast(tai1, tai2, dta, ut11_out, ut12_out, c_retval_out)
     cdef double _tai1
@@ -16358,6 +16356,7 @@ def taiut1(tai1, tai2, dta):
     cdef double * _ut11
     cdef double * _ut12
     cdef int _c_retval
+    cdef bint stat_ok = True
     
     while numpy.PyArray_MultiIter_NOTDONE(it):
         _tai1 = (<double*>numpy.PyArray_MultiIter_DATA(it, 0))[0]
@@ -16368,11 +16367,16 @@ def taiut1(tai1, tai2, dta):
         
         _c_retval = eraTaiut1(_tai1, _tai2, _dta, _ut11, _ut12)
         (<int*>numpy.PyArray_MultiIter_DATA(it, 5))[0] = _c_retval
+        if _c_retval != 0:
+            stat_ok = False
         
         numpy.PyArray_MultiIter_NEXT(it)
-    check_errwarn(c_retval_out, taiut1)
+
+    if not stat_ok:
+        check_errwarn(c_retval_out, 'taiut1')
     
     return ut11_out, ut12_out
+STATUS_CODES['taiut1'] = {0: u'OK'}
 
 
 def taiutc(tai1, tai2):
@@ -16444,7 +16448,7 @@ def taiutc(tai1, tai2):
     in_shape = numpy.broadcast(tai1, tai2).shape
     utc1_out = numpy.empty(in_shape, dtype=numpy.double)
     utc2_out = numpy.empty(in_shape, dtype=numpy.double)
-    c_retval_out = numpy.empty(in_shape, dtype=numpy.int)
+    c_retval_out = numpy.empty(in_shape, dtype=numpy.intc)
     
     cdef numpy.broadcast it = numpy.broadcast(tai1, tai2, utc1_out, utc2_out, c_retval_out)
     cdef double _tai1
@@ -16452,6 +16456,7 @@ def taiutc(tai1, tai2):
     cdef double * _utc1
     cdef double * _utc2
     cdef int _c_retval
+    cdef bint stat_ok = True
     
     while numpy.PyArray_MultiIter_NOTDONE(it):
         _tai1 = (<double*>numpy.PyArray_MultiIter_DATA(it, 0))[0]
@@ -16461,11 +16466,16 @@ def taiutc(tai1, tai2):
         
         _c_retval = eraTaiutc(_tai1, _tai2, _utc1, _utc2)
         (<int*>numpy.PyArray_MultiIter_DATA(it, 4))[0] = _c_retval
+        if _c_retval != 0:
+            stat_ok = False
         
         numpy.PyArray_MultiIter_NEXT(it)
-    check_errwarn(c_retval_out, taiutc)
+
+    if not stat_ok:
+        check_errwarn(c_retval_out, 'taiutc')
     
     return utc1_out, utc2_out
+STATUS_CODES['taiutc'] = {0: u'OK', 1: u'dubious year (Note 4)', -1: u'unacceptable date'}
 
 
 def tcbtdb(tcb1, tcb2):
@@ -16528,7 +16538,7 @@ def tcbtdb(tcb1, tcb2):
     in_shape = numpy.broadcast(tcb1, tcb2).shape
     tdb1_out = numpy.empty(in_shape, dtype=numpy.double)
     tdb2_out = numpy.empty(in_shape, dtype=numpy.double)
-    c_retval_out = numpy.empty(in_shape, dtype=numpy.int)
+    c_retval_out = numpy.empty(in_shape, dtype=numpy.intc)
     
     cdef numpy.broadcast it = numpy.broadcast(tcb1, tcb2, tdb1_out, tdb2_out, c_retval_out)
     cdef double _tcb1
@@ -16536,6 +16546,7 @@ def tcbtdb(tcb1, tcb2):
     cdef double * _tdb1
     cdef double * _tdb2
     cdef int _c_retval
+    cdef bint stat_ok = True
     
     while numpy.PyArray_MultiIter_NOTDONE(it):
         _tcb1 = (<double*>numpy.PyArray_MultiIter_DATA(it, 0))[0]
@@ -16545,11 +16556,16 @@ def tcbtdb(tcb1, tcb2):
         
         _c_retval = eraTcbtdb(_tcb1, _tcb2, _tdb1, _tdb2)
         (<int*>numpy.PyArray_MultiIter_DATA(it, 4))[0] = _c_retval
+        if _c_retval != 0:
+            stat_ok = False
         
         numpy.PyArray_MultiIter_NEXT(it)
-    check_errwarn(c_retval_out, tcbtdb)
+
+    if not stat_ok:
+        check_errwarn(c_retval_out, 'tcbtdb')
     
     return tdb1_out, tdb2_out
+STATUS_CODES['tcbtdb'] = {0: u'OK'}
 
 
 def tcgtt(tcg1, tcg2):
@@ -16597,7 +16613,7 @@ def tcgtt(tcg1, tcg2):
     in_shape = numpy.broadcast(tcg1, tcg2).shape
     tt1_out = numpy.empty(in_shape, dtype=numpy.double)
     tt2_out = numpy.empty(in_shape, dtype=numpy.double)
-    c_retval_out = numpy.empty(in_shape, dtype=numpy.int)
+    c_retval_out = numpy.empty(in_shape, dtype=numpy.intc)
     
     cdef numpy.broadcast it = numpy.broadcast(tcg1, tcg2, tt1_out, tt2_out, c_retval_out)
     cdef double _tcg1
@@ -16605,6 +16621,7 @@ def tcgtt(tcg1, tcg2):
     cdef double * _tt1
     cdef double * _tt2
     cdef int _c_retval
+    cdef bint stat_ok = True
     
     while numpy.PyArray_MultiIter_NOTDONE(it):
         _tcg1 = (<double*>numpy.PyArray_MultiIter_DATA(it, 0))[0]
@@ -16614,11 +16631,16 @@ def tcgtt(tcg1, tcg2):
         
         _c_retval = eraTcgtt(_tcg1, _tcg2, _tt1, _tt2)
         (<int*>numpy.PyArray_MultiIter_DATA(it, 4))[0] = _c_retval
+        if _c_retval != 0:
+            stat_ok = False
         
         numpy.PyArray_MultiIter_NEXT(it)
-    check_errwarn(c_retval_out, tcgtt)
+
+    if not stat_ok:
+        check_errwarn(c_retval_out, 'tcgtt')
     
     return tt1_out, tt2_out
+STATUS_CODES['tcgtt'] = {0: u'OK'}
 
 
 def tdbtcb(tdb1, tdb2):
@@ -16681,7 +16703,7 @@ def tdbtcb(tdb1, tdb2):
     in_shape = numpy.broadcast(tdb1, tdb2).shape
     tcb1_out = numpy.empty(in_shape, dtype=numpy.double)
     tcb2_out = numpy.empty(in_shape, dtype=numpy.double)
-    c_retval_out = numpy.empty(in_shape, dtype=numpy.int)
+    c_retval_out = numpy.empty(in_shape, dtype=numpy.intc)
     
     cdef numpy.broadcast it = numpy.broadcast(tdb1, tdb2, tcb1_out, tcb2_out, c_retval_out)
     cdef double _tdb1
@@ -16689,6 +16711,7 @@ def tdbtcb(tdb1, tdb2):
     cdef double * _tcb1
     cdef double * _tcb2
     cdef int _c_retval
+    cdef bint stat_ok = True
     
     while numpy.PyArray_MultiIter_NOTDONE(it):
         _tdb1 = (<double*>numpy.PyArray_MultiIter_DATA(it, 0))[0]
@@ -16698,11 +16721,16 @@ def tdbtcb(tdb1, tdb2):
         
         _c_retval = eraTdbtcb(_tdb1, _tdb2, _tcb1, _tcb2)
         (<int*>numpy.PyArray_MultiIter_DATA(it, 4))[0] = _c_retval
+        if _c_retval != 0:
+            stat_ok = False
         
         numpy.PyArray_MultiIter_NEXT(it)
-    check_errwarn(c_retval_out, tdbtcb)
+
+    if not stat_ok:
+        check_errwarn(c_retval_out, 'tdbtcb')
     
     return tcb1_out, tcb2_out
+STATUS_CODES['tdbtcb'] = {0: u'OK'}
 
 
 def tdbtt(tdb1, tdb2, dtr):
@@ -16762,7 +16790,7 @@ def tdbtt(tdb1, tdb2, dtr):
     in_shape = numpy.broadcast(tdb1, tdb2, dtr).shape
     tt1_out = numpy.empty(in_shape, dtype=numpy.double)
     tt2_out = numpy.empty(in_shape, dtype=numpy.double)
-    c_retval_out = numpy.empty(in_shape, dtype=numpy.int)
+    c_retval_out = numpy.empty(in_shape, dtype=numpy.intc)
     
     cdef numpy.broadcast it = numpy.broadcast(tdb1, tdb2, dtr, tt1_out, tt2_out, c_retval_out)
     cdef double _tdb1
@@ -16771,6 +16799,7 @@ def tdbtt(tdb1, tdb2, dtr):
     cdef double * _tt1
     cdef double * _tt2
     cdef int _c_retval
+    cdef bint stat_ok = True
     
     while numpy.PyArray_MultiIter_NOTDONE(it):
         _tdb1 = (<double*>numpy.PyArray_MultiIter_DATA(it, 0))[0]
@@ -16781,11 +16810,16 @@ def tdbtt(tdb1, tdb2, dtr):
         
         _c_retval = eraTdbtt(_tdb1, _tdb2, _dtr, _tt1, _tt2)
         (<int*>numpy.PyArray_MultiIter_DATA(it, 5))[0] = _c_retval
+        if _c_retval != 0:
+            stat_ok = False
         
         numpy.PyArray_MultiIter_NEXT(it)
-    check_errwarn(c_retval_out, tdbtt)
+
+    if not stat_ok:
+        check_errwarn(c_retval_out, 'tdbtt')
     
     return tt1_out, tt2_out
+STATUS_CODES['tdbtt'] = {0: u'OK'}
 
 
 def tttai(tt1, tt2):
@@ -16834,7 +16868,7 @@ def tttai(tt1, tt2):
     in_shape = numpy.broadcast(tt1, tt2).shape
     tai1_out = numpy.empty(in_shape, dtype=numpy.double)
     tai2_out = numpy.empty(in_shape, dtype=numpy.double)
-    c_retval_out = numpy.empty(in_shape, dtype=numpy.int)
+    c_retval_out = numpy.empty(in_shape, dtype=numpy.intc)
     
     cdef numpy.broadcast it = numpy.broadcast(tt1, tt2, tai1_out, tai2_out, c_retval_out)
     cdef double _tt1
@@ -16842,6 +16876,7 @@ def tttai(tt1, tt2):
     cdef double * _tai1
     cdef double * _tai2
     cdef int _c_retval
+    cdef bint stat_ok = True
     
     while numpy.PyArray_MultiIter_NOTDONE(it):
         _tt1 = (<double*>numpy.PyArray_MultiIter_DATA(it, 0))[0]
@@ -16851,11 +16886,16 @@ def tttai(tt1, tt2):
         
         _c_retval = eraTttai(_tt1, _tt2, _tai1, _tai2)
         (<int*>numpy.PyArray_MultiIter_DATA(it, 4))[0] = _c_retval
+        if _c_retval != 0:
+            stat_ok = False
         
         numpy.PyArray_MultiIter_NEXT(it)
-    check_errwarn(c_retval_out, tttai)
+
+    if not stat_ok:
+        check_errwarn(c_retval_out, 'tttai')
     
     return tai1_out, tai2_out
+STATUS_CODES['tttai'] = {0: u'OK'}
 
 
 def tttcg(tt1, tt2):
@@ -16903,7 +16943,7 @@ def tttcg(tt1, tt2):
     in_shape = numpy.broadcast(tt1, tt2).shape
     tcg1_out = numpy.empty(in_shape, dtype=numpy.double)
     tcg2_out = numpy.empty(in_shape, dtype=numpy.double)
-    c_retval_out = numpy.empty(in_shape, dtype=numpy.int)
+    c_retval_out = numpy.empty(in_shape, dtype=numpy.intc)
     
     cdef numpy.broadcast it = numpy.broadcast(tt1, tt2, tcg1_out, tcg2_out, c_retval_out)
     cdef double _tt1
@@ -16911,6 +16951,7 @@ def tttcg(tt1, tt2):
     cdef double * _tcg1
     cdef double * _tcg2
     cdef int _c_retval
+    cdef bint stat_ok = True
     
     while numpy.PyArray_MultiIter_NOTDONE(it):
         _tt1 = (<double*>numpy.PyArray_MultiIter_DATA(it, 0))[0]
@@ -16920,11 +16961,16 @@ def tttcg(tt1, tt2):
         
         _c_retval = eraTttcg(_tt1, _tt2, _tcg1, _tcg2)
         (<int*>numpy.PyArray_MultiIter_DATA(it, 4))[0] = _c_retval
+        if _c_retval != 0:
+            stat_ok = False
         
         numpy.PyArray_MultiIter_NEXT(it)
-    check_errwarn(c_retval_out, tttcg)
+
+    if not stat_ok:
+        check_errwarn(c_retval_out, 'tttcg')
     
     return tcg1_out, tcg2_out
+STATUS_CODES['tttcg'] = {0: u'OK'}
 
 
 def tttdb(tt1, tt2, dtr):
@@ -16984,7 +17030,7 @@ def tttdb(tt1, tt2, dtr):
     in_shape = numpy.broadcast(tt1, tt2, dtr).shape
     tdb1_out = numpy.empty(in_shape, dtype=numpy.double)
     tdb2_out = numpy.empty(in_shape, dtype=numpy.double)
-    c_retval_out = numpy.empty(in_shape, dtype=numpy.int)
+    c_retval_out = numpy.empty(in_shape, dtype=numpy.intc)
     
     cdef numpy.broadcast it = numpy.broadcast(tt1, tt2, dtr, tdb1_out, tdb2_out, c_retval_out)
     cdef double _tt1
@@ -16993,6 +17039,7 @@ def tttdb(tt1, tt2, dtr):
     cdef double * _tdb1
     cdef double * _tdb2
     cdef int _c_retval
+    cdef bint stat_ok = True
     
     while numpy.PyArray_MultiIter_NOTDONE(it):
         _tt1 = (<double*>numpy.PyArray_MultiIter_DATA(it, 0))[0]
@@ -17003,11 +17050,16 @@ def tttdb(tt1, tt2, dtr):
         
         _c_retval = eraTttdb(_tt1, _tt2, _dtr, _tdb1, _tdb2)
         (<int*>numpy.PyArray_MultiIter_DATA(it, 5))[0] = _c_retval
+        if _c_retval != 0:
+            stat_ok = False
         
         numpy.PyArray_MultiIter_NEXT(it)
-    check_errwarn(c_retval_out, tttdb)
+
+    if not stat_ok:
+        check_errwarn(c_retval_out, 'tttdb')
     
     return tdb1_out, tdb2_out
+STATUS_CODES['tttdb'] = {0: u'OK'}
 
 
 def ttut1(tt1, tt2, dt):
@@ -17056,7 +17108,7 @@ def ttut1(tt1, tt2, dt):
     in_shape = numpy.broadcast(tt1, tt2, dt).shape
     ut11_out = numpy.empty(in_shape, dtype=numpy.double)
     ut12_out = numpy.empty(in_shape, dtype=numpy.double)
-    c_retval_out = numpy.empty(in_shape, dtype=numpy.int)
+    c_retval_out = numpy.empty(in_shape, dtype=numpy.intc)
     
     cdef numpy.broadcast it = numpy.broadcast(tt1, tt2, dt, ut11_out, ut12_out, c_retval_out)
     cdef double _tt1
@@ -17065,6 +17117,7 @@ def ttut1(tt1, tt2, dt):
     cdef double * _ut11
     cdef double * _ut12
     cdef int _c_retval
+    cdef bint stat_ok = True
     
     while numpy.PyArray_MultiIter_NOTDONE(it):
         _tt1 = (<double*>numpy.PyArray_MultiIter_DATA(it, 0))[0]
@@ -17075,11 +17128,16 @@ def ttut1(tt1, tt2, dt):
         
         _c_retval = eraTtut1(_tt1, _tt2, _dt, _ut11, _ut12)
         (<int*>numpy.PyArray_MultiIter_DATA(it, 5))[0] = _c_retval
+        if _c_retval != 0:
+            stat_ok = False
         
         numpy.PyArray_MultiIter_NEXT(it)
-    check_errwarn(c_retval_out, ttut1)
+
+    if not stat_ok:
+        check_errwarn(c_retval_out, 'ttut1')
     
     return ut11_out, ut12_out
+STATUS_CODES['ttut1'] = {0: u'OK'}
 
 
 def ut1tai(ut11, ut12, dta):
@@ -17129,7 +17187,7 @@ def ut1tai(ut11, ut12, dta):
     in_shape = numpy.broadcast(ut11, ut12, dta).shape
     tai1_out = numpy.empty(in_shape, dtype=numpy.double)
     tai2_out = numpy.empty(in_shape, dtype=numpy.double)
-    c_retval_out = numpy.empty(in_shape, dtype=numpy.int)
+    c_retval_out = numpy.empty(in_shape, dtype=numpy.intc)
     
     cdef numpy.broadcast it = numpy.broadcast(ut11, ut12, dta, tai1_out, tai2_out, c_retval_out)
     cdef double _ut11
@@ -17138,6 +17196,7 @@ def ut1tai(ut11, ut12, dta):
     cdef double * _tai1
     cdef double * _tai2
     cdef int _c_retval
+    cdef bint stat_ok = True
     
     while numpy.PyArray_MultiIter_NOTDONE(it):
         _ut11 = (<double*>numpy.PyArray_MultiIter_DATA(it, 0))[0]
@@ -17148,11 +17207,16 @@ def ut1tai(ut11, ut12, dta):
         
         _c_retval = eraUt1tai(_ut11, _ut12, _dta, _tai1, _tai2)
         (<int*>numpy.PyArray_MultiIter_DATA(it, 5))[0] = _c_retval
+        if _c_retval != 0:
+            stat_ok = False
         
         numpy.PyArray_MultiIter_NEXT(it)
-    check_errwarn(c_retval_out, ut1tai)
+
+    if not stat_ok:
+        check_errwarn(c_retval_out, 'ut1tai')
     
     return tai1_out, tai2_out
+STATUS_CODES['ut1tai'] = {0: u'OK'}
 
 
 def ut1tt(ut11, ut12, dt):
@@ -17201,7 +17265,7 @@ def ut1tt(ut11, ut12, dt):
     in_shape = numpy.broadcast(ut11, ut12, dt).shape
     tt1_out = numpy.empty(in_shape, dtype=numpy.double)
     tt2_out = numpy.empty(in_shape, dtype=numpy.double)
-    c_retval_out = numpy.empty(in_shape, dtype=numpy.int)
+    c_retval_out = numpy.empty(in_shape, dtype=numpy.intc)
     
     cdef numpy.broadcast it = numpy.broadcast(ut11, ut12, dt, tt1_out, tt2_out, c_retval_out)
     cdef double _ut11
@@ -17210,6 +17274,7 @@ def ut1tt(ut11, ut12, dt):
     cdef double * _tt1
     cdef double * _tt2
     cdef int _c_retval
+    cdef bint stat_ok = True
     
     while numpy.PyArray_MultiIter_NOTDONE(it):
         _ut11 = (<double*>numpy.PyArray_MultiIter_DATA(it, 0))[0]
@@ -17220,11 +17285,16 @@ def ut1tt(ut11, ut12, dt):
         
         _c_retval = eraUt1tt(_ut11, _ut12, _dt, _tt1, _tt2)
         (<int*>numpy.PyArray_MultiIter_DATA(it, 5))[0] = _c_retval
+        if _c_retval != 0:
+            stat_ok = False
         
         numpy.PyArray_MultiIter_NEXT(it)
-    check_errwarn(c_retval_out, ut1tt)
+
+    if not stat_ok:
+        check_errwarn(c_retval_out, 'ut1tt')
     
     return tt1_out, tt2_out
+STATUS_CODES['ut1tt'] = {0: u'OK'}
 
 
 def ut1utc(ut11, ut12, dut1):
@@ -17301,7 +17371,7 @@ def ut1utc(ut11, ut12, dut1):
     in_shape = numpy.broadcast(ut11, ut12, dut1).shape
     utc1_out = numpy.empty(in_shape, dtype=numpy.double)
     utc2_out = numpy.empty(in_shape, dtype=numpy.double)
-    c_retval_out = numpy.empty(in_shape, dtype=numpy.int)
+    c_retval_out = numpy.empty(in_shape, dtype=numpy.intc)
     
     cdef numpy.broadcast it = numpy.broadcast(ut11, ut12, dut1, utc1_out, utc2_out, c_retval_out)
     cdef double _ut11
@@ -17310,6 +17380,7 @@ def ut1utc(ut11, ut12, dut1):
     cdef double * _utc1
     cdef double * _utc2
     cdef int _c_retval
+    cdef bint stat_ok = True
     
     while numpy.PyArray_MultiIter_NOTDONE(it):
         _ut11 = (<double*>numpy.PyArray_MultiIter_DATA(it, 0))[0]
@@ -17320,11 +17391,16 @@ def ut1utc(ut11, ut12, dut1):
         
         _c_retval = eraUt1utc(_ut11, _ut12, _dut1, _utc1, _utc2)
         (<int*>numpy.PyArray_MultiIter_DATA(it, 5))[0] = _c_retval
+        if _c_retval != 0:
+            stat_ok = False
         
         numpy.PyArray_MultiIter_NEXT(it)
-    check_errwarn(c_retval_out, ut1utc)
+
+    if not stat_ok:
+        check_errwarn(c_retval_out, 'ut1utc')
     
     return utc1_out, utc2_out
+STATUS_CODES['ut1utc'] = {0: u'OK', 1: u'dubious year (Note 5)', -1: u'unacceptable date'}
 
 
 def utctai(utc1, utc2):
@@ -17398,7 +17474,7 @@ def utctai(utc1, utc2):
     in_shape = numpy.broadcast(utc1, utc2).shape
     tai1_out = numpy.empty(in_shape, dtype=numpy.double)
     tai2_out = numpy.empty(in_shape, dtype=numpy.double)
-    c_retval_out = numpy.empty(in_shape, dtype=numpy.int)
+    c_retval_out = numpy.empty(in_shape, dtype=numpy.intc)
     
     cdef numpy.broadcast it = numpy.broadcast(utc1, utc2, tai1_out, tai2_out, c_retval_out)
     cdef double _utc1
@@ -17406,6 +17482,7 @@ def utctai(utc1, utc2):
     cdef double * _tai1
     cdef double * _tai2
     cdef int _c_retval
+    cdef bint stat_ok = True
     
     while numpy.PyArray_MultiIter_NOTDONE(it):
         _utc1 = (<double*>numpy.PyArray_MultiIter_DATA(it, 0))[0]
@@ -17415,11 +17492,16 @@ def utctai(utc1, utc2):
         
         _c_retval = eraUtctai(_utc1, _utc2, _tai1, _tai2)
         (<int*>numpy.PyArray_MultiIter_DATA(it, 4))[0] = _c_retval
+        if _c_retval != 0:
+            stat_ok = False
         
         numpy.PyArray_MultiIter_NEXT(it)
-    check_errwarn(c_retval_out, utctai)
+
+    if not stat_ok:
+        check_errwarn(c_retval_out, 'utctai')
     
     return tai1_out, tai2_out
+STATUS_CODES['utctai'] = {0: u'OK', 1: u'dubious year (Note 3)', -1: u'unacceptable date'}
 
 
 def utcut1(utc1, utc2, dut1):
@@ -17497,7 +17579,7 @@ def utcut1(utc1, utc2, dut1):
     in_shape = numpy.broadcast(utc1, utc2, dut1).shape
     ut11_out = numpy.empty(in_shape, dtype=numpy.double)
     ut12_out = numpy.empty(in_shape, dtype=numpy.double)
-    c_retval_out = numpy.empty(in_shape, dtype=numpy.int)
+    c_retval_out = numpy.empty(in_shape, dtype=numpy.intc)
     
     cdef numpy.broadcast it = numpy.broadcast(utc1, utc2, dut1, ut11_out, ut12_out, c_retval_out)
     cdef double _utc1
@@ -17506,6 +17588,7 @@ def utcut1(utc1, utc2, dut1):
     cdef double * _ut11
     cdef double * _ut12
     cdef int _c_retval
+    cdef bint stat_ok = True
     
     while numpy.PyArray_MultiIter_NOTDONE(it):
         _utc1 = (<double*>numpy.PyArray_MultiIter_DATA(it, 0))[0]
@@ -17516,9 +17599,14 @@ def utcut1(utc1, utc2, dut1):
         
         _c_retval = eraUtcut1(_utc1, _utc2, _dut1, _ut11, _ut12)
         (<int*>numpy.PyArray_MultiIter_DATA(it, 5))[0] = _c_retval
+        if _c_retval != 0:
+            stat_ok = False
         
         numpy.PyArray_MultiIter_NEXT(it)
-    check_errwarn(c_retval_out, utcut1)
+
+    if not stat_ok:
+        check_errwarn(c_retval_out, 'utcut1')
     
     return ut11_out, ut12_out
+STATUS_CODES['utcut1'] = {0: u'OK', 1: u'dubious year (Note 3)', -1: u'unacceptable date'}
 
