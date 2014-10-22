@@ -5,9 +5,24 @@
 # and run cython_generator.py from the source directory to update it.
 
 """
-This module uses Cython to wrap the ERFA library in numpy-vectorized equivalents.
+This module uses Cython to wrap the ERFA library in numpy-vectorized
+equivalents.
 
-This is currently *not* part of the public Astropy API, and may change in the future.
+..warning::
+    This is currently *not* part of the public Astropy API, and may change in
+    the future.
+
+
+The key idea is that any function can be called with inputs that are arrays,
+and the wrappers will automatically vectorize and call the ERFA functions for
+each item using broadcasting rules for numpy.  So the return values are always
+numpy arrays of some sort.
+
+For ERFA functions that take/return vectors or matricies, the vector/matrix
+dimension(s) are always the *last* dimension(s).  For example, if you 
+want to give ten matricies (i.e., the ERFA input type is double[3][3]),
+you would pass in a (10, 3, 3) numpy array.  If the output of the ERFA 
+function is scalar, you'll get back a length-10 1D array. 
 """
 from __future__ import (absolute_import, division, print_function)
 
@@ -264,6 +279,9 @@ dt_eraASTROM = numpy.dtype([('pmt','d'),
                          ('refa','d'),
                          ('refb','d')], align=True)
 
+dt_eraLDBODY = numpy.dtype([('bm','d'),
+                         ('dl','d'),
+                         ('pv','d',(2,3))], align=True)
 
 
 
@@ -351,7 +369,7 @@ def cal2jd(iy, im, id):
 
     if not stat_ok:
         check_errwarn(c_retval_out, 'cal2jd')
-    
+
     return djm0_out, djm_out
 STATUS_CODES['cal2jd'] = {0: u'OK', -2: u'bad month  (JD not computed)', -1: u'bad year   (Note 3: JD not computed)', -3: u'bad day    (JD computed)'}
 
@@ -408,7 +426,7 @@ def epb(dj1, dj2):
         (<double*>numpy.PyArray_MultiIter_DATA(it, 2))[0] = _c_retval
         
         numpy.PyArray_MultiIter_NEXT(it)
-    
+
     return c_retval_out
 
 def epb2jd(epb):
@@ -464,7 +482,7 @@ def epb2jd(epb):
         eraEpb2jd(_epb, _djm0, _djm)
         
         numpy.PyArray_MultiIter_NEXT(it)
-    
+
     return djm0_out, djm_out
 
 def epj(dj1, dj2):
@@ -519,7 +537,7 @@ def epj(dj1, dj2):
         (<double*>numpy.PyArray_MultiIter_DATA(it, 2))[0] = _c_retval
         
         numpy.PyArray_MultiIter_NEXT(it)
-    
+
     return c_retval_out
 
 def epj2jd(epj):
@@ -575,7 +593,7 @@ def epj2jd(epj):
         eraEpj2jd(_epj, _djm0, _djm)
         
         numpy.PyArray_MultiIter_NEXT(it)
-    
+
     return djm0_out, djm_out
 
 def jd2cal(dj1, dj2):
@@ -671,7 +689,7 @@ def jd2cal(dj1, dj2):
 
     if not stat_ok:
         check_errwarn(c_retval_out, 'jd2cal')
-    
+
     return iy_out, im_out, id_out, fd_out
 STATUS_CODES['jd2cal'] = {0: u'OK', -1: u'unacceptable date (Note 3)'}
 
@@ -742,7 +760,7 @@ def jdcalf(ndp, dj1, dj2):
   
     """
     in_shape = numpy.broadcast(ndp, dj1, dj2).shape
-    iymdf_out = numpy.empty(in_shape, dtype=numpy.dtype([('', 'i', (4,))]))
+    iymdf_out = numpy.empty(in_shape, dtype=numpy.dtype([('fi0', 'i', (4,))]))
     c_retval_out = numpy.empty(in_shape, dtype=numpy.intc)
     
     cdef numpy.broadcast it = numpy.broadcast(ndp, dj1, dj2, iymdf_out, c_retval_out)
@@ -767,8 +785,11 @@ def jdcalf(ndp, dj1, dj2):
         numpy.PyArray_MultiIter_NEXT(it)
 
     if not stat_ok:
-        check_errwarn(c_retval_out, 'jdcalf')
-    
+        check_errwarn(c_retval_out, 'jdcalf') 
+
+    # convert from single-field structured dtype to regular nd-array
+    iymdf_out = iymdf_out['fi0']
+
     return iymdf_out
 STATUS_CODES['jdcalf'] = {0: u'OK', 1: u'NDP not 0-9 (interpreted as 0)', -1: u'date out of range'}
 
@@ -830,8 +851,18 @@ def ab(pnat, v, s, bm1):
     Derived, with permission, from the SOFA library.  See notes at end of file.
   
     """
+    # convert nd-array to single-field structured array for argument "pnat"
+    pnat_arr = numpy.empty(numpy.shape(pnat)[:-1], dtype=numpy.dtype([('fi0', 'd', (3,))]))
+    pnat_arr['fi0'] = pnat
+    pnat = pnat_arr
+    
+    # convert nd-array to single-field structured array for argument "v"
+    v_arr = numpy.empty(numpy.shape(v)[:-1], dtype=numpy.dtype([('fi0', 'd', (3,))]))
+    v_arr['fi0'] = v
+    v = v_arr
+    
     in_shape = numpy.broadcast(pnat, v, s, bm1).shape
-    ppr_out = numpy.empty(in_shape, dtype=numpy.dtype([('p', 'd', (3,))]))
+    ppr_out = numpy.empty(in_shape, dtype=numpy.dtype([('fi0', 'd', (3,))]))
     
     cdef numpy.broadcast it = numpy.broadcast(pnat, v, s, bm1, ppr_out)
     cdef double * _pnat
@@ -849,8 +880,11 @@ def ab(pnat, v, s, bm1):
         
         eraAb(_pnat, _v, _s, _bm1, _ppr)
         
-        numpy.PyArray_MultiIter_NEXT(it)
-    
+        numpy.PyArray_MultiIter_NEXT(it) 
+
+    # convert from single-field structured dtype to regular nd-array
+    ppr_out = ppr_out['fi0']
+
     return ppr_out
 
 def apcg(date1, date2, ebpv, ehp):
@@ -963,6 +997,16 @@ def apcg(date1, date2, ebpv, ehp):
     Derived, with permission, from the SOFA library.  See notes at end of file.
   
     """
+    # convert nd-array to single-field structured array for argument "ebpv"
+    ebpv_arr = numpy.empty(numpy.shape(ebpv)[:-2], dtype=numpy.dtype([('fi0', 'd', (2,3))]))
+    ebpv_arr['fi0'] = ebpv
+    ebpv = ebpv_arr
+    
+    # convert nd-array to single-field structured array for argument "ehp"
+    ehp_arr = numpy.empty(numpy.shape(ehp)[:-1], dtype=numpy.dtype([('fi0', 'd', (3,))]))
+    ehp_arr['fi0'] = ehp
+    ehp = ehp_arr
+    
     in_shape = numpy.broadcast(date1, date2, ebpv, ehp).shape
     astrom_out = numpy.empty(in_shape, dtype=dt_eraASTROM)
     
@@ -983,7 +1027,7 @@ def apcg(date1, date2, ebpv, ehp):
         eraApcg(_date1, _date2, _ebpv, _ehp, _astrom)
         
         numpy.PyArray_MultiIter_NEXT(it)
-    
+
     return astrom_out
 
 def apcg13(date1, date2):
@@ -1116,7 +1160,7 @@ def apcg13(date1, date2):
         eraApcg13(_date1, _date2, _astrom)
         
         numpy.PyArray_MultiIter_NEXT(it)
-    
+
     return astrom_out
 
 def apci(date1, date2, ebpv, ehp, x, y, s):
@@ -1238,6 +1282,16 @@ def apci(date1, date2, ebpv, ehp, x, y, s):
     Derived, with permission, from the SOFA library.  See notes at end of file.
   
     """
+    # convert nd-array to single-field structured array for argument "ebpv"
+    ebpv_arr = numpy.empty(numpy.shape(ebpv)[:-2], dtype=numpy.dtype([('fi0', 'd', (2,3))]))
+    ebpv_arr['fi0'] = ebpv
+    ebpv = ebpv_arr
+    
+    # convert nd-array to single-field structured array for argument "ehp"
+    ehp_arr = numpy.empty(numpy.shape(ehp)[:-1], dtype=numpy.dtype([('fi0', 'd', (3,))]))
+    ehp_arr['fi0'] = ehp
+    ehp = ehp_arr
+    
     in_shape = numpy.broadcast(date1, date2, ebpv, ehp, x, y, s).shape
     astrom_out = numpy.empty(in_shape, dtype=dt_eraASTROM)
     
@@ -1264,7 +1318,7 @@ def apci(date1, date2, ebpv, ehp, x, y, s):
         eraApci(_date1, _date2, _ebpv, _ehp, _x, _y, _s, _astrom)
         
         numpy.PyArray_MultiIter_NEXT(it)
-    
+
     return astrom_out
 
 def apci13(date1, date2):
@@ -1405,7 +1459,7 @@ def apci13(date1, date2):
         eraApci13(_date1, _date2, _astrom, _eo)
         
         numpy.PyArray_MultiIter_NEXT(it)
-    
+
     return astrom_out, eo_out
 
 def apco(date1, date2, ebpv, ehp, x, y, s, theta, elong, phi, hm, xp, yp, sp, refa, refb):
@@ -1564,6 +1618,16 @@ def apco(date1, date2, ebpv, ehp, x, y, s, theta, elong, phi, hm, xp, yp, sp, re
     Derived, with permission, from the SOFA library.  See notes at end of file.
   
     """
+    # convert nd-array to single-field structured array for argument "ebpv"
+    ebpv_arr = numpy.empty(numpy.shape(ebpv)[:-2], dtype=numpy.dtype([('fi0', 'd', (2,3))]))
+    ebpv_arr['fi0'] = ebpv
+    ebpv = ebpv_arr
+    
+    # convert nd-array to single-field structured array for argument "ehp"
+    ehp_arr = numpy.empty(numpy.shape(ehp)[:-1], dtype=numpy.dtype([('fi0', 'd', (3,))]))
+    ehp_arr['fi0'] = ehp
+    ehp = ehp_arr
+    
     in_shape = numpy.broadcast(date1, date2, ebpv, ehp, x, y, s, theta, elong, phi, hm, xp, yp, sp, refa, refb).shape
     astrom_out = numpy.empty(in_shape, dtype=dt_eraASTROM)
     refa_out = numpy.array(numpy.broadcast_arrays(date1, date2, ebpv, ehp, x, y, s, theta, elong, phi, hm, xp, yp, sp, refa, refb)[14], dtype=numpy.double)
@@ -1610,7 +1674,7 @@ def apco(date1, date2, ebpv, ehp, x, y, s, theta, elong, phi, hm, xp, yp, sp, re
         eraApco(_date1, _date2, _ebpv, _ehp, _x, _y, _s, _theta, _elong, _phi, _hm, _xp, _yp, _sp, _refa, _refb, _astrom)
         
         numpy.PyArray_MultiIter_NEXT(it)
-    
+
     return refa_out, refb_out, astrom_out
 
 def apco13(utc1, utc2, dut1, elong, phi, hm, xp, yp, phpa, tc, rh, wl):
@@ -1841,7 +1905,7 @@ def apco13(utc1, utc2, dut1, elong, phi, hm, xp, yp, phpa, tc, rh, wl):
 
     if not stat_ok:
         check_errwarn(c_retval_out, 'apco13')
-    
+
     return astrom_out, eo_out
 STATUS_CODES['apco13'] = {0: u'OK', 1: u'dubious year (Note 2)', -1: u'unacceptable date'}
 
@@ -1976,6 +2040,21 @@ def apcs(date1, date2, pv, ebpv, ehp):
     Derived, with permission, from the SOFA library.  See notes at end of file.
   
     """
+    # convert nd-array to single-field structured array for argument "pv"
+    pv_arr = numpy.empty(numpy.shape(pv)[:-2], dtype=numpy.dtype([('fi0', 'd', (2,3))]))
+    pv_arr['fi0'] = pv
+    pv = pv_arr
+    
+    # convert nd-array to single-field structured array for argument "ebpv"
+    ebpv_arr = numpy.empty(numpy.shape(ebpv)[:-2], dtype=numpy.dtype([('fi0', 'd', (2,3))]))
+    ebpv_arr['fi0'] = ebpv
+    ebpv = ebpv_arr
+    
+    # convert nd-array to single-field structured array for argument "ehp"
+    ehp_arr = numpy.empty(numpy.shape(ehp)[:-1], dtype=numpy.dtype([('fi0', 'd', (3,))]))
+    ehp_arr['fi0'] = ehp
+    ehp = ehp_arr
+    
     in_shape = numpy.broadcast(date1, date2, pv, ebpv, ehp).shape
     astrom_out = numpy.empty(in_shape, dtype=dt_eraASTROM)
     
@@ -1998,7 +2077,7 @@ def apcs(date1, date2, pv, ebpv, ehp):
         eraApcs(_date1, _date2, _pv, _ebpv, _ehp, _astrom)
         
         numpy.PyArray_MultiIter_NEXT(it)
-    
+
     return astrom_out
 
 def apcs13(date1, date2, pv):
@@ -2121,6 +2200,11 @@ def apcs13(date1, date2, pv):
     Derived, with permission, from the SOFA library.  See notes at end of file.
   
     """
+    # convert nd-array to single-field structured array for argument "pv"
+    pv_arr = numpy.empty(numpy.shape(pv)[:-2], dtype=numpy.dtype([('fi0', 'd', (2,3))]))
+    pv_arr['fi0'] = pv
+    pv = pv_arr
+    
     in_shape = numpy.broadcast(date1, date2, pv).shape
     astrom_out = numpy.empty(in_shape, dtype=dt_eraASTROM)
     
@@ -2139,7 +2223,7 @@ def apcs13(date1, date2, pv):
         eraApcs13(_date1, _date2, _pv, _astrom)
         
         numpy.PyArray_MultiIter_NEXT(it)
-    
+
     return astrom_out
 
 def aper(theta, astrom):
@@ -2255,7 +2339,7 @@ def aper(theta, astrom):
         eraAper(_theta, _astrom)
         
         numpy.PyArray_MultiIter_NEXT(it)
-    
+
     return astrom_out
 
 def aper13(ut11, ut12, astrom):
@@ -2392,7 +2476,7 @@ def aper13(ut11, ut12, astrom):
         eraAper13(_ut11, _ut12, _astrom)
         
         numpy.PyArray_MultiIter_NEXT(it)
-    
+
     return astrom_out
 
 def apio(sp, theta, elong, phi, hm, xp, yp, refa, refb):
@@ -2547,7 +2631,7 @@ def apio(sp, theta, elong, phi, hm, xp, yp, refa, refb):
         eraApio(_sp, _theta, _elong, _phi, _hm, _xp, _yp, _refa, _refb, _astrom)
         
         numpy.PyArray_MultiIter_NEXT(it)
-    
+
     return refa_out, refb_out, astrom_out
 
 def apio13(utc1, utc2, dut1, elong, phi, hm, xp, yp, phpa, tc, rh, wl):
@@ -2764,7 +2848,7 @@ def apio13(utc1, utc2, dut1, elong, phi, hm, xp, yp, phpa, tc, rh, wl):
 
     if not stat_ok:
         check_errwarn(c_retval_out, 'apio13')
-    
+
     return astrom_out
 STATUS_CODES['apio13'] = {0: u'OK', 1: u'dubious year (Note 2)', -1: u'unacceptable date'}
 
@@ -2888,7 +2972,7 @@ def atci13(rc, dc, pr, pd, px, rv, date1, date2):
         eraAtci13(_rc, _dc, _pr, _pd, _px, _rv, _date1, _date2, _ri, _di, _eo)
         
         numpy.PyArray_MultiIter_NEXT(it)
-    
+
     return ri_out, di_out, eo_out
 
 def atciq(rc, dc, pr, pd, px, rv, astrom):
@@ -2992,7 +3076,7 @@ def atciq(rc, dc, pr, pd, px, rv, astrom):
         eraAtciq(_rc, _dc, _pr, _pd, _px, _rv, _astrom, _ri, _di)
         
         numpy.PyArray_MultiIter_NEXT(it)
-    
+
     return ri_out, di_out
 
 def atciqn(rc, dc, pr, pd, px, rv, astrom, n, b):
@@ -3137,7 +3221,7 @@ def atciqn(rc, dc, pr, pd, px, rv, astrom, n, b):
         eraAtciqn(_rc, _dc, _pr, _pd, _px, _rv, _astrom, _n, _b, _ri, _di)
         
         numpy.PyArray_MultiIter_NEXT(it)
-    
+
     return ri_out, di_out
 
 def atciqz(rc, dc, astrom):
@@ -3233,7 +3317,7 @@ def atciqz(rc, dc, astrom):
         eraAtciqz(_rc, _dc, _astrom, _ri, _di)
         
         numpy.PyArray_MultiIter_NEXT(it)
-    
+
     return ri_out, di_out
 
 def atco13(rc, dc, pr, pd, px, rv, utc1, utc2, dut1, elong, phi, hm, xp, yp, phpa, tc, rh, wl):
@@ -3463,7 +3547,7 @@ def atco13(rc, dc, pr, pd, px, rv, utc1, utc2, dut1, elong, phi, hm, xp, yp, php
 
     if not stat_ok:
         check_errwarn(c_retval_out, 'atco13')
-    
+
     return aob_out, zob_out, hob_out, dob_out, rob_out, eo_out
 STATUS_CODES['atco13'] = {0: u'OK', 1: u'dubious year (Note 4)', -1: u'unacceptable date'}
 
@@ -3574,7 +3658,7 @@ def atic13(ri, di, date1, date2):
         eraAtic13(_ri, _di, _date1, _date2, _rc, _dc, _eo)
         
         numpy.PyArray_MultiIter_NEXT(it)
-    
+
     return rc_out, dc_out, eo_out
 
 def aticq(ri, di, astrom):
@@ -3666,7 +3750,7 @@ def aticq(ri, di, astrom):
         eraAticq(_ri, _di, _astrom, _rc, _dc)
         
         numpy.PyArray_MultiIter_NEXT(it)
-    
+
     return rc_out, dc_out
 
 def aticqn(ri, di, astrom, n, b):
@@ -3800,7 +3884,7 @@ def aticqn(ri, di, astrom, n, b):
         eraAticqn(_ri, _di, _astrom, _n, _b, _rc, _dc)
         
         numpy.PyArray_MultiIter_NEXT(it)
-    
+
     return rc_out, dc_out
 
 def atio13(ri, di, utc1, utc2, dut1, elong, phi, hm, xp, yp, phpa, tc, rh, wl):
@@ -4003,7 +4087,7 @@ def atio13(ri, di, utc1, utc2, dut1, elong, phi, hm, xp, yp, phpa, tc, rh, wl):
 
     if not stat_ok:
         check_errwarn(c_retval_out, 'atio13')
-    
+
     return aob_out, zob_out, hob_out, dob_out, rob_out
 STATUS_CODES['atio13'] = {0: u'OK', 1: u'dubious year (Note 2)', -1: u'unacceptable date'}
 
@@ -4141,7 +4225,7 @@ def atioq(ri, di, astrom):
         eraAtioq(_ri, _di, _astrom, _aob, _zob, _hob, _dob, _rob)
         
         numpy.PyArray_MultiIter_NEXT(it)
-    
+
     return aob_out, zob_out, hob_out, dob_out, rob_out
 
 def atoc13(type, ob1, ob2, utc1, utc2, dut1, elong, phi, hm, xp, yp, phpa, tc, rh, wl):
@@ -4345,7 +4429,7 @@ def atoc13(type, ob1, ob2, utc1, utc2, dut1, elong, phi, hm, xp, yp, phpa, tc, r
 
     if not stat_ok:
         check_errwarn(c_retval_out, 'atoc13')
-    
+
     return rc_out, dc_out
 STATUS_CODES['atoc13'] = {0: u'OK', 1: u'dubious year (Note 4)', -1: u'unacceptable date'}
 
@@ -4550,7 +4634,7 @@ def atoi13(type, ob1, ob2, utc1, utc2, dut1, elong, phi, hm, xp, yp, phpa, tc, r
 
     if not stat_ok:
         check_errwarn(c_retval_out, 'atoi13')
-    
+
     return ri_out, di_out
 STATUS_CODES['atoi13'] = {0: u'OK', 1: u'dubious year (Note 2)', -1: u'unacceptable date'}
 
@@ -4674,7 +4758,7 @@ def atoiq(type, ob1, ob2, astrom):
         eraAtoiq(_type, _ob1, _ob2, _astrom, _ri, _di)
         
         numpy.PyArray_MultiIter_NEXT(it)
-    
+
     return ri_out, di_out
 
 def ld(bm, p, q, e, em, dlim):
@@ -4754,8 +4838,23 @@ def ld(bm, p, q, e, em, dlim):
     Derived, with permission, from the SOFA library.  See notes at end of file.
   
     """
+    # convert nd-array to single-field structured array for argument "p"
+    p_arr = numpy.empty(numpy.shape(p)[:-1], dtype=numpy.dtype([('fi0', 'd', (3,))]))
+    p_arr['fi0'] = p
+    p = p_arr
+    
+    # convert nd-array to single-field structured array for argument "q"
+    q_arr = numpy.empty(numpy.shape(q)[:-1], dtype=numpy.dtype([('fi0', 'd', (3,))]))
+    q_arr['fi0'] = q
+    q = q_arr
+    
+    # convert nd-array to single-field structured array for argument "e"
+    e_arr = numpy.empty(numpy.shape(e)[:-1], dtype=numpy.dtype([('fi0', 'd', (3,))]))
+    e_arr['fi0'] = e
+    e = e_arr
+    
     in_shape = numpy.broadcast(bm, p, q, e, em, dlim).shape
-    p1_out = numpy.empty(in_shape, dtype=numpy.dtype([('p', 'd', (3,))]))
+    p1_out = numpy.empty(in_shape, dtype=numpy.dtype([('fi0', 'd', (3,))]))
     
     cdef numpy.broadcast it = numpy.broadcast(bm, p, q, e, em, dlim, p1_out)
     cdef double _bm
@@ -4777,8 +4876,11 @@ def ld(bm, p, q, e, em, dlim):
         
         eraLd(_bm, _p, _q, _e, _em, _dlim, _p1)
         
-        numpy.PyArray_MultiIter_NEXT(it)
-    
+        numpy.PyArray_MultiIter_NEXT(it) 
+
+    # convert from single-field structured dtype to regular nd-array
+    p1_out = p1_out['fi0']
+
     return p1_out
 
 def ldn(n, b, ob, sc):
@@ -4868,8 +4970,18 @@ def ldn(n, b, ob, sc):
     Derived, with permission, from the SOFA library.  See notes at end of file.
   
     """
+    # convert nd-array to single-field structured array for argument "ob"
+    ob_arr = numpy.empty(numpy.shape(ob)[:-1], dtype=numpy.dtype([('fi0', 'd', (3,))]))
+    ob_arr['fi0'] = ob
+    ob = ob_arr
+    
+    # convert nd-array to single-field structured array for argument "sc"
+    sc_arr = numpy.empty(numpy.shape(sc)[:-1], dtype=numpy.dtype([('fi0', 'd', (3,))]))
+    sc_arr['fi0'] = sc
+    sc = sc_arr
+    
     in_shape = numpy.broadcast(n, b, ob, sc).shape
-    sn_out = numpy.empty(in_shape, dtype=numpy.dtype([('p', 'd', (3,))]))
+    sn_out = numpy.empty(in_shape, dtype=numpy.dtype([('fi0', 'd', (3,))]))
     
     cdef numpy.broadcast it = numpy.broadcast(n, b, ob, sc, sn_out)
     cdef int _n
@@ -4887,8 +4999,11 @@ def ldn(n, b, ob, sc):
         
         eraLdn(_n, _b, _ob, _sc, _sn)
         
-        numpy.PyArray_MultiIter_NEXT(it)
-    
+        numpy.PyArray_MultiIter_NEXT(it) 
+
+    # convert from single-field structured dtype to regular nd-array
+    sn_out = sn_out['fi0']
+
     return sn_out
 
 def ldsun(p, e, em):
@@ -4933,8 +5048,18 @@ def ldsun(p, e, em):
     Derived, with permission, from the SOFA library.  See notes at end of file.
   
     """
+    # convert nd-array to single-field structured array for argument "p"
+    p_arr = numpy.empty(numpy.shape(p)[:-1], dtype=numpy.dtype([('fi0', 'd', (3,))]))
+    p_arr['fi0'] = p
+    p = p_arr
+    
+    # convert nd-array to single-field structured array for argument "e"
+    e_arr = numpy.empty(numpy.shape(e)[:-1], dtype=numpy.dtype([('fi0', 'd', (3,))]))
+    e_arr['fi0'] = e
+    e = e_arr
+    
     in_shape = numpy.broadcast(p, e, em).shape
-    p1_out = numpy.empty(in_shape, dtype=numpy.dtype([('p', 'd', (3,))]))
+    p1_out = numpy.empty(in_shape, dtype=numpy.dtype([('fi0', 'd', (3,))]))
     
     cdef numpy.broadcast it = numpy.broadcast(p, e, em, p1_out)
     cdef double * _p
@@ -4950,8 +5075,11 @@ def ldsun(p, e, em):
         
         eraLdsun(_p, _e, _em, _p1)
         
-        numpy.PyArray_MultiIter_NEXT(it)
-    
+        numpy.PyArray_MultiIter_NEXT(it) 
+
+    # convert from single-field structured dtype to regular nd-array
+    p1_out = p1_out['fi0']
+
     return p1_out
 
 def pmpx(rc, dc, pr, pd, px, rv, pmt, pob):
@@ -5008,8 +5136,13 @@ def pmpx(rc, dc, pr, pd, px, rv, pmt, pob):
     Derived, with permission, from the SOFA library.  See notes at end of file.
   
     """
+    # convert nd-array to single-field structured array for argument "pob"
+    pob_arr = numpy.empty(numpy.shape(pob)[:-1], dtype=numpy.dtype([('fi0', 'd', (3,))]))
+    pob_arr['fi0'] = pob
+    pob = pob_arr
+    
     in_shape = numpy.broadcast(rc, dc, pr, pd, px, rv, pmt, pob).shape
-    pco_out = numpy.empty(in_shape, dtype=numpy.dtype([('p', 'd', (3,))]))
+    pco_out = numpy.empty(in_shape, dtype=numpy.dtype([('fi0', 'd', (3,))]))
     
     cdef numpy.broadcast it = numpy.broadcast(rc, dc, pr, pd, px, rv, pmt, pob, pco_out)
     cdef double _rc
@@ -5035,8 +5168,11 @@ def pmpx(rc, dc, pr, pd, px, rv, pmt, pob):
         
         eraPmpx(_rc, _dc, _pr, _pd, _px, _rv, _pmt, _pob, _pco)
         
-        numpy.PyArray_MultiIter_NEXT(it)
-    
+        numpy.PyArray_MultiIter_NEXT(it) 
+
+    # convert from single-field structured dtype to regular nd-array
+    pco_out = pco_out['fi0']
+
     return pco_out
 
 def pmsafe(ra1, dec1, pmr1, pmd1, px1, rv1, ep1a, ep1b, ep2a, ep2b):
@@ -5206,7 +5342,7 @@ def pmsafe(ra1, dec1, pmr1, pmd1, px1, rv1, ep1a, ep1b, ep2a, ep2b):
 
     if not stat_ok:
         check_errwarn(c_retval_out, 'pmsafe')
-    
+
     return ra2_out, dec2_out, pmr2_out, pmd2_out, px2_out, rv2_out
 STATUS_CODES['pmsafe'] = {0: u'no warnings or errors', 1: u'distance overridden (Note 6)', 2: u'excessive velocity (Note 7)', 4: u"solution didn't converge (Note 8)", u'else': u'binary logical OR of the above warnings', -1: u'system error (should not occur)'}
 
@@ -5388,7 +5524,7 @@ def refco(phpa, tc, rh, wl):
         eraRefco(_phpa, _tc, _rh, _wl, _refa, _refb)
         
         numpy.PyArray_MultiIter_NEXT(it)
-    
+
     return refa_out, refb_out
 
 def epv00(date1, date2):
@@ -5495,8 +5631,8 @@ def epv00(date1, date2):
   
     """
     in_shape = numpy.broadcast(date1, date2).shape
-    pvh_out = numpy.empty(in_shape, dtype=numpy.dtype([('pv', 'd', (2,3))]))
-    pvb_out = numpy.empty(in_shape, dtype=numpy.dtype([('pv', 'd', (2,3))]))
+    pvh_out = numpy.empty(in_shape, dtype=numpy.dtype([('fi0', 'd', (2,3))]))
+    pvb_out = numpy.empty(in_shape, dtype=numpy.dtype([('fi0', 'd', (2,3))]))
     c_retval_out = numpy.empty(in_shape, dtype=numpy.intc)
     
     cdef numpy.broadcast it = numpy.broadcast(date1, date2, pvh_out, pvb_out, c_retval_out)
@@ -5521,8 +5657,12 @@ def epv00(date1, date2):
         numpy.PyArray_MultiIter_NEXT(it)
 
     if not stat_ok:
-        check_errwarn(c_retval_out, 'epv00')
-    
+        check_errwarn(c_retval_out, 'epv00') 
+
+    # convert from single-field structured dtype to regular nd-array
+    pvh_out = pvh_out['fi0']
+    pvb_out = pvb_out['fi0']
+
     return pvh_out, pvb_out
 STATUS_CODES['epv00'] = {0: u'OK', 1: u'warning: date outsidethe range 1900-2100 AD'}
 
@@ -5695,7 +5835,7 @@ def plan94(date1, date2, np):
   
     """
     in_shape = numpy.broadcast(date1, date2, np).shape
-    pv_out = numpy.empty(in_shape, dtype=numpy.dtype([('pv', 'd', (2,3))]))
+    pv_out = numpy.empty(in_shape, dtype=numpy.dtype([('fi0', 'd', (2,3))]))
     c_retval_out = numpy.empty(in_shape, dtype=numpy.intc)
     
     cdef numpy.broadcast it = numpy.broadcast(date1, date2, np, pv_out, c_retval_out)
@@ -5720,8 +5860,11 @@ def plan94(date1, date2, np):
         numpy.PyArray_MultiIter_NEXT(it)
 
     if not stat_ok:
-        check_errwarn(c_retval_out, 'plan94')
-    
+        check_errwarn(c_retval_out, 'plan94') 
+
+    # convert from single-field structured dtype to regular nd-array
+    pv_out = pv_out['fi0']
+
     return pv_out
 STATUS_CODES['plan94'] = {0: u'OK', 1: u'warning: year outside 1000-3000', 2: u'warning: failed to converge', -1: u'illegal NP (outside 1-8)'}
 
@@ -5781,7 +5924,7 @@ def fad03(t):
         (<double*>numpy.PyArray_MultiIter_DATA(it, 1))[0] = _c_retval
         
         numpy.PyArray_MultiIter_NEXT(it)
-    
+
     return c_retval_out
 
 def fae03(t):
@@ -5842,7 +5985,7 @@ def fae03(t):
         (<double*>numpy.PyArray_MultiIter_DATA(it, 1))[0] = _c_retval
         
         numpy.PyArray_MultiIter_NEXT(it)
-    
+
     return c_retval_out
 
 def faf03(t):
@@ -5901,7 +6044,7 @@ def faf03(t):
         (<double*>numpy.PyArray_MultiIter_DATA(it, 1))[0] = _c_retval
         
         numpy.PyArray_MultiIter_NEXT(it)
-    
+
     return c_retval_out
 
 def faju03(t):
@@ -5962,7 +6105,7 @@ def faju03(t):
         (<double*>numpy.PyArray_MultiIter_DATA(it, 1))[0] = _c_retval
         
         numpy.PyArray_MultiIter_NEXT(it)
-    
+
     return c_retval_out
 
 def fal03(t):
@@ -6020,7 +6163,7 @@ def fal03(t):
         (<double*>numpy.PyArray_MultiIter_DATA(it, 1))[0] = _c_retval
         
         numpy.PyArray_MultiIter_NEXT(it)
-    
+
     return c_retval_out
 
 def falp03(t):
@@ -6078,7 +6221,7 @@ def falp03(t):
         (<double*>numpy.PyArray_MultiIter_DATA(it, 1))[0] = _c_retval
         
         numpy.PyArray_MultiIter_NEXT(it)
-    
+
     return c_retval_out
 
 def fama03(t):
@@ -6139,7 +6282,7 @@ def fama03(t):
         (<double*>numpy.PyArray_MultiIter_DATA(it, 1))[0] = _c_retval
         
         numpy.PyArray_MultiIter_NEXT(it)
-    
+
     return c_retval_out
 
 def fame03(t):
@@ -6200,7 +6343,7 @@ def fame03(t):
         (<double*>numpy.PyArray_MultiIter_DATA(it, 1))[0] = _c_retval
         
         numpy.PyArray_MultiIter_NEXT(it)
-    
+
     return c_retval_out
 
 def fane03(t):
@@ -6258,7 +6401,7 @@ def fane03(t):
         (<double*>numpy.PyArray_MultiIter_DATA(it, 1))[0] = _c_retval
         
         numpy.PyArray_MultiIter_NEXT(it)
-    
+
     return c_retval_out
 
 def faom03(t):
@@ -6316,7 +6459,7 @@ def faom03(t):
         (<double*>numpy.PyArray_MultiIter_DATA(it, 1))[0] = _c_retval
         
         numpy.PyArray_MultiIter_NEXT(it)
-    
+
     return c_retval_out
 
 def fapa03(t):
@@ -6378,7 +6521,7 @@ def fapa03(t):
         (<double*>numpy.PyArray_MultiIter_DATA(it, 1))[0] = _c_retval
         
         numpy.PyArray_MultiIter_NEXT(it)
-    
+
     return c_retval_out
 
 def fasa03(t):
@@ -6439,7 +6582,7 @@ def fasa03(t):
         (<double*>numpy.PyArray_MultiIter_DATA(it, 1))[0] = _c_retval
         
         numpy.PyArray_MultiIter_NEXT(it)
-    
+
     return c_retval_out
 
 def faur03(t):
@@ -6497,7 +6640,7 @@ def faur03(t):
         (<double*>numpy.PyArray_MultiIter_DATA(it, 1))[0] = _c_retval
         
         numpy.PyArray_MultiIter_NEXT(it)
-    
+
     return c_retval_out
 
 def fave03(t):
@@ -6558,7 +6701,7 @@ def fave03(t):
         (<double*>numpy.PyArray_MultiIter_DATA(it, 1))[0] = _c_retval
         
         numpy.PyArray_MultiIter_NEXT(it)
-    
+
     return c_retval_out
 
 def bi00():
@@ -6630,7 +6773,7 @@ def bi00():
         eraBi00(_dpsibi, _depsbi, _dra)
         
         numpy.PyArray_MultiIter_NEXT(it)
-    
+
     return dpsibi_out, depsbi_out, dra_out
 
 def bp00(date1, date2):
@@ -6713,9 +6856,9 @@ def bp00(date1, date2):
   
     """
     in_shape = numpy.broadcast(date1, date2).shape
-    rb_out = numpy.empty(in_shape, dtype=numpy.dtype([('r', 'd', (3,3))]))
-    rp_out = numpy.empty(in_shape, dtype=numpy.dtype([('r', 'd', (3,3))]))
-    rbp_out = numpy.empty(in_shape, dtype=numpy.dtype([('r', 'd', (3,3))]))
+    rb_out = numpy.empty(in_shape, dtype=numpy.dtype([('fi0', 'd', (3,3))]))
+    rp_out = numpy.empty(in_shape, dtype=numpy.dtype([('fi0', 'd', (3,3))]))
+    rbp_out = numpy.empty(in_shape, dtype=numpy.dtype([('fi0', 'd', (3,3))]))
     
     cdef numpy.broadcast it = numpy.broadcast(date1, date2, rb_out, rp_out, rbp_out)
     cdef double _date1
@@ -6733,8 +6876,13 @@ def bp00(date1, date2):
         
         eraBp00(_date1, _date2, _rb, _rp, _rbp)
         
-        numpy.PyArray_MultiIter_NEXT(it)
-    
+        numpy.PyArray_MultiIter_NEXT(it) 
+
+    # convert from single-field structured dtype to regular nd-array
+    rb_out = rb_out['fi0']
+    rp_out = rp_out['fi0']
+    rbp_out = rbp_out['fi0']
+
     return rb_out, rp_out, rbp_out
 
 def bp06(date1, date2):
@@ -6811,9 +6959,9 @@ def bp06(date1, date2):
   
     """
     in_shape = numpy.broadcast(date1, date2).shape
-    rb_out = numpy.empty(in_shape, dtype=numpy.dtype([('r', 'd', (3,3))]))
-    rp_out = numpy.empty(in_shape, dtype=numpy.dtype([('r', 'd', (3,3))]))
-    rbp_out = numpy.empty(in_shape, dtype=numpy.dtype([('r', 'd', (3,3))]))
+    rb_out = numpy.empty(in_shape, dtype=numpy.dtype([('fi0', 'd', (3,3))]))
+    rp_out = numpy.empty(in_shape, dtype=numpy.dtype([('fi0', 'd', (3,3))]))
+    rbp_out = numpy.empty(in_shape, dtype=numpy.dtype([('fi0', 'd', (3,3))]))
     
     cdef numpy.broadcast it = numpy.broadcast(date1, date2, rb_out, rp_out, rbp_out)
     cdef double _date1
@@ -6831,8 +6979,13 @@ def bp06(date1, date2):
         
         eraBp06(_date1, _date2, _rb, _rp, _rbp)
         
-        numpy.PyArray_MultiIter_NEXT(it)
-    
+        numpy.PyArray_MultiIter_NEXT(it) 
+
+    # convert from single-field structured dtype to regular nd-array
+    rb_out = rb_out['fi0']
+    rp_out = rp_out['fi0']
+    rbp_out = rbp_out['fi0']
+
     return rb_out, rp_out, rbp_out
 
 def bpn2xy(rbpn):
@@ -6879,6 +7032,11 @@ def bpn2xy(rbpn):
     Derived, with permission, from the SOFA library.  See notes at end of file.
   
     """
+    # convert nd-array to single-field structured array for argument "rbpn"
+    rbpn_arr = numpy.empty(numpy.shape(rbpn)[:-2], dtype=numpy.dtype([('fi0', 'd', (3,3))]))
+    rbpn_arr['fi0'] = rbpn
+    rbpn = rbpn_arr
+    
     in_shape = numpy.broadcast(rbpn, 0).shape
     x_out = numpy.empty(in_shape, dtype=numpy.double)
     y_out = numpy.empty(in_shape, dtype=numpy.double)
@@ -6896,7 +7054,7 @@ def bpn2xy(rbpn):
         eraBpn2xy(_rbpn, _x, _y)
         
         numpy.PyArray_MultiIter_NEXT(it)
-    
+
     return x_out, y_out
 
 def c2i00a(date1, date2):
@@ -6978,7 +7136,7 @@ def c2i00a(date1, date2):
   
     """
     in_shape = numpy.broadcast(date1, date2).shape
-    rc2i_out = numpy.empty(in_shape, dtype=numpy.dtype([('r', 'd', (3,3))]))
+    rc2i_out = numpy.empty(in_shape, dtype=numpy.dtype([('fi0', 'd', (3,3))]))
     
     cdef numpy.broadcast it = numpy.broadcast(date1, date2, rc2i_out)
     cdef double _date1
@@ -6992,8 +7150,11 @@ def c2i00a(date1, date2):
         
         eraC2i00a(_date1, _date2, _rc2i)
         
-        numpy.PyArray_MultiIter_NEXT(it)
-    
+        numpy.PyArray_MultiIter_NEXT(it) 
+
+    # convert from single-field structured dtype to regular nd-array
+    rc2i_out = rc2i_out['fi0']
+
     return rc2i_out
 
 def c2i00b(date1, date2):
@@ -7075,7 +7236,7 @@ def c2i00b(date1, date2):
   
     """
     in_shape = numpy.broadcast(date1, date2).shape
-    rc2i_out = numpy.empty(in_shape, dtype=numpy.dtype([('r', 'd', (3,3))]))
+    rc2i_out = numpy.empty(in_shape, dtype=numpy.dtype([('fi0', 'd', (3,3))]))
     
     cdef numpy.broadcast it = numpy.broadcast(date1, date2, rc2i_out)
     cdef double _date1
@@ -7089,8 +7250,11 @@ def c2i00b(date1, date2):
         
         eraC2i00b(_date1, _date2, _rc2i)
         
-        numpy.PyArray_MultiIter_NEXT(it)
-    
+        numpy.PyArray_MultiIter_NEXT(it) 
+
+    # convert from single-field structured dtype to regular nd-array
+    rc2i_out = rc2i_out['fi0']
+
     return rc2i_out
 
 def c2i06a(date1, date2):
@@ -7163,7 +7327,7 @@ def c2i06a(date1, date2):
   
     """
     in_shape = numpy.broadcast(date1, date2).shape
-    rc2i_out = numpy.empty(in_shape, dtype=numpy.dtype([('r', 'd', (3,3))]))
+    rc2i_out = numpy.empty(in_shape, dtype=numpy.dtype([('fi0', 'd', (3,3))]))
     
     cdef numpy.broadcast it = numpy.broadcast(date1, date2, rc2i_out)
     cdef double _date1
@@ -7177,8 +7341,11 @@ def c2i06a(date1, date2):
         
         eraC2i06a(_date1, _date2, _rc2i)
         
-        numpy.PyArray_MultiIter_NEXT(it)
-    
+        numpy.PyArray_MultiIter_NEXT(it) 
+
+    # convert from single-field structured dtype to regular nd-array
+    rc2i_out = rc2i_out['fi0']
+
     return rc2i_out
 
 def c2ibpn(date1, date2, rbpn):
@@ -7261,8 +7428,13 @@ def c2ibpn(date1, date2, rbpn):
     Derived, with permission, from the SOFA library.  See notes at end of file.
   
     """
+    # convert nd-array to single-field structured array for argument "rbpn"
+    rbpn_arr = numpy.empty(numpy.shape(rbpn)[:-2], dtype=numpy.dtype([('fi0', 'd', (3,3))]))
+    rbpn_arr['fi0'] = rbpn
+    rbpn = rbpn_arr
+    
     in_shape = numpy.broadcast(date1, date2, rbpn).shape
-    rc2i_out = numpy.empty(in_shape, dtype=numpy.dtype([('r', 'd', (3,3))]))
+    rc2i_out = numpy.empty(in_shape, dtype=numpy.dtype([('fi0', 'd', (3,3))]))
     
     cdef numpy.broadcast it = numpy.broadcast(date1, date2, rbpn, rc2i_out)
     cdef double _date1
@@ -7278,8 +7450,11 @@ def c2ibpn(date1, date2, rbpn):
         
         eraC2ibpn(_date1, _date2, _rbpn, _rc2i)
         
-        numpy.PyArray_MultiIter_NEXT(it)
-    
+        numpy.PyArray_MultiIter_NEXT(it) 
+
+    # convert from single-field structured dtype to regular nd-array
+    rc2i_out = rc2i_out['fi0']
+
     return rc2i_out
 
 def c2ixy(date1, date2, x, y):
@@ -7357,7 +7532,7 @@ def c2ixy(date1, date2, x, y):
   
     """
     in_shape = numpy.broadcast(date1, date2, x, y).shape
-    rc2i_out = numpy.empty(in_shape, dtype=numpy.dtype([('r', 'd', (3,3))]))
+    rc2i_out = numpy.empty(in_shape, dtype=numpy.dtype([('fi0', 'd', (3,3))]))
     
     cdef numpy.broadcast it = numpy.broadcast(date1, date2, x, y, rc2i_out)
     cdef double _date1
@@ -7375,8 +7550,11 @@ def c2ixy(date1, date2, x, y):
         
         eraC2ixy(_date1, _date2, _x, _y, _rc2i)
         
-        numpy.PyArray_MultiIter_NEXT(it)
-    
+        numpy.PyArray_MultiIter_NEXT(it) 
+
+    # convert from single-field structured dtype to regular nd-array
+    rc2i_out = rc2i_out['fi0']
+
     return rc2i_out
 
 def c2ixys(x, y, s):
@@ -7437,7 +7615,7 @@ def c2ixys(x, y, s):
   
     """
     in_shape = numpy.broadcast(x, y, s).shape
-    rc2i_out = numpy.empty(in_shape, dtype=numpy.dtype([('r', 'd', (3,3))]))
+    rc2i_out = numpy.empty(in_shape, dtype=numpy.dtype([('fi0', 'd', (3,3))]))
     
     cdef numpy.broadcast it = numpy.broadcast(x, y, s, rc2i_out)
     cdef double _x
@@ -7453,8 +7631,11 @@ def c2ixys(x, y, s):
         
         eraC2ixys(_x, _y, _s, _rc2i)
         
-        numpy.PyArray_MultiIter_NEXT(it)
-    
+        numpy.PyArray_MultiIter_NEXT(it) 
+
+    # convert from single-field structured dtype to regular nd-array
+    rc2i_out = rc2i_out['fi0']
+
     return rc2i_out
 
 def c2t00a(tta, ttb, uta, utb, xp, yp):
@@ -7541,7 +7722,7 @@ def c2t00a(tta, ttb, uta, utb, xp, yp):
   
     """
     in_shape = numpy.broadcast(tta, ttb, uta, utb, xp, yp).shape
-    rc2t_out = numpy.empty(in_shape, dtype=numpy.dtype([('r', 'd', (3,3))]))
+    rc2t_out = numpy.empty(in_shape, dtype=numpy.dtype([('fi0', 'd', (3,3))]))
     
     cdef numpy.broadcast it = numpy.broadcast(tta, ttb, uta, utb, xp, yp, rc2t_out)
     cdef double _tta
@@ -7563,8 +7744,11 @@ def c2t00a(tta, ttb, uta, utb, xp, yp):
         
         eraC2t00a(_tta, _ttb, _uta, _utb, _xp, _yp, _rc2t)
         
-        numpy.PyArray_MultiIter_NEXT(it)
-    
+        numpy.PyArray_MultiIter_NEXT(it) 
+
+    # convert from single-field structured dtype to regular nd-array
+    rc2t_out = rc2t_out['fi0']
+
     return rc2t_out
 
 def c2t00b(tta, ttb, uta, utb, xp, yp):
@@ -7650,7 +7834,7 @@ def c2t00b(tta, ttb, uta, utb, xp, yp):
   
     """
     in_shape = numpy.broadcast(tta, ttb, uta, utb, xp, yp).shape
-    rc2t_out = numpy.empty(in_shape, dtype=numpy.dtype([('r', 'd', (3,3))]))
+    rc2t_out = numpy.empty(in_shape, dtype=numpy.dtype([('fi0', 'd', (3,3))]))
     
     cdef numpy.broadcast it = numpy.broadcast(tta, ttb, uta, utb, xp, yp, rc2t_out)
     cdef double _tta
@@ -7672,8 +7856,11 @@ def c2t00b(tta, ttb, uta, utb, xp, yp):
         
         eraC2t00b(_tta, _ttb, _uta, _utb, _xp, _yp, _rc2t)
         
-        numpy.PyArray_MultiIter_NEXT(it)
-    
+        numpy.PyArray_MultiIter_NEXT(it) 
+
+    # convert from single-field structured dtype to regular nd-array
+    rc2t_out = rc2t_out['fi0']
+
     return rc2t_out
 
 def c2t06a(tta, ttb, uta, utb, xp, yp):
@@ -7758,7 +7945,7 @@ def c2t06a(tta, ttb, uta, utb, xp, yp):
   
     """
     in_shape = numpy.broadcast(tta, ttb, uta, utb, xp, yp).shape
-    rc2t_out = numpy.empty(in_shape, dtype=numpy.dtype([('r', 'd', (3,3))]))
+    rc2t_out = numpy.empty(in_shape, dtype=numpy.dtype([('fi0', 'd', (3,3))]))
     
     cdef numpy.broadcast it = numpy.broadcast(tta, ttb, uta, utb, xp, yp, rc2t_out)
     cdef double _tta
@@ -7780,8 +7967,11 @@ def c2t06a(tta, ttb, uta, utb, xp, yp):
         
         eraC2t06a(_tta, _ttb, _uta, _utb, _xp, _yp, _rc2t)
         
-        numpy.PyArray_MultiIter_NEXT(it)
-    
+        numpy.PyArray_MultiIter_NEXT(it) 
+
+    # convert from single-field structured dtype to regular nd-array
+    rc2t_out = rc2t_out['fi0']
+
     return rc2t_out
 
 def c2tcio(rc2i, era, rpom):
@@ -7845,8 +8035,18 @@ def c2tcio(rc2i, era, rpom):
     Derived, with permission, from the SOFA library.  See notes at end of file.
   
     """
+    # convert nd-array to single-field structured array for argument "rc2i"
+    rc2i_arr = numpy.empty(numpy.shape(rc2i)[:-2], dtype=numpy.dtype([('fi0', 'd', (3,3))]))
+    rc2i_arr['fi0'] = rc2i
+    rc2i = rc2i_arr
+    
+    # convert nd-array to single-field structured array for argument "rpom"
+    rpom_arr = numpy.empty(numpy.shape(rpom)[:-2], dtype=numpy.dtype([('fi0', 'd', (3,3))]))
+    rpom_arr['fi0'] = rpom
+    rpom = rpom_arr
+    
     in_shape = numpy.broadcast(rc2i, era, rpom).shape
-    rc2t_out = numpy.empty(in_shape, dtype=numpy.dtype([('r', 'd', (3,3))]))
+    rc2t_out = numpy.empty(in_shape, dtype=numpy.dtype([('fi0', 'd', (3,3))]))
     
     cdef numpy.broadcast it = numpy.broadcast(rc2i, era, rpom, rc2t_out)
     cdef double * _rc2i
@@ -7862,8 +8062,11 @@ def c2tcio(rc2i, era, rpom):
         
         eraC2tcio(_rc2i, _era, _rpom, _rc2t)
         
-        numpy.PyArray_MultiIter_NEXT(it)
-    
+        numpy.PyArray_MultiIter_NEXT(it) 
+
+    # convert from single-field structured dtype to regular nd-array
+    rc2t_out = rc2t_out['fi0']
+
     return rc2t_out
 
 def c2teqx(rbpn, gst, rpom):
@@ -7927,8 +8130,18 @@ def c2teqx(rbpn, gst, rpom):
     Derived, with permission, from the SOFA library.  See notes at end of file.
   
     """
+    # convert nd-array to single-field structured array for argument "rbpn"
+    rbpn_arr = numpy.empty(numpy.shape(rbpn)[:-2], dtype=numpy.dtype([('fi0', 'd', (3,3))]))
+    rbpn_arr['fi0'] = rbpn
+    rbpn = rbpn_arr
+    
+    # convert nd-array to single-field structured array for argument "rpom"
+    rpom_arr = numpy.empty(numpy.shape(rpom)[:-2], dtype=numpy.dtype([('fi0', 'd', (3,3))]))
+    rpom_arr['fi0'] = rpom
+    rpom = rpom_arr
+    
     in_shape = numpy.broadcast(rbpn, gst, rpom).shape
-    rc2t_out = numpy.empty(in_shape, dtype=numpy.dtype([('r', 'd', (3,3))]))
+    rc2t_out = numpy.empty(in_shape, dtype=numpy.dtype([('fi0', 'd', (3,3))]))
     
     cdef numpy.broadcast it = numpy.broadcast(rbpn, gst, rpom, rc2t_out)
     cdef double * _rbpn
@@ -7944,8 +8157,11 @@ def c2teqx(rbpn, gst, rpom):
         
         eraC2teqx(_rbpn, _gst, _rpom, _rc2t)
         
-        numpy.PyArray_MultiIter_NEXT(it)
-    
+        numpy.PyArray_MultiIter_NEXT(it) 
+
+    # convert from single-field structured dtype to regular nd-array
+    rc2t_out = rc2t_out['fi0']
+
     return rc2t_out
 
 def c2tpe(tta, ttb, uta, utb, dpsi, deps, xp, yp):
@@ -8040,7 +8256,7 @@ def c2tpe(tta, ttb, uta, utb, dpsi, deps, xp, yp):
   
     """
     in_shape = numpy.broadcast(tta, ttb, uta, utb, dpsi, deps, xp, yp).shape
-    rc2t_out = numpy.empty(in_shape, dtype=numpy.dtype([('r', 'd', (3,3))]))
+    rc2t_out = numpy.empty(in_shape, dtype=numpy.dtype([('fi0', 'd', (3,3))]))
     
     cdef numpy.broadcast it = numpy.broadcast(tta, ttb, uta, utb, dpsi, deps, xp, yp, rc2t_out)
     cdef double _tta
@@ -8066,8 +8282,11 @@ def c2tpe(tta, ttb, uta, utb, dpsi, deps, xp, yp):
         
         eraC2tpe(_tta, _ttb, _uta, _utb, _dpsi, _deps, _xp, _yp, _rc2t)
         
-        numpy.PyArray_MultiIter_NEXT(it)
-    
+        numpy.PyArray_MultiIter_NEXT(it) 
+
+    # convert from single-field structured dtype to regular nd-array
+    rc2t_out = rc2t_out['fi0']
+
     return rc2t_out
 
 def c2txy(tta, ttb, uta, utb, x, y, xp, yp):
@@ -8158,7 +8377,7 @@ def c2txy(tta, ttb, uta, utb, x, y, xp, yp):
   
     """
     in_shape = numpy.broadcast(tta, ttb, uta, utb, x, y, xp, yp).shape
-    rc2t_out = numpy.empty(in_shape, dtype=numpy.dtype([('r', 'd', (3,3))]))
+    rc2t_out = numpy.empty(in_shape, dtype=numpy.dtype([('fi0', 'd', (3,3))]))
     
     cdef numpy.broadcast it = numpy.broadcast(tta, ttb, uta, utb, x, y, xp, yp, rc2t_out)
     cdef double _tta
@@ -8184,8 +8403,11 @@ def c2txy(tta, ttb, uta, utb, x, y, xp, yp):
         
         eraC2txy(_tta, _ttb, _uta, _utb, _x, _y, _xp, _yp, _rc2t)
         
-        numpy.PyArray_MultiIter_NEXT(it)
-    
+        numpy.PyArray_MultiIter_NEXT(it) 
+
+    # convert from single-field structured dtype to regular nd-array
+    rc2t_out = rc2t_out['fi0']
+
     return rc2t_out
 
 def eo06a(date1, date2):
@@ -8268,7 +8490,7 @@ def eo06a(date1, date2):
         (<double*>numpy.PyArray_MultiIter_DATA(it, 2))[0] = _c_retval
         
         numpy.PyArray_MultiIter_NEXT(it)
-    
+
     return c_retval_out
 
 def eors(rnpb, s):
@@ -8314,6 +8536,11 @@ def eors(rnpb, s):
     Derived, with permission, from the SOFA library.  See notes at end of file.
   
     """
+    # convert nd-array to single-field structured array for argument "rnpb"
+    rnpb_arr = numpy.empty(numpy.shape(rnpb)[:-2], dtype=numpy.dtype([('fi0', 'd', (3,3))]))
+    rnpb_arr['fi0'] = rnpb
+    rnpb = rnpb_arr
+    
     in_shape = numpy.broadcast(rnpb, s).shape
     c_retval_out = numpy.empty(in_shape, dtype=numpy.double)
     
@@ -8330,7 +8557,7 @@ def eors(rnpb, s):
         (<double*>numpy.PyArray_MultiIter_DATA(it, 2))[0] = _c_retval
         
         numpy.PyArray_MultiIter_NEXT(it)
-    
+
     return c_retval_out
 
 def fw2m(gamb, phib, psi, eps):
@@ -8408,7 +8635,7 @@ def fw2m(gamb, phib, psi, eps):
   
     """
     in_shape = numpy.broadcast(gamb, phib, psi, eps).shape
-    r_out = numpy.empty(in_shape, dtype=numpy.dtype([('r', 'd', (3,3))]))
+    r_out = numpy.empty(in_shape, dtype=numpy.dtype([('fi0', 'd', (3,3))]))
     
     cdef numpy.broadcast it = numpy.broadcast(gamb, phib, psi, eps, r_out)
     cdef double _gamb
@@ -8426,8 +8653,11 @@ def fw2m(gamb, phib, psi, eps):
         
         eraFw2m(_gamb, _phib, _psi, _eps, _r)
         
-        numpy.PyArray_MultiIter_NEXT(it)
-    
+        numpy.PyArray_MultiIter_NEXT(it) 
+
+    # convert from single-field structured dtype to regular nd-array
+    r_out = r_out['fi0']
+
     return r_out
 
 def fw2xy(gamb, phib, psi, eps):
@@ -8512,7 +8742,7 @@ def fw2xy(gamb, phib, psi, eps):
         eraFw2xy(_gamb, _phib, _psi, _eps, _x, _y)
         
         numpy.PyArray_MultiIter_NEXT(it)
-    
+
     return x_out, y_out
 
 def num00a(date1, date2):
@@ -8578,7 +8808,7 @@ def num00a(date1, date2):
   
     """
     in_shape = numpy.broadcast(date1, date2).shape
-    rmatn_out = numpy.empty(in_shape, dtype=numpy.dtype([('r', 'd', (3,3))]))
+    rmatn_out = numpy.empty(in_shape, dtype=numpy.dtype([('fi0', 'd', (3,3))]))
     
     cdef numpy.broadcast it = numpy.broadcast(date1, date2, rmatn_out)
     cdef double _date1
@@ -8592,8 +8822,11 @@ def num00a(date1, date2):
         
         eraNum00a(_date1, _date2, _rmatn)
         
-        numpy.PyArray_MultiIter_NEXT(it)
-    
+        numpy.PyArray_MultiIter_NEXT(it) 
+
+    # convert from single-field structured dtype to regular nd-array
+    rmatn_out = rmatn_out['fi0']
+
     return rmatn_out
 
 def num00b(date1, date2):
@@ -8659,7 +8892,7 @@ def num00b(date1, date2):
   
     """
     in_shape = numpy.broadcast(date1, date2).shape
-    rmatn_out = numpy.empty(in_shape, dtype=numpy.dtype([('r', 'd', (3,3))]))
+    rmatn_out = numpy.empty(in_shape, dtype=numpy.dtype([('fi0', 'd', (3,3))]))
     
     cdef numpy.broadcast it = numpy.broadcast(date1, date2, rmatn_out)
     cdef double _date1
@@ -8673,8 +8906,11 @@ def num00b(date1, date2):
         
         eraNum00b(_date1, _date2, _rmatn)
         
-        numpy.PyArray_MultiIter_NEXT(it)
-    
+        numpy.PyArray_MultiIter_NEXT(it) 
+
+    # convert from single-field structured dtype to regular nd-array
+    rmatn_out = rmatn_out['fi0']
+
     return rmatn_out
 
 def num06a(date1, date2):
@@ -8739,7 +8975,7 @@ def num06a(date1, date2):
   
     """
     in_shape = numpy.broadcast(date1, date2).shape
-    rmatn_out = numpy.empty(in_shape, dtype=numpy.dtype([('r', 'd', (3,3))]))
+    rmatn_out = numpy.empty(in_shape, dtype=numpy.dtype([('fi0', 'd', (3,3))]))
     
     cdef numpy.broadcast it = numpy.broadcast(date1, date2, rmatn_out)
     cdef double _date1
@@ -8753,8 +8989,11 @@ def num06a(date1, date2):
         
         eraNum06a(_date1, _date2, _rmatn)
         
-        numpy.PyArray_MultiIter_NEXT(it)
-    
+        numpy.PyArray_MultiIter_NEXT(it) 
+
+    # convert from single-field structured dtype to regular nd-array
+    rmatn_out = rmatn_out['fi0']
+
     return rmatn_out
 
 def numat(epsa, dpsi, deps):
@@ -8809,7 +9048,7 @@ def numat(epsa, dpsi, deps):
   
     """
     in_shape = numpy.broadcast(epsa, dpsi, deps).shape
-    rmatn_out = numpy.empty(in_shape, dtype=numpy.dtype([('r', 'd', (3,3))]))
+    rmatn_out = numpy.empty(in_shape, dtype=numpy.dtype([('fi0', 'd', (3,3))]))
     
     cdef numpy.broadcast it = numpy.broadcast(epsa, dpsi, deps, rmatn_out)
     cdef double _epsa
@@ -8825,8 +9064,11 @@ def numat(epsa, dpsi, deps):
         
         eraNumat(_epsa, _dpsi, _deps, _rmatn)
         
-        numpy.PyArray_MultiIter_NEXT(it)
-    
+        numpy.PyArray_MultiIter_NEXT(it) 
+
+    # convert from single-field structured dtype to regular nd-array
+    rmatn_out = rmatn_out['fi0']
+
     return rmatn_out
 
 def nut00a(date1, date2):
@@ -9006,7 +9248,7 @@ def nut00a(date1, date2):
         eraNut00a(_date1, _date2, _dpsi, _deps)
         
         numpy.PyArray_MultiIter_NEXT(it)
-    
+
     return dpsi_out, deps_out
 
 def nut00b(date1, date2):
@@ -9154,7 +9396,7 @@ def nut00b(date1, date2):
         eraNut00b(_date1, _date2, _dpsi, _deps)
         
         numpy.PyArray_MultiIter_NEXT(it)
-    
+
     return dpsi_out, deps_out
 
 def nut06a(date1, date2):
@@ -9261,7 +9503,7 @@ def nut06a(date1, date2):
         eraNut06a(_date1, _date2, _dpsi, _deps)
         
         numpy.PyArray_MultiIter_NEXT(it)
-    
+
     return dpsi_out, deps_out
 
 def nut80(date1, date2):
@@ -9341,7 +9583,7 @@ def nut80(date1, date2):
         eraNut80(_date1, _date2, _dpsi, _deps)
         
         numpy.PyArray_MultiIter_NEXT(it)
-    
+
     return dpsi_out, deps_out
 
 def nutm80(date1, date2):
@@ -9400,7 +9642,7 @@ def nutm80(date1, date2):
   
     """
     in_shape = numpy.broadcast(date1, date2).shape
-    rmatn_out = numpy.empty(in_shape, dtype=numpy.dtype([('r', 'd', (3,3))]))
+    rmatn_out = numpy.empty(in_shape, dtype=numpy.dtype([('fi0', 'd', (3,3))]))
     
     cdef numpy.broadcast it = numpy.broadcast(date1, date2, rmatn_out)
     cdef double _date1
@@ -9414,8 +9656,11 @@ def nutm80(date1, date2):
         
         eraNutm80(_date1, _date2, _rmatn)
         
-        numpy.PyArray_MultiIter_NEXT(it)
-    
+        numpy.PyArray_MultiIter_NEXT(it) 
+
+    # convert from single-field structured dtype to regular nd-array
+    rmatn_out = rmatn_out['fi0']
+
     return rmatn_out
 
 def obl06(date1, date2):
@@ -9486,7 +9731,7 @@ def obl06(date1, date2):
         (<double*>numpy.PyArray_MultiIter_DATA(it, 2))[0] = _c_retval
         
         numpy.PyArray_MultiIter_NEXT(it)
-    
+
     return c_retval_out
 
 def obl80(date1, date2):
@@ -9559,7 +9804,7 @@ def obl80(date1, date2):
         (<double*>numpy.PyArray_MultiIter_DATA(it, 2))[0] = _c_retval
         
         numpy.PyArray_MultiIter_NEXT(it)
-    
+
     return c_retval_out
 
 def p06e(date1, date2):
@@ -9748,7 +9993,7 @@ def p06e(date1, date2):
         eraP06e(_date1, _date2, _eps0, _psia, _oma, _bpa, _bqa, _pia, _bpia, _epsa, _chia, _za, _zetaa, _thetaa, _pa, _gam, _phi, _psi)
         
         numpy.PyArray_MultiIter_NEXT(it)
-    
+
     return eps0_out, psia_out, oma_out, bpa_out, bqa_out, pia_out, bpia_out, epsa_out, chia_out, za_out, zetaa_out, thetaa_out, pa_out, gam_out, phi_out, psi_out
 
 def pb06(date1, date2):
@@ -9845,7 +10090,7 @@ def pb06(date1, date2):
         eraPb06(_date1, _date2, _bzeta, _bz, _btheta)
         
         numpy.PyArray_MultiIter_NEXT(it)
-    
+
     return bzeta_out, bz_out, btheta_out
 
 def pfw06(date1, date2):
@@ -9955,7 +10200,7 @@ def pfw06(date1, date2):
         eraPfw06(_date1, _date2, _gamb, _phib, _psib, _epsa)
         
         numpy.PyArray_MultiIter_NEXT(it)
-    
+
     return gamb_out, phib_out, psib_out, epsa_out
 
 def pmat00(date1, date2):
@@ -10019,7 +10264,7 @@ def pmat00(date1, date2):
   
     """
     in_shape = numpy.broadcast(date1, date2).shape
-    rbp_out = numpy.empty(in_shape, dtype=numpy.dtype([('r', 'd', (3,3))]))
+    rbp_out = numpy.empty(in_shape, dtype=numpy.dtype([('fi0', 'd', (3,3))]))
     
     cdef numpy.broadcast it = numpy.broadcast(date1, date2, rbp_out)
     cdef double _date1
@@ -10033,8 +10278,11 @@ def pmat00(date1, date2):
         
         eraPmat00(_date1, _date2, _rbp)
         
-        numpy.PyArray_MultiIter_NEXT(it)
-    
+        numpy.PyArray_MultiIter_NEXT(it) 
+
+    # convert from single-field structured dtype to regular nd-array
+    rbp_out = rbp_out['fi0']
+
     return rbp_out
 
 def pmat06(date1, date2):
@@ -10099,7 +10347,7 @@ def pmat06(date1, date2):
   
     """
     in_shape = numpy.broadcast(date1, date2).shape
-    rbp_out = numpy.empty(in_shape, dtype=numpy.dtype([('r', 'd', (3,3))]))
+    rbp_out = numpy.empty(in_shape, dtype=numpy.dtype([('fi0', 'd', (3,3))]))
     
     cdef numpy.broadcast it = numpy.broadcast(date1, date2, rbp_out)
     cdef double _date1
@@ -10113,8 +10361,11 @@ def pmat06(date1, date2):
         
         eraPmat06(_date1, _date2, _rbp)
         
-        numpy.PyArray_MultiIter_NEXT(it)
-    
+        numpy.PyArray_MultiIter_NEXT(it) 
+
+    # convert from single-field structured dtype to regular nd-array
+    rbp_out = rbp_out['fi0']
+
     return rbp_out
 
 def pmat76(date1, date2):
@@ -10194,7 +10445,7 @@ def pmat76(date1, date2):
   
     """
     in_shape = numpy.broadcast(date1, date2).shape
-    rmatp_out = numpy.empty(in_shape, dtype=numpy.dtype([('r', 'd', (3,3))]))
+    rmatp_out = numpy.empty(in_shape, dtype=numpy.dtype([('fi0', 'd', (3,3))]))
     
     cdef numpy.broadcast it = numpy.broadcast(date1, date2, rmatp_out)
     cdef double _date1
@@ -10208,8 +10459,11 @@ def pmat76(date1, date2):
         
         eraPmat76(_date1, _date2, _rmatp)
         
-        numpy.PyArray_MultiIter_NEXT(it)
-    
+        numpy.PyArray_MultiIter_NEXT(it) 
+
+    # convert from single-field structured dtype to regular nd-array
+    rmatp_out = rmatp_out['fi0']
+
     return rmatp_out
 
 def pn00(date1, date2, dpsi, deps):
@@ -10316,11 +10570,11 @@ def pn00(date1, date2, dpsi, deps):
     """
     in_shape = numpy.broadcast(date1, date2, dpsi, deps).shape
     epsa_out = numpy.empty(in_shape, dtype=numpy.double)
-    rb_out = numpy.empty(in_shape, dtype=numpy.dtype([('r', 'd', (3,3))]))
-    rp_out = numpy.empty(in_shape, dtype=numpy.dtype([('r', 'd', (3,3))]))
-    rbp_out = numpy.empty(in_shape, dtype=numpy.dtype([('r', 'd', (3,3))]))
-    rn_out = numpy.empty(in_shape, dtype=numpy.dtype([('r', 'd', (3,3))]))
-    rbpn_out = numpy.empty(in_shape, dtype=numpy.dtype([('r', 'd', (3,3))]))
+    rb_out = numpy.empty(in_shape, dtype=numpy.dtype([('fi0', 'd', (3,3))]))
+    rp_out = numpy.empty(in_shape, dtype=numpy.dtype([('fi0', 'd', (3,3))]))
+    rbp_out = numpy.empty(in_shape, dtype=numpy.dtype([('fi0', 'd', (3,3))]))
+    rn_out = numpy.empty(in_shape, dtype=numpy.dtype([('fi0', 'd', (3,3))]))
+    rbpn_out = numpy.empty(in_shape, dtype=numpy.dtype([('fi0', 'd', (3,3))]))
     
     cdef numpy.broadcast it = numpy.broadcast(date1, date2, dpsi, deps, epsa_out, rb_out, rp_out, rbp_out, rn_out, rbpn_out)
     cdef double _date1
@@ -10348,8 +10602,15 @@ def pn00(date1, date2, dpsi, deps):
         
         eraPn00(_date1, _date2, _dpsi, _deps, _epsa, _rb, _rp, _rbp, _rn, _rbpn)
         
-        numpy.PyArray_MultiIter_NEXT(it)
-    
+        numpy.PyArray_MultiIter_NEXT(it) 
+
+    # convert from single-field structured dtype to regular nd-array
+    rb_out = rb_out['fi0']
+    rp_out = rp_out['fi0']
+    rbp_out = rbp_out['fi0']
+    rn_out = rn_out['fi0']
+    rbpn_out = rbpn_out['fi0']
+
     return epsa_out, rb_out, rp_out, rbp_out, rn_out, rbpn_out
 
 def pn00a(date1, date2):
@@ -10458,11 +10719,11 @@ def pn00a(date1, date2):
     dpsi_out = numpy.empty(in_shape, dtype=numpy.double)
     deps_out = numpy.empty(in_shape, dtype=numpy.double)
     epsa_out = numpy.empty(in_shape, dtype=numpy.double)
-    rb_out = numpy.empty(in_shape, dtype=numpy.dtype([('r', 'd', (3,3))]))
-    rp_out = numpy.empty(in_shape, dtype=numpy.dtype([('r', 'd', (3,3))]))
-    rbp_out = numpy.empty(in_shape, dtype=numpy.dtype([('r', 'd', (3,3))]))
-    rn_out = numpy.empty(in_shape, dtype=numpy.dtype([('r', 'd', (3,3))]))
-    rbpn_out = numpy.empty(in_shape, dtype=numpy.dtype([('r', 'd', (3,3))]))
+    rb_out = numpy.empty(in_shape, dtype=numpy.dtype([('fi0', 'd', (3,3))]))
+    rp_out = numpy.empty(in_shape, dtype=numpy.dtype([('fi0', 'd', (3,3))]))
+    rbp_out = numpy.empty(in_shape, dtype=numpy.dtype([('fi0', 'd', (3,3))]))
+    rn_out = numpy.empty(in_shape, dtype=numpy.dtype([('fi0', 'd', (3,3))]))
+    rbpn_out = numpy.empty(in_shape, dtype=numpy.dtype([('fi0', 'd', (3,3))]))
     
     cdef numpy.broadcast it = numpy.broadcast(date1, date2, dpsi_out, deps_out, epsa_out, rb_out, rp_out, rbp_out, rn_out, rbpn_out)
     cdef double _date1
@@ -10490,8 +10751,15 @@ def pn00a(date1, date2):
         
         eraPn00a(_date1, _date2, _dpsi, _deps, _epsa, _rb, _rp, _rbp, _rn, _rbpn)
         
-        numpy.PyArray_MultiIter_NEXT(it)
-    
+        numpy.PyArray_MultiIter_NEXT(it) 
+
+    # convert from single-field structured dtype to regular nd-array
+    rb_out = rb_out['fi0']
+    rp_out = rp_out['fi0']
+    rbp_out = rbp_out['fi0']
+    rn_out = rn_out['fi0']
+    rbpn_out = rbpn_out['fi0']
+
     return dpsi_out, deps_out, epsa_out, rb_out, rp_out, rbp_out, rn_out, rbpn_out
 
 def pn00b(date1, date2):
@@ -10600,11 +10868,11 @@ def pn00b(date1, date2):
     dpsi_out = numpy.empty(in_shape, dtype=numpy.double)
     deps_out = numpy.empty(in_shape, dtype=numpy.double)
     epsa_out = numpy.empty(in_shape, dtype=numpy.double)
-    rb_out = numpy.empty(in_shape, dtype=numpy.dtype([('r', 'd', (3,3))]))
-    rp_out = numpy.empty(in_shape, dtype=numpy.dtype([('r', 'd', (3,3))]))
-    rbp_out = numpy.empty(in_shape, dtype=numpy.dtype([('r', 'd', (3,3))]))
-    rn_out = numpy.empty(in_shape, dtype=numpy.dtype([('r', 'd', (3,3))]))
-    rbpn_out = numpy.empty(in_shape, dtype=numpy.dtype([('r', 'd', (3,3))]))
+    rb_out = numpy.empty(in_shape, dtype=numpy.dtype([('fi0', 'd', (3,3))]))
+    rp_out = numpy.empty(in_shape, dtype=numpy.dtype([('fi0', 'd', (3,3))]))
+    rbp_out = numpy.empty(in_shape, dtype=numpy.dtype([('fi0', 'd', (3,3))]))
+    rn_out = numpy.empty(in_shape, dtype=numpy.dtype([('fi0', 'd', (3,3))]))
+    rbpn_out = numpy.empty(in_shape, dtype=numpy.dtype([('fi0', 'd', (3,3))]))
     
     cdef numpy.broadcast it = numpy.broadcast(date1, date2, dpsi_out, deps_out, epsa_out, rb_out, rp_out, rbp_out, rn_out, rbpn_out)
     cdef double _date1
@@ -10632,8 +10900,15 @@ def pn00b(date1, date2):
         
         eraPn00b(_date1, _date2, _dpsi, _deps, _epsa, _rb, _rp, _rbp, _rn, _rbpn)
         
-        numpy.PyArray_MultiIter_NEXT(it)
-    
+        numpy.PyArray_MultiIter_NEXT(it) 
+
+    # convert from single-field structured dtype to regular nd-array
+    rb_out = rb_out['fi0']
+    rp_out = rp_out['fi0']
+    rbp_out = rbp_out['fi0']
+    rn_out = rn_out['fi0']
+    rbpn_out = rbpn_out['fi0']
+
     return dpsi_out, deps_out, epsa_out, rb_out, rp_out, rbp_out, rn_out, rbpn_out
 
 def pn06(date1, date2, dpsi, deps):
@@ -10738,11 +11013,11 @@ def pn06(date1, date2, dpsi, deps):
     """
     in_shape = numpy.broadcast(date1, date2, dpsi, deps).shape
     epsa_out = numpy.empty(in_shape, dtype=numpy.double)
-    rb_out = numpy.empty(in_shape, dtype=numpy.dtype([('r', 'd', (3,3))]))
-    rp_out = numpy.empty(in_shape, dtype=numpy.dtype([('r', 'd', (3,3))]))
-    rbp_out = numpy.empty(in_shape, dtype=numpy.dtype([('r', 'd', (3,3))]))
-    rn_out = numpy.empty(in_shape, dtype=numpy.dtype([('r', 'd', (3,3))]))
-    rbpn_out = numpy.empty(in_shape, dtype=numpy.dtype([('r', 'd', (3,3))]))
+    rb_out = numpy.empty(in_shape, dtype=numpy.dtype([('fi0', 'd', (3,3))]))
+    rp_out = numpy.empty(in_shape, dtype=numpy.dtype([('fi0', 'd', (3,3))]))
+    rbp_out = numpy.empty(in_shape, dtype=numpy.dtype([('fi0', 'd', (3,3))]))
+    rn_out = numpy.empty(in_shape, dtype=numpy.dtype([('fi0', 'd', (3,3))]))
+    rbpn_out = numpy.empty(in_shape, dtype=numpy.dtype([('fi0', 'd', (3,3))]))
     
     cdef numpy.broadcast it = numpy.broadcast(date1, date2, dpsi, deps, epsa_out, rb_out, rp_out, rbp_out, rn_out, rbpn_out)
     cdef double _date1
@@ -10770,8 +11045,15 @@ def pn06(date1, date2, dpsi, deps):
         
         eraPn06(_date1, _date2, _dpsi, _deps, _epsa, _rb, _rp, _rbp, _rn, _rbpn)
         
-        numpy.PyArray_MultiIter_NEXT(it)
-    
+        numpy.PyArray_MultiIter_NEXT(it) 
+
+    # convert from single-field structured dtype to regular nd-array
+    rb_out = rb_out['fi0']
+    rp_out = rp_out['fi0']
+    rbp_out = rbp_out['fi0']
+    rn_out = rn_out['fi0']
+    rbpn_out = rbpn_out['fi0']
+
     return epsa_out, rb_out, rp_out, rbp_out, rn_out, rbpn_out
 
 def pn06a(date1, date2):
@@ -10870,11 +11152,11 @@ def pn06a(date1, date2):
     dpsi_out = numpy.empty(in_shape, dtype=numpy.double)
     deps_out = numpy.empty(in_shape, dtype=numpy.double)
     epsa_out = numpy.empty(in_shape, dtype=numpy.double)
-    rb_out = numpy.empty(in_shape, dtype=numpy.dtype([('r', 'd', (3,3))]))
-    rp_out = numpy.empty(in_shape, dtype=numpy.dtype([('r', 'd', (3,3))]))
-    rbp_out = numpy.empty(in_shape, dtype=numpy.dtype([('r', 'd', (3,3))]))
-    rn_out = numpy.empty(in_shape, dtype=numpy.dtype([('r', 'd', (3,3))]))
-    rbpn_out = numpy.empty(in_shape, dtype=numpy.dtype([('r', 'd', (3,3))]))
+    rb_out = numpy.empty(in_shape, dtype=numpy.dtype([('fi0', 'd', (3,3))]))
+    rp_out = numpy.empty(in_shape, dtype=numpy.dtype([('fi0', 'd', (3,3))]))
+    rbp_out = numpy.empty(in_shape, dtype=numpy.dtype([('fi0', 'd', (3,3))]))
+    rn_out = numpy.empty(in_shape, dtype=numpy.dtype([('fi0', 'd', (3,3))]))
+    rbpn_out = numpy.empty(in_shape, dtype=numpy.dtype([('fi0', 'd', (3,3))]))
     
     cdef numpy.broadcast it = numpy.broadcast(date1, date2, dpsi_out, deps_out, epsa_out, rb_out, rp_out, rbp_out, rn_out, rbpn_out)
     cdef double _date1
@@ -10902,8 +11184,15 @@ def pn06a(date1, date2):
         
         eraPn06a(_date1, _date2, _dpsi, _deps, _epsa, _rb, _rp, _rbp, _rn, _rbpn)
         
-        numpy.PyArray_MultiIter_NEXT(it)
-    
+        numpy.PyArray_MultiIter_NEXT(it) 
+
+    # convert from single-field structured dtype to regular nd-array
+    rb_out = rb_out['fi0']
+    rp_out = rp_out['fi0']
+    rbp_out = rbp_out['fi0']
+    rn_out = rn_out['fi0']
+    rbpn_out = rbpn_out['fi0']
+
     return dpsi_out, deps_out, epsa_out, rb_out, rp_out, rbp_out, rn_out, rbpn_out
 
 def pnm00a(date1, date2):
@@ -10970,7 +11259,7 @@ def pnm00a(date1, date2):
   
     """
     in_shape = numpy.broadcast(date1, date2).shape
-    rbpn_out = numpy.empty(in_shape, dtype=numpy.dtype([('r', 'd', (3,3))]))
+    rbpn_out = numpy.empty(in_shape, dtype=numpy.dtype([('fi0', 'd', (3,3))]))
     
     cdef numpy.broadcast it = numpy.broadcast(date1, date2, rbpn_out)
     cdef double _date1
@@ -10984,8 +11273,11 @@ def pnm00a(date1, date2):
         
         eraPnm00a(_date1, _date2, _rbpn)
         
-        numpy.PyArray_MultiIter_NEXT(it)
-    
+        numpy.PyArray_MultiIter_NEXT(it) 
+
+    # convert from single-field structured dtype to regular nd-array
+    rbpn_out = rbpn_out['fi0']
+
     return rbpn_out
 
 def pnm00b(date1, date2):
@@ -11052,7 +11344,7 @@ def pnm00b(date1, date2):
   
     """
     in_shape = numpy.broadcast(date1, date2).shape
-    rbpn_out = numpy.empty(in_shape, dtype=numpy.dtype([('r', 'd', (3,3))]))
+    rbpn_out = numpy.empty(in_shape, dtype=numpy.dtype([('fi0', 'd', (3,3))]))
     
     cdef numpy.broadcast it = numpy.broadcast(date1, date2, rbpn_out)
     cdef double _date1
@@ -11066,8 +11358,11 @@ def pnm00b(date1, date2):
         
         eraPnm00b(_date1, _date2, _rbpn)
         
-        numpy.PyArray_MultiIter_NEXT(it)
-    
+        numpy.PyArray_MultiIter_NEXT(it) 
+
+    # convert from single-field structured dtype to regular nd-array
+    rbpn_out = rbpn_out['fi0']
+
     return rbpn_out
 
 def pnm06a(date1, date2):
@@ -11131,7 +11426,7 @@ def pnm06a(date1, date2):
   
     """
     in_shape = numpy.broadcast(date1, date2).shape
-    rnpb_out = numpy.empty(in_shape, dtype=numpy.dtype([('r', 'd', (3,3))]))
+    rnpb_out = numpy.empty(in_shape, dtype=numpy.dtype([('fi0', 'd', (3,3))]))
     
     cdef numpy.broadcast it = numpy.broadcast(date1, date2, rnpb_out)
     cdef double _date1
@@ -11145,8 +11440,11 @@ def pnm06a(date1, date2):
         
         eraPnm06a(_date1, _date2, _rnpb)
         
-        numpy.PyArray_MultiIter_NEXT(it)
-    
+        numpy.PyArray_MultiIter_NEXT(it) 
+
+    # convert from single-field structured dtype to regular nd-array
+    rnpb_out = rnpb_out['fi0']
+
     return rnpb_out
 
 def pnm80(date1, date2):
@@ -11212,7 +11510,7 @@ def pnm80(date1, date2):
   
     """
     in_shape = numpy.broadcast(date1, date2).shape
-    rmatpn_out = numpy.empty(in_shape, dtype=numpy.dtype([('r', 'd', (3,3))]))
+    rmatpn_out = numpy.empty(in_shape, dtype=numpy.dtype([('fi0', 'd', (3,3))]))
     
     cdef numpy.broadcast it = numpy.broadcast(date1, date2, rmatpn_out)
     cdef double _date1
@@ -11226,8 +11524,11 @@ def pnm80(date1, date2):
         
         eraPnm80(_date1, _date2, _rmatpn)
         
-        numpy.PyArray_MultiIter_NEXT(it)
-    
+        numpy.PyArray_MultiIter_NEXT(it) 
+
+    # convert from single-field structured dtype to regular nd-array
+    rmatpn_out = rmatpn_out['fi0']
+
     return rmatpn_out
 
 def pom00(xp, yp, sp):
@@ -11287,7 +11588,7 @@ def pom00(xp, yp, sp):
   
     """
     in_shape = numpy.broadcast(xp, yp, sp).shape
-    rpom_out = numpy.empty(in_shape, dtype=numpy.dtype([('r', 'd', (3,3))]))
+    rpom_out = numpy.empty(in_shape, dtype=numpy.dtype([('fi0', 'd', (3,3))]))
     
     cdef numpy.broadcast it = numpy.broadcast(xp, yp, sp, rpom_out)
     cdef double _xp
@@ -11303,8 +11604,11 @@ def pom00(xp, yp, sp):
         
         eraPom00(_xp, _yp, _sp, _rpom)
         
-        numpy.PyArray_MultiIter_NEXT(it)
-    
+        numpy.PyArray_MultiIter_NEXT(it) 
+
+    # convert from single-field structured dtype to regular nd-array
+    rpom_out = rpom_out['fi0']
+
     return rpom_out
 
 def pr00(date1, date2):
@@ -11402,7 +11706,7 @@ def pr00(date1, date2):
         eraPr00(_date1, _date2, _dpsipr, _depspr)
         
         numpy.PyArray_MultiIter_NEXT(it)
-    
+
     return dpsipr_out, depspr_out
 
 def prec76(date01, date02, date11, date12):
@@ -11506,7 +11810,7 @@ def prec76(date01, date02, date11, date12):
         eraPrec76(_date01, _date02, _date11, _date12, _zeta, _z, _theta)
         
         numpy.PyArray_MultiIter_NEXT(it)
-    
+
     return zeta_out, z_out, theta_out
 
 def s00(date1, date2, x, y):
@@ -11615,7 +11919,7 @@ def s00(date1, date2, x, y):
         (<double*>numpy.PyArray_MultiIter_DATA(it, 4))[0] = _c_retval
         
         numpy.PyArray_MultiIter_NEXT(it)
-    
+
     return c_retval_out
 
 def s00a(date1, date2):
@@ -11713,7 +12017,7 @@ def s00a(date1, date2):
         (<double*>numpy.PyArray_MultiIter_DATA(it, 2))[0] = _c_retval
         
         numpy.PyArray_MultiIter_NEXT(it)
-    
+
     return c_retval_out
 
 def s00b(date1, date2):
@@ -11811,7 +12115,7 @@ def s00b(date1, date2):
         (<double*>numpy.PyArray_MultiIter_DATA(it, 2))[0] = _c_retval
         
         numpy.PyArray_MultiIter_NEXT(it)
-    
+
     return c_retval_out
 
 def s06(date1, date2, x, y):
@@ -11917,7 +12221,7 @@ def s06(date1, date2, x, y):
         (<double*>numpy.PyArray_MultiIter_DATA(it, 4))[0] = _c_retval
         
         numpy.PyArray_MultiIter_NEXT(it)
-    
+
     return c_retval_out
 
 def s06a(date1, date2):
@@ -12017,7 +12321,7 @@ def s06a(date1, date2):
         (<double*>numpy.PyArray_MultiIter_DATA(it, 2))[0] = _c_retval
         
         numpy.PyArray_MultiIter_NEXT(it)
-    
+
     return c_retval_out
 
 def sp00(date1, date2):
@@ -12093,7 +12397,7 @@ def sp00(date1, date2):
         (<double*>numpy.PyArray_MultiIter_DATA(it, 2))[0] = _c_retval
         
         numpy.PyArray_MultiIter_NEXT(it)
-    
+
     return c_retval_out
 
 def xy06(date1, date2):
@@ -12210,7 +12514,7 @@ def xy06(date1, date2):
         eraXy06(_date1, _date2, _x, _y)
         
         numpy.PyArray_MultiIter_NEXT(it)
-    
+
     return x_out, y_out
 
 def xys00a(date1, date2):
@@ -12303,7 +12607,7 @@ def xys00a(date1, date2):
         eraXys00a(_date1, _date2, _x, _y, _s)
         
         numpy.PyArray_MultiIter_NEXT(it)
-    
+
     return x_out, y_out, s_out
 
 def xys00b(date1, date2):
@@ -12396,7 +12700,7 @@ def xys00b(date1, date2):
         eraXys00b(_date1, _date2, _x, _y, _s)
         
         numpy.PyArray_MultiIter_NEXT(it)
-    
+
     return x_out, y_out, s_out
 
 def xys06a(date1, date2):
@@ -12489,7 +12793,7 @@ def xys06a(date1, date2):
         eraXys06a(_date1, _date2, _x, _y, _s)
         
         numpy.PyArray_MultiIter_NEXT(it)
-    
+
     return x_out, y_out, s_out
 
 def ee00(date1, date2, epsa, dpsi):
@@ -12582,7 +12886,7 @@ def ee00(date1, date2, epsa, dpsi):
         (<double*>numpy.PyArray_MultiIter_DATA(it, 4))[0] = _c_retval
         
         numpy.PyArray_MultiIter_NEXT(it)
-    
+
     return c_retval_out
 
 def ee00a(date1, date2):
@@ -12669,7 +12973,7 @@ def ee00a(date1, date2):
         (<double*>numpy.PyArray_MultiIter_DATA(it, 2))[0] = _c_retval
         
         numpy.PyArray_MultiIter_NEXT(it)
-    
+
     return c_retval_out
 
 def ee00b(date1, date2):
@@ -12762,7 +13066,7 @@ def ee00b(date1, date2):
         (<double*>numpy.PyArray_MultiIter_DATA(it, 2))[0] = _c_retval
         
         numpy.PyArray_MultiIter_NEXT(it)
-    
+
     return c_retval_out
 
 def ee06a(date1, date2):
@@ -12841,7 +13145,7 @@ def ee06a(date1, date2):
         (<double*>numpy.PyArray_MultiIter_DATA(it, 2))[0] = _c_retval
         
         numpy.PyArray_MultiIter_NEXT(it)
-    
+
     return c_retval_out
 
 def eect00(date1, date2):
@@ -12961,7 +13265,7 @@ def eect00(date1, date2):
         (<double*>numpy.PyArray_MultiIter_DATA(it, 2))[0] = _c_retval
         
         numpy.PyArray_MultiIter_NEXT(it)
-    
+
     return c_retval_out
 
 def eqeq94(date1, date2):
@@ -13041,7 +13345,7 @@ def eqeq94(date1, date2):
         (<double*>numpy.PyArray_MultiIter_DATA(it, 2))[0] = _c_retval
         
         numpy.PyArray_MultiIter_NEXT(it)
-    
+
     return c_retval_out
 
 def era00(dj1, dj2):
@@ -13124,7 +13428,7 @@ def era00(dj1, dj2):
         (<double*>numpy.PyArray_MultiIter_DATA(it, 2))[0] = _c_retval
         
         numpy.PyArray_MultiIter_NEXT(it)
-    
+
     return c_retval_out
 
 def gmst00(uta, utb, tta, ttb):
@@ -13225,7 +13529,7 @@ def gmst00(uta, utb, tta, ttb):
         (<double*>numpy.PyArray_MultiIter_DATA(it, 4))[0] = _c_retval
         
         numpy.PyArray_MultiIter_NEXT(it)
-    
+
     return c_retval_out
 
 def gmst06(uta, utb, tta, ttb):
@@ -13316,7 +13620,7 @@ def gmst06(uta, utb, tta, ttb):
         (<double*>numpy.PyArray_MultiIter_DATA(it, 4))[0] = _c_retval
         
         numpy.PyArray_MultiIter_NEXT(it)
-    
+
     return c_retval_out
 
 def gmst82(dj1, dj2):
@@ -13405,7 +13709,7 @@ def gmst82(dj1, dj2):
         (<double*>numpy.PyArray_MultiIter_DATA(it, 2))[0] = _c_retval
         
         numpy.PyArray_MultiIter_NEXT(it)
-    
+
     return c_retval_out
 
 def gst00a(uta, utb, tta, ttb):
@@ -13507,7 +13811,7 @@ def gst00a(uta, utb, tta, ttb):
         (<double*>numpy.PyArray_MultiIter_DATA(it, 4))[0] = _c_retval
         
         numpy.PyArray_MultiIter_NEXT(it)
-    
+
     return c_retval_out
 
 def gst00b(uta, utb):
@@ -13613,7 +13917,7 @@ def gst00b(uta, utb):
         (<double*>numpy.PyArray_MultiIter_DATA(it, 2))[0] = _c_retval
         
         numpy.PyArray_MultiIter_NEXT(it)
-    
+
     return c_retval_out
 
 def gst06(uta, utb, tta, ttb, rnpb):
@@ -13689,6 +13993,11 @@ def gst06(uta, utb, tta, ttb, rnpb):
     Derived, with permission, from the SOFA library.  See notes at end of file.
   
     """
+    # convert nd-array to single-field structured array for argument "rnpb"
+    rnpb_arr = numpy.empty(numpy.shape(rnpb)[:-2], dtype=numpy.dtype([('fi0', 'd', (3,3))]))
+    rnpb_arr['fi0'] = rnpb
+    rnpb = rnpb_arr
+    
     in_shape = numpy.broadcast(uta, utb, tta, ttb, rnpb).shape
     c_retval_out = numpy.empty(in_shape, dtype=numpy.double)
     
@@ -13711,7 +14020,7 @@ def gst06(uta, utb, tta, ttb, rnpb):
         (<double*>numpy.PyArray_MultiIter_DATA(it, 5))[0] = _c_retval
         
         numpy.PyArray_MultiIter_NEXT(it)
-    
+
     return c_retval_out
 
 def gst06a(uta, utb, tta, ttb):
@@ -13804,7 +14113,7 @@ def gst06a(uta, utb, tta, ttb):
         (<double*>numpy.PyArray_MultiIter_DATA(it, 4))[0] = _c_retval
         
         numpy.PyArray_MultiIter_NEXT(it)
-    
+
     return c_retval_out
 
 def gst94(uta, utb):
@@ -13895,7 +14204,7 @@ def gst94(uta, utb):
         (<double*>numpy.PyArray_MultiIter_DATA(it, 2))[0] = _c_retval
         
         numpy.PyArray_MultiIter_NEXT(it)
-    
+
     return c_retval_out
 
 def pmsafe(ra1, dec1, pmr1, pmd1, px1, rv1, ep1a, ep1b, ep2a, ep2b):
@@ -14065,7 +14374,7 @@ def pmsafe(ra1, dec1, pmr1, pmd1, px1, rv1, ep1a, ep1b, ep2a, ep2b):
 
     if not stat_ok:
         check_errwarn(c_retval_out, 'pmsafe')
-    
+
     return ra2_out, dec2_out, pmr2_out, pmd2_out, px2_out, rv2_out
 STATUS_CODES['pmsafe'] = {0: u'no warnings or errors', 1: u'distance overridden (Note 6)', 2: u'excessive velocity (Note 7)', 4: u"solution didn't converge (Note 8)", u'else': u'binary logical OR of the above warnings', -1: u'system error (should not occur)'}
 
@@ -14172,6 +14481,11 @@ def pvstar(pv):
     Derived, with permission, from the SOFA library.  See notes at end of file.
   
     """
+    # convert nd-array to single-field structured array for argument "pv"
+    pv_arr = numpy.empty(numpy.shape(pv)[:-2], dtype=numpy.dtype([('fi0', 'd', (2,3))]))
+    pv_arr['fi0'] = pv
+    pv = pv_arr
+    
     in_shape = numpy.broadcast(pv, 0).shape
     ra_out = numpy.empty(in_shape, dtype=numpy.double)
     dec_out = numpy.empty(in_shape, dtype=numpy.double)
@@ -14210,7 +14524,7 @@ def pvstar(pv):
 
     if not stat_ok:
         check_errwarn(c_retval_out, 'pvstar')
-    
+
     return ra_out, dec_out, pmr_out, pmd_out, px_out, rv_out
 STATUS_CODES['pvstar'] = {0: u'OK', -2: u'null position vector', -1: u'superluminal speed (Note 5)'}
 
@@ -14337,7 +14651,7 @@ def starpv(ra, dec, pmr, pmd, px, rv):
   
     """
     in_shape = numpy.broadcast(ra, dec, pmr, pmd, px, rv).shape
-    pv_out = numpy.empty(in_shape, dtype=numpy.dtype([('pv', 'd', (2,3))]))
+    pv_out = numpy.empty(in_shape, dtype=numpy.dtype([('fi0', 'd', (2,3))]))
     c_retval_out = numpy.empty(in_shape, dtype=numpy.intc)
     
     cdef numpy.broadcast it = numpy.broadcast(ra, dec, pmr, pmd, px, rv, pv_out, c_retval_out)
@@ -14368,8 +14682,11 @@ def starpv(ra, dec, pmr, pmd, px, rv):
         numpy.PyArray_MultiIter_NEXT(it)
 
     if not stat_ok:
-        check_errwarn(c_retval_out, 'starpv')
-    
+        check_errwarn(c_retval_out, 'starpv') 
+
+    # convert from single-field structured dtype to regular nd-array
+    pv_out = pv_out['fi0']
+
     return pv_out
 STATUS_CODES['starpv'] = {0: u'no warnings', 1: u'distance overridden (Note 6)', 2: u'excessive speed (Note 7)', 4: u"solution didn't converge (Note 8)", u'else': u'binary logical OR of the above'}
 
@@ -14473,7 +14790,7 @@ def fk52h(r5, d5, dr5, dd5, px5, rv5):
         eraFk52h(_r5, _d5, _dr5, _dd5, _px5, _rv5, _rh, _dh, _drh, _ddh, _pxh, _rvh)
         
         numpy.PyArray_MultiIter_NEXT(it)
-    
+
     return rh_out, dh_out, drh_out, ddh_out, pxh_out, rvh_out
 
 def fk5hip():
@@ -14523,8 +14840,8 @@ def fk5hip():
   
     """
     in_shape = ()
-    r5h_out = numpy.empty(in_shape, dtype=numpy.dtype([('r', 'd', (3,3))]))
-    s5h_out = numpy.empty(in_shape, dtype=numpy.dtype([('p', 'd', (3,))]))
+    r5h_out = numpy.empty(in_shape, dtype=numpy.dtype([('fi0', 'd', (3,3))]))
+    s5h_out = numpy.empty(in_shape, dtype=numpy.dtype([('fi0', 'd', (3,))]))
     
     cdef numpy.broadcast it = numpy.broadcast(r5h_out, s5h_out)
     cdef double * _r5h
@@ -14536,8 +14853,12 @@ def fk5hip():
     
         eraFk5hip(_r5h, _s5h)
         
-        numpy.PyArray_MultiIter_NEXT(it)
-    
+        numpy.PyArray_MultiIter_NEXT(it) 
+
+    # convert from single-field structured dtype to regular nd-array
+    r5h_out = r5h_out['fi0']
+    s5h_out = s5h_out['fi0']
+
     return r5h_out, s5h_out
 
 def fk5hz(r5, d5, date1, date2):
@@ -14641,7 +14962,7 @@ def fk5hz(r5, d5, date1, date2):
         eraFk5hz(_r5, _d5, _date1, _date2, _rh, _dh)
         
         numpy.PyArray_MultiIter_NEXT(it)
-    
+
     return rh_out, dh_out
 
 def h2fk5(rh, dh, drh, ddh, pxh, rvh):
@@ -14745,7 +15066,7 @@ def h2fk5(rh, dh, drh, ddh, pxh, rvh):
         eraH2fk5(_rh, _dh, _drh, _ddh, _pxh, _rvh, _r5, _d5, _dr5, _dd5, _px5, _rv5)
         
         numpy.PyArray_MultiIter_NEXT(it)
-    
+
     return r5_out, d5_out, dr5_out, dd5_out, px5_out, rv5_out
 
 def hfk5z(rh, dh, date1, date2):
@@ -14860,7 +15181,7 @@ def hfk5z(rh, dh, date1, date2):
         eraHfk5z(_rh, _dh, _date1, _date2, _r5, _d5, _dr5, _dd5)
         
         numpy.PyArray_MultiIter_NEXT(it)
-    
+
     return r5_out, d5_out, dr5_out, dd5_out
 
 def starpm(ra1, dec1, pmr1, pmd1, px1, rv1, ep1a, ep1b, ep2a, ep2b):
@@ -15031,7 +15352,7 @@ def starpm(ra1, dec1, pmr1, pmd1, px1, rv1, ep1a, ep1b, ep2a, ep2b):
 
     if not stat_ok:
         check_errwarn(c_retval_out, 'starpm')
-    
+
     return ra2_out, dec2_out, pmr2_out, pmd2_out, px2_out, rv2_out
 STATUS_CODES['starpm'] = {0: u'no warnings or errors', 1: u'distance overridden (Note 6)', 2: u'excessive velocity (Note 7)', 4: u"solution didn't converge (Note 8)", u'else': u'binary logical OR of the above warnings', -1: u'system error (should not occur)'}
 
@@ -15127,7 +15448,7 @@ def eform(n):
 
     if not stat_ok:
         check_errwarn(c_retval_out, 'eform')
-    
+
     return a_out, f_out
 STATUS_CODES['eform'] = {0: u'OK', -1: u'illegal identifier (Note 3)'}
 
@@ -15192,6 +15513,11 @@ def gc2gd(n, xyz):
     Derived, with permission, from the SOFA library.  See notes at end of file.
   
     """
+    # convert nd-array to single-field structured array for argument "xyz"
+    xyz_arr = numpy.empty(numpy.shape(xyz)[:-1], dtype=numpy.dtype([('fi0', 'd', (3,))]))
+    xyz_arr['fi0'] = xyz
+    xyz = xyz_arr
+    
     in_shape = numpy.broadcast(n, xyz).shape
     elong_out = numpy.empty(in_shape, dtype=numpy.double)
     phi_out = numpy.empty(in_shape, dtype=numpy.double)
@@ -15223,7 +15549,7 @@ def gc2gd(n, xyz):
 
     if not stat_ok:
         check_errwarn(c_retval_out, 'gc2gd')
-    
+
     return elong_out, phi_out, height_out
 STATUS_CODES['gc2gd'] = {0: u'OK', -2: u'internal error (Note 3)', -1: u'illegal identifier (Note 3)'}
 
@@ -15293,6 +15619,11 @@ def gc2gde(a, f, xyz):
     Derived, with permission, from the SOFA library.  See notes at end of file.
   
     """
+    # convert nd-array to single-field structured array for argument "xyz"
+    xyz_arr = numpy.empty(numpy.shape(xyz)[:-1], dtype=numpy.dtype([('fi0', 'd', (3,))]))
+    xyz_arr['fi0'] = xyz
+    xyz = xyz_arr
+    
     in_shape = numpy.broadcast(a, f, xyz).shape
     elong_out = numpy.empty(in_shape, dtype=numpy.double)
     phi_out = numpy.empty(in_shape, dtype=numpy.double)
@@ -15326,7 +15657,7 @@ def gc2gde(a, f, xyz):
 
     if not stat_ok:
         check_errwarn(c_retval_out, 'gc2gde')
-    
+
     return elong_out, phi_out, height_out
 STATUS_CODES['gc2gde'] = {0: u'OK', -2: u'illegal a', -1: u'illegal f'}
 
@@ -15395,7 +15726,7 @@ def gd2gc(n, elong, phi, height):
   
     """
     in_shape = numpy.broadcast(n, elong, phi, height).shape
-    xyz_out = numpy.empty(in_shape, dtype=numpy.dtype([('p', 'd', (3,))]))
+    xyz_out = numpy.empty(in_shape, dtype=numpy.dtype([('fi0', 'd', (3,))]))
     c_retval_out = numpy.empty(in_shape, dtype=numpy.intc)
     
     cdef numpy.broadcast it = numpy.broadcast(n, elong, phi, height, xyz_out, c_retval_out)
@@ -15422,8 +15753,11 @@ def gd2gc(n, elong, phi, height):
         numpy.PyArray_MultiIter_NEXT(it)
 
     if not stat_ok:
-        check_errwarn(c_retval_out, 'gd2gc')
-    
+        check_errwarn(c_retval_out, 'gd2gc') 
+
+    # convert from single-field structured dtype to regular nd-array
+    xyz_out = xyz_out['fi0']
+
     return xyz_out
 STATUS_CODES['gd2gc'] = {0: u'OK', -2: u'illegal case (Note 3)', -1: u'illegal identifier (Note 3)'}
 
@@ -15493,7 +15827,7 @@ def gd2gce(a, f, elong, phi, height):
   
     """
     in_shape = numpy.broadcast(a, f, elong, phi, height).shape
-    xyz_out = numpy.empty(in_shape, dtype=numpy.dtype([('p', 'd', (3,))]))
+    xyz_out = numpy.empty(in_shape, dtype=numpy.dtype([('fi0', 'd', (3,))]))
     c_retval_out = numpy.empty(in_shape, dtype=numpy.intc)
     
     cdef numpy.broadcast it = numpy.broadcast(a, f, elong, phi, height, xyz_out, c_retval_out)
@@ -15522,8 +15856,11 @@ def gd2gce(a, f, elong, phi, height):
         numpy.PyArray_MultiIter_NEXT(it)
 
     if not stat_ok:
-        check_errwarn(c_retval_out, 'gd2gce')
-    
+        check_errwarn(c_retval_out, 'gd2gce') 
+
+    # convert from single-field structured dtype to regular nd-array
+    xyz_out = xyz_out['fi0']
+
     return xyz_out
 STATUS_CODES['gd2gce'] = {0: u'OK', -1: u'illegal case (Note 4)Notes:'}
 
@@ -15598,7 +15935,7 @@ def pvtob(elong, phi, hm, xp, yp, sp, theta):
   
     """
     in_shape = numpy.broadcast(elong, phi, hm, xp, yp, sp, theta).shape
-    pv_out = numpy.empty(in_shape, dtype=numpy.dtype([('pv', 'd', (2,3))]))
+    pv_out = numpy.empty(in_shape, dtype=numpy.dtype([('fi0', 'd', (2,3))]))
     
     cdef numpy.broadcast it = numpy.broadcast(elong, phi, hm, xp, yp, sp, theta, pv_out)
     cdef double _elong
@@ -15622,8 +15959,11 @@ def pvtob(elong, phi, hm, xp, yp, sp, theta):
         
         eraPvtob(_elong, _phi, _hm, _xp, _yp, _sp, _theta, _pv)
         
-        numpy.PyArray_MultiIter_NEXT(it)
-    
+        numpy.PyArray_MultiIter_NEXT(it) 
+
+    # convert from single-field structured dtype to regular nd-array
+    pv_out = pv_out['fi0']
+
     return pv_out
 
 def d2dtf(scale, ndp, d1, d2):
@@ -15709,7 +16049,7 @@ def d2dtf(scale, ndp, d1, d2):
     iy_out = numpy.empty(in_shape, dtype=numpy.intc)
     im_out = numpy.empty(in_shape, dtype=numpy.intc)
     id_out = numpy.empty(in_shape, dtype=numpy.intc)
-    ihmsf_out = numpy.empty(in_shape, dtype=numpy.dtype([('', 'i', (4,))]))
+    ihmsf_out = numpy.empty(in_shape, dtype=numpy.dtype([('fi0', 'i', (4,))]))
     c_retval_out = numpy.empty(in_shape, dtype=numpy.intc)
     
     cdef numpy.broadcast it = numpy.broadcast(scale, ndp, d1, d2, iy_out, im_out, id_out, ihmsf_out, c_retval_out)
@@ -15742,8 +16082,11 @@ def d2dtf(scale, ndp, d1, d2):
         numpy.PyArray_MultiIter_NEXT(it)
 
     if not stat_ok:
-        check_errwarn(c_retval_out, 'd2dtf')
-    
+        check_errwarn(c_retval_out, 'd2dtf') 
+
+    # convert from single-field structured dtype to regular nd-array
+    ihmsf_out = ihmsf_out['fi0']
+
     return iy_out, im_out, id_out, ihmsf_out
 STATUS_CODES['d2dtf'] = {0: u'OK', 1: u'dubious year (Note 5)', -1: u'unacceptable date (Note 6)'}
 
@@ -15902,7 +16245,7 @@ def dat(iy, im, id, fd):
 
     if not stat_ok:
         check_errwarn(c_retval_out, 'dat')
-    
+
     return deltat_out
 STATUS_CODES['dat'] = {0: u'OK', 1: u'dubious year (Note 1)', -1: u'bad year', -5: u'internal error', -4: u'bad fraction (Note 4)', -3: u'bad day (Note 3)', -2: u'bad month'}
 
@@ -16097,7 +16440,7 @@ def dtdb(date1, date2, ut, elong, u, v):
         (<double*>numpy.PyArray_MultiIter_DATA(it, 6))[0] = _c_retval
         
         numpy.PyArray_MultiIter_NEXT(it)
-    
+
     return c_retval_out
 
 def dtf2d(scale, iy, im, id, ihr, imn, sec):
@@ -16221,7 +16564,7 @@ def dtf2d(scale, iy, im, id, ihr, imn, sec):
 
     if not stat_ok:
         check_errwarn(c_retval_out, 'dtf2d')
-    
+
     return d1_out, d2_out
 STATUS_CODES['dtf2d'] = {0: u'OK', 1: u'dubious year (Note 6)', 2: u'time is after end of day (Note 5)', 3: u'both of next two', -1: u'bad year', -6: u'bad second (<0)', -5: u'bad minute', -4: u'bad hour', -3: u'bad day', -2: u'bad month'}
 
@@ -16297,7 +16640,7 @@ def taitt(tai1, tai2):
 
     if not stat_ok:
         check_errwarn(c_retval_out, 'taitt')
-    
+
     return tt1_out, tt2_out
 STATUS_CODES['taitt'] = {0: u'OK'}
 
@@ -16376,7 +16719,7 @@ def taiut1(tai1, tai2, dta):
 
     if not stat_ok:
         check_errwarn(c_retval_out, 'taiut1')
-    
+
     return ut11_out, ut12_out
 STATUS_CODES['taiut1'] = {0: u'OK'}
 
@@ -16475,7 +16818,7 @@ def taiutc(tai1, tai2):
 
     if not stat_ok:
         check_errwarn(c_retval_out, 'taiutc')
-    
+
     return utc1_out, utc2_out
 STATUS_CODES['taiutc'] = {0: u'OK', 1: u'dubious year (Note 4)', -1: u'unacceptable date'}
 
@@ -16565,7 +16908,7 @@ def tcbtdb(tcb1, tcb2):
 
     if not stat_ok:
         check_errwarn(c_retval_out, 'tcbtdb')
-    
+
     return tdb1_out, tdb2_out
 STATUS_CODES['tcbtdb'] = {0: u'OK'}
 
@@ -16640,7 +16983,7 @@ def tcgtt(tcg1, tcg2):
 
     if not stat_ok:
         check_errwarn(c_retval_out, 'tcgtt')
-    
+
     return tt1_out, tt2_out
 STATUS_CODES['tcgtt'] = {0: u'OK'}
 
@@ -16730,7 +17073,7 @@ def tdbtcb(tdb1, tdb2):
 
     if not stat_ok:
         check_errwarn(c_retval_out, 'tdbtcb')
-    
+
     return tcb1_out, tcb2_out
 STATUS_CODES['tdbtcb'] = {0: u'OK'}
 
@@ -16819,7 +17162,7 @@ def tdbtt(tdb1, tdb2, dtr):
 
     if not stat_ok:
         check_errwarn(c_retval_out, 'tdbtt')
-    
+
     return tt1_out, tt2_out
 STATUS_CODES['tdbtt'] = {0: u'OK'}
 
@@ -16895,7 +17238,7 @@ def tttai(tt1, tt2):
 
     if not stat_ok:
         check_errwarn(c_retval_out, 'tttai')
-    
+
     return tai1_out, tai2_out
 STATUS_CODES['tttai'] = {0: u'OK'}
 
@@ -16970,7 +17313,7 @@ def tttcg(tt1, tt2):
 
     if not stat_ok:
         check_errwarn(c_retval_out, 'tttcg')
-    
+
     return tcg1_out, tcg2_out
 STATUS_CODES['tttcg'] = {0: u'OK'}
 
@@ -17059,7 +17402,7 @@ def tttdb(tt1, tt2, dtr):
 
     if not stat_ok:
         check_errwarn(c_retval_out, 'tttdb')
-    
+
     return tdb1_out, tdb2_out
 STATUS_CODES['tttdb'] = {0: u'OK'}
 
@@ -17137,7 +17480,7 @@ def ttut1(tt1, tt2, dt):
 
     if not stat_ok:
         check_errwarn(c_retval_out, 'ttut1')
-    
+
     return ut11_out, ut12_out
 STATUS_CODES['ttut1'] = {0: u'OK'}
 
@@ -17216,7 +17559,7 @@ def ut1tai(ut11, ut12, dta):
 
     if not stat_ok:
         check_errwarn(c_retval_out, 'ut1tai')
-    
+
     return tai1_out, tai2_out
 STATUS_CODES['ut1tai'] = {0: u'OK'}
 
@@ -17294,7 +17637,7 @@ def ut1tt(ut11, ut12, dt):
 
     if not stat_ok:
         check_errwarn(c_retval_out, 'ut1tt')
-    
+
     return tt1_out, tt2_out
 STATUS_CODES['ut1tt'] = {0: u'OK'}
 
@@ -17400,7 +17743,7 @@ def ut1utc(ut11, ut12, dut1):
 
     if not stat_ok:
         check_errwarn(c_retval_out, 'ut1utc')
-    
+
     return utc1_out, utc2_out
 STATUS_CODES['ut1utc'] = {0: u'OK', 1: u'dubious year (Note 5)', -1: u'unacceptable date'}
 
@@ -17501,7 +17844,7 @@ def utctai(utc1, utc2):
 
     if not stat_ok:
         check_errwarn(c_retval_out, 'utctai')
-    
+
     return tai1_out, tai2_out
 STATUS_CODES['utctai'] = {0: u'OK', 1: u'dubious year (Note 3)', -1: u'unacceptable date'}
 
@@ -17608,7 +17951,7 @@ def utcut1(utc1, utc2, dut1):
 
     if not stat_ok:
         check_errwarn(c_retval_out, 'utcut1')
-    
+
     return ut11_out, ut12_out
 STATUS_CODES['utcut1'] = {0: u'OK', 1: u'dubious year (Note 3)', -1: u'unacceptable date'}
 
