@@ -1675,7 +1675,7 @@ def apco(date1, date2, ebpv, ehp, x, y, s, theta, elong, phi, hm, xp, yp, sp, re
         
         numpy.PyArray_MultiIter_NEXT(it)
 
-    return refa_out, refb_out, astrom_out
+    return astrom_out
 
 def apco13(utc1, utc2, dut1, elong, phi, hm, xp, yp, phpa, tc, rh, wl):
     """
@@ -2340,7 +2340,7 @@ def aper(theta, astrom):
         
         numpy.PyArray_MultiIter_NEXT(it)
 
-    return astrom_out
+    return 
 
 def aper13(ut11, ut12, astrom):
     """
@@ -2477,7 +2477,7 @@ def aper13(ut11, ut12, astrom):
         
         numpy.PyArray_MultiIter_NEXT(it)
 
-    return astrom_out
+    return 
 
 def apio(sp, theta, elong, phi, hm, xp, yp, refa, refb):
     """
@@ -2632,7 +2632,7 @@ def apio(sp, theta, elong, phi, hm, xp, yp, refa, refb):
         
         numpy.PyArray_MultiIter_NEXT(it)
 
-    return refa_out, refb_out, astrom_out
+    return astrom_out
 
 def apio13(utc1, utc2, dut1, elong, phi, hm, xp, yp, phpa, tc, rh, wl):
     """
