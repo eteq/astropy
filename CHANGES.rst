@@ -21,6 +21,12 @@ New Features
     of cosmological objects to be created with the specified variables
     modified [#2592].
 
+- ``astropy.erfa``
+
+  ``astropy.erfa`` was added as a new subpackage wrapping the functionality of
+  the ERFA library in python.  This is primarily of use for other astropy
+  subpackages, but the API may be made more public in the future. [#2992]
+
 - ``astropy.io.ascii``
 
   - Simplify the way new Reader classes are defined, allowing custom behavior
