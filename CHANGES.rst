@@ -4,6 +4,10 @@
 New Features
 ^^^^^^^^^^^^
 
+- ``astropy.analytic_functions``
+
+  - New module to store analytic functions [#3077].
+
 - ``astropy.config``
 
 - ``astropy.constants``
