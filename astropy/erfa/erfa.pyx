@@ -31,6 +31,7 @@ from ..utils.exceptions import AstropyUserWarning
 
 import numpy
 cimport numpy
+from cpython.ref cimport PyObject
 
 numpy.import_array()
 
@@ -88,13 +89,32 @@ def check_errwarn(statcodes, func_name):
         warnings.warn('ERFA function "' + func_name + '" yielded ' + wmsg, ErfaWarning)
 
 
+#<-----------------------------NpyIter handling------------------------------->
+
+ctypedef void NpyIter
+ctypedef int (*IterNextFunc)(NpyIter * iter) nogil
+
+cdef extern from "numpy/arrayobject.h":
+    IterNextFunc GetIterNext "NpyIter_GetIterNext" (NpyIter *iter, char **)
+    char** GetDataPtrArray "NpyIter_GetDataPtrArray" (NpyIter* iter)
+
+ctypedef struct NewNpyArrayIterObject:
+    PyObject base
+    NpyIter *iter
+
+cdef inline NpyIter* GetNpyIter(object iter):
+    return (<NewNpyArrayIterObject*>iter).iter
+
+
 #<--------------------------Actual ERFA-wrapping code------------------------->
 
-cdef extern from "erfa.h":
+cdef extern from "erfam.h":
     struct eraASTROM:
         pass
     struct eraLDBODY:
         pass
+
+cdef extern from "erfa.h":
     int eraCal2jd(int, int, int, double *, double *)
     double eraEpb(double, double)
     void eraEpb2jd(double, double *, double *)
@@ -125,9 +145,9 @@ cdef extern from "erfa.h":
     void eraAticqn(double, double, eraASTROM *, int, eraLDBODY *, double *, double *)
     int eraAtio13(double, double, double, double, double, double, double, double, double, double, double, double, double, double, double *, double *, double *, double *, double *)
     void eraAtioq(double, double, eraASTROM *, double *, double *, double *, double *, double *)
-    int eraAtoc13(char *, double, double, double, double, double, double, double, double, double, double, double, double, double, double, double *, double *)
-    int eraAtoi13(char *, double, double, double, double, double, double, double, double, double, double, double, double, double, double, double *, double *)
-    void eraAtoiq(char *, double, double, eraASTROM *, double *, double *)
+    int eraAtoc13(const char *, double, double, double, double, double, double, double, double, double, double, double, double, double, double, double *, double *)
+    int eraAtoi13(const char *, double, double, double, double, double, double, double, double, double, double, double, double, double, double, double *, double *)
+    void eraAtoiq(const char *, double, double, eraASTROM *, double *, double *)
     void eraLd(double, double *, double *, double *, double, double, double *)
     void eraLdn(int, eraLDBODY *, double *, double *, double *)
     void eraLdsun(double *, double *, double, double *)
@@ -240,10 +260,10 @@ cdef extern from "erfa.h":
     int eraGd2gc(int, double, double, double, double *)
     int eraGd2gce(double, double, double, double, double, double *)
     void eraPvtob(double, double, double, double, double, double, double, double *)
-    int eraD2dtf(char *, int, double, double, int *, int *, int *, int *)
+    int eraD2dtf(const char *, int, double, double, int *, int *, int *, int *)
     int eraDat(int, int, int, double, double *)
     double eraDtdb(double, double, double, double, double, double)
-    int eraDtf2d(char *, int, int, int, int, int, double, double *, double *)
+    int eraDtf2d(const char *, int, int, int, int, int, double, double *, double *)
     int eraTaitt(double, double, double *, double *)
     int eraTaiut1(double, double, double, double *, double *)
     int eraTaiutc(double, double, double *, double *)
@@ -339,12 +359,24 @@ def cal2jd(iy, im, id):
     Derived, with permission, from the SOFA library.  See notes at end of file.
   
     """
-    in_shape = numpy.broadcast(iy, im, id).shape
-    djm0_out = numpy.empty(in_shape, dtype=numpy.double)
-    djm_out = numpy.empty(in_shape, dtype=numpy.double)
-    c_retval_out = numpy.empty(in_shape, dtype=numpy.intc)
     
-    cdef numpy.broadcast it = numpy.broadcast(iy, im, id, djm0_out, djm_out, c_retval_out)
+    #Turn all inputs into arrays
+    iy_in = numpy.array(iy, dtype=numpy.intc, order="C", copy=False, subok=True)
+    im_in = numpy.array(im, dtype=numpy.intc, order="C", copy=False, subok=True)
+    id_in = numpy.array(id, dtype=numpy.intc, order="C", copy=False, subok=True)
+    
+    #Create the output array, based on the broadcasted shape, adding the generated dimensions if needed
+    broadcast = numpy.broadcast(numpy.int32(0.0), numpy.int32(0.0), iy_in, im_in, id_in)
+    djm0_out = numpy.empty(broadcast.shape+(), dtype=numpy.double)
+    djm_out = numpy.empty(broadcast.shape+(), dtype=numpy.double)
+    c_retval_out = numpy.empty(broadcast.shape+(), dtype=numpy.intc)
+    
+    #Create the iterator, broadcasting on all but the consumed dimensions
+    op_axes = [[-1]*(broadcast.nd-arr.ndim)+range(arr.ndim) for arr in [iy_in, im_in, id_in]+[djm0_out, djm_out, c_retval_out]]
+    op_flags = [['readonly']]*3+[['readwrite']]*3
+    it = numpy.nditer([iy_in, im_in, id_in]+[djm0_out, djm_out, c_retval_out], op_axes=op_axes, op_flags=op_flags)
+    
+    #Iterate
     cdef int _iy
     cdef int _im
     cdef int _id
@@ -352,26 +384,27 @@ def cal2jd(iy, im, id):
     cdef double * _djm
     cdef int _c_retval
     cdef bint stat_ok = True
-    
-    while numpy.PyArray_MultiIter_NOTDONE(it):
-        _iy = (<int*>numpy.PyArray_MultiIter_DATA(it, 0))[0]
-        _im = (<int*>numpy.PyArray_MultiIter_DATA(it, 1))[0]
-        _id = (<int*>numpy.PyArray_MultiIter_DATA(it, 2))[0]
-        _djm0 = (<double *>numpy.PyArray_MultiIter_DATA(it, 3))
-        _djm = (<double *>numpy.PyArray_MultiIter_DATA(it, 4))
-        
+    cdef char** dataptrarray = GetDataPtrArray(GetNpyIter(it))
+    cdef IterNextFunc iternext = GetIterNext(GetNpyIter(it), NULL)
+    cdef int status = 1
+    while status:
+        _iy = (<int *>(dataptrarray[0]))[0]
+        _im = (<int *>(dataptrarray[1]))[0]
+        _id = (<int *>(dataptrarray[2]))[0]
+        _djm0 = (<double *>(dataptrarray[3]))
+        _djm = (<double *>(dataptrarray[4]))
         _c_retval = eraCal2jd(_iy, _im, _id, _djm0, _djm)
-        (<int*>numpy.PyArray_MultiIter_DATA(it, 5))[0] = _c_retval
+        (<int *>(dataptrarray[5]))[0] = _c_retval
         if _c_retval != 0:
             stat_ok = False
-        
-        numpy.PyArray_MultiIter_NEXT(it)
-
+        status = iternext(GetNpyIter(it))
+    
     if not stat_ok:
         check_errwarn(c_retval_out, 'cal2jd')
-
+    
     return djm0_out, djm_out
 STATUS_CODES['cal2jd'] = {0: u'OK', -2: u'bad month  (JD not computed)', -1: u'bad year   (Note 3: JD not computed)', -3: u'bad day    (JD computed)'}
+
 
 
 def epb(dj1, dj2):
@@ -410,24 +443,36 @@ def epb(dj1, dj2):
     Derived, with permission, from the SOFA library.  See notes at end of file.
   
     """
-    in_shape = numpy.broadcast(dj1, dj2).shape
-    c_retval_out = numpy.empty(in_shape, dtype=numpy.double)
     
-    cdef numpy.broadcast it = numpy.broadcast(dj1, dj2, c_retval_out)
+    #Turn all inputs into arrays
+    dj1_in = numpy.array(dj1, dtype=numpy.double, order="C", copy=False, subok=True)
+    dj2_in = numpy.array(dj2, dtype=numpy.double, order="C", copy=False, subok=True)
+    
+    #Create the output array, based on the broadcasted shape, adding the generated dimensions if needed
+    broadcast = numpy.broadcast(numpy.int32(0.0), numpy.int32(0.0), dj1_in, dj2_in)
+    c_retval_out = numpy.empty(broadcast.shape+(), dtype=numpy.double)
+    
+    #Create the iterator, broadcasting on all but the consumed dimensions
+    op_axes = [[-1]*(broadcast.nd-arr.ndim)+range(arr.ndim) for arr in [dj1_in, dj2_in]+[c_retval_out]]
+    op_flags = [['readonly']]*2+[['readwrite']]*1
+    it = numpy.nditer([dj1_in, dj2_in]+[c_retval_out], op_axes=op_axes, op_flags=op_flags)
+    
+    #Iterate
     cdef double _dj1
     cdef double _dj2
     cdef double _c_retval
-    
-    while numpy.PyArray_MultiIter_NOTDONE(it):
-        _dj1 = (<double*>numpy.PyArray_MultiIter_DATA(it, 0))[0]
-        _dj2 = (<double*>numpy.PyArray_MultiIter_DATA(it, 1))[0]
-        
+    cdef char** dataptrarray = GetDataPtrArray(GetNpyIter(it))
+    cdef IterNextFunc iternext = GetIterNext(GetNpyIter(it), NULL)
+    cdef int status = 1
+    while status:
+        _dj1 = (<double *>(dataptrarray[0]))[0]
+        _dj2 = (<double *>(dataptrarray[1]))[0]
         _c_retval = eraEpb(_dj1, _dj2)
-        (<double*>numpy.PyArray_MultiIter_DATA(it, 2))[0] = _c_retval
-        
-        numpy.PyArray_MultiIter_NEXT(it)
-
+        (<double *>(dataptrarray[2]))[0] = _c_retval
+        status = iternext(GetNpyIter(it))
+    
     return c_retval_out
+
 
 def epb2jd(epb):
     """
@@ -465,25 +510,36 @@ def epb2jd(epb):
     Derived, with permission, from the SOFA library.  See notes at end of file.
   
     """
-    in_shape = numpy.broadcast(epb, 0).shape
-    djm0_out = numpy.empty(in_shape, dtype=numpy.double)
-    djm_out = numpy.empty(in_shape, dtype=numpy.double)
     
-    cdef numpy.broadcast it = numpy.broadcast(epb, djm0_out, djm_out)
+    #Turn all inputs into arrays
+    epb_in = numpy.array(epb, dtype=numpy.double, order="C", copy=False, subok=True)
+    
+    #Create the output array, based on the broadcasted shape, adding the generated dimensions if needed
+    broadcast = numpy.broadcast(numpy.int32(0.0), numpy.int32(0.0), epb_in)
+    djm0_out = numpy.empty(broadcast.shape+(), dtype=numpy.double)
+    djm_out = numpy.empty(broadcast.shape+(), dtype=numpy.double)
+    
+    #Create the iterator, broadcasting on all but the consumed dimensions
+    op_axes = [[-1]*(broadcast.nd-arr.ndim)+range(arr.ndim) for arr in [epb_in]+[djm0_out, djm_out]]
+    op_flags = [['readonly']]*1+[['readwrite']]*2
+    it = numpy.nditer([epb_in]+[djm0_out, djm_out], op_axes=op_axes, op_flags=op_flags)
+    
+    #Iterate
     cdef double _epb
     cdef double * _djm0
     cdef double * _djm
-    
-    while numpy.PyArray_MultiIter_NOTDONE(it):
-        _epb = (<double*>numpy.PyArray_MultiIter_DATA(it, 0))[0]
-        _djm0 = (<double *>numpy.PyArray_MultiIter_DATA(it, 1))
-        _djm = (<double *>numpy.PyArray_MultiIter_DATA(it, 2))
-        
+    cdef char** dataptrarray = GetDataPtrArray(GetNpyIter(it))
+    cdef IterNextFunc iternext = GetIterNext(GetNpyIter(it), NULL)
+    cdef int status = 1
+    while status:
+        _epb = (<double *>(dataptrarray[0]))[0]
+        _djm0 = (<double *>(dataptrarray[1]))
+        _djm = (<double *>(dataptrarray[2]))
         eraEpb2jd(_epb, _djm0, _djm)
-        
-        numpy.PyArray_MultiIter_NEXT(it)
-
+        status = iternext(GetNpyIter(it))
+    
     return djm0_out, djm_out
+
 
 def epj(dj1, dj2):
     """
@@ -521,24 +577,36 @@ def epj(dj1, dj2):
     Derived, with permission, from the SOFA library.  See notes at end of file.
   
     """
-    in_shape = numpy.broadcast(dj1, dj2).shape
-    c_retval_out = numpy.empty(in_shape, dtype=numpy.double)
     
-    cdef numpy.broadcast it = numpy.broadcast(dj1, dj2, c_retval_out)
+    #Turn all inputs into arrays
+    dj1_in = numpy.array(dj1, dtype=numpy.double, order="C", copy=False, subok=True)
+    dj2_in = numpy.array(dj2, dtype=numpy.double, order="C", copy=False, subok=True)
+    
+    #Create the output array, based on the broadcasted shape, adding the generated dimensions if needed
+    broadcast = numpy.broadcast(numpy.int32(0.0), numpy.int32(0.0), dj1_in, dj2_in)
+    c_retval_out = numpy.empty(broadcast.shape+(), dtype=numpy.double)
+    
+    #Create the iterator, broadcasting on all but the consumed dimensions
+    op_axes = [[-1]*(broadcast.nd-arr.ndim)+range(arr.ndim) for arr in [dj1_in, dj2_in]+[c_retval_out]]
+    op_flags = [['readonly']]*2+[['readwrite']]*1
+    it = numpy.nditer([dj1_in, dj2_in]+[c_retval_out], op_axes=op_axes, op_flags=op_flags)
+    
+    #Iterate
     cdef double _dj1
     cdef double _dj2
     cdef double _c_retval
-    
-    while numpy.PyArray_MultiIter_NOTDONE(it):
-        _dj1 = (<double*>numpy.PyArray_MultiIter_DATA(it, 0))[0]
-        _dj2 = (<double*>numpy.PyArray_MultiIter_DATA(it, 1))[0]
-        
+    cdef char** dataptrarray = GetDataPtrArray(GetNpyIter(it))
+    cdef IterNextFunc iternext = GetIterNext(GetNpyIter(it), NULL)
+    cdef int status = 1
+    while status:
+        _dj1 = (<double *>(dataptrarray[0]))[0]
+        _dj2 = (<double *>(dataptrarray[1]))[0]
         _c_retval = eraEpj(_dj1, _dj2)
-        (<double*>numpy.PyArray_MultiIter_DATA(it, 2))[0] = _c_retval
-        
-        numpy.PyArray_MultiIter_NEXT(it)
-
+        (<double *>(dataptrarray[2]))[0] = _c_retval
+        status = iternext(GetNpyIter(it))
+    
     return c_retval_out
+
 
 def epj2jd(epj):
     """
@@ -576,25 +644,36 @@ def epj2jd(epj):
     Derived, with permission, from the SOFA library.  See notes at end of file.
   
     """
-    in_shape = numpy.broadcast(epj, 0).shape
-    djm0_out = numpy.empty(in_shape, dtype=numpy.double)
-    djm_out = numpy.empty(in_shape, dtype=numpy.double)
     
-    cdef numpy.broadcast it = numpy.broadcast(epj, djm0_out, djm_out)
+    #Turn all inputs into arrays
+    epj_in = numpy.array(epj, dtype=numpy.double, order="C", copy=False, subok=True)
+    
+    #Create the output array, based on the broadcasted shape, adding the generated dimensions if needed
+    broadcast = numpy.broadcast(numpy.int32(0.0), numpy.int32(0.0), epj_in)
+    djm0_out = numpy.empty(broadcast.shape+(), dtype=numpy.double)
+    djm_out = numpy.empty(broadcast.shape+(), dtype=numpy.double)
+    
+    #Create the iterator, broadcasting on all but the consumed dimensions
+    op_axes = [[-1]*(broadcast.nd-arr.ndim)+range(arr.ndim) for arr in [epj_in]+[djm0_out, djm_out]]
+    op_flags = [['readonly']]*1+[['readwrite']]*2
+    it = numpy.nditer([epj_in]+[djm0_out, djm_out], op_axes=op_axes, op_flags=op_flags)
+    
+    #Iterate
     cdef double _epj
     cdef double * _djm0
     cdef double * _djm
-    
-    while numpy.PyArray_MultiIter_NOTDONE(it):
-        _epj = (<double*>numpy.PyArray_MultiIter_DATA(it, 0))[0]
-        _djm0 = (<double *>numpy.PyArray_MultiIter_DATA(it, 1))
-        _djm = (<double *>numpy.PyArray_MultiIter_DATA(it, 2))
-        
+    cdef char** dataptrarray = GetDataPtrArray(GetNpyIter(it))
+    cdef IterNextFunc iternext = GetIterNext(GetNpyIter(it), NULL)
+    cdef int status = 1
+    while status:
+        _epj = (<double *>(dataptrarray[0]))[0]
+        _djm0 = (<double *>(dataptrarray[1]))
+        _djm = (<double *>(dataptrarray[2]))
         eraEpj2jd(_epj, _djm0, _djm)
-        
-        numpy.PyArray_MultiIter_NEXT(it)
-
+        status = iternext(GetNpyIter(it))
+    
     return djm0_out, djm_out
+
 
 def jd2cal(dj1, dj2):
     """
@@ -655,14 +734,25 @@ def jd2cal(dj1, dj2):
     Derived, with permission, from the SOFA library.  See notes at end of file.
   
     """
-    in_shape = numpy.broadcast(dj1, dj2).shape
-    iy_out = numpy.empty(in_shape, dtype=numpy.intc)
-    im_out = numpy.empty(in_shape, dtype=numpy.intc)
-    id_out = numpy.empty(in_shape, dtype=numpy.intc)
-    fd_out = numpy.empty(in_shape, dtype=numpy.double)
-    c_retval_out = numpy.empty(in_shape, dtype=numpy.intc)
     
-    cdef numpy.broadcast it = numpy.broadcast(dj1, dj2, iy_out, im_out, id_out, fd_out, c_retval_out)
+    #Turn all inputs into arrays
+    dj1_in = numpy.array(dj1, dtype=numpy.double, order="C", copy=False, subok=True)
+    dj2_in = numpy.array(dj2, dtype=numpy.double, order="C", copy=False, subok=True)
+    
+    #Create the output array, based on the broadcasted shape, adding the generated dimensions if needed
+    broadcast = numpy.broadcast(numpy.int32(0.0), numpy.int32(0.0), dj1_in, dj2_in)
+    iy_out = numpy.empty(broadcast.shape+(), dtype=numpy.intc)
+    im_out = numpy.empty(broadcast.shape+(), dtype=numpy.intc)
+    id_out = numpy.empty(broadcast.shape+(), dtype=numpy.intc)
+    fd_out = numpy.empty(broadcast.shape+(), dtype=numpy.double)
+    c_retval_out = numpy.empty(broadcast.shape+(), dtype=numpy.intc)
+    
+    #Create the iterator, broadcasting on all but the consumed dimensions
+    op_axes = [[-1]*(broadcast.nd-arr.ndim)+range(arr.ndim) for arr in [dj1_in, dj2_in]+[iy_out, im_out, id_out, fd_out, c_retval_out]]
+    op_flags = [['readonly']]*2+[['readwrite']]*5
+    it = numpy.nditer([dj1_in, dj2_in]+[iy_out, im_out, id_out, fd_out, c_retval_out], op_axes=op_axes, op_flags=op_flags)
+    
+    #Iterate
     cdef double _dj1
     cdef double _dj2
     cdef int * _iy
@@ -671,27 +761,28 @@ def jd2cal(dj1, dj2):
     cdef double * _fd
     cdef int _c_retval
     cdef bint stat_ok = True
-    
-    while numpy.PyArray_MultiIter_NOTDONE(it):
-        _dj1 = (<double*>numpy.PyArray_MultiIter_DATA(it, 0))[0]
-        _dj2 = (<double*>numpy.PyArray_MultiIter_DATA(it, 1))[0]
-        _iy = (<int *>numpy.PyArray_MultiIter_DATA(it, 2))
-        _im = (<int *>numpy.PyArray_MultiIter_DATA(it, 3))
-        _id = (<int *>numpy.PyArray_MultiIter_DATA(it, 4))
-        _fd = (<double *>numpy.PyArray_MultiIter_DATA(it, 5))
-        
+    cdef char** dataptrarray = GetDataPtrArray(GetNpyIter(it))
+    cdef IterNextFunc iternext = GetIterNext(GetNpyIter(it), NULL)
+    cdef int status = 1
+    while status:
+        _dj1 = (<double *>(dataptrarray[0]))[0]
+        _dj2 = (<double *>(dataptrarray[1]))[0]
+        _iy = (<int *>(dataptrarray[2]))
+        _im = (<int *>(dataptrarray[3]))
+        _id = (<int *>(dataptrarray[4]))
+        _fd = (<double *>(dataptrarray[5]))
         _c_retval = eraJd2cal(_dj1, _dj2, _iy, _im, _id, _fd)
-        (<int*>numpy.PyArray_MultiIter_DATA(it, 6))[0] = _c_retval
+        (<int *>(dataptrarray[6]))[0] = _c_retval
         if _c_retval != 0:
             stat_ok = False
-        
-        numpy.PyArray_MultiIter_NEXT(it)
-
+        status = iternext(GetNpyIter(it))
+    
     if not stat_ok:
         check_errwarn(c_retval_out, 'jd2cal')
-
+    
     return iy_out, im_out, id_out, fd_out
 STATUS_CODES['jd2cal'] = {0: u'OK', -1: u'unacceptable date (Note 3)'}
+
 
 
 def jdcalf(ndp, dj1, dj2):
@@ -759,39 +850,49 @@ def jdcalf(ndp, dj1, dj2):
     Derived, with permission, from the SOFA library.  See notes at end of file.
   
     """
-    in_shape = numpy.broadcast(ndp, dj1, dj2).shape
-    iymdf_out = numpy.empty(in_shape, dtype=numpy.dtype([('fi0', 'i', (4,))]))
-    c_retval_out = numpy.empty(in_shape, dtype=numpy.intc)
     
-    cdef numpy.broadcast it = numpy.broadcast(ndp, dj1, dj2, iymdf_out, c_retval_out)
+    #Turn all inputs into arrays
+    ndp_in = numpy.array(ndp, dtype=numpy.intc, order="C", copy=False, subok=True)
+    dj1_in = numpy.array(dj1, dtype=numpy.double, order="C", copy=False, subok=True)
+    dj2_in = numpy.array(dj2, dtype=numpy.double, order="C", copy=False, subok=True)
+    
+    #Create the output array, based on the broadcasted shape, adding the generated dimensions if needed
+    broadcast = numpy.broadcast(numpy.int32(0.0), numpy.int32(0.0), ndp_in, dj1_in, dj2_in)
+    iymdf_out = numpy.empty(broadcast.shape+(4,), dtype=numpy.intc)
+    c_retval_out = numpy.empty(broadcast.shape+(), dtype=numpy.intc)
+    
+    #Create the iterator, broadcasting on all but the consumed dimensions
+    op_axes = [[-1]*(broadcast.nd-arr.ndim)+range(arr.ndim) for arr in [ndp_in, dj1_in, dj2_in]+[iymdf_out[...,0], c_retval_out]]
+    op_flags = [['readonly']]*3+[['readwrite']]*2
+    it = numpy.nditer([ndp_in, dj1_in, dj2_in]+[iymdf_out, c_retval_out], op_axes=op_axes, op_flags=op_flags)
+    
+    #Iterate
     cdef int _ndp
     cdef double _dj1
     cdef double _dj2
     cdef int * _iymdf
     cdef int _c_retval
     cdef bint stat_ok = True
-    
-    while numpy.PyArray_MultiIter_NOTDONE(it):
-        _ndp = (<int*>numpy.PyArray_MultiIter_DATA(it, 0))[0]
-        _dj1 = (<double*>numpy.PyArray_MultiIter_DATA(it, 1))[0]
-        _dj2 = (<double*>numpy.PyArray_MultiIter_DATA(it, 2))[0]
-        _iymdf = (<int *>numpy.PyArray_MultiIter_DATA(it, 3))
-        
+    cdef char** dataptrarray = GetDataPtrArray(GetNpyIter(it))
+    cdef IterNextFunc iternext = GetIterNext(GetNpyIter(it), NULL)
+    cdef int status = 1
+    while status:
+        _ndp = (<int *>(dataptrarray[0]))[0]
+        _dj1 = (<double *>(dataptrarray[1]))[0]
+        _dj2 = (<double *>(dataptrarray[2]))[0]
+        _iymdf = (<int *>(dataptrarray[3]))
         _c_retval = eraJdcalf(_ndp, _dj1, _dj2, _iymdf)
-        (<int*>numpy.PyArray_MultiIter_DATA(it, 4))[0] = _c_retval
+        (<int *>(dataptrarray[4]))[0] = _c_retval
         if _c_retval != 0:
             stat_ok = False
-        
-        numpy.PyArray_MultiIter_NEXT(it)
-
+        status = iternext(GetNpyIter(it))
+    
     if not stat_ok:
-        check_errwarn(c_retval_out, 'jdcalf') 
-
-    # convert from single-field structured dtype to regular nd-array
-    iymdf_out = iymdf_out['fi0']
-
+        check_errwarn(c_retval_out, 'jdcalf')
+    
     return iymdf_out
 STATUS_CODES['jdcalf'] = {0: u'OK', 1: u'NDP not 0-9 (interpreted as 0)', -1: u'date out of range'}
+
 
 
 def ab(pnat, v, s, bm1):
@@ -851,41 +952,42 @@ def ab(pnat, v, s, bm1):
     Derived, with permission, from the SOFA library.  See notes at end of file.
   
     """
-    # convert nd-array to single-field structured array for argument "pnat"
-    pnat_arr = numpy.empty(numpy.shape(pnat)[:-1], dtype=numpy.dtype([('fi0', 'd', (3,))]))
-    pnat_arr['fi0'] = pnat
-    pnat = pnat_arr
     
-    # convert nd-array to single-field structured array for argument "v"
-    v_arr = numpy.empty(numpy.shape(v)[:-1], dtype=numpy.dtype([('fi0', 'd', (3,))]))
-    v_arr['fi0'] = v
-    v = v_arr
+    #Turn all inputs into arrays
+    pnat_in = numpy.array(pnat, dtype=numpy.double, order="C", copy=False, subok=True)
+    v_in = numpy.array(v, dtype=numpy.double, order="C", copy=False, subok=True)
+    s_in = numpy.array(s, dtype=numpy.double, order="C", copy=False, subok=True)
+    bm1_in = numpy.array(bm1, dtype=numpy.double, order="C", copy=False, subok=True)
     
-    in_shape = numpy.broadcast(pnat, v, s, bm1).shape
-    ppr_out = numpy.empty(in_shape, dtype=numpy.dtype([('fi0', 'd', (3,))]))
+    #Create the output array, based on the broadcasted shape, adding the generated dimensions if needed
+    broadcast = numpy.broadcast(numpy.int32(0.0), numpy.int32(0.0), pnat_in[...,0], v_in[...,0], s_in, bm1_in)
+    ppr_out = numpy.empty(broadcast.shape+(3,), dtype=numpy.double)
     
-    cdef numpy.broadcast it = numpy.broadcast(pnat, v, s, bm1, ppr_out)
+    #Create the iterator, broadcasting on all but the consumed dimensions
+    op_axes = [[-1]*(broadcast.nd-arr.ndim)+range(arr.ndim) for arr in [pnat_in[...,0], v_in[...,0], s_in, bm1_in]+[ppr_out[...,0]]]
+    op_flags = [['readonly']]*4+[['readwrite']]*1
+    it = numpy.nditer([pnat_in, v_in, s_in, bm1_in]+[ppr_out], op_axes=op_axes, op_flags=op_flags)
+    
+    #Iterate
     cdef double * _pnat
     cdef double * _v
     cdef double _s
     cdef double _bm1
     cdef double * _ppr
-    
-    while numpy.PyArray_MultiIter_NOTDONE(it):
-        _pnat = (<double *>numpy.PyArray_MultiIter_DATA(it, 0))
-        _v = (<double *>numpy.PyArray_MultiIter_DATA(it, 1))
-        _s = (<double*>numpy.PyArray_MultiIter_DATA(it, 2))[0]
-        _bm1 = (<double*>numpy.PyArray_MultiIter_DATA(it, 3))[0]
-        _ppr = (<double *>numpy.PyArray_MultiIter_DATA(it, 4))
-        
+    cdef char** dataptrarray = GetDataPtrArray(GetNpyIter(it))
+    cdef IterNextFunc iternext = GetIterNext(GetNpyIter(it), NULL)
+    cdef int status = 1
+    while status:
+        _pnat = (<double *>(dataptrarray[0]))
+        _v = (<double *>(dataptrarray[1]))
+        _s = (<double *>(dataptrarray[2]))[0]
+        _bm1 = (<double *>(dataptrarray[3]))[0]
+        _ppr = (<double *>(dataptrarray[4]))
         eraAb(_pnat, _v, _s, _bm1, _ppr)
-        
-        numpy.PyArray_MultiIter_NEXT(it) 
-
-    # convert from single-field structured dtype to regular nd-array
-    ppr_out = ppr_out['fi0']
-
+        status = iternext(GetNpyIter(it))
+    
     return ppr_out
+
 
 def apcg(date1, date2, ebpv, ehp):
     """
@@ -997,38 +1099,42 @@ def apcg(date1, date2, ebpv, ehp):
     Derived, with permission, from the SOFA library.  See notes at end of file.
   
     """
-    # convert nd-array to single-field structured array for argument "ebpv"
-    ebpv_arr = numpy.empty(numpy.shape(ebpv)[:-2], dtype=numpy.dtype([('fi0', 'd', (2,3))]))
-    ebpv_arr['fi0'] = ebpv
-    ebpv = ebpv_arr
     
-    # convert nd-array to single-field structured array for argument "ehp"
-    ehp_arr = numpy.empty(numpy.shape(ehp)[:-1], dtype=numpy.dtype([('fi0', 'd', (3,))]))
-    ehp_arr['fi0'] = ehp
-    ehp = ehp_arr
+    #Turn all inputs into arrays
+    date1_in = numpy.array(date1, dtype=numpy.double, order="C", copy=False, subok=True)
+    date2_in = numpy.array(date2, dtype=numpy.double, order="C", copy=False, subok=True)
+    ebpv_in = numpy.array(ebpv, dtype=numpy.double, order="C", copy=False, subok=True)
+    ehp_in = numpy.array(ehp, dtype=numpy.double, order="C", copy=False, subok=True)
     
-    in_shape = numpy.broadcast(date1, date2, ebpv, ehp).shape
-    astrom_out = numpy.empty(in_shape, dtype=dt_eraASTROM)
+    #Create the output array, based on the broadcasted shape, adding the generated dimensions if needed
+    broadcast = numpy.broadcast(numpy.int32(0.0), numpy.int32(0.0), date1_in, date2_in, ebpv_in[...,0,0], ehp_in[...,0])
+    astrom_out = numpy.empty(broadcast.shape+(), dtype=dt_eraASTROM)
     
-    cdef numpy.broadcast it = numpy.broadcast(date1, date2, ebpv, ehp, astrom_out)
+    #Create the iterator, broadcasting on all but the consumed dimensions
+    op_axes = [[-1]*(broadcast.nd-arr.ndim)+range(arr.ndim) for arr in [date1_in, date2_in, ebpv_in[...,0,0], ehp_in[...,0]]+[astrom_out]]
+    op_flags = [['readonly']]*4+[['readwrite']]*1
+    it = numpy.nditer([date1_in, date2_in, ebpv_in, ehp_in]+[astrom_out], op_axes=op_axes, op_flags=op_flags)
+    
+    #Iterate
     cdef double _date1
     cdef double _date2
     cdef double * _ebpv
     cdef double * _ehp
     cdef eraASTROM * _astrom
-    
-    while numpy.PyArray_MultiIter_NOTDONE(it):
-        _date1 = (<double*>numpy.PyArray_MultiIter_DATA(it, 0))[0]
-        _date2 = (<double*>numpy.PyArray_MultiIter_DATA(it, 1))[0]
-        _ebpv = (<double *>numpy.PyArray_MultiIter_DATA(it, 2))
-        _ehp = (<double *>numpy.PyArray_MultiIter_DATA(it, 3))
-        _astrom = (<eraASTROM *>numpy.PyArray_MultiIter_DATA(it, 4))
-        
+    cdef char** dataptrarray = GetDataPtrArray(GetNpyIter(it))
+    cdef IterNextFunc iternext = GetIterNext(GetNpyIter(it), NULL)
+    cdef int status = 1
+    while status:
+        _date1 = (<double *>(dataptrarray[0]))[0]
+        _date2 = (<double *>(dataptrarray[1]))[0]
+        _ebpv = (<double *>(dataptrarray[2]))
+        _ehp = (<double *>(dataptrarray[3]))
+        _astrom = (<eraASTROM *>(dataptrarray[4]))
         eraApcg(_date1, _date2, _ebpv, _ehp, _astrom)
-        
-        numpy.PyArray_MultiIter_NEXT(it)
-
+        status = iternext(GetNpyIter(it))
+    
     return astrom_out
+
 
 def apcg13(date1, date2):
     """
@@ -1144,24 +1250,36 @@ def apcg13(date1, date2):
     Derived, with permission, from the SOFA library.  See notes at end of file.
   
     """
-    in_shape = numpy.broadcast(date1, date2).shape
-    astrom_out = numpy.empty(in_shape, dtype=dt_eraASTROM)
     
-    cdef numpy.broadcast it = numpy.broadcast(date1, date2, astrom_out)
+    #Turn all inputs into arrays
+    date1_in = numpy.array(date1, dtype=numpy.double, order="C", copy=False, subok=True)
+    date2_in = numpy.array(date2, dtype=numpy.double, order="C", copy=False, subok=True)
+    
+    #Create the output array, based on the broadcasted shape, adding the generated dimensions if needed
+    broadcast = numpy.broadcast(numpy.int32(0.0), numpy.int32(0.0), date1_in, date2_in)
+    astrom_out = numpy.empty(broadcast.shape+(), dtype=dt_eraASTROM)
+    
+    #Create the iterator, broadcasting on all but the consumed dimensions
+    op_axes = [[-1]*(broadcast.nd-arr.ndim)+range(arr.ndim) for arr in [date1_in, date2_in]+[astrom_out]]
+    op_flags = [['readonly']]*2+[['readwrite']]*1
+    it = numpy.nditer([date1_in, date2_in]+[astrom_out], op_axes=op_axes, op_flags=op_flags)
+    
+    #Iterate
     cdef double _date1
     cdef double _date2
     cdef eraASTROM * _astrom
-    
-    while numpy.PyArray_MultiIter_NOTDONE(it):
-        _date1 = (<double*>numpy.PyArray_MultiIter_DATA(it, 0))[0]
-        _date2 = (<double*>numpy.PyArray_MultiIter_DATA(it, 1))[0]
-        _astrom = (<eraASTROM *>numpy.PyArray_MultiIter_DATA(it, 2))
-        
+    cdef char** dataptrarray = GetDataPtrArray(GetNpyIter(it))
+    cdef IterNextFunc iternext = GetIterNext(GetNpyIter(it), NULL)
+    cdef int status = 1
+    while status:
+        _date1 = (<double *>(dataptrarray[0]))[0]
+        _date2 = (<double *>(dataptrarray[1]))[0]
+        _astrom = (<eraASTROM *>(dataptrarray[2]))
         eraApcg13(_date1, _date2, _astrom)
-        
-        numpy.PyArray_MultiIter_NEXT(it)
-
+        status = iternext(GetNpyIter(it))
+    
     return astrom_out
+
 
 def apci(date1, date2, ebpv, ehp, x, y, s):
     """
@@ -1282,20 +1400,26 @@ def apci(date1, date2, ebpv, ehp, x, y, s):
     Derived, with permission, from the SOFA library.  See notes at end of file.
   
     """
-    # convert nd-array to single-field structured array for argument "ebpv"
-    ebpv_arr = numpy.empty(numpy.shape(ebpv)[:-2], dtype=numpy.dtype([('fi0', 'd', (2,3))]))
-    ebpv_arr['fi0'] = ebpv
-    ebpv = ebpv_arr
     
-    # convert nd-array to single-field structured array for argument "ehp"
-    ehp_arr = numpy.empty(numpy.shape(ehp)[:-1], dtype=numpy.dtype([('fi0', 'd', (3,))]))
-    ehp_arr['fi0'] = ehp
-    ehp = ehp_arr
+    #Turn all inputs into arrays
+    date1_in = numpy.array(date1, dtype=numpy.double, order="C", copy=False, subok=True)
+    date2_in = numpy.array(date2, dtype=numpy.double, order="C", copy=False, subok=True)
+    ebpv_in = numpy.array(ebpv, dtype=numpy.double, order="C", copy=False, subok=True)
+    ehp_in = numpy.array(ehp, dtype=numpy.double, order="C", copy=False, subok=True)
+    x_in = numpy.array(x, dtype=numpy.double, order="C", copy=False, subok=True)
+    y_in = numpy.array(y, dtype=numpy.double, order="C", copy=False, subok=True)
+    s_in = numpy.array(s, dtype=numpy.double, order="C", copy=False, subok=True)
     
-    in_shape = numpy.broadcast(date1, date2, ebpv, ehp, x, y, s).shape
-    astrom_out = numpy.empty(in_shape, dtype=dt_eraASTROM)
+    #Create the output array, based on the broadcasted shape, adding the generated dimensions if needed
+    broadcast = numpy.broadcast(numpy.int32(0.0), numpy.int32(0.0), date1_in, date2_in, ebpv_in[...,0,0], ehp_in[...,0], x_in, y_in, s_in)
+    astrom_out = numpy.empty(broadcast.shape+(), dtype=dt_eraASTROM)
     
-    cdef numpy.broadcast it = numpy.broadcast(date1, date2, ebpv, ehp, x, y, s, astrom_out)
+    #Create the iterator, broadcasting on all but the consumed dimensions
+    op_axes = [[-1]*(broadcast.nd-arr.ndim)+range(arr.ndim) for arr in [date1_in, date2_in, ebpv_in[...,0,0], ehp_in[...,0], x_in, y_in, s_in]+[astrom_out]]
+    op_flags = [['readonly']]*7+[['readwrite']]*1
+    it = numpy.nditer([date1_in, date2_in, ebpv_in, ehp_in, x_in, y_in, s_in]+[astrom_out], op_axes=op_axes, op_flags=op_flags)
+    
+    #Iterate
     cdef double _date1
     cdef double _date2
     cdef double * _ebpv
@@ -1304,22 +1428,23 @@ def apci(date1, date2, ebpv, ehp, x, y, s):
     cdef double _y
     cdef double _s
     cdef eraASTROM * _astrom
-    
-    while numpy.PyArray_MultiIter_NOTDONE(it):
-        _date1 = (<double*>numpy.PyArray_MultiIter_DATA(it, 0))[0]
-        _date2 = (<double*>numpy.PyArray_MultiIter_DATA(it, 1))[0]
-        _ebpv = (<double *>numpy.PyArray_MultiIter_DATA(it, 2))
-        _ehp = (<double *>numpy.PyArray_MultiIter_DATA(it, 3))
-        _x = (<double*>numpy.PyArray_MultiIter_DATA(it, 4))[0]
-        _y = (<double*>numpy.PyArray_MultiIter_DATA(it, 5))[0]
-        _s = (<double*>numpy.PyArray_MultiIter_DATA(it, 6))[0]
-        _astrom = (<eraASTROM *>numpy.PyArray_MultiIter_DATA(it, 7))
-        
+    cdef char** dataptrarray = GetDataPtrArray(GetNpyIter(it))
+    cdef IterNextFunc iternext = GetIterNext(GetNpyIter(it), NULL)
+    cdef int status = 1
+    while status:
+        _date1 = (<double *>(dataptrarray[0]))[0]
+        _date2 = (<double *>(dataptrarray[1]))[0]
+        _ebpv = (<double *>(dataptrarray[2]))
+        _ehp = (<double *>(dataptrarray[3]))
+        _x = (<double *>(dataptrarray[4]))[0]
+        _y = (<double *>(dataptrarray[5]))[0]
+        _s = (<double *>(dataptrarray[6]))[0]
+        _astrom = (<eraASTROM *>(dataptrarray[7]))
         eraApci(_date1, _date2, _ebpv, _ehp, _x, _y, _s, _astrom)
-        
-        numpy.PyArray_MultiIter_NEXT(it)
-
+        status = iternext(GetNpyIter(it))
+    
     return astrom_out
+
 
 def apci13(date1, date2):
     """
@@ -1440,27 +1565,39 @@ def apci13(date1, date2):
     Derived, with permission, from the SOFA library.  See notes at end of file.
   
     """
-    in_shape = numpy.broadcast(date1, date2).shape
-    astrom_out = numpy.empty(in_shape, dtype=dt_eraASTROM)
-    eo_out = numpy.empty(in_shape, dtype=numpy.double)
     
-    cdef numpy.broadcast it = numpy.broadcast(date1, date2, astrom_out, eo_out)
+    #Turn all inputs into arrays
+    date1_in = numpy.array(date1, dtype=numpy.double, order="C", copy=False, subok=True)
+    date2_in = numpy.array(date2, dtype=numpy.double, order="C", copy=False, subok=True)
+    
+    #Create the output array, based on the broadcasted shape, adding the generated dimensions if needed
+    broadcast = numpy.broadcast(numpy.int32(0.0), numpy.int32(0.0), date1_in, date2_in)
+    astrom_out = numpy.empty(broadcast.shape+(), dtype=dt_eraASTROM)
+    eo_out = numpy.empty(broadcast.shape+(), dtype=numpy.double)
+    
+    #Create the iterator, broadcasting on all but the consumed dimensions
+    op_axes = [[-1]*(broadcast.nd-arr.ndim)+range(arr.ndim) for arr in [date1_in, date2_in]+[astrom_out, eo_out]]
+    op_flags = [['readonly']]*2+[['readwrite']]*2
+    it = numpy.nditer([date1_in, date2_in]+[astrom_out, eo_out], op_axes=op_axes, op_flags=op_flags)
+    
+    #Iterate
     cdef double _date1
     cdef double _date2
     cdef eraASTROM * _astrom
     cdef double * _eo
-    
-    while numpy.PyArray_MultiIter_NOTDONE(it):
-        _date1 = (<double*>numpy.PyArray_MultiIter_DATA(it, 0))[0]
-        _date2 = (<double*>numpy.PyArray_MultiIter_DATA(it, 1))[0]
-        _astrom = (<eraASTROM *>numpy.PyArray_MultiIter_DATA(it, 2))
-        _eo = (<double *>numpy.PyArray_MultiIter_DATA(it, 3))
-        
+    cdef char** dataptrarray = GetDataPtrArray(GetNpyIter(it))
+    cdef IterNextFunc iternext = GetIterNext(GetNpyIter(it), NULL)
+    cdef int status = 1
+    while status:
+        _date1 = (<double *>(dataptrarray[0]))[0]
+        _date2 = (<double *>(dataptrarray[1]))[0]
+        _astrom = (<eraASTROM *>(dataptrarray[2]))
+        _eo = (<double *>(dataptrarray[3]))
         eraApci13(_date1, _date2, _astrom, _eo)
-        
-        numpy.PyArray_MultiIter_NEXT(it)
-
+        status = iternext(GetNpyIter(it))
+    
     return astrom_out, eo_out
+
 
 def apco(date1, date2, ebpv, ehp, x, y, s, theta, elong, phi, hm, xp, yp, sp, refa, refb):
     """
@@ -1618,22 +1755,39 @@ def apco(date1, date2, ebpv, ehp, x, y, s, theta, elong, phi, hm, xp, yp, sp, re
     Derived, with permission, from the SOFA library.  See notes at end of file.
   
     """
-    # convert nd-array to single-field structured array for argument "ebpv"
-    ebpv_arr = numpy.empty(numpy.shape(ebpv)[:-2], dtype=numpy.dtype([('fi0', 'd', (2,3))]))
-    ebpv_arr['fi0'] = ebpv
-    ebpv = ebpv_arr
     
-    # convert nd-array to single-field structured array for argument "ehp"
-    ehp_arr = numpy.empty(numpy.shape(ehp)[:-1], dtype=numpy.dtype([('fi0', 'd', (3,))]))
-    ehp_arr['fi0'] = ehp
-    ehp = ehp_arr
+    #Turn all inputs into arrays
+    date1_in = numpy.array(date1, dtype=numpy.double, order="C", copy=False, subok=True)
+    date2_in = numpy.array(date2, dtype=numpy.double, order="C", copy=False, subok=True)
+    ebpv_in = numpy.array(ebpv, dtype=numpy.double, order="C", copy=False, subok=True)
+    ehp_in = numpy.array(ehp, dtype=numpy.double, order="C", copy=False, subok=True)
+    x_in = numpy.array(x, dtype=numpy.double, order="C", copy=False, subok=True)
+    y_in = numpy.array(y, dtype=numpy.double, order="C", copy=False, subok=True)
+    s_in = numpy.array(s, dtype=numpy.double, order="C", copy=False, subok=True)
+    theta_in = numpy.array(theta, dtype=numpy.double, order="C", copy=False, subok=True)
+    elong_in = numpy.array(elong, dtype=numpy.double, order="C", copy=False, subok=True)
+    phi_in = numpy.array(phi, dtype=numpy.double, order="C", copy=False, subok=True)
+    hm_in = numpy.array(hm, dtype=numpy.double, order="C", copy=False, subok=True)
+    xp_in = numpy.array(xp, dtype=numpy.double, order="C", copy=False, subok=True)
+    yp_in = numpy.array(yp, dtype=numpy.double, order="C", copy=False, subok=True)
+    sp_in = numpy.array(sp, dtype=numpy.double, order="C", copy=False, subok=True)
+    refa_in = numpy.array(refa, dtype=numpy.double, order="C", copy=False, subok=True)
+    refb_in = numpy.array(refb, dtype=numpy.double, order="C", copy=False, subok=True)
     
-    in_shape = numpy.broadcast(date1, date2, ebpv, ehp, x, y, s, theta, elong, phi, hm, xp, yp, sp, refa, refb).shape
-    astrom_out = numpy.empty(in_shape, dtype=dt_eraASTROM)
-    refa_out = numpy.array(numpy.broadcast_arrays(date1, date2, ebpv, ehp, x, y, s, theta, elong, phi, hm, xp, yp, sp, refa, refb)[14], dtype=numpy.double)
-    refb_out = numpy.array(numpy.broadcast_arrays(date1, date2, ebpv, ehp, x, y, s, theta, elong, phi, hm, xp, yp, sp, refa, refb)[15], dtype=numpy.double)
+    #Create the output array, based on the broadcasted shape, adding the generated dimensions if needed
+    broadcast = numpy.broadcast(numpy.int32(0.0), numpy.int32(0.0), date1_in, date2_in, ebpv_in[...,0,0], ehp_in[...,0], x_in, y_in, s_in, theta_in, elong_in, phi_in, hm_in, xp_in, yp_in, sp_in, refa_in, refb_in)
+    refa_out = numpy.empty(broadcast.shape+(), dtype=numpy.double)
+    refb_out = numpy.empty(broadcast.shape+(), dtype=numpy.double)
+    astrom_out = numpy.empty(broadcast.shape+(), dtype=dt_eraASTROM)
+    numpy.copyto(refa_out, refa_in)
+    numpy.copyto(refb_out, refb_in)
     
-    cdef numpy.broadcast it = numpy.broadcast(date1, date2, ebpv, ehp, x, y, s, theta, elong, phi, hm, xp, yp, sp, refa_out, refb_out, astrom_out)
+    #Create the iterator, broadcasting on all but the consumed dimensions
+    op_axes = [[-1]*(broadcast.nd-arr.ndim)+range(arr.ndim) for arr in [date1_in, date2_in, ebpv_in[...,0,0], ehp_in[...,0], x_in, y_in, s_in, theta_in, elong_in, phi_in, hm_in, xp_in, yp_in, sp_in]+[refa_out, refb_out, astrom_out]]
+    op_flags = [['readonly']]*14+[['readwrite']]*3
+    it = numpy.nditer([date1_in, date2_in, ebpv_in, ehp_in, x_in, y_in, s_in, theta_in, elong_in, phi_in, hm_in, xp_in, yp_in, sp_in]+[refa_out, refb_out, astrom_out], op_axes=op_axes, op_flags=op_flags)
+    
+    #Iterate
     cdef double _date1
     cdef double _date2
     cdef double * _ebpv
@@ -1651,31 +1805,32 @@ def apco(date1, date2, ebpv, ehp, x, y, s, theta, elong, phi, hm, xp, yp, sp, re
     cdef double _refa
     cdef double _refb
     cdef eraASTROM * _astrom
-    
-    while numpy.PyArray_MultiIter_NOTDONE(it):
-        _date1 = (<double*>numpy.PyArray_MultiIter_DATA(it, 0))[0]
-        _date2 = (<double*>numpy.PyArray_MultiIter_DATA(it, 1))[0]
-        _ebpv = (<double *>numpy.PyArray_MultiIter_DATA(it, 2))
-        _ehp = (<double *>numpy.PyArray_MultiIter_DATA(it, 3))
-        _x = (<double*>numpy.PyArray_MultiIter_DATA(it, 4))[0]
-        _y = (<double*>numpy.PyArray_MultiIter_DATA(it, 5))[0]
-        _s = (<double*>numpy.PyArray_MultiIter_DATA(it, 6))[0]
-        _theta = (<double*>numpy.PyArray_MultiIter_DATA(it, 7))[0]
-        _elong = (<double*>numpy.PyArray_MultiIter_DATA(it, 8))[0]
-        _phi = (<double*>numpy.PyArray_MultiIter_DATA(it, 9))[0]
-        _hm = (<double*>numpy.PyArray_MultiIter_DATA(it, 10))[0]
-        _xp = (<double*>numpy.PyArray_MultiIter_DATA(it, 11))[0]
-        _yp = (<double*>numpy.PyArray_MultiIter_DATA(it, 12))[0]
-        _sp = (<double*>numpy.PyArray_MultiIter_DATA(it, 13))[0]
-        _refa = (<double*>numpy.PyArray_MultiIter_DATA(it, 14))[0]
-        _refb = (<double*>numpy.PyArray_MultiIter_DATA(it, 15))[0]
-        _astrom = (<eraASTROM *>numpy.PyArray_MultiIter_DATA(it, 16))
-        
+    cdef char** dataptrarray = GetDataPtrArray(GetNpyIter(it))
+    cdef IterNextFunc iternext = GetIterNext(GetNpyIter(it), NULL)
+    cdef int status = 1
+    while status:
+        _date1 = (<double *>(dataptrarray[0]))[0]
+        _date2 = (<double *>(dataptrarray[1]))[0]
+        _ebpv = (<double *>(dataptrarray[2]))
+        _ehp = (<double *>(dataptrarray[3]))
+        _x = (<double *>(dataptrarray[4]))[0]
+        _y = (<double *>(dataptrarray[5]))[0]
+        _s = (<double *>(dataptrarray[6]))[0]
+        _theta = (<double *>(dataptrarray[7]))[0]
+        _elong = (<double *>(dataptrarray[8]))[0]
+        _phi = (<double *>(dataptrarray[9]))[0]
+        _hm = (<double *>(dataptrarray[10]))[0]
+        _xp = (<double *>(dataptrarray[11]))[0]
+        _yp = (<double *>(dataptrarray[12]))[0]
+        _sp = (<double *>(dataptrarray[13]))[0]
+        _refa = (<double *>(dataptrarray[14]))[0]
+        _refb = (<double *>(dataptrarray[15]))[0]
+        _astrom = (<eraASTROM *>(dataptrarray[16]))
         eraApco(_date1, _date2, _ebpv, _ehp, _x, _y, _s, _theta, _elong, _phi, _hm, _xp, _yp, _sp, _refa, _refb, _astrom)
-        
-        numpy.PyArray_MultiIter_NEXT(it)
+        status = iternext(GetNpyIter(it))
+    
+    return refa_out, refb_out, astrom_out
 
-    return astrom_out
 
 def apco13(utc1, utc2, dut1, elong, phi, hm, xp, yp, phpa, tc, rh, wl):
     """
@@ -1857,12 +2012,33 @@ def apco13(utc1, utc2, dut1, elong, phi, hm, xp, yp, phpa, tc, rh, wl):
     Derived, with permission, from the SOFA library.  See notes at end of file.
   
     """
-    in_shape = numpy.broadcast(utc1, utc2, dut1, elong, phi, hm, xp, yp, phpa, tc, rh, wl).shape
-    astrom_out = numpy.empty(in_shape, dtype=dt_eraASTROM)
-    eo_out = numpy.empty(in_shape, dtype=numpy.double)
-    c_retval_out = numpy.empty(in_shape, dtype=numpy.intc)
     
-    cdef numpy.broadcast it = numpy.broadcast(utc1, utc2, dut1, elong, phi, hm, xp, yp, phpa, tc, rh, wl, astrom_out, eo_out, c_retval_out)
+    #Turn all inputs into arrays
+    utc1_in = numpy.array(utc1, dtype=numpy.double, order="C", copy=False, subok=True)
+    utc2_in = numpy.array(utc2, dtype=numpy.double, order="C", copy=False, subok=True)
+    dut1_in = numpy.array(dut1, dtype=numpy.double, order="C", copy=False, subok=True)
+    elong_in = numpy.array(elong, dtype=numpy.double, order="C", copy=False, subok=True)
+    phi_in = numpy.array(phi, dtype=numpy.double, order="C", copy=False, subok=True)
+    hm_in = numpy.array(hm, dtype=numpy.double, order="C", copy=False, subok=True)
+    xp_in = numpy.array(xp, dtype=numpy.double, order="C", copy=False, subok=True)
+    yp_in = numpy.array(yp, dtype=numpy.double, order="C", copy=False, subok=True)
+    phpa_in = numpy.array(phpa, dtype=numpy.double, order="C", copy=False, subok=True)
+    tc_in = numpy.array(tc, dtype=numpy.double, order="C", copy=False, subok=True)
+    rh_in = numpy.array(rh, dtype=numpy.double, order="C", copy=False, subok=True)
+    wl_in = numpy.array(wl, dtype=numpy.double, order="C", copy=False, subok=True)
+    
+    #Create the output array, based on the broadcasted shape, adding the generated dimensions if needed
+    broadcast = numpy.broadcast(numpy.int32(0.0), numpy.int32(0.0), utc1_in, utc2_in, dut1_in, elong_in, phi_in, hm_in, xp_in, yp_in, phpa_in, tc_in, rh_in, wl_in)
+    astrom_out = numpy.empty(broadcast.shape+(), dtype=dt_eraASTROM)
+    eo_out = numpy.empty(broadcast.shape+(), dtype=numpy.double)
+    c_retval_out = numpy.empty(broadcast.shape+(), dtype=numpy.intc)
+    
+    #Create the iterator, broadcasting on all but the consumed dimensions
+    op_axes = [[-1]*(broadcast.nd-arr.ndim)+range(arr.ndim) for arr in [utc1_in, utc2_in, dut1_in, elong_in, phi_in, hm_in, xp_in, yp_in, phpa_in, tc_in, rh_in, wl_in]+[astrom_out, eo_out, c_retval_out]]
+    op_flags = [['readonly']]*12+[['readwrite']]*3
+    it = numpy.nditer([utc1_in, utc2_in, dut1_in, elong_in, phi_in, hm_in, xp_in, yp_in, phpa_in, tc_in, rh_in, wl_in]+[astrom_out, eo_out, c_retval_out], op_axes=op_axes, op_flags=op_flags)
+    
+    #Iterate
     cdef double _utc1
     cdef double _utc2
     cdef double _dut1
@@ -1879,35 +2055,36 @@ def apco13(utc1, utc2, dut1, elong, phi, hm, xp, yp, phpa, tc, rh, wl):
     cdef double * _eo
     cdef int _c_retval
     cdef bint stat_ok = True
-    
-    while numpy.PyArray_MultiIter_NOTDONE(it):
-        _utc1 = (<double*>numpy.PyArray_MultiIter_DATA(it, 0))[0]
-        _utc2 = (<double*>numpy.PyArray_MultiIter_DATA(it, 1))[0]
-        _dut1 = (<double*>numpy.PyArray_MultiIter_DATA(it, 2))[0]
-        _elong = (<double*>numpy.PyArray_MultiIter_DATA(it, 3))[0]
-        _phi = (<double*>numpy.PyArray_MultiIter_DATA(it, 4))[0]
-        _hm = (<double*>numpy.PyArray_MultiIter_DATA(it, 5))[0]
-        _xp = (<double*>numpy.PyArray_MultiIter_DATA(it, 6))[0]
-        _yp = (<double*>numpy.PyArray_MultiIter_DATA(it, 7))[0]
-        _phpa = (<double*>numpy.PyArray_MultiIter_DATA(it, 8))[0]
-        _tc = (<double*>numpy.PyArray_MultiIter_DATA(it, 9))[0]
-        _rh = (<double*>numpy.PyArray_MultiIter_DATA(it, 10))[0]
-        _wl = (<double*>numpy.PyArray_MultiIter_DATA(it, 11))[0]
-        _astrom = (<eraASTROM *>numpy.PyArray_MultiIter_DATA(it, 12))
-        _eo = (<double *>numpy.PyArray_MultiIter_DATA(it, 13))
-        
+    cdef char** dataptrarray = GetDataPtrArray(GetNpyIter(it))
+    cdef IterNextFunc iternext = GetIterNext(GetNpyIter(it), NULL)
+    cdef int status = 1
+    while status:
+        _utc1 = (<double *>(dataptrarray[0]))[0]
+        _utc2 = (<double *>(dataptrarray[1]))[0]
+        _dut1 = (<double *>(dataptrarray[2]))[0]
+        _elong = (<double *>(dataptrarray[3]))[0]
+        _phi = (<double *>(dataptrarray[4]))[0]
+        _hm = (<double *>(dataptrarray[5]))[0]
+        _xp = (<double *>(dataptrarray[6]))[0]
+        _yp = (<double *>(dataptrarray[7]))[0]
+        _phpa = (<double *>(dataptrarray[8]))[0]
+        _tc = (<double *>(dataptrarray[9]))[0]
+        _rh = (<double *>(dataptrarray[10]))[0]
+        _wl = (<double *>(dataptrarray[11]))[0]
+        _astrom = (<eraASTROM *>(dataptrarray[12]))
+        _eo = (<double *>(dataptrarray[13]))
         _c_retval = eraApco13(_utc1, _utc2, _dut1, _elong, _phi, _hm, _xp, _yp, _phpa, _tc, _rh, _wl, _astrom, _eo)
-        (<int*>numpy.PyArray_MultiIter_DATA(it, 14))[0] = _c_retval
+        (<int *>(dataptrarray[14]))[0] = _c_retval
         if _c_retval != 0:
             stat_ok = False
-        
-        numpy.PyArray_MultiIter_NEXT(it)
-
+        status = iternext(GetNpyIter(it))
+    
     if not stat_ok:
         check_errwarn(c_retval_out, 'apco13')
-
+    
     return astrom_out, eo_out
 STATUS_CODES['apco13'] = {0: u'OK', 1: u'dubious year (Note 2)', -1: u'unacceptable date'}
+
 
 
 def apcs(date1, date2, pv, ebpv, ehp):
@@ -2040,45 +2217,45 @@ def apcs(date1, date2, pv, ebpv, ehp):
     Derived, with permission, from the SOFA library.  See notes at end of file.
   
     """
-    # convert nd-array to single-field structured array for argument "pv"
-    pv_arr = numpy.empty(numpy.shape(pv)[:-2], dtype=numpy.dtype([('fi0', 'd', (2,3))]))
-    pv_arr['fi0'] = pv
-    pv = pv_arr
     
-    # convert nd-array to single-field structured array for argument "ebpv"
-    ebpv_arr = numpy.empty(numpy.shape(ebpv)[:-2], dtype=numpy.dtype([('fi0', 'd', (2,3))]))
-    ebpv_arr['fi0'] = ebpv
-    ebpv = ebpv_arr
+    #Turn all inputs into arrays
+    date1_in = numpy.array(date1, dtype=numpy.double, order="C", copy=False, subok=True)
+    date2_in = numpy.array(date2, dtype=numpy.double, order="C", copy=False, subok=True)
+    pv_in = numpy.array(pv, dtype=numpy.double, order="C", copy=False, subok=True)
+    ebpv_in = numpy.array(ebpv, dtype=numpy.double, order="C", copy=False, subok=True)
+    ehp_in = numpy.array(ehp, dtype=numpy.double, order="C", copy=False, subok=True)
     
-    # convert nd-array to single-field structured array for argument "ehp"
-    ehp_arr = numpy.empty(numpy.shape(ehp)[:-1], dtype=numpy.dtype([('fi0', 'd', (3,))]))
-    ehp_arr['fi0'] = ehp
-    ehp = ehp_arr
+    #Create the output array, based on the broadcasted shape, adding the generated dimensions if needed
+    broadcast = numpy.broadcast(numpy.int32(0.0), numpy.int32(0.0), date1_in, date2_in, pv_in[...,0,0], ebpv_in[...,0,0], ehp_in[...,0])
+    astrom_out = numpy.empty(broadcast.shape+(), dtype=dt_eraASTROM)
     
-    in_shape = numpy.broadcast(date1, date2, pv, ebpv, ehp).shape
-    astrom_out = numpy.empty(in_shape, dtype=dt_eraASTROM)
+    #Create the iterator, broadcasting on all but the consumed dimensions
+    op_axes = [[-1]*(broadcast.nd-arr.ndim)+range(arr.ndim) for arr in [date1_in, date2_in, pv_in[...,0,0], ebpv_in[...,0,0], ehp_in[...,0]]+[astrom_out]]
+    op_flags = [['readonly']]*5+[['readwrite']]*1
+    it = numpy.nditer([date1_in, date2_in, pv_in, ebpv_in, ehp_in]+[astrom_out], op_axes=op_axes, op_flags=op_flags)
     
-    cdef numpy.broadcast it = numpy.broadcast(date1, date2, pv, ebpv, ehp, astrom_out)
+    #Iterate
     cdef double _date1
     cdef double _date2
     cdef double * _pv
     cdef double * _ebpv
     cdef double * _ehp
     cdef eraASTROM * _astrom
-    
-    while numpy.PyArray_MultiIter_NOTDONE(it):
-        _date1 = (<double*>numpy.PyArray_MultiIter_DATA(it, 0))[0]
-        _date2 = (<double*>numpy.PyArray_MultiIter_DATA(it, 1))[0]
-        _pv = (<double *>numpy.PyArray_MultiIter_DATA(it, 2))
-        _ebpv = (<double *>numpy.PyArray_MultiIter_DATA(it, 3))
-        _ehp = (<double *>numpy.PyArray_MultiIter_DATA(it, 4))
-        _astrom = (<eraASTROM *>numpy.PyArray_MultiIter_DATA(it, 5))
-        
+    cdef char** dataptrarray = GetDataPtrArray(GetNpyIter(it))
+    cdef IterNextFunc iternext = GetIterNext(GetNpyIter(it), NULL)
+    cdef int status = 1
+    while status:
+        _date1 = (<double *>(dataptrarray[0]))[0]
+        _date2 = (<double *>(dataptrarray[1]))[0]
+        _pv = (<double *>(dataptrarray[2]))
+        _ebpv = (<double *>(dataptrarray[3]))
+        _ehp = (<double *>(dataptrarray[4]))
+        _astrom = (<eraASTROM *>(dataptrarray[5]))
         eraApcs(_date1, _date2, _pv, _ebpv, _ehp, _astrom)
-        
-        numpy.PyArray_MultiIter_NEXT(it)
-
+        status = iternext(GetNpyIter(it))
+    
     return astrom_out
+
 
 def apcs13(date1, date2, pv):
     """
@@ -2200,31 +2377,39 @@ def apcs13(date1, date2, pv):
     Derived, with permission, from the SOFA library.  See notes at end of file.
   
     """
-    # convert nd-array to single-field structured array for argument "pv"
-    pv_arr = numpy.empty(numpy.shape(pv)[:-2], dtype=numpy.dtype([('fi0', 'd', (2,3))]))
-    pv_arr['fi0'] = pv
-    pv = pv_arr
     
-    in_shape = numpy.broadcast(date1, date2, pv).shape
-    astrom_out = numpy.empty(in_shape, dtype=dt_eraASTROM)
+    #Turn all inputs into arrays
+    date1_in = numpy.array(date1, dtype=numpy.double, order="C", copy=False, subok=True)
+    date2_in = numpy.array(date2, dtype=numpy.double, order="C", copy=False, subok=True)
+    pv_in = numpy.array(pv, dtype=numpy.double, order="C", copy=False, subok=True)
     
-    cdef numpy.broadcast it = numpy.broadcast(date1, date2, pv, astrom_out)
+    #Create the output array, based on the broadcasted shape, adding the generated dimensions if needed
+    broadcast = numpy.broadcast(numpy.int32(0.0), numpy.int32(0.0), date1_in, date2_in, pv_in[...,0,0])
+    astrom_out = numpy.empty(broadcast.shape+(), dtype=dt_eraASTROM)
+    
+    #Create the iterator, broadcasting on all but the consumed dimensions
+    op_axes = [[-1]*(broadcast.nd-arr.ndim)+range(arr.ndim) for arr in [date1_in, date2_in, pv_in[...,0,0]]+[astrom_out]]
+    op_flags = [['readonly']]*3+[['readwrite']]*1
+    it = numpy.nditer([date1_in, date2_in, pv_in]+[astrom_out], op_axes=op_axes, op_flags=op_flags)
+    
+    #Iterate
     cdef double _date1
     cdef double _date2
     cdef double * _pv
     cdef eraASTROM * _astrom
-    
-    while numpy.PyArray_MultiIter_NOTDONE(it):
-        _date1 = (<double*>numpy.PyArray_MultiIter_DATA(it, 0))[0]
-        _date2 = (<double*>numpy.PyArray_MultiIter_DATA(it, 1))[0]
-        _pv = (<double *>numpy.PyArray_MultiIter_DATA(it, 2))
-        _astrom = (<eraASTROM *>numpy.PyArray_MultiIter_DATA(it, 3))
-        
+    cdef char** dataptrarray = GetDataPtrArray(GetNpyIter(it))
+    cdef IterNextFunc iternext = GetIterNext(GetNpyIter(it), NULL)
+    cdef int status = 1
+    while status:
+        _date1 = (<double *>(dataptrarray[0]))[0]
+        _date2 = (<double *>(dataptrarray[1]))[0]
+        _pv = (<double *>(dataptrarray[2]))
+        _astrom = (<eraASTROM *>(dataptrarray[3]))
         eraApcs13(_date1, _date2, _pv, _astrom)
-        
-        numpy.PyArray_MultiIter_NEXT(it)
-
+        status = iternext(GetNpyIter(it))
+    
     return astrom_out
+
 
 def aper(theta, astrom):
     """
@@ -2325,22 +2510,35 @@ def aper(theta, astrom):
     Derived, with permission, from the SOFA library.  See notes at end of file.
   
     """
-    in_shape = numpy.broadcast(theta, astrom).shape
-    astrom_out = numpy.array(numpy.broadcast_arrays(theta, astrom)[1], dtype=dt_eraASTROM)
     
-    cdef numpy.broadcast it = numpy.broadcast(theta, astrom_out)
+    #Turn all inputs into arrays
+    theta_in = numpy.array(theta, dtype=numpy.double, order="C", copy=False, subok=True)
+    astrom_in = numpy.array(astrom, dtype=dt_eraASTROM, order="C", copy=False, subok=True)
+    
+    #Create the output array, based on the broadcasted shape, adding the generated dimensions if needed
+    broadcast = numpy.broadcast(numpy.int32(0.0), numpy.int32(0.0), theta_in, astrom_in)
+    astrom_out = numpy.empty(broadcast.shape+(), dtype=dt_eraASTROM)
+    numpy.copyto(astrom_out, astrom_in)
+    
+    #Create the iterator, broadcasting on all but the consumed dimensions
+    op_axes = [[-1]*(broadcast.nd-arr.ndim)+range(arr.ndim) for arr in [theta_in]+[astrom_out]]
+    op_flags = [['readonly']]*1+[['readwrite']]*1
+    it = numpy.nditer([theta_in]+[astrom_out], op_axes=op_axes, op_flags=op_flags)
+    
+    #Iterate
     cdef double _theta
     cdef eraASTROM * _astrom
-    
-    while numpy.PyArray_MultiIter_NOTDONE(it):
-        _theta = (<double*>numpy.PyArray_MultiIter_DATA(it, 0))[0]
-        _astrom = (<eraASTROM *>numpy.PyArray_MultiIter_DATA(it, 1))
-        
+    cdef char** dataptrarray = GetDataPtrArray(GetNpyIter(it))
+    cdef IterNextFunc iternext = GetIterNext(GetNpyIter(it), NULL)
+    cdef int status = 1
+    while status:
+        _theta = (<double *>(dataptrarray[0]))[0]
+        _astrom = (<eraASTROM *>(dataptrarray[1]))
         eraAper(_theta, _astrom)
-        
-        numpy.PyArray_MultiIter_NEXT(it)
+        status = iternext(GetNpyIter(it))
+    
+    return astrom_out
 
-    return 
 
 def aper13(ut11, ut12, astrom):
     """
@@ -2460,24 +2658,38 @@ def aper13(ut11, ut12, astrom):
     Derived, with permission, from the SOFA library.  See notes at end of file.
   
     """
-    in_shape = numpy.broadcast(ut11, ut12, astrom).shape
-    astrom_out = numpy.array(numpy.broadcast_arrays(ut11, ut12, astrom)[2], dtype=dt_eraASTROM)
     
-    cdef numpy.broadcast it = numpy.broadcast(ut11, ut12, astrom_out)
+    #Turn all inputs into arrays
+    ut11_in = numpy.array(ut11, dtype=numpy.double, order="C", copy=False, subok=True)
+    ut12_in = numpy.array(ut12, dtype=numpy.double, order="C", copy=False, subok=True)
+    astrom_in = numpy.array(astrom, dtype=dt_eraASTROM, order="C", copy=False, subok=True)
+    
+    #Create the output array, based on the broadcasted shape, adding the generated dimensions if needed
+    broadcast = numpy.broadcast(numpy.int32(0.0), numpy.int32(0.0), ut11_in, ut12_in, astrom_in)
+    astrom_out = numpy.empty(broadcast.shape+(), dtype=dt_eraASTROM)
+    numpy.copyto(astrom_out, astrom_in)
+    
+    #Create the iterator, broadcasting on all but the consumed dimensions
+    op_axes = [[-1]*(broadcast.nd-arr.ndim)+range(arr.ndim) for arr in [ut11_in, ut12_in]+[astrom_out]]
+    op_flags = [['readonly']]*2+[['readwrite']]*1
+    it = numpy.nditer([ut11_in, ut12_in]+[astrom_out], op_axes=op_axes, op_flags=op_flags)
+    
+    #Iterate
     cdef double _ut11
     cdef double _ut12
     cdef eraASTROM * _astrom
-    
-    while numpy.PyArray_MultiIter_NOTDONE(it):
-        _ut11 = (<double*>numpy.PyArray_MultiIter_DATA(it, 0))[0]
-        _ut12 = (<double*>numpy.PyArray_MultiIter_DATA(it, 1))[0]
-        _astrom = (<eraASTROM *>numpy.PyArray_MultiIter_DATA(it, 2))
-        
+    cdef char** dataptrarray = GetDataPtrArray(GetNpyIter(it))
+    cdef IterNextFunc iternext = GetIterNext(GetNpyIter(it), NULL)
+    cdef int status = 1
+    while status:
+        _ut11 = (<double *>(dataptrarray[0]))[0]
+        _ut12 = (<double *>(dataptrarray[1]))[0]
+        _astrom = (<eraASTROM *>(dataptrarray[2]))
         eraAper13(_ut11, _ut12, _astrom)
-        
-        numpy.PyArray_MultiIter_NEXT(it)
+        status = iternext(GetNpyIter(it))
+    
+    return astrom_out
 
-    return 
 
 def apio(sp, theta, elong, phi, hm, xp, yp, refa, refb):
     """
@@ -2599,12 +2811,32 @@ def apio(sp, theta, elong, phi, hm, xp, yp, refa, refb):
     Derived, with permission, from the SOFA library.  See notes at end of file.
   
     """
-    in_shape = numpy.broadcast(sp, theta, elong, phi, hm, xp, yp, refa, refb).shape
-    astrom_out = numpy.empty(in_shape, dtype=dt_eraASTROM)
-    refa_out = numpy.array(numpy.broadcast_arrays(sp, theta, elong, phi, hm, xp, yp, refa, refb)[7], dtype=numpy.double)
-    refb_out = numpy.array(numpy.broadcast_arrays(sp, theta, elong, phi, hm, xp, yp, refa, refb)[8], dtype=numpy.double)
     
-    cdef numpy.broadcast it = numpy.broadcast(sp, theta, elong, phi, hm, xp, yp, refa_out, refb_out, astrom_out)
+    #Turn all inputs into arrays
+    sp_in = numpy.array(sp, dtype=numpy.double, order="C", copy=False, subok=True)
+    theta_in = numpy.array(theta, dtype=numpy.double, order="C", copy=False, subok=True)
+    elong_in = numpy.array(elong, dtype=numpy.double, order="C", copy=False, subok=True)
+    phi_in = numpy.array(phi, dtype=numpy.double, order="C", copy=False, subok=True)
+    hm_in = numpy.array(hm, dtype=numpy.double, order="C", copy=False, subok=True)
+    xp_in = numpy.array(xp, dtype=numpy.double, order="C", copy=False, subok=True)
+    yp_in = numpy.array(yp, dtype=numpy.double, order="C", copy=False, subok=True)
+    refa_in = numpy.array(refa, dtype=numpy.double, order="C", copy=False, subok=True)
+    refb_in = numpy.array(refb, dtype=numpy.double, order="C", copy=False, subok=True)
+    
+    #Create the output array, based on the broadcasted shape, adding the generated dimensions if needed
+    broadcast = numpy.broadcast(numpy.int32(0.0), numpy.int32(0.0), sp_in, theta_in, elong_in, phi_in, hm_in, xp_in, yp_in, refa_in, refb_in)
+    refa_out = numpy.empty(broadcast.shape+(), dtype=numpy.double)
+    refb_out = numpy.empty(broadcast.shape+(), dtype=numpy.double)
+    astrom_out = numpy.empty(broadcast.shape+(), dtype=dt_eraASTROM)
+    numpy.copyto(refa_out, refa_in)
+    numpy.copyto(refb_out, refb_in)
+    
+    #Create the iterator, broadcasting on all but the consumed dimensions
+    op_axes = [[-1]*(broadcast.nd-arr.ndim)+range(arr.ndim) for arr in [sp_in, theta_in, elong_in, phi_in, hm_in, xp_in, yp_in]+[refa_out, refb_out, astrom_out]]
+    op_flags = [['readonly']]*7+[['readwrite']]*3
+    it = numpy.nditer([sp_in, theta_in, elong_in, phi_in, hm_in, xp_in, yp_in]+[refa_out, refb_out, astrom_out], op_axes=op_axes, op_flags=op_flags)
+    
+    #Iterate
     cdef double _sp
     cdef double _theta
     cdef double _elong
@@ -2615,24 +2847,25 @@ def apio(sp, theta, elong, phi, hm, xp, yp, refa, refb):
     cdef double _refa
     cdef double _refb
     cdef eraASTROM * _astrom
-    
-    while numpy.PyArray_MultiIter_NOTDONE(it):
-        _sp = (<double*>numpy.PyArray_MultiIter_DATA(it, 0))[0]
-        _theta = (<double*>numpy.PyArray_MultiIter_DATA(it, 1))[0]
-        _elong = (<double*>numpy.PyArray_MultiIter_DATA(it, 2))[0]
-        _phi = (<double*>numpy.PyArray_MultiIter_DATA(it, 3))[0]
-        _hm = (<double*>numpy.PyArray_MultiIter_DATA(it, 4))[0]
-        _xp = (<double*>numpy.PyArray_MultiIter_DATA(it, 5))[0]
-        _yp = (<double*>numpy.PyArray_MultiIter_DATA(it, 6))[0]
-        _refa = (<double*>numpy.PyArray_MultiIter_DATA(it, 7))[0]
-        _refb = (<double*>numpy.PyArray_MultiIter_DATA(it, 8))[0]
-        _astrom = (<eraASTROM *>numpy.PyArray_MultiIter_DATA(it, 9))
-        
+    cdef char** dataptrarray = GetDataPtrArray(GetNpyIter(it))
+    cdef IterNextFunc iternext = GetIterNext(GetNpyIter(it), NULL)
+    cdef int status = 1
+    while status:
+        _sp = (<double *>(dataptrarray[0]))[0]
+        _theta = (<double *>(dataptrarray[1]))[0]
+        _elong = (<double *>(dataptrarray[2]))[0]
+        _phi = (<double *>(dataptrarray[3]))[0]
+        _hm = (<double *>(dataptrarray[4]))[0]
+        _xp = (<double *>(dataptrarray[5]))[0]
+        _yp = (<double *>(dataptrarray[6]))[0]
+        _refa = (<double *>(dataptrarray[7]))[0]
+        _refb = (<double *>(dataptrarray[8]))[0]
+        _astrom = (<eraASTROM *>(dataptrarray[9]))
         eraApio(_sp, _theta, _elong, _phi, _hm, _xp, _yp, _refa, _refb, _astrom)
-        
-        numpy.PyArray_MultiIter_NEXT(it)
+        status = iternext(GetNpyIter(it))
+    
+    return refa_out, refb_out, astrom_out
 
-    return astrom_out
 
 def apio13(utc1, utc2, dut1, elong, phi, hm, xp, yp, phpa, tc, rh, wl):
     """
@@ -2803,11 +3036,32 @@ def apio13(utc1, utc2, dut1, elong, phi, hm, xp, yp, phpa, tc, rh, wl):
     Derived, with permission, from the SOFA library.  See notes at end of file.
   
     """
-    in_shape = numpy.broadcast(utc1, utc2, dut1, elong, phi, hm, xp, yp, phpa, tc, rh, wl).shape
-    astrom_out = numpy.empty(in_shape, dtype=dt_eraASTROM)
-    c_retval_out = numpy.empty(in_shape, dtype=numpy.intc)
     
-    cdef numpy.broadcast it = numpy.broadcast(utc1, utc2, dut1, elong, phi, hm, xp, yp, phpa, tc, rh, wl, astrom_out, c_retval_out)
+    #Turn all inputs into arrays
+    utc1_in = numpy.array(utc1, dtype=numpy.double, order="C", copy=False, subok=True)
+    utc2_in = numpy.array(utc2, dtype=numpy.double, order="C", copy=False, subok=True)
+    dut1_in = numpy.array(dut1, dtype=numpy.double, order="C", copy=False, subok=True)
+    elong_in = numpy.array(elong, dtype=numpy.double, order="C", copy=False, subok=True)
+    phi_in = numpy.array(phi, dtype=numpy.double, order="C", copy=False, subok=True)
+    hm_in = numpy.array(hm, dtype=numpy.double, order="C", copy=False, subok=True)
+    xp_in = numpy.array(xp, dtype=numpy.double, order="C", copy=False, subok=True)
+    yp_in = numpy.array(yp, dtype=numpy.double, order="C", copy=False, subok=True)
+    phpa_in = numpy.array(phpa, dtype=numpy.double, order="C", copy=False, subok=True)
+    tc_in = numpy.array(tc, dtype=numpy.double, order="C", copy=False, subok=True)
+    rh_in = numpy.array(rh, dtype=numpy.double, order="C", copy=False, subok=True)
+    wl_in = numpy.array(wl, dtype=numpy.double, order="C", copy=False, subok=True)
+    
+    #Create the output array, based on the broadcasted shape, adding the generated dimensions if needed
+    broadcast = numpy.broadcast(numpy.int32(0.0), numpy.int32(0.0), utc1_in, utc2_in, dut1_in, elong_in, phi_in, hm_in, xp_in, yp_in, phpa_in, tc_in, rh_in, wl_in)
+    astrom_out = numpy.empty(broadcast.shape+(), dtype=dt_eraASTROM)
+    c_retval_out = numpy.empty(broadcast.shape+(), dtype=numpy.intc)
+    
+    #Create the iterator, broadcasting on all but the consumed dimensions
+    op_axes = [[-1]*(broadcast.nd-arr.ndim)+range(arr.ndim) for arr in [utc1_in, utc2_in, dut1_in, elong_in, phi_in, hm_in, xp_in, yp_in, phpa_in, tc_in, rh_in, wl_in]+[astrom_out, c_retval_out]]
+    op_flags = [['readonly']]*12+[['readwrite']]*2
+    it = numpy.nditer([utc1_in, utc2_in, dut1_in, elong_in, phi_in, hm_in, xp_in, yp_in, phpa_in, tc_in, rh_in, wl_in]+[astrom_out, c_retval_out], op_axes=op_axes, op_flags=op_flags)
+    
+    #Iterate
     cdef double _utc1
     cdef double _utc2
     cdef double _dut1
@@ -2823,34 +3077,35 @@ def apio13(utc1, utc2, dut1, elong, phi, hm, xp, yp, phpa, tc, rh, wl):
     cdef eraASTROM * _astrom
     cdef int _c_retval
     cdef bint stat_ok = True
-    
-    while numpy.PyArray_MultiIter_NOTDONE(it):
-        _utc1 = (<double*>numpy.PyArray_MultiIter_DATA(it, 0))[0]
-        _utc2 = (<double*>numpy.PyArray_MultiIter_DATA(it, 1))[0]
-        _dut1 = (<double*>numpy.PyArray_MultiIter_DATA(it, 2))[0]
-        _elong = (<double*>numpy.PyArray_MultiIter_DATA(it, 3))[0]
-        _phi = (<double*>numpy.PyArray_MultiIter_DATA(it, 4))[0]
-        _hm = (<double*>numpy.PyArray_MultiIter_DATA(it, 5))[0]
-        _xp = (<double*>numpy.PyArray_MultiIter_DATA(it, 6))[0]
-        _yp = (<double*>numpy.PyArray_MultiIter_DATA(it, 7))[0]
-        _phpa = (<double*>numpy.PyArray_MultiIter_DATA(it, 8))[0]
-        _tc = (<double*>numpy.PyArray_MultiIter_DATA(it, 9))[0]
-        _rh = (<double*>numpy.PyArray_MultiIter_DATA(it, 10))[0]
-        _wl = (<double*>numpy.PyArray_MultiIter_DATA(it, 11))[0]
-        _astrom = (<eraASTROM *>numpy.PyArray_MultiIter_DATA(it, 12))
-        
+    cdef char** dataptrarray = GetDataPtrArray(GetNpyIter(it))
+    cdef IterNextFunc iternext = GetIterNext(GetNpyIter(it), NULL)
+    cdef int status = 1
+    while status:
+        _utc1 = (<double *>(dataptrarray[0]))[0]
+        _utc2 = (<double *>(dataptrarray[1]))[0]
+        _dut1 = (<double *>(dataptrarray[2]))[0]
+        _elong = (<double *>(dataptrarray[3]))[0]
+        _phi = (<double *>(dataptrarray[4]))[0]
+        _hm = (<double *>(dataptrarray[5]))[0]
+        _xp = (<double *>(dataptrarray[6]))[0]
+        _yp = (<double *>(dataptrarray[7]))[0]
+        _phpa = (<double *>(dataptrarray[8]))[0]
+        _tc = (<double *>(dataptrarray[9]))[0]
+        _rh = (<double *>(dataptrarray[10]))[0]
+        _wl = (<double *>(dataptrarray[11]))[0]
+        _astrom = (<eraASTROM *>(dataptrarray[12]))
         _c_retval = eraApio13(_utc1, _utc2, _dut1, _elong, _phi, _hm, _xp, _yp, _phpa, _tc, _rh, _wl, _astrom)
-        (<int*>numpy.PyArray_MultiIter_DATA(it, 13))[0] = _c_retval
+        (<int *>(dataptrarray[13]))[0] = _c_retval
         if _c_retval != 0:
             stat_ok = False
-        
-        numpy.PyArray_MultiIter_NEXT(it)
-
+        status = iternext(GetNpyIter(it))
+    
     if not stat_ok:
         check_errwarn(c_retval_out, 'apio13')
-
+    
     return astrom_out
 STATUS_CODES['apio13'] = {0: u'OK', 1: u'dubious year (Note 2)', -1: u'unacceptable date'}
+
 
 
 def atci13(rc, dc, pr, pd, px, rv, date1, date2):
@@ -2938,12 +3193,29 @@ def atci13(rc, dc, pr, pd, px, rv, date1, date2):
     Derived, with permission, from the SOFA library.  See notes at end of file.
   
     """
-    in_shape = numpy.broadcast(rc, dc, pr, pd, px, rv, date1, date2).shape
-    ri_out = numpy.empty(in_shape, dtype=numpy.double)
-    di_out = numpy.empty(in_shape, dtype=numpy.double)
-    eo_out = numpy.empty(in_shape, dtype=numpy.double)
     
-    cdef numpy.broadcast it = numpy.broadcast(rc, dc, pr, pd, px, rv, date1, date2, ri_out, di_out, eo_out)
+    #Turn all inputs into arrays
+    rc_in = numpy.array(rc, dtype=numpy.double, order="C", copy=False, subok=True)
+    dc_in = numpy.array(dc, dtype=numpy.double, order="C", copy=False, subok=True)
+    pr_in = numpy.array(pr, dtype=numpy.double, order="C", copy=False, subok=True)
+    pd_in = numpy.array(pd, dtype=numpy.double, order="C", copy=False, subok=True)
+    px_in = numpy.array(px, dtype=numpy.double, order="C", copy=False, subok=True)
+    rv_in = numpy.array(rv, dtype=numpy.double, order="C", copy=False, subok=True)
+    date1_in = numpy.array(date1, dtype=numpy.double, order="C", copy=False, subok=True)
+    date2_in = numpy.array(date2, dtype=numpy.double, order="C", copy=False, subok=True)
+    
+    #Create the output array, based on the broadcasted shape, adding the generated dimensions if needed
+    broadcast = numpy.broadcast(numpy.int32(0.0), numpy.int32(0.0), rc_in, dc_in, pr_in, pd_in, px_in, rv_in, date1_in, date2_in)
+    ri_out = numpy.empty(broadcast.shape+(), dtype=numpy.double)
+    di_out = numpy.empty(broadcast.shape+(), dtype=numpy.double)
+    eo_out = numpy.empty(broadcast.shape+(), dtype=numpy.double)
+    
+    #Create the iterator, broadcasting on all but the consumed dimensions
+    op_axes = [[-1]*(broadcast.nd-arr.ndim)+range(arr.ndim) for arr in [rc_in, dc_in, pr_in, pd_in, px_in, rv_in, date1_in, date2_in]+[ri_out, di_out, eo_out]]
+    op_flags = [['readonly']]*8+[['readwrite']]*3
+    it = numpy.nditer([rc_in, dc_in, pr_in, pd_in, px_in, rv_in, date1_in, date2_in]+[ri_out, di_out, eo_out], op_axes=op_axes, op_flags=op_flags)
+    
+    #Iterate
     cdef double _rc
     cdef double _dc
     cdef double _pr
@@ -2955,25 +3227,26 @@ def atci13(rc, dc, pr, pd, px, rv, date1, date2):
     cdef double * _ri
     cdef double * _di
     cdef double * _eo
-    
-    while numpy.PyArray_MultiIter_NOTDONE(it):
-        _rc = (<double*>numpy.PyArray_MultiIter_DATA(it, 0))[0]
-        _dc = (<double*>numpy.PyArray_MultiIter_DATA(it, 1))[0]
-        _pr = (<double*>numpy.PyArray_MultiIter_DATA(it, 2))[0]
-        _pd = (<double*>numpy.PyArray_MultiIter_DATA(it, 3))[0]
-        _px = (<double*>numpy.PyArray_MultiIter_DATA(it, 4))[0]
-        _rv = (<double*>numpy.PyArray_MultiIter_DATA(it, 5))[0]
-        _date1 = (<double*>numpy.PyArray_MultiIter_DATA(it, 6))[0]
-        _date2 = (<double*>numpy.PyArray_MultiIter_DATA(it, 7))[0]
-        _ri = (<double *>numpy.PyArray_MultiIter_DATA(it, 8))
-        _di = (<double *>numpy.PyArray_MultiIter_DATA(it, 9))
-        _eo = (<double *>numpy.PyArray_MultiIter_DATA(it, 10))
-        
+    cdef char** dataptrarray = GetDataPtrArray(GetNpyIter(it))
+    cdef IterNextFunc iternext = GetIterNext(GetNpyIter(it), NULL)
+    cdef int status = 1
+    while status:
+        _rc = (<double *>(dataptrarray[0]))[0]
+        _dc = (<double *>(dataptrarray[1]))[0]
+        _pr = (<double *>(dataptrarray[2]))[0]
+        _pd = (<double *>(dataptrarray[3]))[0]
+        _px = (<double *>(dataptrarray[4]))[0]
+        _rv = (<double *>(dataptrarray[5]))[0]
+        _date1 = (<double *>(dataptrarray[6]))[0]
+        _date2 = (<double *>(dataptrarray[7]))[0]
+        _ri = (<double *>(dataptrarray[8]))
+        _di = (<double *>(dataptrarray[9]))
+        _eo = (<double *>(dataptrarray[10]))
         eraAtci13(_rc, _dc, _pr, _pd, _px, _rv, _date1, _date2, _ri, _di, _eo)
-        
-        numpy.PyArray_MultiIter_NEXT(it)
-
+        status = iternext(GetNpyIter(it))
+    
     return ri_out, di_out, eo_out
+
 
 def atciq(rc, dc, pr, pd, px, rv, astrom):
     """
@@ -3047,11 +3320,27 @@ def atciq(rc, dc, pr, pd, px, rv, astrom):
     Derived, with permission, from the SOFA library.  See notes at end of file.
   
     """
-    in_shape = numpy.broadcast(rc, dc, pr, pd, px, rv, astrom).shape
-    ri_out = numpy.empty(in_shape, dtype=numpy.double)
-    di_out = numpy.empty(in_shape, dtype=numpy.double)
     
-    cdef numpy.broadcast it = numpy.broadcast(rc, dc, pr, pd, px, rv, astrom, ri_out, di_out)
+    #Turn all inputs into arrays
+    rc_in = numpy.array(rc, dtype=numpy.double, order="C", copy=False, subok=True)
+    dc_in = numpy.array(dc, dtype=numpy.double, order="C", copy=False, subok=True)
+    pr_in = numpy.array(pr, dtype=numpy.double, order="C", copy=False, subok=True)
+    pd_in = numpy.array(pd, dtype=numpy.double, order="C", copy=False, subok=True)
+    px_in = numpy.array(px, dtype=numpy.double, order="C", copy=False, subok=True)
+    rv_in = numpy.array(rv, dtype=numpy.double, order="C", copy=False, subok=True)
+    astrom_in = numpy.array(astrom, dtype=dt_eraASTROM, order="C", copy=False, subok=True)
+    
+    #Create the output array, based on the broadcasted shape, adding the generated dimensions if needed
+    broadcast = numpy.broadcast(numpy.int32(0.0), numpy.int32(0.0), rc_in, dc_in, pr_in, pd_in, px_in, rv_in, astrom_in)
+    ri_out = numpy.empty(broadcast.shape+(), dtype=numpy.double)
+    di_out = numpy.empty(broadcast.shape+(), dtype=numpy.double)
+    
+    #Create the iterator, broadcasting on all but the consumed dimensions
+    op_axes = [[-1]*(broadcast.nd-arr.ndim)+range(arr.ndim) for arr in [rc_in, dc_in, pr_in, pd_in, px_in, rv_in, astrom_in]+[ri_out, di_out]]
+    op_flags = [['readonly']]*7+[['readwrite']]*2
+    it = numpy.nditer([rc_in, dc_in, pr_in, pd_in, px_in, rv_in, astrom_in]+[ri_out, di_out], op_axes=op_axes, op_flags=op_flags)
+    
+    #Iterate
     cdef double _rc
     cdef double _dc
     cdef double _pr
@@ -3061,23 +3350,24 @@ def atciq(rc, dc, pr, pd, px, rv, astrom):
     cdef eraASTROM * _astrom
     cdef double * _ri
     cdef double * _di
-    
-    while numpy.PyArray_MultiIter_NOTDONE(it):
-        _rc = (<double*>numpy.PyArray_MultiIter_DATA(it, 0))[0]
-        _dc = (<double*>numpy.PyArray_MultiIter_DATA(it, 1))[0]
-        _pr = (<double*>numpy.PyArray_MultiIter_DATA(it, 2))[0]
-        _pd = (<double*>numpy.PyArray_MultiIter_DATA(it, 3))[0]
-        _px = (<double*>numpy.PyArray_MultiIter_DATA(it, 4))[0]
-        _rv = (<double*>numpy.PyArray_MultiIter_DATA(it, 5))[0]
-        _astrom = (<eraASTROM *>numpy.PyArray_MultiIter_DATA(it, 6))
-        _ri = (<double *>numpy.PyArray_MultiIter_DATA(it, 7))
-        _di = (<double *>numpy.PyArray_MultiIter_DATA(it, 8))
-        
+    cdef char** dataptrarray = GetDataPtrArray(GetNpyIter(it))
+    cdef IterNextFunc iternext = GetIterNext(GetNpyIter(it), NULL)
+    cdef int status = 1
+    while status:
+        _rc = (<double *>(dataptrarray[0]))[0]
+        _dc = (<double *>(dataptrarray[1]))[0]
+        _pr = (<double *>(dataptrarray[2]))[0]
+        _pd = (<double *>(dataptrarray[3]))[0]
+        _px = (<double *>(dataptrarray[4]))[0]
+        _rv = (<double *>(dataptrarray[5]))[0]
+        _astrom = (<eraASTROM *>(dataptrarray[6]))
+        _ri = (<double *>(dataptrarray[7]))
+        _di = (<double *>(dataptrarray[8]))
         eraAtciq(_rc, _dc, _pr, _pd, _px, _rv, _astrom, _ri, _di)
-        
-        numpy.PyArray_MultiIter_NEXT(it)
-
+        status = iternext(GetNpyIter(it))
+    
     return ri_out, di_out
+
 
 def atciqn(rc, dc, pr, pd, px, rv, astrom, n, b):
     """
@@ -3188,11 +3478,29 @@ def atciqn(rc, dc, pr, pd, px, rv, astrom, n, b):
     Derived, with permission, from the SOFA library.  See notes at end of file.
   
     """
-    in_shape = numpy.broadcast(rc, dc, pr, pd, px, rv, astrom, n, b).shape
-    ri_out = numpy.empty(in_shape, dtype=numpy.double)
-    di_out = numpy.empty(in_shape, dtype=numpy.double)
     
-    cdef numpy.broadcast it = numpy.broadcast(rc, dc, pr, pd, px, rv, astrom, n, b, ri_out, di_out)
+    #Turn all inputs into arrays
+    rc_in = numpy.array(rc, dtype=numpy.double, order="C", copy=False, subok=True)
+    dc_in = numpy.array(dc, dtype=numpy.double, order="C", copy=False, subok=True)
+    pr_in = numpy.array(pr, dtype=numpy.double, order="C", copy=False, subok=True)
+    pd_in = numpy.array(pd, dtype=numpy.double, order="C", copy=False, subok=True)
+    px_in = numpy.array(px, dtype=numpy.double, order="C", copy=False, subok=True)
+    rv_in = numpy.array(rv, dtype=numpy.double, order="C", copy=False, subok=True)
+    astrom_in = numpy.array(astrom, dtype=dt_eraASTROM, order="C", copy=False, subok=True)
+    n_in = numpy.array(n, dtype=numpy.intc, order="C", copy=False, subok=True)
+    b_in = numpy.array(b, dtype=dt_eraLDBODY, order="C", copy=False, subok=True)
+    
+    #Create the output array, based on the broadcasted shape, adding the generated dimensions if needed
+    broadcast = numpy.broadcast(numpy.int32(0.0), numpy.int32(0.0), rc_in, dc_in, pr_in, pd_in, px_in, rv_in, astrom_in, n_in, b_in)
+    ri_out = numpy.empty(broadcast.shape+(), dtype=numpy.double)
+    di_out = numpy.empty(broadcast.shape+(), dtype=numpy.double)
+    
+    #Create the iterator, broadcasting on all but the consumed dimensions
+    op_axes = [[-1]*(broadcast.nd-arr.ndim)+range(arr.ndim) for arr in [rc_in, dc_in, pr_in, pd_in, px_in, rv_in, astrom_in, n_in, b_in]+[ri_out, di_out]]
+    op_flags = [['readonly']]*9+[['readwrite']]*2
+    it = numpy.nditer([rc_in, dc_in, pr_in, pd_in, px_in, rv_in, astrom_in, n_in, b_in]+[ri_out, di_out], op_axes=op_axes, op_flags=op_flags)
+    
+    #Iterate
     cdef double _rc
     cdef double _dc
     cdef double _pr
@@ -3204,25 +3512,26 @@ def atciqn(rc, dc, pr, pd, px, rv, astrom, n, b):
     cdef eraLDBODY * _b
     cdef double * _ri
     cdef double * _di
-    
-    while numpy.PyArray_MultiIter_NOTDONE(it):
-        _rc = (<double*>numpy.PyArray_MultiIter_DATA(it, 0))[0]
-        _dc = (<double*>numpy.PyArray_MultiIter_DATA(it, 1))[0]
-        _pr = (<double*>numpy.PyArray_MultiIter_DATA(it, 2))[0]
-        _pd = (<double*>numpy.PyArray_MultiIter_DATA(it, 3))[0]
-        _px = (<double*>numpy.PyArray_MultiIter_DATA(it, 4))[0]
-        _rv = (<double*>numpy.PyArray_MultiIter_DATA(it, 5))[0]
-        _astrom = (<eraASTROM *>numpy.PyArray_MultiIter_DATA(it, 6))
-        _n = (<int*>numpy.PyArray_MultiIter_DATA(it, 7))[0]
-        _b = (<eraLDBODY *>numpy.PyArray_MultiIter_DATA(it, 8))
-        _ri = (<double *>numpy.PyArray_MultiIter_DATA(it, 9))
-        _di = (<double *>numpy.PyArray_MultiIter_DATA(it, 10))
-        
+    cdef char** dataptrarray = GetDataPtrArray(GetNpyIter(it))
+    cdef IterNextFunc iternext = GetIterNext(GetNpyIter(it), NULL)
+    cdef int status = 1
+    while status:
+        _rc = (<double *>(dataptrarray[0]))[0]
+        _dc = (<double *>(dataptrarray[1]))[0]
+        _pr = (<double *>(dataptrarray[2]))[0]
+        _pd = (<double *>(dataptrarray[3]))[0]
+        _px = (<double *>(dataptrarray[4]))[0]
+        _rv = (<double *>(dataptrarray[5]))[0]
+        _astrom = (<eraASTROM *>(dataptrarray[6]))
+        _n = (<int *>(dataptrarray[7]))[0]
+        _b = (<eraLDBODY *>(dataptrarray[8]))
+        _ri = (<double *>(dataptrarray[9]))
+        _di = (<double *>(dataptrarray[10]))
         eraAtciqn(_rc, _dc, _pr, _pd, _px, _rv, _astrom, _n, _b, _ri, _di)
-        
-        numpy.PyArray_MultiIter_NEXT(it)
-
+        status = iternext(GetNpyIter(it))
+    
     return ri_out, di_out
+
 
 def atciqz(rc, dc, astrom):
     """
@@ -3296,29 +3605,42 @@ def atciqz(rc, dc, astrom):
     Derived, with permission, from the SOFA library.  See notes at end of file.
   
     """
-    in_shape = numpy.broadcast(rc, dc, astrom).shape
-    ri_out = numpy.empty(in_shape, dtype=numpy.double)
-    di_out = numpy.empty(in_shape, dtype=numpy.double)
     
-    cdef numpy.broadcast it = numpy.broadcast(rc, dc, astrom, ri_out, di_out)
+    #Turn all inputs into arrays
+    rc_in = numpy.array(rc, dtype=numpy.double, order="C", copy=False, subok=True)
+    dc_in = numpy.array(dc, dtype=numpy.double, order="C", copy=False, subok=True)
+    astrom_in = numpy.array(astrom, dtype=dt_eraASTROM, order="C", copy=False, subok=True)
+    
+    #Create the output array, based on the broadcasted shape, adding the generated dimensions if needed
+    broadcast = numpy.broadcast(numpy.int32(0.0), numpy.int32(0.0), rc_in, dc_in, astrom_in)
+    ri_out = numpy.empty(broadcast.shape+(), dtype=numpy.double)
+    di_out = numpy.empty(broadcast.shape+(), dtype=numpy.double)
+    
+    #Create the iterator, broadcasting on all but the consumed dimensions
+    op_axes = [[-1]*(broadcast.nd-arr.ndim)+range(arr.ndim) for arr in [rc_in, dc_in, astrom_in]+[ri_out, di_out]]
+    op_flags = [['readonly']]*3+[['readwrite']]*2
+    it = numpy.nditer([rc_in, dc_in, astrom_in]+[ri_out, di_out], op_axes=op_axes, op_flags=op_flags)
+    
+    #Iterate
     cdef double _rc
     cdef double _dc
     cdef eraASTROM * _astrom
     cdef double * _ri
     cdef double * _di
-    
-    while numpy.PyArray_MultiIter_NOTDONE(it):
-        _rc = (<double*>numpy.PyArray_MultiIter_DATA(it, 0))[0]
-        _dc = (<double*>numpy.PyArray_MultiIter_DATA(it, 1))[0]
-        _astrom = (<eraASTROM *>numpy.PyArray_MultiIter_DATA(it, 2))
-        _ri = (<double *>numpy.PyArray_MultiIter_DATA(it, 3))
-        _di = (<double *>numpy.PyArray_MultiIter_DATA(it, 4))
-        
+    cdef char** dataptrarray = GetDataPtrArray(GetNpyIter(it))
+    cdef IterNextFunc iternext = GetIterNext(GetNpyIter(it), NULL)
+    cdef int status = 1
+    while status:
+        _rc = (<double *>(dataptrarray[0]))[0]
+        _dc = (<double *>(dataptrarray[1]))[0]
+        _astrom = (<eraASTROM *>(dataptrarray[2]))
+        _ri = (<double *>(dataptrarray[3]))
+        _di = (<double *>(dataptrarray[4]))
         eraAtciqz(_rc, _dc, _astrom, _ri, _di)
-        
-        numpy.PyArray_MultiIter_NEXT(it)
-
+        status = iternext(GetNpyIter(it))
+    
     return ri_out, di_out
+
 
 def atco13(rc, dc, pr, pd, px, rv, utc1, utc2, dut1, elong, phi, hm, xp, yp, phpa, tc, rh, wl):
     """
@@ -3475,16 +3797,43 @@ def atco13(rc, dc, pr, pd, px, rv, utc1, utc2, dut1, elong, phi, hm, xp, yp, php
     Derived, with permission, from the SOFA library.  See notes at end of file.
   
     """
-    in_shape = numpy.broadcast(rc, dc, pr, pd, px, rv, utc1, utc2, dut1, elong, phi, hm, xp, yp, phpa, tc, rh, wl).shape
-    aob_out = numpy.empty(in_shape, dtype=numpy.double)
-    zob_out = numpy.empty(in_shape, dtype=numpy.double)
-    hob_out = numpy.empty(in_shape, dtype=numpy.double)
-    dob_out = numpy.empty(in_shape, dtype=numpy.double)
-    rob_out = numpy.empty(in_shape, dtype=numpy.double)
-    eo_out = numpy.empty(in_shape, dtype=numpy.double)
-    c_retval_out = numpy.empty(in_shape, dtype=numpy.intc)
     
-    cdef numpy.broadcast it = numpy.broadcast(rc, dc, pr, pd, px, rv, utc1, utc2, dut1, elong, phi, hm, xp, yp, phpa, tc, rh, wl, aob_out, zob_out, hob_out, dob_out, rob_out, eo_out, c_retval_out)
+    #Turn all inputs into arrays
+    rc_in = numpy.array(rc, dtype=numpy.double, order="C", copy=False, subok=True)
+    dc_in = numpy.array(dc, dtype=numpy.double, order="C", copy=False, subok=True)
+    pr_in = numpy.array(pr, dtype=numpy.double, order="C", copy=False, subok=True)
+    pd_in = numpy.array(pd, dtype=numpy.double, order="C", copy=False, subok=True)
+    px_in = numpy.array(px, dtype=numpy.double, order="C", copy=False, subok=True)
+    rv_in = numpy.array(rv, dtype=numpy.double, order="C", copy=False, subok=True)
+    utc1_in = numpy.array(utc1, dtype=numpy.double, order="C", copy=False, subok=True)
+    utc2_in = numpy.array(utc2, dtype=numpy.double, order="C", copy=False, subok=True)
+    dut1_in = numpy.array(dut1, dtype=numpy.double, order="C", copy=False, subok=True)
+    elong_in = numpy.array(elong, dtype=numpy.double, order="C", copy=False, subok=True)
+    phi_in = numpy.array(phi, dtype=numpy.double, order="C", copy=False, subok=True)
+    hm_in = numpy.array(hm, dtype=numpy.double, order="C", copy=False, subok=True)
+    xp_in = numpy.array(xp, dtype=numpy.double, order="C", copy=False, subok=True)
+    yp_in = numpy.array(yp, dtype=numpy.double, order="C", copy=False, subok=True)
+    phpa_in = numpy.array(phpa, dtype=numpy.double, order="C", copy=False, subok=True)
+    tc_in = numpy.array(tc, dtype=numpy.double, order="C", copy=False, subok=True)
+    rh_in = numpy.array(rh, dtype=numpy.double, order="C", copy=False, subok=True)
+    wl_in = numpy.array(wl, dtype=numpy.double, order="C", copy=False, subok=True)
+    
+    #Create the output array, based on the broadcasted shape, adding the generated dimensions if needed
+    broadcast = numpy.broadcast(numpy.int32(0.0), numpy.int32(0.0), rc_in, dc_in, pr_in, pd_in, px_in, rv_in, utc1_in, utc2_in, dut1_in, elong_in, phi_in, hm_in, xp_in, yp_in, phpa_in, tc_in, rh_in, wl_in)
+    aob_out = numpy.empty(broadcast.shape+(), dtype=numpy.double)
+    zob_out = numpy.empty(broadcast.shape+(), dtype=numpy.double)
+    hob_out = numpy.empty(broadcast.shape+(), dtype=numpy.double)
+    dob_out = numpy.empty(broadcast.shape+(), dtype=numpy.double)
+    rob_out = numpy.empty(broadcast.shape+(), dtype=numpy.double)
+    eo_out = numpy.empty(broadcast.shape+(), dtype=numpy.double)
+    c_retval_out = numpy.empty(broadcast.shape+(), dtype=numpy.intc)
+    
+    #Create the iterator, broadcasting on all but the consumed dimensions
+    op_axes = [[-1]*(broadcast.nd-arr.ndim)+range(arr.ndim) for arr in [rc_in, dc_in, pr_in, pd_in, px_in, rv_in, utc1_in, utc2_in, dut1_in, elong_in, phi_in, hm_in, xp_in, yp_in, phpa_in, tc_in, rh_in, wl_in]+[aob_out, zob_out, hob_out, dob_out, rob_out, eo_out, c_retval_out]]
+    op_flags = [['readonly']]*18+[['readwrite']]*7
+    it = numpy.nditer([rc_in, dc_in, pr_in, pd_in, px_in, rv_in, utc1_in, utc2_in, dut1_in, elong_in, phi_in, hm_in, xp_in, yp_in, phpa_in, tc_in, rh_in, wl_in]+[aob_out, zob_out, hob_out, dob_out, rob_out, eo_out, c_retval_out], op_axes=op_axes, op_flags=op_flags)
+    
+    #Iterate
     cdef double _rc
     cdef double _dc
     cdef double _pr
@@ -3511,45 +3860,46 @@ def atco13(rc, dc, pr, pd, px, rv, utc1, utc2, dut1, elong, phi, hm, xp, yp, php
     cdef double * _eo
     cdef int _c_retval
     cdef bint stat_ok = True
-    
-    while numpy.PyArray_MultiIter_NOTDONE(it):
-        _rc = (<double*>numpy.PyArray_MultiIter_DATA(it, 0))[0]
-        _dc = (<double*>numpy.PyArray_MultiIter_DATA(it, 1))[0]
-        _pr = (<double*>numpy.PyArray_MultiIter_DATA(it, 2))[0]
-        _pd = (<double*>numpy.PyArray_MultiIter_DATA(it, 3))[0]
-        _px = (<double*>numpy.PyArray_MultiIter_DATA(it, 4))[0]
-        _rv = (<double*>numpy.PyArray_MultiIter_DATA(it, 5))[0]
-        _utc1 = (<double*>numpy.PyArray_MultiIter_DATA(it, 6))[0]
-        _utc2 = (<double*>numpy.PyArray_MultiIter_DATA(it, 7))[0]
-        _dut1 = (<double*>numpy.PyArray_MultiIter_DATA(it, 8))[0]
-        _elong = (<double*>numpy.PyArray_MultiIter_DATA(it, 9))[0]
-        _phi = (<double*>numpy.PyArray_MultiIter_DATA(it, 10))[0]
-        _hm = (<double*>numpy.PyArray_MultiIter_DATA(it, 11))[0]
-        _xp = (<double*>numpy.PyArray_MultiIter_DATA(it, 12))[0]
-        _yp = (<double*>numpy.PyArray_MultiIter_DATA(it, 13))[0]
-        _phpa = (<double*>numpy.PyArray_MultiIter_DATA(it, 14))[0]
-        _tc = (<double*>numpy.PyArray_MultiIter_DATA(it, 15))[0]
-        _rh = (<double*>numpy.PyArray_MultiIter_DATA(it, 16))[0]
-        _wl = (<double*>numpy.PyArray_MultiIter_DATA(it, 17))[0]
-        _aob = (<double *>numpy.PyArray_MultiIter_DATA(it, 18))
-        _zob = (<double *>numpy.PyArray_MultiIter_DATA(it, 19))
-        _hob = (<double *>numpy.PyArray_MultiIter_DATA(it, 20))
-        _dob = (<double *>numpy.PyArray_MultiIter_DATA(it, 21))
-        _rob = (<double *>numpy.PyArray_MultiIter_DATA(it, 22))
-        _eo = (<double *>numpy.PyArray_MultiIter_DATA(it, 23))
-        
+    cdef char** dataptrarray = GetDataPtrArray(GetNpyIter(it))
+    cdef IterNextFunc iternext = GetIterNext(GetNpyIter(it), NULL)
+    cdef int status = 1
+    while status:
+        _rc = (<double *>(dataptrarray[0]))[0]
+        _dc = (<double *>(dataptrarray[1]))[0]
+        _pr = (<double *>(dataptrarray[2]))[0]
+        _pd = (<double *>(dataptrarray[3]))[0]
+        _px = (<double *>(dataptrarray[4]))[0]
+        _rv = (<double *>(dataptrarray[5]))[0]
+        _utc1 = (<double *>(dataptrarray[6]))[0]
+        _utc2 = (<double *>(dataptrarray[7]))[0]
+        _dut1 = (<double *>(dataptrarray[8]))[0]
+        _elong = (<double *>(dataptrarray[9]))[0]
+        _phi = (<double *>(dataptrarray[10]))[0]
+        _hm = (<double *>(dataptrarray[11]))[0]
+        _xp = (<double *>(dataptrarray[12]))[0]
+        _yp = (<double *>(dataptrarray[13]))[0]
+        _phpa = (<double *>(dataptrarray[14]))[0]
+        _tc = (<double *>(dataptrarray[15]))[0]
+        _rh = (<double *>(dataptrarray[16]))[0]
+        _wl = (<double *>(dataptrarray[17]))[0]
+        _aob = (<double *>(dataptrarray[18]))
+        _zob = (<double *>(dataptrarray[19]))
+        _hob = (<double *>(dataptrarray[20]))
+        _dob = (<double *>(dataptrarray[21]))
+        _rob = (<double *>(dataptrarray[22]))
+        _eo = (<double *>(dataptrarray[23]))
         _c_retval = eraAtco13(_rc, _dc, _pr, _pd, _px, _rv, _utc1, _utc2, _dut1, _elong, _phi, _hm, _xp, _yp, _phpa, _tc, _rh, _wl, _aob, _zob, _hob, _dob, _rob, _eo)
-        (<int*>numpy.PyArray_MultiIter_DATA(it, 24))[0] = _c_retval
+        (<int *>(dataptrarray[24]))[0] = _c_retval
         if _c_retval != 0:
             stat_ok = False
-        
-        numpy.PyArray_MultiIter_NEXT(it)
-
+        status = iternext(GetNpyIter(it))
+    
     if not stat_ok:
         check_errwarn(c_retval_out, 'atco13')
-
+    
     return aob_out, zob_out, hob_out, dob_out, rob_out, eo_out
 STATUS_CODES['atco13'] = {0: u'OK', 1: u'dubious year (Note 4)', -1: u'unacceptable date'}
+
 
 
 def atic13(ri, di, date1, date2):
@@ -3632,12 +3982,25 @@ def atic13(ri, di, date1, date2):
     Derived, with permission, from the SOFA library.  See notes at end of file.
   
     """
-    in_shape = numpy.broadcast(ri, di, date1, date2).shape
-    rc_out = numpy.empty(in_shape, dtype=numpy.double)
-    dc_out = numpy.empty(in_shape, dtype=numpy.double)
-    eo_out = numpy.empty(in_shape, dtype=numpy.double)
     
-    cdef numpy.broadcast it = numpy.broadcast(ri, di, date1, date2, rc_out, dc_out, eo_out)
+    #Turn all inputs into arrays
+    ri_in = numpy.array(ri, dtype=numpy.double, order="C", copy=False, subok=True)
+    di_in = numpy.array(di, dtype=numpy.double, order="C", copy=False, subok=True)
+    date1_in = numpy.array(date1, dtype=numpy.double, order="C", copy=False, subok=True)
+    date2_in = numpy.array(date2, dtype=numpy.double, order="C", copy=False, subok=True)
+    
+    #Create the output array, based on the broadcasted shape, adding the generated dimensions if needed
+    broadcast = numpy.broadcast(numpy.int32(0.0), numpy.int32(0.0), ri_in, di_in, date1_in, date2_in)
+    rc_out = numpy.empty(broadcast.shape+(), dtype=numpy.double)
+    dc_out = numpy.empty(broadcast.shape+(), dtype=numpy.double)
+    eo_out = numpy.empty(broadcast.shape+(), dtype=numpy.double)
+    
+    #Create the iterator, broadcasting on all but the consumed dimensions
+    op_axes = [[-1]*(broadcast.nd-arr.ndim)+range(arr.ndim) for arr in [ri_in, di_in, date1_in, date2_in]+[rc_out, dc_out, eo_out]]
+    op_flags = [['readonly']]*4+[['readwrite']]*3
+    it = numpy.nditer([ri_in, di_in, date1_in, date2_in]+[rc_out, dc_out, eo_out], op_axes=op_axes, op_flags=op_flags)
+    
+    #Iterate
     cdef double _ri
     cdef double _di
     cdef double _date1
@@ -3645,21 +4008,22 @@ def atic13(ri, di, date1, date2):
     cdef double * _rc
     cdef double * _dc
     cdef double * _eo
-    
-    while numpy.PyArray_MultiIter_NOTDONE(it):
-        _ri = (<double*>numpy.PyArray_MultiIter_DATA(it, 0))[0]
-        _di = (<double*>numpy.PyArray_MultiIter_DATA(it, 1))[0]
-        _date1 = (<double*>numpy.PyArray_MultiIter_DATA(it, 2))[0]
-        _date2 = (<double*>numpy.PyArray_MultiIter_DATA(it, 3))[0]
-        _rc = (<double *>numpy.PyArray_MultiIter_DATA(it, 4))
-        _dc = (<double *>numpy.PyArray_MultiIter_DATA(it, 5))
-        _eo = (<double *>numpy.PyArray_MultiIter_DATA(it, 6))
-        
+    cdef char** dataptrarray = GetDataPtrArray(GetNpyIter(it))
+    cdef IterNextFunc iternext = GetIterNext(GetNpyIter(it), NULL)
+    cdef int status = 1
+    while status:
+        _ri = (<double *>(dataptrarray[0]))[0]
+        _di = (<double *>(dataptrarray[1]))[0]
+        _date1 = (<double *>(dataptrarray[2]))[0]
+        _date2 = (<double *>(dataptrarray[3]))[0]
+        _rc = (<double *>(dataptrarray[4]))
+        _dc = (<double *>(dataptrarray[5]))
+        _eo = (<double *>(dataptrarray[6]))
         eraAtic13(_ri, _di, _date1, _date2, _rc, _dc, _eo)
-        
-        numpy.PyArray_MultiIter_NEXT(it)
-
+        status = iternext(GetNpyIter(it))
+    
     return rc_out, dc_out, eo_out
+
 
 def aticq(ri, di, astrom):
     """
@@ -3729,29 +4093,42 @@ def aticq(ri, di, astrom):
     Derived, with permission, from the SOFA library.  See notes at end of file.
   
     """
-    in_shape = numpy.broadcast(ri, di, astrom).shape
-    rc_out = numpy.empty(in_shape, dtype=numpy.double)
-    dc_out = numpy.empty(in_shape, dtype=numpy.double)
     
-    cdef numpy.broadcast it = numpy.broadcast(ri, di, astrom, rc_out, dc_out)
+    #Turn all inputs into arrays
+    ri_in = numpy.array(ri, dtype=numpy.double, order="C", copy=False, subok=True)
+    di_in = numpy.array(di, dtype=numpy.double, order="C", copy=False, subok=True)
+    astrom_in = numpy.array(astrom, dtype=dt_eraASTROM, order="C", copy=False, subok=True)
+    
+    #Create the output array, based on the broadcasted shape, adding the generated dimensions if needed
+    broadcast = numpy.broadcast(numpy.int32(0.0), numpy.int32(0.0), ri_in, di_in, astrom_in)
+    rc_out = numpy.empty(broadcast.shape+(), dtype=numpy.double)
+    dc_out = numpy.empty(broadcast.shape+(), dtype=numpy.double)
+    
+    #Create the iterator, broadcasting on all but the consumed dimensions
+    op_axes = [[-1]*(broadcast.nd-arr.ndim)+range(arr.ndim) for arr in [ri_in, di_in, astrom_in]+[rc_out, dc_out]]
+    op_flags = [['readonly']]*3+[['readwrite']]*2
+    it = numpy.nditer([ri_in, di_in, astrom_in]+[rc_out, dc_out], op_axes=op_axes, op_flags=op_flags)
+    
+    #Iterate
     cdef double _ri
     cdef double _di
     cdef eraASTROM * _astrom
     cdef double * _rc
     cdef double * _dc
-    
-    while numpy.PyArray_MultiIter_NOTDONE(it):
-        _ri = (<double*>numpy.PyArray_MultiIter_DATA(it, 0))[0]
-        _di = (<double*>numpy.PyArray_MultiIter_DATA(it, 1))[0]
-        _astrom = (<eraASTROM *>numpy.PyArray_MultiIter_DATA(it, 2))
-        _rc = (<double *>numpy.PyArray_MultiIter_DATA(it, 3))
-        _dc = (<double *>numpy.PyArray_MultiIter_DATA(it, 4))
-        
+    cdef char** dataptrarray = GetDataPtrArray(GetNpyIter(it))
+    cdef IterNextFunc iternext = GetIterNext(GetNpyIter(it), NULL)
+    cdef int status = 1
+    while status:
+        _ri = (<double *>(dataptrarray[0]))[0]
+        _di = (<double *>(dataptrarray[1]))[0]
+        _astrom = (<eraASTROM *>(dataptrarray[2]))
+        _rc = (<double *>(dataptrarray[3]))
+        _dc = (<double *>(dataptrarray[4]))
         eraAticq(_ri, _di, _astrom, _rc, _dc)
-        
-        numpy.PyArray_MultiIter_NEXT(it)
-
+        status = iternext(GetNpyIter(it))
+    
     return rc_out, dc_out
+
 
 def aticqn(ri, di, astrom, n, b):
     """
@@ -3859,11 +4236,25 @@ def aticqn(ri, di, astrom, n, b):
     Derived, with permission, from the SOFA library.  See notes at end of file.
   
     """
-    in_shape = numpy.broadcast(ri, di, astrom, n, b).shape
-    rc_out = numpy.empty(in_shape, dtype=numpy.double)
-    dc_out = numpy.empty(in_shape, dtype=numpy.double)
     
-    cdef numpy.broadcast it = numpy.broadcast(ri, di, astrom, n, b, rc_out, dc_out)
+    #Turn all inputs into arrays
+    ri_in = numpy.array(ri, dtype=numpy.double, order="C", copy=False, subok=True)
+    di_in = numpy.array(di, dtype=numpy.double, order="C", copy=False, subok=True)
+    astrom_in = numpy.array(astrom, dtype=dt_eraASTROM, order="C", copy=False, subok=True)
+    n_in = numpy.array(n, dtype=numpy.intc, order="C", copy=False, subok=True)
+    b_in = numpy.array(b, dtype=dt_eraLDBODY, order="C", copy=False, subok=True)
+    
+    #Create the output array, based on the broadcasted shape, adding the generated dimensions if needed
+    broadcast = numpy.broadcast(numpy.int32(0.0), numpy.int32(0.0), ri_in, di_in, astrom_in, n_in, b_in)
+    rc_out = numpy.empty(broadcast.shape+(), dtype=numpy.double)
+    dc_out = numpy.empty(broadcast.shape+(), dtype=numpy.double)
+    
+    #Create the iterator, broadcasting on all but the consumed dimensions
+    op_axes = [[-1]*(broadcast.nd-arr.ndim)+range(arr.ndim) for arr in [ri_in, di_in, astrom_in, n_in, b_in]+[rc_out, dc_out]]
+    op_flags = [['readonly']]*5+[['readwrite']]*2
+    it = numpy.nditer([ri_in, di_in, astrom_in, n_in, b_in]+[rc_out, dc_out], op_axes=op_axes, op_flags=op_flags)
+    
+    #Iterate
     cdef double _ri
     cdef double _di
     cdef eraASTROM * _astrom
@@ -3871,21 +4262,22 @@ def aticqn(ri, di, astrom, n, b):
     cdef eraLDBODY * _b
     cdef double * _rc
     cdef double * _dc
-    
-    while numpy.PyArray_MultiIter_NOTDONE(it):
-        _ri = (<double*>numpy.PyArray_MultiIter_DATA(it, 0))[0]
-        _di = (<double*>numpy.PyArray_MultiIter_DATA(it, 1))[0]
-        _astrom = (<eraASTROM *>numpy.PyArray_MultiIter_DATA(it, 2))
-        _n = (<int*>numpy.PyArray_MultiIter_DATA(it, 3))[0]
-        _b = (<eraLDBODY *>numpy.PyArray_MultiIter_DATA(it, 4))
-        _rc = (<double *>numpy.PyArray_MultiIter_DATA(it, 5))
-        _dc = (<double *>numpy.PyArray_MultiIter_DATA(it, 6))
-        
+    cdef char** dataptrarray = GetDataPtrArray(GetNpyIter(it))
+    cdef IterNextFunc iternext = GetIterNext(GetNpyIter(it), NULL)
+    cdef int status = 1
+    while status:
+        _ri = (<double *>(dataptrarray[0]))[0]
+        _di = (<double *>(dataptrarray[1]))[0]
+        _astrom = (<eraASTROM *>(dataptrarray[2]))
+        _n = (<int *>(dataptrarray[3]))[0]
+        _b = (<eraLDBODY *>(dataptrarray[4]))
+        _rc = (<double *>(dataptrarray[5]))
+        _dc = (<double *>(dataptrarray[6]))
         eraAticqn(_ri, _di, _astrom, _n, _b, _rc, _dc)
-        
-        numpy.PyArray_MultiIter_NEXT(it)
-
+        status = iternext(GetNpyIter(it))
+    
     return rc_out, dc_out
+
 
 def atio13(ri, di, utc1, utc2, dut1, elong, phi, hm, xp, yp, phpa, tc, rh, wl):
     """
@@ -4026,15 +4418,38 @@ def atio13(ri, di, utc1, utc2, dut1, elong, phi, hm, xp, yp, phpa, tc, rh, wl):
     Derived, with permission, from the SOFA library.  See notes at end of file.
   
     """
-    in_shape = numpy.broadcast(ri, di, utc1, utc2, dut1, elong, phi, hm, xp, yp, phpa, tc, rh, wl).shape
-    aob_out = numpy.empty(in_shape, dtype=numpy.double)
-    zob_out = numpy.empty(in_shape, dtype=numpy.double)
-    hob_out = numpy.empty(in_shape, dtype=numpy.double)
-    dob_out = numpy.empty(in_shape, dtype=numpy.double)
-    rob_out = numpy.empty(in_shape, dtype=numpy.double)
-    c_retval_out = numpy.empty(in_shape, dtype=numpy.intc)
     
-    cdef numpy.broadcast it = numpy.broadcast(ri, di, utc1, utc2, dut1, elong, phi, hm, xp, yp, phpa, tc, rh, wl, aob_out, zob_out, hob_out, dob_out, rob_out, c_retval_out)
+    #Turn all inputs into arrays
+    ri_in = numpy.array(ri, dtype=numpy.double, order="C", copy=False, subok=True)
+    di_in = numpy.array(di, dtype=numpy.double, order="C", copy=False, subok=True)
+    utc1_in = numpy.array(utc1, dtype=numpy.double, order="C", copy=False, subok=True)
+    utc2_in = numpy.array(utc2, dtype=numpy.double, order="C", copy=False, subok=True)
+    dut1_in = numpy.array(dut1, dtype=numpy.double, order="C", copy=False, subok=True)
+    elong_in = numpy.array(elong, dtype=numpy.double, order="C", copy=False, subok=True)
+    phi_in = numpy.array(phi, dtype=numpy.double, order="C", copy=False, subok=True)
+    hm_in = numpy.array(hm, dtype=numpy.double, order="C", copy=False, subok=True)
+    xp_in = numpy.array(xp, dtype=numpy.double, order="C", copy=False, subok=True)
+    yp_in = numpy.array(yp, dtype=numpy.double, order="C", copy=False, subok=True)
+    phpa_in = numpy.array(phpa, dtype=numpy.double, order="C", copy=False, subok=True)
+    tc_in = numpy.array(tc, dtype=numpy.double, order="C", copy=False, subok=True)
+    rh_in = numpy.array(rh, dtype=numpy.double, order="C", copy=False, subok=True)
+    wl_in = numpy.array(wl, dtype=numpy.double, order="C", copy=False, subok=True)
+    
+    #Create the output array, based on the broadcasted shape, adding the generated dimensions if needed
+    broadcast = numpy.broadcast(numpy.int32(0.0), numpy.int32(0.0), ri_in, di_in, utc1_in, utc2_in, dut1_in, elong_in, phi_in, hm_in, xp_in, yp_in, phpa_in, tc_in, rh_in, wl_in)
+    aob_out = numpy.empty(broadcast.shape+(), dtype=numpy.double)
+    zob_out = numpy.empty(broadcast.shape+(), dtype=numpy.double)
+    hob_out = numpy.empty(broadcast.shape+(), dtype=numpy.double)
+    dob_out = numpy.empty(broadcast.shape+(), dtype=numpy.double)
+    rob_out = numpy.empty(broadcast.shape+(), dtype=numpy.double)
+    c_retval_out = numpy.empty(broadcast.shape+(), dtype=numpy.intc)
+    
+    #Create the iterator, broadcasting on all but the consumed dimensions
+    op_axes = [[-1]*(broadcast.nd-arr.ndim)+range(arr.ndim) for arr in [ri_in, di_in, utc1_in, utc2_in, dut1_in, elong_in, phi_in, hm_in, xp_in, yp_in, phpa_in, tc_in, rh_in, wl_in]+[aob_out, zob_out, hob_out, dob_out, rob_out, c_retval_out]]
+    op_flags = [['readonly']]*14+[['readwrite']]*6
+    it = numpy.nditer([ri_in, di_in, utc1_in, utc2_in, dut1_in, elong_in, phi_in, hm_in, xp_in, yp_in, phpa_in, tc_in, rh_in, wl_in]+[aob_out, zob_out, hob_out, dob_out, rob_out, c_retval_out], op_axes=op_axes, op_flags=op_flags)
+    
+    #Iterate
     cdef double _ri
     cdef double _di
     cdef double _utc1
@@ -4056,40 +4471,41 @@ def atio13(ri, di, utc1, utc2, dut1, elong, phi, hm, xp, yp, phpa, tc, rh, wl):
     cdef double * _rob
     cdef int _c_retval
     cdef bint stat_ok = True
-    
-    while numpy.PyArray_MultiIter_NOTDONE(it):
-        _ri = (<double*>numpy.PyArray_MultiIter_DATA(it, 0))[0]
-        _di = (<double*>numpy.PyArray_MultiIter_DATA(it, 1))[0]
-        _utc1 = (<double*>numpy.PyArray_MultiIter_DATA(it, 2))[0]
-        _utc2 = (<double*>numpy.PyArray_MultiIter_DATA(it, 3))[0]
-        _dut1 = (<double*>numpy.PyArray_MultiIter_DATA(it, 4))[0]
-        _elong = (<double*>numpy.PyArray_MultiIter_DATA(it, 5))[0]
-        _phi = (<double*>numpy.PyArray_MultiIter_DATA(it, 6))[0]
-        _hm = (<double*>numpy.PyArray_MultiIter_DATA(it, 7))[0]
-        _xp = (<double*>numpy.PyArray_MultiIter_DATA(it, 8))[0]
-        _yp = (<double*>numpy.PyArray_MultiIter_DATA(it, 9))[0]
-        _phpa = (<double*>numpy.PyArray_MultiIter_DATA(it, 10))[0]
-        _tc = (<double*>numpy.PyArray_MultiIter_DATA(it, 11))[0]
-        _rh = (<double*>numpy.PyArray_MultiIter_DATA(it, 12))[0]
-        _wl = (<double*>numpy.PyArray_MultiIter_DATA(it, 13))[0]
-        _aob = (<double *>numpy.PyArray_MultiIter_DATA(it, 14))
-        _zob = (<double *>numpy.PyArray_MultiIter_DATA(it, 15))
-        _hob = (<double *>numpy.PyArray_MultiIter_DATA(it, 16))
-        _dob = (<double *>numpy.PyArray_MultiIter_DATA(it, 17))
-        _rob = (<double *>numpy.PyArray_MultiIter_DATA(it, 18))
-        
+    cdef char** dataptrarray = GetDataPtrArray(GetNpyIter(it))
+    cdef IterNextFunc iternext = GetIterNext(GetNpyIter(it), NULL)
+    cdef int status = 1
+    while status:
+        _ri = (<double *>(dataptrarray[0]))[0]
+        _di = (<double *>(dataptrarray[1]))[0]
+        _utc1 = (<double *>(dataptrarray[2]))[0]
+        _utc2 = (<double *>(dataptrarray[3]))[0]
+        _dut1 = (<double *>(dataptrarray[4]))[0]
+        _elong = (<double *>(dataptrarray[5]))[0]
+        _phi = (<double *>(dataptrarray[6]))[0]
+        _hm = (<double *>(dataptrarray[7]))[0]
+        _xp = (<double *>(dataptrarray[8]))[0]
+        _yp = (<double *>(dataptrarray[9]))[0]
+        _phpa = (<double *>(dataptrarray[10]))[0]
+        _tc = (<double *>(dataptrarray[11]))[0]
+        _rh = (<double *>(dataptrarray[12]))[0]
+        _wl = (<double *>(dataptrarray[13]))[0]
+        _aob = (<double *>(dataptrarray[14]))
+        _zob = (<double *>(dataptrarray[15]))
+        _hob = (<double *>(dataptrarray[16]))
+        _dob = (<double *>(dataptrarray[17]))
+        _rob = (<double *>(dataptrarray[18]))
         _c_retval = eraAtio13(_ri, _di, _utc1, _utc2, _dut1, _elong, _phi, _hm, _xp, _yp, _phpa, _tc, _rh, _wl, _aob, _zob, _hob, _dob, _rob)
-        (<int*>numpy.PyArray_MultiIter_DATA(it, 19))[0] = _c_retval
+        (<int *>(dataptrarray[19]))[0] = _c_retval
         if _c_retval != 0:
             stat_ok = False
-        
-        numpy.PyArray_MultiIter_NEXT(it)
-
+        status = iternext(GetNpyIter(it))
+    
     if not stat_ok:
         check_errwarn(c_retval_out, 'atio13')
-
+    
     return aob_out, zob_out, hob_out, dob_out, rob_out
 STATUS_CODES['atio13'] = {0: u'OK', 1: u'dubious year (Note 2)', -1: u'unacceptable date'}
+
 
 
 def atioq(ri, di, astrom):
@@ -4195,14 +4611,26 @@ def atioq(ri, di, astrom):
     Derived, with permission, from the SOFA library.  See notes at end of file.
   
     """
-    in_shape = numpy.broadcast(ri, di, astrom).shape
-    aob_out = numpy.empty(in_shape, dtype=numpy.double)
-    zob_out = numpy.empty(in_shape, dtype=numpy.double)
-    hob_out = numpy.empty(in_shape, dtype=numpy.double)
-    dob_out = numpy.empty(in_shape, dtype=numpy.double)
-    rob_out = numpy.empty(in_shape, dtype=numpy.double)
     
-    cdef numpy.broadcast it = numpy.broadcast(ri, di, astrom, aob_out, zob_out, hob_out, dob_out, rob_out)
+    #Turn all inputs into arrays
+    ri_in = numpy.array(ri, dtype=numpy.double, order="C", copy=False, subok=True)
+    di_in = numpy.array(di, dtype=numpy.double, order="C", copy=False, subok=True)
+    astrom_in = numpy.array(astrom, dtype=dt_eraASTROM, order="C", copy=False, subok=True)
+    
+    #Create the output array, based on the broadcasted shape, adding the generated dimensions if needed
+    broadcast = numpy.broadcast(numpy.int32(0.0), numpy.int32(0.0), ri_in, di_in, astrom_in)
+    aob_out = numpy.empty(broadcast.shape+(), dtype=numpy.double)
+    zob_out = numpy.empty(broadcast.shape+(), dtype=numpy.double)
+    hob_out = numpy.empty(broadcast.shape+(), dtype=numpy.double)
+    dob_out = numpy.empty(broadcast.shape+(), dtype=numpy.double)
+    rob_out = numpy.empty(broadcast.shape+(), dtype=numpy.double)
+    
+    #Create the iterator, broadcasting on all but the consumed dimensions
+    op_axes = [[-1]*(broadcast.nd-arr.ndim)+range(arr.ndim) for arr in [ri_in, di_in, astrom_in]+[aob_out, zob_out, hob_out, dob_out, rob_out]]
+    op_flags = [['readonly']]*3+[['readwrite']]*5
+    it = numpy.nditer([ri_in, di_in, astrom_in]+[aob_out, zob_out, hob_out, dob_out, rob_out], op_axes=op_axes, op_flags=op_flags)
+    
+    #Iterate
     cdef double _ri
     cdef double _di
     cdef eraASTROM * _astrom
@@ -4211,22 +4639,23 @@ def atioq(ri, di, astrom):
     cdef double * _hob
     cdef double * _dob
     cdef double * _rob
-    
-    while numpy.PyArray_MultiIter_NOTDONE(it):
-        _ri = (<double*>numpy.PyArray_MultiIter_DATA(it, 0))[0]
-        _di = (<double*>numpy.PyArray_MultiIter_DATA(it, 1))[0]
-        _astrom = (<eraASTROM *>numpy.PyArray_MultiIter_DATA(it, 2))
-        _aob = (<double *>numpy.PyArray_MultiIter_DATA(it, 3))
-        _zob = (<double *>numpy.PyArray_MultiIter_DATA(it, 4))
-        _hob = (<double *>numpy.PyArray_MultiIter_DATA(it, 5))
-        _dob = (<double *>numpy.PyArray_MultiIter_DATA(it, 6))
-        _rob = (<double *>numpy.PyArray_MultiIter_DATA(it, 7))
-        
+    cdef char** dataptrarray = GetDataPtrArray(GetNpyIter(it))
+    cdef IterNextFunc iternext = GetIterNext(GetNpyIter(it), NULL)
+    cdef int status = 1
+    while status:
+        _ri = (<double *>(dataptrarray[0]))[0]
+        _di = (<double *>(dataptrarray[1]))[0]
+        _astrom = (<eraASTROM *>(dataptrarray[2]))
+        _aob = (<double *>(dataptrarray[3]))
+        _zob = (<double *>(dataptrarray[4]))
+        _hob = (<double *>(dataptrarray[5]))
+        _dob = (<double *>(dataptrarray[6]))
+        _rob = (<double *>(dataptrarray[7]))
         eraAtioq(_ri, _di, _astrom, _aob, _zob, _hob, _dob, _rob)
-        
-        numpy.PyArray_MultiIter_NEXT(it)
-
+        status = iternext(GetNpyIter(it))
+    
     return aob_out, zob_out, hob_out, dob_out, rob_out
+
 
 def atoc13(type, ob1, ob2, utc1, utc2, dut1, elong, phi, hm, xp, yp, phpa, tc, rh, wl):
     """
@@ -4375,13 +4804,37 @@ def atoc13(type, ob1, ob2, utc1, utc2, dut1, elong, phi, hm, xp, yp, phpa, tc, r
     Derived, with permission, from the SOFA library.  See notes at end of file.
   
     """
-    in_shape = numpy.broadcast(type, ob1, ob2, utc1, utc2, dut1, elong, phi, hm, xp, yp, phpa, tc, rh, wl).shape
-    rc_out = numpy.empty(in_shape, dtype=numpy.double)
-    dc_out = numpy.empty(in_shape, dtype=numpy.double)
-    c_retval_out = numpy.empty(in_shape, dtype=numpy.intc)
     
-    cdef numpy.broadcast it = numpy.broadcast(type, ob1, ob2, utc1, utc2, dut1, elong, phi, hm, xp, yp, phpa, tc, rh, wl, rc_out, dc_out, c_retval_out)
-    cdef char * _type
+    #Turn all inputs into arrays
+    type_in = numpy.array(type, dtype=numpy.dtype('S16'), order="C", copy=False, subok=True)
+    ob1_in = numpy.array(ob1, dtype=numpy.double, order="C", copy=False, subok=True)
+    ob2_in = numpy.array(ob2, dtype=numpy.double, order="C", copy=False, subok=True)
+    utc1_in = numpy.array(utc1, dtype=numpy.double, order="C", copy=False, subok=True)
+    utc2_in = numpy.array(utc2, dtype=numpy.double, order="C", copy=False, subok=True)
+    dut1_in = numpy.array(dut1, dtype=numpy.double, order="C", copy=False, subok=True)
+    elong_in = numpy.array(elong, dtype=numpy.double, order="C", copy=False, subok=True)
+    phi_in = numpy.array(phi, dtype=numpy.double, order="C", copy=False, subok=True)
+    hm_in = numpy.array(hm, dtype=numpy.double, order="C", copy=False, subok=True)
+    xp_in = numpy.array(xp, dtype=numpy.double, order="C", copy=False, subok=True)
+    yp_in = numpy.array(yp, dtype=numpy.double, order="C", copy=False, subok=True)
+    phpa_in = numpy.array(phpa, dtype=numpy.double, order="C", copy=False, subok=True)
+    tc_in = numpy.array(tc, dtype=numpy.double, order="C", copy=False, subok=True)
+    rh_in = numpy.array(rh, dtype=numpy.double, order="C", copy=False, subok=True)
+    wl_in = numpy.array(wl, dtype=numpy.double, order="C", copy=False, subok=True)
+    
+    #Create the output array, based on the broadcasted shape, adding the generated dimensions if needed
+    broadcast = numpy.broadcast(numpy.int32(0.0), numpy.int32(0.0), type_in, ob1_in, ob2_in, utc1_in, utc2_in, dut1_in, elong_in, phi_in, hm_in, xp_in, yp_in, phpa_in, tc_in, rh_in, wl_in)
+    rc_out = numpy.empty(broadcast.shape+(), dtype=numpy.double)
+    dc_out = numpy.empty(broadcast.shape+(), dtype=numpy.double)
+    c_retval_out = numpy.empty(broadcast.shape+(), dtype=numpy.intc)
+    
+    #Create the iterator, broadcasting on all but the consumed dimensions
+    op_axes = [[-1]*(broadcast.nd-arr.ndim)+range(arr.ndim) for arr in [type_in, ob1_in, ob2_in, utc1_in, utc2_in, dut1_in, elong_in, phi_in, hm_in, xp_in, yp_in, phpa_in, tc_in, rh_in, wl_in]+[rc_out, dc_out, c_retval_out]]
+    op_flags = [['readonly']]*15+[['readwrite']]*3
+    it = numpy.nditer([type_in, ob1_in, ob2_in, utc1_in, utc2_in, dut1_in, elong_in, phi_in, hm_in, xp_in, yp_in, phpa_in, tc_in, rh_in, wl_in]+[rc_out, dc_out, c_retval_out], op_axes=op_axes, op_flags=op_flags)
+    
+    #Iterate
+    cdef const char * _type
     cdef double _ob1
     cdef double _ob2
     cdef double _utc1
@@ -4400,38 +4853,39 @@ def atoc13(type, ob1, ob2, utc1, utc2, dut1, elong, phi, hm, xp, yp, phpa, tc, r
     cdef double * _dc
     cdef int _c_retval
     cdef bint stat_ok = True
-    
-    while numpy.PyArray_MultiIter_NOTDONE(it):
-        _type = (<char *>numpy.PyArray_MultiIter_DATA(it, 0))
-        _ob1 = (<double*>numpy.PyArray_MultiIter_DATA(it, 1))[0]
-        _ob2 = (<double*>numpy.PyArray_MultiIter_DATA(it, 2))[0]
-        _utc1 = (<double*>numpy.PyArray_MultiIter_DATA(it, 3))[0]
-        _utc2 = (<double*>numpy.PyArray_MultiIter_DATA(it, 4))[0]
-        _dut1 = (<double*>numpy.PyArray_MultiIter_DATA(it, 5))[0]
-        _elong = (<double*>numpy.PyArray_MultiIter_DATA(it, 6))[0]
-        _phi = (<double*>numpy.PyArray_MultiIter_DATA(it, 7))[0]
-        _hm = (<double*>numpy.PyArray_MultiIter_DATA(it, 8))[0]
-        _xp = (<double*>numpy.PyArray_MultiIter_DATA(it, 9))[0]
-        _yp = (<double*>numpy.PyArray_MultiIter_DATA(it, 10))[0]
-        _phpa = (<double*>numpy.PyArray_MultiIter_DATA(it, 11))[0]
-        _tc = (<double*>numpy.PyArray_MultiIter_DATA(it, 12))[0]
-        _rh = (<double*>numpy.PyArray_MultiIter_DATA(it, 13))[0]
-        _wl = (<double*>numpy.PyArray_MultiIter_DATA(it, 14))[0]
-        _rc = (<double *>numpy.PyArray_MultiIter_DATA(it, 15))
-        _dc = (<double *>numpy.PyArray_MultiIter_DATA(it, 16))
-        
+    cdef char** dataptrarray = GetDataPtrArray(GetNpyIter(it))
+    cdef IterNextFunc iternext = GetIterNext(GetNpyIter(it), NULL)
+    cdef int status = 1
+    while status:
+        _type = (<const char *>(dataptrarray[0]))
+        _ob1 = (<double *>(dataptrarray[1]))[0]
+        _ob2 = (<double *>(dataptrarray[2]))[0]
+        _utc1 = (<double *>(dataptrarray[3]))[0]
+        _utc2 = (<double *>(dataptrarray[4]))[0]
+        _dut1 = (<double *>(dataptrarray[5]))[0]
+        _elong = (<double *>(dataptrarray[6]))[0]
+        _phi = (<double *>(dataptrarray[7]))[0]
+        _hm = (<double *>(dataptrarray[8]))[0]
+        _xp = (<double *>(dataptrarray[9]))[0]
+        _yp = (<double *>(dataptrarray[10]))[0]
+        _phpa = (<double *>(dataptrarray[11]))[0]
+        _tc = (<double *>(dataptrarray[12]))[0]
+        _rh = (<double *>(dataptrarray[13]))[0]
+        _wl = (<double *>(dataptrarray[14]))[0]
+        _rc = (<double *>(dataptrarray[15]))
+        _dc = (<double *>(dataptrarray[16]))
         _c_retval = eraAtoc13(_type, _ob1, _ob2, _utc1, _utc2, _dut1, _elong, _phi, _hm, _xp, _yp, _phpa, _tc, _rh, _wl, _rc, _dc)
-        (<int*>numpy.PyArray_MultiIter_DATA(it, 17))[0] = _c_retval
+        (<int *>(dataptrarray[17]))[0] = _c_retval
         if _c_retval != 0:
             stat_ok = False
-        
-        numpy.PyArray_MultiIter_NEXT(it)
-
+        status = iternext(GetNpyIter(it))
+    
     if not stat_ok:
         check_errwarn(c_retval_out, 'atoc13')
-
+    
     return rc_out, dc_out
 STATUS_CODES['atoc13'] = {0: u'OK', 1: u'dubious year (Note 4)', -1: u'unacceptable date'}
+
 
 
 def atoi13(type, ob1, ob2, utc1, utc2, dut1, elong, phi, hm, xp, yp, phpa, tc, rh, wl):
@@ -4580,13 +5034,37 @@ def atoi13(type, ob1, ob2, utc1, utc2, dut1, elong, phi, hm, xp, yp, phpa, tc, r
     Derived, with permission, from the SOFA library.  See notes at end of file.
   
     """
-    in_shape = numpy.broadcast(type, ob1, ob2, utc1, utc2, dut1, elong, phi, hm, xp, yp, phpa, tc, rh, wl).shape
-    ri_out = numpy.empty(in_shape, dtype=numpy.double)
-    di_out = numpy.empty(in_shape, dtype=numpy.double)
-    c_retval_out = numpy.empty(in_shape, dtype=numpy.intc)
     
-    cdef numpy.broadcast it = numpy.broadcast(type, ob1, ob2, utc1, utc2, dut1, elong, phi, hm, xp, yp, phpa, tc, rh, wl, ri_out, di_out, c_retval_out)
-    cdef char * _type
+    #Turn all inputs into arrays
+    type_in = numpy.array(type, dtype=numpy.dtype('S16'), order="C", copy=False, subok=True)
+    ob1_in = numpy.array(ob1, dtype=numpy.double, order="C", copy=False, subok=True)
+    ob2_in = numpy.array(ob2, dtype=numpy.double, order="C", copy=False, subok=True)
+    utc1_in = numpy.array(utc1, dtype=numpy.double, order="C", copy=False, subok=True)
+    utc2_in = numpy.array(utc2, dtype=numpy.double, order="C", copy=False, subok=True)
+    dut1_in = numpy.array(dut1, dtype=numpy.double, order="C", copy=False, subok=True)
+    elong_in = numpy.array(elong, dtype=numpy.double, order="C", copy=False, subok=True)
+    phi_in = numpy.array(phi, dtype=numpy.double, order="C", copy=False, subok=True)
+    hm_in = numpy.array(hm, dtype=numpy.double, order="C", copy=False, subok=True)
+    xp_in = numpy.array(xp, dtype=numpy.double, order="C", copy=False, subok=True)
+    yp_in = numpy.array(yp, dtype=numpy.double, order="C", copy=False, subok=True)
+    phpa_in = numpy.array(phpa, dtype=numpy.double, order="C", copy=False, subok=True)
+    tc_in = numpy.array(tc, dtype=numpy.double, order="C", copy=False, subok=True)
+    rh_in = numpy.array(rh, dtype=numpy.double, order="C", copy=False, subok=True)
+    wl_in = numpy.array(wl, dtype=numpy.double, order="C", copy=False, subok=True)
+    
+    #Create the output array, based on the broadcasted shape, adding the generated dimensions if needed
+    broadcast = numpy.broadcast(numpy.int32(0.0), numpy.int32(0.0), type_in, ob1_in, ob2_in, utc1_in, utc2_in, dut1_in, elong_in, phi_in, hm_in, xp_in, yp_in, phpa_in, tc_in, rh_in, wl_in)
+    ri_out = numpy.empty(broadcast.shape+(), dtype=numpy.double)
+    di_out = numpy.empty(broadcast.shape+(), dtype=numpy.double)
+    c_retval_out = numpy.empty(broadcast.shape+(), dtype=numpy.intc)
+    
+    #Create the iterator, broadcasting on all but the consumed dimensions
+    op_axes = [[-1]*(broadcast.nd-arr.ndim)+range(arr.ndim) for arr in [type_in, ob1_in, ob2_in, utc1_in, utc2_in, dut1_in, elong_in, phi_in, hm_in, xp_in, yp_in, phpa_in, tc_in, rh_in, wl_in]+[ri_out, di_out, c_retval_out]]
+    op_flags = [['readonly']]*15+[['readwrite']]*3
+    it = numpy.nditer([type_in, ob1_in, ob2_in, utc1_in, utc2_in, dut1_in, elong_in, phi_in, hm_in, xp_in, yp_in, phpa_in, tc_in, rh_in, wl_in]+[ri_out, di_out, c_retval_out], op_axes=op_axes, op_flags=op_flags)
+    
+    #Iterate
+    cdef const char * _type
     cdef double _ob1
     cdef double _ob2
     cdef double _utc1
@@ -4605,38 +5083,39 @@ def atoi13(type, ob1, ob2, utc1, utc2, dut1, elong, phi, hm, xp, yp, phpa, tc, r
     cdef double * _di
     cdef int _c_retval
     cdef bint stat_ok = True
-    
-    while numpy.PyArray_MultiIter_NOTDONE(it):
-        _type = (<char *>numpy.PyArray_MultiIter_DATA(it, 0))
-        _ob1 = (<double*>numpy.PyArray_MultiIter_DATA(it, 1))[0]
-        _ob2 = (<double*>numpy.PyArray_MultiIter_DATA(it, 2))[0]
-        _utc1 = (<double*>numpy.PyArray_MultiIter_DATA(it, 3))[0]
-        _utc2 = (<double*>numpy.PyArray_MultiIter_DATA(it, 4))[0]
-        _dut1 = (<double*>numpy.PyArray_MultiIter_DATA(it, 5))[0]
-        _elong = (<double*>numpy.PyArray_MultiIter_DATA(it, 6))[0]
-        _phi = (<double*>numpy.PyArray_MultiIter_DATA(it, 7))[0]
-        _hm = (<double*>numpy.PyArray_MultiIter_DATA(it, 8))[0]
-        _xp = (<double*>numpy.PyArray_MultiIter_DATA(it, 9))[0]
-        _yp = (<double*>numpy.PyArray_MultiIter_DATA(it, 10))[0]
-        _phpa = (<double*>numpy.PyArray_MultiIter_DATA(it, 11))[0]
-        _tc = (<double*>numpy.PyArray_MultiIter_DATA(it, 12))[0]
-        _rh = (<double*>numpy.PyArray_MultiIter_DATA(it, 13))[0]
-        _wl = (<double*>numpy.PyArray_MultiIter_DATA(it, 14))[0]
-        _ri = (<double *>numpy.PyArray_MultiIter_DATA(it, 15))
-        _di = (<double *>numpy.PyArray_MultiIter_DATA(it, 16))
-        
+    cdef char** dataptrarray = GetDataPtrArray(GetNpyIter(it))
+    cdef IterNextFunc iternext = GetIterNext(GetNpyIter(it), NULL)
+    cdef int status = 1
+    while status:
+        _type = (<const char *>(dataptrarray[0]))
+        _ob1 = (<double *>(dataptrarray[1]))[0]
+        _ob2 = (<double *>(dataptrarray[2]))[0]
+        _utc1 = (<double *>(dataptrarray[3]))[0]
+        _utc2 = (<double *>(dataptrarray[4]))[0]
+        _dut1 = (<double *>(dataptrarray[5]))[0]
+        _elong = (<double *>(dataptrarray[6]))[0]
+        _phi = (<double *>(dataptrarray[7]))[0]
+        _hm = (<double *>(dataptrarray[8]))[0]
+        _xp = (<double *>(dataptrarray[9]))[0]
+        _yp = (<double *>(dataptrarray[10]))[0]
+        _phpa = (<double *>(dataptrarray[11]))[0]
+        _tc = (<double *>(dataptrarray[12]))[0]
+        _rh = (<double *>(dataptrarray[13]))[0]
+        _wl = (<double *>(dataptrarray[14]))[0]
+        _ri = (<double *>(dataptrarray[15]))
+        _di = (<double *>(dataptrarray[16]))
         _c_retval = eraAtoi13(_type, _ob1, _ob2, _utc1, _utc2, _dut1, _elong, _phi, _hm, _xp, _yp, _phpa, _tc, _rh, _wl, _ri, _di)
-        (<int*>numpy.PyArray_MultiIter_DATA(it, 17))[0] = _c_retval
+        (<int *>(dataptrarray[17]))[0] = _c_retval
         if _c_retval != 0:
             stat_ok = False
-        
-        numpy.PyArray_MultiIter_NEXT(it)
-
+        status = iternext(GetNpyIter(it))
+    
     if not stat_ok:
         check_errwarn(c_retval_out, 'atoi13')
-
+    
     return ri_out, di_out
 STATUS_CODES['atoi13'] = {0: u'OK', 1: u'dubious year (Note 2)', -1: u'unacceptable date'}
+
 
 
 def atoiq(type, ob1, ob2, astrom):
@@ -4735,31 +5214,45 @@ def atoiq(type, ob1, ob2, astrom):
     Derived, with permission, from the SOFA library.  See notes at end of file.
   
     """
-    in_shape = numpy.broadcast(type, ob1, ob2, astrom).shape
-    ri_out = numpy.empty(in_shape, dtype=numpy.double)
-    di_out = numpy.empty(in_shape, dtype=numpy.double)
     
-    cdef numpy.broadcast it = numpy.broadcast(type, ob1, ob2, astrom, ri_out, di_out)
-    cdef char * _type
+    #Turn all inputs into arrays
+    type_in = numpy.array(type, dtype=numpy.dtype('S16'), order="C", copy=False, subok=True)
+    ob1_in = numpy.array(ob1, dtype=numpy.double, order="C", copy=False, subok=True)
+    ob2_in = numpy.array(ob2, dtype=numpy.double, order="C", copy=False, subok=True)
+    astrom_in = numpy.array(astrom, dtype=dt_eraASTROM, order="C", copy=False, subok=True)
+    
+    #Create the output array, based on the broadcasted shape, adding the generated dimensions if needed
+    broadcast = numpy.broadcast(numpy.int32(0.0), numpy.int32(0.0), type_in, ob1_in, ob2_in, astrom_in)
+    ri_out = numpy.empty(broadcast.shape+(), dtype=numpy.double)
+    di_out = numpy.empty(broadcast.shape+(), dtype=numpy.double)
+    
+    #Create the iterator, broadcasting on all but the consumed dimensions
+    op_axes = [[-1]*(broadcast.nd-arr.ndim)+range(arr.ndim) for arr in [type_in, ob1_in, ob2_in, astrom_in]+[ri_out, di_out]]
+    op_flags = [['readonly']]*4+[['readwrite']]*2
+    it = numpy.nditer([type_in, ob1_in, ob2_in, astrom_in]+[ri_out, di_out], op_axes=op_axes, op_flags=op_flags)
+    
+    #Iterate
+    cdef const char * _type
     cdef double _ob1
     cdef double _ob2
     cdef eraASTROM * _astrom
     cdef double * _ri
     cdef double * _di
-    
-    while numpy.PyArray_MultiIter_NOTDONE(it):
-        _type = (<char *>numpy.PyArray_MultiIter_DATA(it, 0))
-        _ob1 = (<double*>numpy.PyArray_MultiIter_DATA(it, 1))[0]
-        _ob2 = (<double*>numpy.PyArray_MultiIter_DATA(it, 2))[0]
-        _astrom = (<eraASTROM *>numpy.PyArray_MultiIter_DATA(it, 3))
-        _ri = (<double *>numpy.PyArray_MultiIter_DATA(it, 4))
-        _di = (<double *>numpy.PyArray_MultiIter_DATA(it, 5))
-        
+    cdef char** dataptrarray = GetDataPtrArray(GetNpyIter(it))
+    cdef IterNextFunc iternext = GetIterNext(GetNpyIter(it), NULL)
+    cdef int status = 1
+    while status:
+        _type = (<const char *>(dataptrarray[0]))
+        _ob1 = (<double *>(dataptrarray[1]))[0]
+        _ob2 = (<double *>(dataptrarray[2]))[0]
+        _astrom = (<eraASTROM *>(dataptrarray[3]))
+        _ri = (<double *>(dataptrarray[4]))
+        _di = (<double *>(dataptrarray[5]))
         eraAtoiq(_type, _ob1, _ob2, _astrom, _ri, _di)
-        
-        numpy.PyArray_MultiIter_NEXT(it)
-
+        status = iternext(GetNpyIter(it))
+    
     return ri_out, di_out
+
 
 def ld(bm, p, q, e, em, dlim):
     """
@@ -4838,25 +5331,25 @@ def ld(bm, p, q, e, em, dlim):
     Derived, with permission, from the SOFA library.  See notes at end of file.
   
     """
-    # convert nd-array to single-field structured array for argument "p"
-    p_arr = numpy.empty(numpy.shape(p)[:-1], dtype=numpy.dtype([('fi0', 'd', (3,))]))
-    p_arr['fi0'] = p
-    p = p_arr
     
-    # convert nd-array to single-field structured array for argument "q"
-    q_arr = numpy.empty(numpy.shape(q)[:-1], dtype=numpy.dtype([('fi0', 'd', (3,))]))
-    q_arr['fi0'] = q
-    q = q_arr
+    #Turn all inputs into arrays
+    bm_in = numpy.array(bm, dtype=numpy.double, order="C", copy=False, subok=True)
+    p_in = numpy.array(p, dtype=numpy.double, order="C", copy=False, subok=True)
+    q_in = numpy.array(q, dtype=numpy.double, order="C", copy=False, subok=True)
+    e_in = numpy.array(e, dtype=numpy.double, order="C", copy=False, subok=True)
+    em_in = numpy.array(em, dtype=numpy.double, order="C", copy=False, subok=True)
+    dlim_in = numpy.array(dlim, dtype=numpy.double, order="C", copy=False, subok=True)
     
-    # convert nd-array to single-field structured array for argument "e"
-    e_arr = numpy.empty(numpy.shape(e)[:-1], dtype=numpy.dtype([('fi0', 'd', (3,))]))
-    e_arr['fi0'] = e
-    e = e_arr
+    #Create the output array, based on the broadcasted shape, adding the generated dimensions if needed
+    broadcast = numpy.broadcast(numpy.int32(0.0), numpy.int32(0.0), bm_in, p_in[...,0], q_in[...,0], e_in[...,0], em_in, dlim_in)
+    p1_out = numpy.empty(broadcast.shape+(3,), dtype=numpy.double)
     
-    in_shape = numpy.broadcast(bm, p, q, e, em, dlim).shape
-    p1_out = numpy.empty(in_shape, dtype=numpy.dtype([('fi0', 'd', (3,))]))
+    #Create the iterator, broadcasting on all but the consumed dimensions
+    op_axes = [[-1]*(broadcast.nd-arr.ndim)+range(arr.ndim) for arr in [bm_in, p_in[...,0], q_in[...,0], e_in[...,0], em_in, dlim_in]+[p1_out[...,0]]]
+    op_flags = [['readonly']]*6+[['readwrite']]*1
+    it = numpy.nditer([bm_in, p_in, q_in, e_in, em_in, dlim_in]+[p1_out], op_axes=op_axes, op_flags=op_flags)
     
-    cdef numpy.broadcast it = numpy.broadcast(bm, p, q, e, em, dlim, p1_out)
+    #Iterate
     cdef double _bm
     cdef double * _p
     cdef double * _q
@@ -4864,24 +5357,22 @@ def ld(bm, p, q, e, em, dlim):
     cdef double _em
     cdef double _dlim
     cdef double * _p1
-    
-    while numpy.PyArray_MultiIter_NOTDONE(it):
-        _bm = (<double*>numpy.PyArray_MultiIter_DATA(it, 0))[0]
-        _p = (<double *>numpy.PyArray_MultiIter_DATA(it, 1))
-        _q = (<double *>numpy.PyArray_MultiIter_DATA(it, 2))
-        _e = (<double *>numpy.PyArray_MultiIter_DATA(it, 3))
-        _em = (<double*>numpy.PyArray_MultiIter_DATA(it, 4))[0]
-        _dlim = (<double*>numpy.PyArray_MultiIter_DATA(it, 5))[0]
-        _p1 = (<double *>numpy.PyArray_MultiIter_DATA(it, 6))
-        
+    cdef char** dataptrarray = GetDataPtrArray(GetNpyIter(it))
+    cdef IterNextFunc iternext = GetIterNext(GetNpyIter(it), NULL)
+    cdef int status = 1
+    while status:
+        _bm = (<double *>(dataptrarray[0]))[0]
+        _p = (<double *>(dataptrarray[1]))
+        _q = (<double *>(dataptrarray[2]))
+        _e = (<double *>(dataptrarray[3]))
+        _em = (<double *>(dataptrarray[4]))[0]
+        _dlim = (<double *>(dataptrarray[5]))[0]
+        _p1 = (<double *>(dataptrarray[6]))
         eraLd(_bm, _p, _q, _e, _em, _dlim, _p1)
-        
-        numpy.PyArray_MultiIter_NEXT(it) 
-
-    # convert from single-field structured dtype to regular nd-array
-    p1_out = p1_out['fi0']
-
+        status = iternext(GetNpyIter(it))
+    
     return p1_out
+
 
 def ldn(n, b, ob, sc):
     """
@@ -4970,41 +5461,42 @@ def ldn(n, b, ob, sc):
     Derived, with permission, from the SOFA library.  See notes at end of file.
   
     """
-    # convert nd-array to single-field structured array for argument "ob"
-    ob_arr = numpy.empty(numpy.shape(ob)[:-1], dtype=numpy.dtype([('fi0', 'd', (3,))]))
-    ob_arr['fi0'] = ob
-    ob = ob_arr
     
-    # convert nd-array to single-field structured array for argument "sc"
-    sc_arr = numpy.empty(numpy.shape(sc)[:-1], dtype=numpy.dtype([('fi0', 'd', (3,))]))
-    sc_arr['fi0'] = sc
-    sc = sc_arr
+    #Turn all inputs into arrays
+    n_in = numpy.array(n, dtype=numpy.intc, order="C", copy=False, subok=True)
+    b_in = numpy.array(b, dtype=dt_eraLDBODY, order="C", copy=False, subok=True)
+    ob_in = numpy.array(ob, dtype=numpy.double, order="C", copy=False, subok=True)
+    sc_in = numpy.array(sc, dtype=numpy.double, order="C", copy=False, subok=True)
     
-    in_shape = numpy.broadcast(n, b, ob, sc).shape
-    sn_out = numpy.empty(in_shape, dtype=numpy.dtype([('fi0', 'd', (3,))]))
+    #Create the output array, based on the broadcasted shape, adding the generated dimensions if needed
+    broadcast = numpy.broadcast(numpy.int32(0.0), numpy.int32(0.0), n_in, b_in, ob_in[...,0], sc_in[...,0])
+    sn_out = numpy.empty(broadcast.shape+(3,), dtype=numpy.double)
     
-    cdef numpy.broadcast it = numpy.broadcast(n, b, ob, sc, sn_out)
+    #Create the iterator, broadcasting on all but the consumed dimensions
+    op_axes = [[-1]*(broadcast.nd-arr.ndim)+range(arr.ndim) for arr in [n_in, b_in, ob_in[...,0], sc_in[...,0]]+[sn_out[...,0]]]
+    op_flags = [['readonly']]*4+[['readwrite']]*1
+    it = numpy.nditer([n_in, b_in, ob_in, sc_in]+[sn_out], op_axes=op_axes, op_flags=op_flags)
+    
+    #Iterate
     cdef int _n
     cdef eraLDBODY * _b
     cdef double * _ob
     cdef double * _sc
     cdef double * _sn
-    
-    while numpy.PyArray_MultiIter_NOTDONE(it):
-        _n = (<int*>numpy.PyArray_MultiIter_DATA(it, 0))[0]
-        _b = (<eraLDBODY *>numpy.PyArray_MultiIter_DATA(it, 1))
-        _ob = (<double *>numpy.PyArray_MultiIter_DATA(it, 2))
-        _sc = (<double *>numpy.PyArray_MultiIter_DATA(it, 3))
-        _sn = (<double *>numpy.PyArray_MultiIter_DATA(it, 4))
-        
+    cdef char** dataptrarray = GetDataPtrArray(GetNpyIter(it))
+    cdef IterNextFunc iternext = GetIterNext(GetNpyIter(it), NULL)
+    cdef int status = 1
+    while status:
+        _n = (<int *>(dataptrarray[0]))[0]
+        _b = (<eraLDBODY *>(dataptrarray[1]))
+        _ob = (<double *>(dataptrarray[2]))
+        _sc = (<double *>(dataptrarray[3]))
+        _sn = (<double *>(dataptrarray[4]))
         eraLdn(_n, _b, _ob, _sc, _sn)
-        
-        numpy.PyArray_MultiIter_NEXT(it) 
-
-    # convert from single-field structured dtype to regular nd-array
-    sn_out = sn_out['fi0']
-
+        status = iternext(GetNpyIter(it))
+    
     return sn_out
+
 
 def ldsun(p, e, em):
     """
@@ -5048,39 +5540,39 @@ def ldsun(p, e, em):
     Derived, with permission, from the SOFA library.  See notes at end of file.
   
     """
-    # convert nd-array to single-field structured array for argument "p"
-    p_arr = numpy.empty(numpy.shape(p)[:-1], dtype=numpy.dtype([('fi0', 'd', (3,))]))
-    p_arr['fi0'] = p
-    p = p_arr
     
-    # convert nd-array to single-field structured array for argument "e"
-    e_arr = numpy.empty(numpy.shape(e)[:-1], dtype=numpy.dtype([('fi0', 'd', (3,))]))
-    e_arr['fi0'] = e
-    e = e_arr
+    #Turn all inputs into arrays
+    p_in = numpy.array(p, dtype=numpy.double, order="C", copy=False, subok=True)
+    e_in = numpy.array(e, dtype=numpy.double, order="C", copy=False, subok=True)
+    em_in = numpy.array(em, dtype=numpy.double, order="C", copy=False, subok=True)
     
-    in_shape = numpy.broadcast(p, e, em).shape
-    p1_out = numpy.empty(in_shape, dtype=numpy.dtype([('fi0', 'd', (3,))]))
+    #Create the output array, based on the broadcasted shape, adding the generated dimensions if needed
+    broadcast = numpy.broadcast(numpy.int32(0.0), numpy.int32(0.0), p_in[...,0], e_in[...,0], em_in)
+    p1_out = numpy.empty(broadcast.shape+(3,), dtype=numpy.double)
     
-    cdef numpy.broadcast it = numpy.broadcast(p, e, em, p1_out)
+    #Create the iterator, broadcasting on all but the consumed dimensions
+    op_axes = [[-1]*(broadcast.nd-arr.ndim)+range(arr.ndim) for arr in [p_in[...,0], e_in[...,0], em_in]+[p1_out[...,0]]]
+    op_flags = [['readonly']]*3+[['readwrite']]*1
+    it = numpy.nditer([p_in, e_in, em_in]+[p1_out], op_axes=op_axes, op_flags=op_flags)
+    
+    #Iterate
     cdef double * _p
     cdef double * _e
     cdef double _em
     cdef double * _p1
-    
-    while numpy.PyArray_MultiIter_NOTDONE(it):
-        _p = (<double *>numpy.PyArray_MultiIter_DATA(it, 0))
-        _e = (<double *>numpy.PyArray_MultiIter_DATA(it, 1))
-        _em = (<double*>numpy.PyArray_MultiIter_DATA(it, 2))[0]
-        _p1 = (<double *>numpy.PyArray_MultiIter_DATA(it, 3))
-        
+    cdef char** dataptrarray = GetDataPtrArray(GetNpyIter(it))
+    cdef IterNextFunc iternext = GetIterNext(GetNpyIter(it), NULL)
+    cdef int status = 1
+    while status:
+        _p = (<double *>(dataptrarray[0]))
+        _e = (<double *>(dataptrarray[1]))
+        _em = (<double *>(dataptrarray[2]))[0]
+        _p1 = (<double *>(dataptrarray[3]))
         eraLdsun(_p, _e, _em, _p1)
-        
-        numpy.PyArray_MultiIter_NEXT(it) 
-
-    # convert from single-field structured dtype to regular nd-array
-    p1_out = p1_out['fi0']
-
+        status = iternext(GetNpyIter(it))
+    
     return p1_out
+
 
 def pmpx(rc, dc, pr, pd, px, rv, pmt, pob):
     """
@@ -5136,15 +5628,27 @@ def pmpx(rc, dc, pr, pd, px, rv, pmt, pob):
     Derived, with permission, from the SOFA library.  See notes at end of file.
   
     """
-    # convert nd-array to single-field structured array for argument "pob"
-    pob_arr = numpy.empty(numpy.shape(pob)[:-1], dtype=numpy.dtype([('fi0', 'd', (3,))]))
-    pob_arr['fi0'] = pob
-    pob = pob_arr
     
-    in_shape = numpy.broadcast(rc, dc, pr, pd, px, rv, pmt, pob).shape
-    pco_out = numpy.empty(in_shape, dtype=numpy.dtype([('fi0', 'd', (3,))]))
+    #Turn all inputs into arrays
+    rc_in = numpy.array(rc, dtype=numpy.double, order="C", copy=False, subok=True)
+    dc_in = numpy.array(dc, dtype=numpy.double, order="C", copy=False, subok=True)
+    pr_in = numpy.array(pr, dtype=numpy.double, order="C", copy=False, subok=True)
+    pd_in = numpy.array(pd, dtype=numpy.double, order="C", copy=False, subok=True)
+    px_in = numpy.array(px, dtype=numpy.double, order="C", copy=False, subok=True)
+    rv_in = numpy.array(rv, dtype=numpy.double, order="C", copy=False, subok=True)
+    pmt_in = numpy.array(pmt, dtype=numpy.double, order="C", copy=False, subok=True)
+    pob_in = numpy.array(pob, dtype=numpy.double, order="C", copy=False, subok=True)
     
-    cdef numpy.broadcast it = numpy.broadcast(rc, dc, pr, pd, px, rv, pmt, pob, pco_out)
+    #Create the output array, based on the broadcasted shape, adding the generated dimensions if needed
+    broadcast = numpy.broadcast(numpy.int32(0.0), numpy.int32(0.0), rc_in, dc_in, pr_in, pd_in, px_in, rv_in, pmt_in, pob_in[...,0])
+    pco_out = numpy.empty(broadcast.shape+(3,), dtype=numpy.double)
+    
+    #Create the iterator, broadcasting on all but the consumed dimensions
+    op_axes = [[-1]*(broadcast.nd-arr.ndim)+range(arr.ndim) for arr in [rc_in, dc_in, pr_in, pd_in, px_in, rv_in, pmt_in, pob_in[...,0]]+[pco_out[...,0]]]
+    op_flags = [['readonly']]*8+[['readwrite']]*1
+    it = numpy.nditer([rc_in, dc_in, pr_in, pd_in, px_in, rv_in, pmt_in, pob_in]+[pco_out], op_axes=op_axes, op_flags=op_flags)
+    
+    #Iterate
     cdef double _rc
     cdef double _dc
     cdef double _pr
@@ -5154,26 +5658,24 @@ def pmpx(rc, dc, pr, pd, px, rv, pmt, pob):
     cdef double _pmt
     cdef double * _pob
     cdef double * _pco
-    
-    while numpy.PyArray_MultiIter_NOTDONE(it):
-        _rc = (<double*>numpy.PyArray_MultiIter_DATA(it, 0))[0]
-        _dc = (<double*>numpy.PyArray_MultiIter_DATA(it, 1))[0]
-        _pr = (<double*>numpy.PyArray_MultiIter_DATA(it, 2))[0]
-        _pd = (<double*>numpy.PyArray_MultiIter_DATA(it, 3))[0]
-        _px = (<double*>numpy.PyArray_MultiIter_DATA(it, 4))[0]
-        _rv = (<double*>numpy.PyArray_MultiIter_DATA(it, 5))[0]
-        _pmt = (<double*>numpy.PyArray_MultiIter_DATA(it, 6))[0]
-        _pob = (<double *>numpy.PyArray_MultiIter_DATA(it, 7))
-        _pco = (<double *>numpy.PyArray_MultiIter_DATA(it, 8))
-        
+    cdef char** dataptrarray = GetDataPtrArray(GetNpyIter(it))
+    cdef IterNextFunc iternext = GetIterNext(GetNpyIter(it), NULL)
+    cdef int status = 1
+    while status:
+        _rc = (<double *>(dataptrarray[0]))[0]
+        _dc = (<double *>(dataptrarray[1]))[0]
+        _pr = (<double *>(dataptrarray[2]))[0]
+        _pd = (<double *>(dataptrarray[3]))[0]
+        _px = (<double *>(dataptrarray[4]))[0]
+        _rv = (<double *>(dataptrarray[5]))[0]
+        _pmt = (<double *>(dataptrarray[6]))[0]
+        _pob = (<double *>(dataptrarray[7]))
+        _pco = (<double *>(dataptrarray[8]))
         eraPmpx(_rc, _dc, _pr, _pd, _px, _rv, _pmt, _pob, _pco)
-        
-        numpy.PyArray_MultiIter_NEXT(it) 
-
-    # convert from single-field structured dtype to regular nd-array
-    pco_out = pco_out['fi0']
-
+        status = iternext(GetNpyIter(it))
+    
     return pco_out
+
 
 def pmsafe(ra1, dec1, pmr1, pmd1, px1, rv1, ep1a, ep1b, ep2a, ep2b):
     """
@@ -5286,16 +5788,35 @@ def pmsafe(ra1, dec1, pmr1, pmd1, px1, rv1, ep1a, ep1b, ep2a, ep2b):
     Derived, with permission, from the SOFA library.  See notes at end of file.
   
     """
-    in_shape = numpy.broadcast(ra1, dec1, pmr1, pmd1, px1, rv1, ep1a, ep1b, ep2a, ep2b).shape
-    ra2_out = numpy.empty(in_shape, dtype=numpy.double)
-    dec2_out = numpy.empty(in_shape, dtype=numpy.double)
-    pmr2_out = numpy.empty(in_shape, dtype=numpy.double)
-    pmd2_out = numpy.empty(in_shape, dtype=numpy.double)
-    px2_out = numpy.empty(in_shape, dtype=numpy.double)
-    rv2_out = numpy.empty(in_shape, dtype=numpy.double)
-    c_retval_out = numpy.empty(in_shape, dtype=numpy.intc)
     
-    cdef numpy.broadcast it = numpy.broadcast(ra1, dec1, pmr1, pmd1, px1, rv1, ep1a, ep1b, ep2a, ep2b, ra2_out, dec2_out, pmr2_out, pmd2_out, px2_out, rv2_out, c_retval_out)
+    #Turn all inputs into arrays
+    ra1_in = numpy.array(ra1, dtype=numpy.double, order="C", copy=False, subok=True)
+    dec1_in = numpy.array(dec1, dtype=numpy.double, order="C", copy=False, subok=True)
+    pmr1_in = numpy.array(pmr1, dtype=numpy.double, order="C", copy=False, subok=True)
+    pmd1_in = numpy.array(pmd1, dtype=numpy.double, order="C", copy=False, subok=True)
+    px1_in = numpy.array(px1, dtype=numpy.double, order="C", copy=False, subok=True)
+    rv1_in = numpy.array(rv1, dtype=numpy.double, order="C", copy=False, subok=True)
+    ep1a_in = numpy.array(ep1a, dtype=numpy.double, order="C", copy=False, subok=True)
+    ep1b_in = numpy.array(ep1b, dtype=numpy.double, order="C", copy=False, subok=True)
+    ep2a_in = numpy.array(ep2a, dtype=numpy.double, order="C", copy=False, subok=True)
+    ep2b_in = numpy.array(ep2b, dtype=numpy.double, order="C", copy=False, subok=True)
+    
+    #Create the output array, based on the broadcasted shape, adding the generated dimensions if needed
+    broadcast = numpy.broadcast(numpy.int32(0.0), numpy.int32(0.0), ra1_in, dec1_in, pmr1_in, pmd1_in, px1_in, rv1_in, ep1a_in, ep1b_in, ep2a_in, ep2b_in)
+    ra2_out = numpy.empty(broadcast.shape+(), dtype=numpy.double)
+    dec2_out = numpy.empty(broadcast.shape+(), dtype=numpy.double)
+    pmr2_out = numpy.empty(broadcast.shape+(), dtype=numpy.double)
+    pmd2_out = numpy.empty(broadcast.shape+(), dtype=numpy.double)
+    px2_out = numpy.empty(broadcast.shape+(), dtype=numpy.double)
+    rv2_out = numpy.empty(broadcast.shape+(), dtype=numpy.double)
+    c_retval_out = numpy.empty(broadcast.shape+(), dtype=numpy.intc)
+    
+    #Create the iterator, broadcasting on all but the consumed dimensions
+    op_axes = [[-1]*(broadcast.nd-arr.ndim)+range(arr.ndim) for arr in [ra1_in, dec1_in, pmr1_in, pmd1_in, px1_in, rv1_in, ep1a_in, ep1b_in, ep2a_in, ep2b_in]+[ra2_out, dec2_out, pmr2_out, pmd2_out, px2_out, rv2_out, c_retval_out]]
+    op_flags = [['readonly']]*10+[['readwrite']]*7
+    it = numpy.nditer([ra1_in, dec1_in, pmr1_in, pmd1_in, px1_in, rv1_in, ep1a_in, ep1b_in, ep2a_in, ep2b_in]+[ra2_out, dec2_out, pmr2_out, pmd2_out, px2_out, rv2_out, c_retval_out], op_axes=op_axes, op_flags=op_flags)
+    
+    #Iterate
     cdef double _ra1
     cdef double _dec1
     cdef double _pmr1
@@ -5314,37 +5835,38 @@ def pmsafe(ra1, dec1, pmr1, pmd1, px1, rv1, ep1a, ep1b, ep2a, ep2b):
     cdef double * _rv2
     cdef int _c_retval
     cdef bint stat_ok = True
-    
-    while numpy.PyArray_MultiIter_NOTDONE(it):
-        _ra1 = (<double*>numpy.PyArray_MultiIter_DATA(it, 0))[0]
-        _dec1 = (<double*>numpy.PyArray_MultiIter_DATA(it, 1))[0]
-        _pmr1 = (<double*>numpy.PyArray_MultiIter_DATA(it, 2))[0]
-        _pmd1 = (<double*>numpy.PyArray_MultiIter_DATA(it, 3))[0]
-        _px1 = (<double*>numpy.PyArray_MultiIter_DATA(it, 4))[0]
-        _rv1 = (<double*>numpy.PyArray_MultiIter_DATA(it, 5))[0]
-        _ep1a = (<double*>numpy.PyArray_MultiIter_DATA(it, 6))[0]
-        _ep1b = (<double*>numpy.PyArray_MultiIter_DATA(it, 7))[0]
-        _ep2a = (<double*>numpy.PyArray_MultiIter_DATA(it, 8))[0]
-        _ep2b = (<double*>numpy.PyArray_MultiIter_DATA(it, 9))[0]
-        _ra2 = (<double *>numpy.PyArray_MultiIter_DATA(it, 10))
-        _dec2 = (<double *>numpy.PyArray_MultiIter_DATA(it, 11))
-        _pmr2 = (<double *>numpy.PyArray_MultiIter_DATA(it, 12))
-        _pmd2 = (<double *>numpy.PyArray_MultiIter_DATA(it, 13))
-        _px2 = (<double *>numpy.PyArray_MultiIter_DATA(it, 14))
-        _rv2 = (<double *>numpy.PyArray_MultiIter_DATA(it, 15))
-        
+    cdef char** dataptrarray = GetDataPtrArray(GetNpyIter(it))
+    cdef IterNextFunc iternext = GetIterNext(GetNpyIter(it), NULL)
+    cdef int status = 1
+    while status:
+        _ra1 = (<double *>(dataptrarray[0]))[0]
+        _dec1 = (<double *>(dataptrarray[1]))[0]
+        _pmr1 = (<double *>(dataptrarray[2]))[0]
+        _pmd1 = (<double *>(dataptrarray[3]))[0]
+        _px1 = (<double *>(dataptrarray[4]))[0]
+        _rv1 = (<double *>(dataptrarray[5]))[0]
+        _ep1a = (<double *>(dataptrarray[6]))[0]
+        _ep1b = (<double *>(dataptrarray[7]))[0]
+        _ep2a = (<double *>(dataptrarray[8]))[0]
+        _ep2b = (<double *>(dataptrarray[9]))[0]
+        _ra2 = (<double *>(dataptrarray[10]))
+        _dec2 = (<double *>(dataptrarray[11]))
+        _pmr2 = (<double *>(dataptrarray[12]))
+        _pmd2 = (<double *>(dataptrarray[13]))
+        _px2 = (<double *>(dataptrarray[14]))
+        _rv2 = (<double *>(dataptrarray[15]))
         _c_retval = eraPmsafe(_ra1, _dec1, _pmr1, _pmd1, _px1, _rv1, _ep1a, _ep1b, _ep2a, _ep2b, _ra2, _dec2, _pmr2, _pmd2, _px2, _rv2)
-        (<int*>numpy.PyArray_MultiIter_DATA(it, 16))[0] = _c_retval
+        (<int *>(dataptrarray[16]))[0] = _c_retval
         if _c_retval != 0:
             stat_ok = False
-        
-        numpy.PyArray_MultiIter_NEXT(it)
-
+        status = iternext(GetNpyIter(it))
+    
     if not stat_ok:
         check_errwarn(c_retval_out, 'pmsafe')
-
+    
     return ra2_out, dec2_out, pmr2_out, pmd2_out, px2_out, rv2_out
 STATUS_CODES['pmsafe'] = {0: u'no warnings or errors', 1: u'distance overridden (Note 6)', 2: u'excessive velocity (Note 7)', 4: u"solution didn't converge (Note 8)", u'else': u'binary logical OR of the above warnings', -1: u'system error (should not occur)'}
+
 
 
 def refco(phpa, tc, rh, wl):
@@ -5501,31 +6023,45 @@ def refco(phpa, tc, rh, wl):
     Derived, with permission, from the SOFA library.  See notes at end of file.
   
     """
-    in_shape = numpy.broadcast(phpa, tc, rh, wl).shape
-    refa_out = numpy.empty(in_shape, dtype=numpy.double)
-    refb_out = numpy.empty(in_shape, dtype=numpy.double)
     
-    cdef numpy.broadcast it = numpy.broadcast(phpa, tc, rh, wl, refa_out, refb_out)
+    #Turn all inputs into arrays
+    phpa_in = numpy.array(phpa, dtype=numpy.double, order="C", copy=False, subok=True)
+    tc_in = numpy.array(tc, dtype=numpy.double, order="C", copy=False, subok=True)
+    rh_in = numpy.array(rh, dtype=numpy.double, order="C", copy=False, subok=True)
+    wl_in = numpy.array(wl, dtype=numpy.double, order="C", copy=False, subok=True)
+    
+    #Create the output array, based on the broadcasted shape, adding the generated dimensions if needed
+    broadcast = numpy.broadcast(numpy.int32(0.0), numpy.int32(0.0), phpa_in, tc_in, rh_in, wl_in)
+    refa_out = numpy.empty(broadcast.shape+(), dtype=numpy.double)
+    refb_out = numpy.empty(broadcast.shape+(), dtype=numpy.double)
+    
+    #Create the iterator, broadcasting on all but the consumed dimensions
+    op_axes = [[-1]*(broadcast.nd-arr.ndim)+range(arr.ndim) for arr in [phpa_in, tc_in, rh_in, wl_in]+[refa_out, refb_out]]
+    op_flags = [['readonly']]*4+[['readwrite']]*2
+    it = numpy.nditer([phpa_in, tc_in, rh_in, wl_in]+[refa_out, refb_out], op_axes=op_axes, op_flags=op_flags)
+    
+    #Iterate
     cdef double _phpa
     cdef double _tc
     cdef double _rh
     cdef double _wl
     cdef double * _refa
     cdef double * _refb
-    
-    while numpy.PyArray_MultiIter_NOTDONE(it):
-        _phpa = (<double*>numpy.PyArray_MultiIter_DATA(it, 0))[0]
-        _tc = (<double*>numpy.PyArray_MultiIter_DATA(it, 1))[0]
-        _rh = (<double*>numpy.PyArray_MultiIter_DATA(it, 2))[0]
-        _wl = (<double*>numpy.PyArray_MultiIter_DATA(it, 3))[0]
-        _refa = (<double *>numpy.PyArray_MultiIter_DATA(it, 4))
-        _refb = (<double *>numpy.PyArray_MultiIter_DATA(it, 5))
-        
+    cdef char** dataptrarray = GetDataPtrArray(GetNpyIter(it))
+    cdef IterNextFunc iternext = GetIterNext(GetNpyIter(it), NULL)
+    cdef int status = 1
+    while status:
+        _phpa = (<double *>(dataptrarray[0]))[0]
+        _tc = (<double *>(dataptrarray[1]))[0]
+        _rh = (<double *>(dataptrarray[2]))[0]
+        _wl = (<double *>(dataptrarray[3]))[0]
+        _refa = (<double *>(dataptrarray[4]))
+        _refb = (<double *>(dataptrarray[5]))
         eraRefco(_phpa, _tc, _rh, _wl, _refa, _refb)
-        
-        numpy.PyArray_MultiIter_NEXT(it)
-
+        status = iternext(GetNpyIter(it))
+    
     return refa_out, refb_out
+
 
 def epv00(date1, date2):
     """
@@ -5630,41 +6166,49 @@ def epv00(date1, date2):
     Derived, with permission, from the SOFA library.  See notes at end of file.
   
     """
-    in_shape = numpy.broadcast(date1, date2).shape
-    pvh_out = numpy.empty(in_shape, dtype=numpy.dtype([('fi0', 'd', (2,3))]))
-    pvb_out = numpy.empty(in_shape, dtype=numpy.dtype([('fi0', 'd', (2,3))]))
-    c_retval_out = numpy.empty(in_shape, dtype=numpy.intc)
     
-    cdef numpy.broadcast it = numpy.broadcast(date1, date2, pvh_out, pvb_out, c_retval_out)
+    #Turn all inputs into arrays
+    date1_in = numpy.array(date1, dtype=numpy.double, order="C", copy=False, subok=True)
+    date2_in = numpy.array(date2, dtype=numpy.double, order="C", copy=False, subok=True)
+    
+    #Create the output array, based on the broadcasted shape, adding the generated dimensions if needed
+    broadcast = numpy.broadcast(numpy.int32(0.0), numpy.int32(0.0), date1_in, date2_in)
+    pvh_out = numpy.empty(broadcast.shape+(2, 3), dtype=numpy.double)
+    pvb_out = numpy.empty(broadcast.shape+(2, 3), dtype=numpy.double)
+    c_retval_out = numpy.empty(broadcast.shape+(), dtype=numpy.intc)
+    
+    #Create the iterator, broadcasting on all but the consumed dimensions
+    op_axes = [[-1]*(broadcast.nd-arr.ndim)+range(arr.ndim) for arr in [date1_in, date2_in]+[pvh_out[...,0,0], pvb_out[...,0,0], c_retval_out]]
+    op_flags = [['readonly']]*2+[['readwrite']]*3
+    it = numpy.nditer([date1_in, date2_in]+[pvh_out, pvb_out, c_retval_out], op_axes=op_axes, op_flags=op_flags)
+    
+    #Iterate
     cdef double _date1
     cdef double _date2
     cdef double * _pvh
     cdef double * _pvb
     cdef int _c_retval
     cdef bint stat_ok = True
-    
-    while numpy.PyArray_MultiIter_NOTDONE(it):
-        _date1 = (<double*>numpy.PyArray_MultiIter_DATA(it, 0))[0]
-        _date2 = (<double*>numpy.PyArray_MultiIter_DATA(it, 1))[0]
-        _pvh = (<double *>numpy.PyArray_MultiIter_DATA(it, 2))
-        _pvb = (<double *>numpy.PyArray_MultiIter_DATA(it, 3))
-        
+    cdef char** dataptrarray = GetDataPtrArray(GetNpyIter(it))
+    cdef IterNextFunc iternext = GetIterNext(GetNpyIter(it), NULL)
+    cdef int status = 1
+    while status:
+        _date1 = (<double *>(dataptrarray[0]))[0]
+        _date2 = (<double *>(dataptrarray[1]))[0]
+        _pvh = (<double *>(dataptrarray[2]))
+        _pvb = (<double *>(dataptrarray[3]))
         _c_retval = eraEpv00(_date1, _date2, _pvh, _pvb)
-        (<int*>numpy.PyArray_MultiIter_DATA(it, 4))[0] = _c_retval
+        (<int *>(dataptrarray[4]))[0] = _c_retval
         if _c_retval != 0:
             stat_ok = False
-        
-        numpy.PyArray_MultiIter_NEXT(it)
-
+        status = iternext(GetNpyIter(it))
+    
     if not stat_ok:
-        check_errwarn(c_retval_out, 'epv00') 
-
-    # convert from single-field structured dtype to regular nd-array
-    pvh_out = pvh_out['fi0']
-    pvb_out = pvb_out['fi0']
-
+        check_errwarn(c_retval_out, 'epv00')
+    
     return pvh_out, pvb_out
 STATUS_CODES['epv00'] = {0: u'OK', 1: u'warning: date outsidethe range 1900-2100 AD'}
+
 
 
 def plan94(date1, date2, np):
@@ -5834,39 +6378,49 @@ def plan94(date1, date2, np):
     Derived, with permission, from the SOFA library.  See notes at end of file.
   
     """
-    in_shape = numpy.broadcast(date1, date2, np).shape
-    pv_out = numpy.empty(in_shape, dtype=numpy.dtype([('fi0', 'd', (2,3))]))
-    c_retval_out = numpy.empty(in_shape, dtype=numpy.intc)
     
-    cdef numpy.broadcast it = numpy.broadcast(date1, date2, np, pv_out, c_retval_out)
+    #Turn all inputs into arrays
+    date1_in = numpy.array(date1, dtype=numpy.double, order="C", copy=False, subok=True)
+    date2_in = numpy.array(date2, dtype=numpy.double, order="C", copy=False, subok=True)
+    np_in = numpy.array(np, dtype=numpy.intc, order="C", copy=False, subok=True)
+    
+    #Create the output array, based on the broadcasted shape, adding the generated dimensions if needed
+    broadcast = numpy.broadcast(numpy.int32(0.0), numpy.int32(0.0), date1_in, date2_in, np_in)
+    pv_out = numpy.empty(broadcast.shape+(2, 3), dtype=numpy.double)
+    c_retval_out = numpy.empty(broadcast.shape+(), dtype=numpy.intc)
+    
+    #Create the iterator, broadcasting on all but the consumed dimensions
+    op_axes = [[-1]*(broadcast.nd-arr.ndim)+range(arr.ndim) for arr in [date1_in, date2_in, np_in]+[pv_out[...,0,0], c_retval_out]]
+    op_flags = [['readonly']]*3+[['readwrite']]*2
+    it = numpy.nditer([date1_in, date2_in, np_in]+[pv_out, c_retval_out], op_axes=op_axes, op_flags=op_flags)
+    
+    #Iterate
     cdef double _date1
     cdef double _date2
     cdef int _np
     cdef double * _pv
     cdef int _c_retval
     cdef bint stat_ok = True
-    
-    while numpy.PyArray_MultiIter_NOTDONE(it):
-        _date1 = (<double*>numpy.PyArray_MultiIter_DATA(it, 0))[0]
-        _date2 = (<double*>numpy.PyArray_MultiIter_DATA(it, 1))[0]
-        _np = (<int*>numpy.PyArray_MultiIter_DATA(it, 2))[0]
-        _pv = (<double *>numpy.PyArray_MultiIter_DATA(it, 3))
-        
+    cdef char** dataptrarray = GetDataPtrArray(GetNpyIter(it))
+    cdef IterNextFunc iternext = GetIterNext(GetNpyIter(it), NULL)
+    cdef int status = 1
+    while status:
+        _date1 = (<double *>(dataptrarray[0]))[0]
+        _date2 = (<double *>(dataptrarray[1]))[0]
+        _np = (<int *>(dataptrarray[2]))[0]
+        _pv = (<double *>(dataptrarray[3]))
         _c_retval = eraPlan94(_date1, _date2, _np, _pv)
-        (<int*>numpy.PyArray_MultiIter_DATA(it, 4))[0] = _c_retval
+        (<int *>(dataptrarray[4]))[0] = _c_retval
         if _c_retval != 0:
             stat_ok = False
-        
-        numpy.PyArray_MultiIter_NEXT(it)
-
+        status = iternext(GetNpyIter(it))
+    
     if not stat_ok:
-        check_errwarn(c_retval_out, 'plan94') 
-
-    # convert from single-field structured dtype to regular nd-array
-    pv_out = pv_out['fi0']
-
+        check_errwarn(c_retval_out, 'plan94')
+    
     return pv_out
 STATUS_CODES['plan94'] = {0: u'OK', 1: u'warning: year outside 1000-3000', 2: u'warning: failed to converge', -1: u'illegal NP (outside 1-8)'}
+
 
 
 def fad03(t):
@@ -5910,22 +6464,33 @@ def fad03(t):
     Derived, with permission, from the SOFA library.  See notes at end of file.
   
     """
-    in_shape = numpy.broadcast(t, 0).shape
-    c_retval_out = numpy.empty(in_shape, dtype=numpy.double)
     
-    cdef numpy.broadcast it = numpy.broadcast(t, c_retval_out)
+    #Turn all inputs into arrays
+    t_in = numpy.array(t, dtype=numpy.double, order="C", copy=False, subok=True)
+    
+    #Create the output array, based on the broadcasted shape, adding the generated dimensions if needed
+    broadcast = numpy.broadcast(numpy.int32(0.0), numpy.int32(0.0), t_in)
+    c_retval_out = numpy.empty(broadcast.shape+(), dtype=numpy.double)
+    
+    #Create the iterator, broadcasting on all but the consumed dimensions
+    op_axes = [[-1]*(broadcast.nd-arr.ndim)+range(arr.ndim) for arr in [t_in]+[c_retval_out]]
+    op_flags = [['readonly']]*1+[['readwrite']]*1
+    it = numpy.nditer([t_in]+[c_retval_out], op_axes=op_axes, op_flags=op_flags)
+    
+    #Iterate
     cdef double _t
     cdef double _c_retval
-    
-    while numpy.PyArray_MultiIter_NOTDONE(it):
-        _t = (<double*>numpy.PyArray_MultiIter_DATA(it, 0))[0]
-        
+    cdef char** dataptrarray = GetDataPtrArray(GetNpyIter(it))
+    cdef IterNextFunc iternext = GetIterNext(GetNpyIter(it), NULL)
+    cdef int status = 1
+    while status:
+        _t = (<double *>(dataptrarray[0]))[0]
         _c_retval = eraFad03(_t)
-        (<double*>numpy.PyArray_MultiIter_DATA(it, 1))[0] = _c_retval
-        
-        numpy.PyArray_MultiIter_NEXT(it)
-
+        (<double *>(dataptrarray[1]))[0] = _c_retval
+        status = iternext(GetNpyIter(it))
+    
     return c_retval_out
+
 
 def fae03(t):
     """
@@ -5971,22 +6536,33 @@ def fae03(t):
     Derived, with permission, from the SOFA library.  See notes at end of file.
   
     """
-    in_shape = numpy.broadcast(t, 0).shape
-    c_retval_out = numpy.empty(in_shape, dtype=numpy.double)
     
-    cdef numpy.broadcast it = numpy.broadcast(t, c_retval_out)
+    #Turn all inputs into arrays
+    t_in = numpy.array(t, dtype=numpy.double, order="C", copy=False, subok=True)
+    
+    #Create the output array, based on the broadcasted shape, adding the generated dimensions if needed
+    broadcast = numpy.broadcast(numpy.int32(0.0), numpy.int32(0.0), t_in)
+    c_retval_out = numpy.empty(broadcast.shape+(), dtype=numpy.double)
+    
+    #Create the iterator, broadcasting on all but the consumed dimensions
+    op_axes = [[-1]*(broadcast.nd-arr.ndim)+range(arr.ndim) for arr in [t_in]+[c_retval_out]]
+    op_flags = [['readonly']]*1+[['readwrite']]*1
+    it = numpy.nditer([t_in]+[c_retval_out], op_axes=op_axes, op_flags=op_flags)
+    
+    #Iterate
     cdef double _t
     cdef double _c_retval
-    
-    while numpy.PyArray_MultiIter_NOTDONE(it):
-        _t = (<double*>numpy.PyArray_MultiIter_DATA(it, 0))[0]
-        
+    cdef char** dataptrarray = GetDataPtrArray(GetNpyIter(it))
+    cdef IterNextFunc iternext = GetIterNext(GetNpyIter(it), NULL)
+    cdef int status = 1
+    while status:
+        _t = (<double *>(dataptrarray[0]))[0]
         _c_retval = eraFae03(_t)
-        (<double*>numpy.PyArray_MultiIter_DATA(it, 1))[0] = _c_retval
-        
-        numpy.PyArray_MultiIter_NEXT(it)
-
+        (<double *>(dataptrarray[1]))[0] = _c_retval
+        status = iternext(GetNpyIter(it))
+    
     return c_retval_out
+
 
 def faf03(t):
     """
@@ -6030,22 +6606,33 @@ def faf03(t):
     Derived, with permission, from the SOFA library.  See notes at end of file.
   
     """
-    in_shape = numpy.broadcast(t, 0).shape
-    c_retval_out = numpy.empty(in_shape, dtype=numpy.double)
     
-    cdef numpy.broadcast it = numpy.broadcast(t, c_retval_out)
+    #Turn all inputs into arrays
+    t_in = numpy.array(t, dtype=numpy.double, order="C", copy=False, subok=True)
+    
+    #Create the output array, based on the broadcasted shape, adding the generated dimensions if needed
+    broadcast = numpy.broadcast(numpy.int32(0.0), numpy.int32(0.0), t_in)
+    c_retval_out = numpy.empty(broadcast.shape+(), dtype=numpy.double)
+    
+    #Create the iterator, broadcasting on all but the consumed dimensions
+    op_axes = [[-1]*(broadcast.nd-arr.ndim)+range(arr.ndim) for arr in [t_in]+[c_retval_out]]
+    op_flags = [['readonly']]*1+[['readwrite']]*1
+    it = numpy.nditer([t_in]+[c_retval_out], op_axes=op_axes, op_flags=op_flags)
+    
+    #Iterate
     cdef double _t
     cdef double _c_retval
-    
-    while numpy.PyArray_MultiIter_NOTDONE(it):
-        _t = (<double*>numpy.PyArray_MultiIter_DATA(it, 0))[0]
-        
+    cdef char** dataptrarray = GetDataPtrArray(GetNpyIter(it))
+    cdef IterNextFunc iternext = GetIterNext(GetNpyIter(it), NULL)
+    cdef int status = 1
+    while status:
+        _t = (<double *>(dataptrarray[0]))[0]
         _c_retval = eraFaf03(_t)
-        (<double*>numpy.PyArray_MultiIter_DATA(it, 1))[0] = _c_retval
-        
-        numpy.PyArray_MultiIter_NEXT(it)
-
+        (<double *>(dataptrarray[1]))[0] = _c_retval
+        status = iternext(GetNpyIter(it))
+    
     return c_retval_out
+
 
 def faju03(t):
     """
@@ -6091,22 +6678,33 @@ def faju03(t):
     Derived, with permission, from the SOFA library.  See notes at end of file.
   
     """
-    in_shape = numpy.broadcast(t, 0).shape
-    c_retval_out = numpy.empty(in_shape, dtype=numpy.double)
     
-    cdef numpy.broadcast it = numpy.broadcast(t, c_retval_out)
+    #Turn all inputs into arrays
+    t_in = numpy.array(t, dtype=numpy.double, order="C", copy=False, subok=True)
+    
+    #Create the output array, based on the broadcasted shape, adding the generated dimensions if needed
+    broadcast = numpy.broadcast(numpy.int32(0.0), numpy.int32(0.0), t_in)
+    c_retval_out = numpy.empty(broadcast.shape+(), dtype=numpy.double)
+    
+    #Create the iterator, broadcasting on all but the consumed dimensions
+    op_axes = [[-1]*(broadcast.nd-arr.ndim)+range(arr.ndim) for arr in [t_in]+[c_retval_out]]
+    op_flags = [['readonly']]*1+[['readwrite']]*1
+    it = numpy.nditer([t_in]+[c_retval_out], op_axes=op_axes, op_flags=op_flags)
+    
+    #Iterate
     cdef double _t
     cdef double _c_retval
-    
-    while numpy.PyArray_MultiIter_NOTDONE(it):
-        _t = (<double*>numpy.PyArray_MultiIter_DATA(it, 0))[0]
-        
+    cdef char** dataptrarray = GetDataPtrArray(GetNpyIter(it))
+    cdef IterNextFunc iternext = GetIterNext(GetNpyIter(it), NULL)
+    cdef int status = 1
+    while status:
+        _t = (<double *>(dataptrarray[0]))[0]
         _c_retval = eraFaju03(_t)
-        (<double*>numpy.PyArray_MultiIter_DATA(it, 1))[0] = _c_retval
-        
-        numpy.PyArray_MultiIter_NEXT(it)
-
+        (<double *>(dataptrarray[1]))[0] = _c_retval
+        status = iternext(GetNpyIter(it))
+    
     return c_retval_out
+
 
 def fal03(t):
     """
@@ -6149,22 +6747,33 @@ def fal03(t):
     Derived, with permission, from the SOFA library.  See notes at end of file.
   
     """
-    in_shape = numpy.broadcast(t, 0).shape
-    c_retval_out = numpy.empty(in_shape, dtype=numpy.double)
     
-    cdef numpy.broadcast it = numpy.broadcast(t, c_retval_out)
+    #Turn all inputs into arrays
+    t_in = numpy.array(t, dtype=numpy.double, order="C", copy=False, subok=True)
+    
+    #Create the output array, based on the broadcasted shape, adding the generated dimensions if needed
+    broadcast = numpy.broadcast(numpy.int32(0.0), numpy.int32(0.0), t_in)
+    c_retval_out = numpy.empty(broadcast.shape+(), dtype=numpy.double)
+    
+    #Create the iterator, broadcasting on all but the consumed dimensions
+    op_axes = [[-1]*(broadcast.nd-arr.ndim)+range(arr.ndim) for arr in [t_in]+[c_retval_out]]
+    op_flags = [['readonly']]*1+[['readwrite']]*1
+    it = numpy.nditer([t_in]+[c_retval_out], op_axes=op_axes, op_flags=op_flags)
+    
+    #Iterate
     cdef double _t
     cdef double _c_retval
-    
-    while numpy.PyArray_MultiIter_NOTDONE(it):
-        _t = (<double*>numpy.PyArray_MultiIter_DATA(it, 0))[0]
-        
+    cdef char** dataptrarray = GetDataPtrArray(GetNpyIter(it))
+    cdef IterNextFunc iternext = GetIterNext(GetNpyIter(it), NULL)
+    cdef int status = 1
+    while status:
+        _t = (<double *>(dataptrarray[0]))[0]
         _c_retval = eraFal03(_t)
-        (<double*>numpy.PyArray_MultiIter_DATA(it, 1))[0] = _c_retval
-        
-        numpy.PyArray_MultiIter_NEXT(it)
-
+        (<double *>(dataptrarray[1]))[0] = _c_retval
+        status = iternext(GetNpyIter(it))
+    
     return c_retval_out
+
 
 def falp03(t):
     """
@@ -6207,22 +6816,33 @@ def falp03(t):
     Derived, with permission, from the SOFA library.  See notes at end of file.
   
     """
-    in_shape = numpy.broadcast(t, 0).shape
-    c_retval_out = numpy.empty(in_shape, dtype=numpy.double)
     
-    cdef numpy.broadcast it = numpy.broadcast(t, c_retval_out)
+    #Turn all inputs into arrays
+    t_in = numpy.array(t, dtype=numpy.double, order="C", copy=False, subok=True)
+    
+    #Create the output array, based on the broadcasted shape, adding the generated dimensions if needed
+    broadcast = numpy.broadcast(numpy.int32(0.0), numpy.int32(0.0), t_in)
+    c_retval_out = numpy.empty(broadcast.shape+(), dtype=numpy.double)
+    
+    #Create the iterator, broadcasting on all but the consumed dimensions
+    op_axes = [[-1]*(broadcast.nd-arr.ndim)+range(arr.ndim) for arr in [t_in]+[c_retval_out]]
+    op_flags = [['readonly']]*1+[['readwrite']]*1
+    it = numpy.nditer([t_in]+[c_retval_out], op_axes=op_axes, op_flags=op_flags)
+    
+    #Iterate
     cdef double _t
     cdef double _c_retval
-    
-    while numpy.PyArray_MultiIter_NOTDONE(it):
-        _t = (<double*>numpy.PyArray_MultiIter_DATA(it, 0))[0]
-        
+    cdef char** dataptrarray = GetDataPtrArray(GetNpyIter(it))
+    cdef IterNextFunc iternext = GetIterNext(GetNpyIter(it), NULL)
+    cdef int status = 1
+    while status:
+        _t = (<double *>(dataptrarray[0]))[0]
         _c_retval = eraFalp03(_t)
-        (<double*>numpy.PyArray_MultiIter_DATA(it, 1))[0] = _c_retval
-        
-        numpy.PyArray_MultiIter_NEXT(it)
-
+        (<double *>(dataptrarray[1]))[0] = _c_retval
+        status = iternext(GetNpyIter(it))
+    
     return c_retval_out
+
 
 def fama03(t):
     """
@@ -6268,22 +6888,33 @@ def fama03(t):
     Derived, with permission, from the SOFA library.  See notes at end of file.
   
     """
-    in_shape = numpy.broadcast(t, 0).shape
-    c_retval_out = numpy.empty(in_shape, dtype=numpy.double)
     
-    cdef numpy.broadcast it = numpy.broadcast(t, c_retval_out)
+    #Turn all inputs into arrays
+    t_in = numpy.array(t, dtype=numpy.double, order="C", copy=False, subok=True)
+    
+    #Create the output array, based on the broadcasted shape, adding the generated dimensions if needed
+    broadcast = numpy.broadcast(numpy.int32(0.0), numpy.int32(0.0), t_in)
+    c_retval_out = numpy.empty(broadcast.shape+(), dtype=numpy.double)
+    
+    #Create the iterator, broadcasting on all but the consumed dimensions
+    op_axes = [[-1]*(broadcast.nd-arr.ndim)+range(arr.ndim) for arr in [t_in]+[c_retval_out]]
+    op_flags = [['readonly']]*1+[['readwrite']]*1
+    it = numpy.nditer([t_in]+[c_retval_out], op_axes=op_axes, op_flags=op_flags)
+    
+    #Iterate
     cdef double _t
     cdef double _c_retval
-    
-    while numpy.PyArray_MultiIter_NOTDONE(it):
-        _t = (<double*>numpy.PyArray_MultiIter_DATA(it, 0))[0]
-        
+    cdef char** dataptrarray = GetDataPtrArray(GetNpyIter(it))
+    cdef IterNextFunc iternext = GetIterNext(GetNpyIter(it), NULL)
+    cdef int status = 1
+    while status:
+        _t = (<double *>(dataptrarray[0]))[0]
         _c_retval = eraFama03(_t)
-        (<double*>numpy.PyArray_MultiIter_DATA(it, 1))[0] = _c_retval
-        
-        numpy.PyArray_MultiIter_NEXT(it)
-
+        (<double *>(dataptrarray[1]))[0] = _c_retval
+        status = iternext(GetNpyIter(it))
+    
     return c_retval_out
+
 
 def fame03(t):
     """
@@ -6329,22 +6960,33 @@ def fame03(t):
     Derived, with permission, from the SOFA library.  See notes at end of file.
   
     """
-    in_shape = numpy.broadcast(t, 0).shape
-    c_retval_out = numpy.empty(in_shape, dtype=numpy.double)
     
-    cdef numpy.broadcast it = numpy.broadcast(t, c_retval_out)
+    #Turn all inputs into arrays
+    t_in = numpy.array(t, dtype=numpy.double, order="C", copy=False, subok=True)
+    
+    #Create the output array, based on the broadcasted shape, adding the generated dimensions if needed
+    broadcast = numpy.broadcast(numpy.int32(0.0), numpy.int32(0.0), t_in)
+    c_retval_out = numpy.empty(broadcast.shape+(), dtype=numpy.double)
+    
+    #Create the iterator, broadcasting on all but the consumed dimensions
+    op_axes = [[-1]*(broadcast.nd-arr.ndim)+range(arr.ndim) for arr in [t_in]+[c_retval_out]]
+    op_flags = [['readonly']]*1+[['readwrite']]*1
+    it = numpy.nditer([t_in]+[c_retval_out], op_axes=op_axes, op_flags=op_flags)
+    
+    #Iterate
     cdef double _t
     cdef double _c_retval
-    
-    while numpy.PyArray_MultiIter_NOTDONE(it):
-        _t = (<double*>numpy.PyArray_MultiIter_DATA(it, 0))[0]
-        
+    cdef char** dataptrarray = GetDataPtrArray(GetNpyIter(it))
+    cdef IterNextFunc iternext = GetIterNext(GetNpyIter(it), NULL)
+    cdef int status = 1
+    while status:
+        _t = (<double *>(dataptrarray[0]))[0]
         _c_retval = eraFame03(_t)
-        (<double*>numpy.PyArray_MultiIter_DATA(it, 1))[0] = _c_retval
-        
-        numpy.PyArray_MultiIter_NEXT(it)
-
+        (<double *>(dataptrarray[1]))[0] = _c_retval
+        status = iternext(GetNpyIter(it))
+    
     return c_retval_out
+
 
 def fane03(t):
     """
@@ -6387,22 +7029,33 @@ def fane03(t):
     Derived, with permission, from the SOFA library.  See notes at end of file.
   
     """
-    in_shape = numpy.broadcast(t, 0).shape
-    c_retval_out = numpy.empty(in_shape, dtype=numpy.double)
     
-    cdef numpy.broadcast it = numpy.broadcast(t, c_retval_out)
+    #Turn all inputs into arrays
+    t_in = numpy.array(t, dtype=numpy.double, order="C", copy=False, subok=True)
+    
+    #Create the output array, based on the broadcasted shape, adding the generated dimensions if needed
+    broadcast = numpy.broadcast(numpy.int32(0.0), numpy.int32(0.0), t_in)
+    c_retval_out = numpy.empty(broadcast.shape+(), dtype=numpy.double)
+    
+    #Create the iterator, broadcasting on all but the consumed dimensions
+    op_axes = [[-1]*(broadcast.nd-arr.ndim)+range(arr.ndim) for arr in [t_in]+[c_retval_out]]
+    op_flags = [['readonly']]*1+[['readwrite']]*1
+    it = numpy.nditer([t_in]+[c_retval_out], op_axes=op_axes, op_flags=op_flags)
+    
+    #Iterate
     cdef double _t
     cdef double _c_retval
-    
-    while numpy.PyArray_MultiIter_NOTDONE(it):
-        _t = (<double*>numpy.PyArray_MultiIter_DATA(it, 0))[0]
-        
+    cdef char** dataptrarray = GetDataPtrArray(GetNpyIter(it))
+    cdef IterNextFunc iternext = GetIterNext(GetNpyIter(it), NULL)
+    cdef int status = 1
+    while status:
+        _t = (<double *>(dataptrarray[0]))[0]
         _c_retval = eraFane03(_t)
-        (<double*>numpy.PyArray_MultiIter_DATA(it, 1))[0] = _c_retval
-        
-        numpy.PyArray_MultiIter_NEXT(it)
-
+        (<double *>(dataptrarray[1]))[0] = _c_retval
+        status = iternext(GetNpyIter(it))
+    
     return c_retval_out
+
 
 def faom03(t):
     """
@@ -6445,22 +7098,33 @@ def faom03(t):
     Derived, with permission, from the SOFA library.  See notes at end of file.
   
     """
-    in_shape = numpy.broadcast(t, 0).shape
-    c_retval_out = numpy.empty(in_shape, dtype=numpy.double)
     
-    cdef numpy.broadcast it = numpy.broadcast(t, c_retval_out)
+    #Turn all inputs into arrays
+    t_in = numpy.array(t, dtype=numpy.double, order="C", copy=False, subok=True)
+    
+    #Create the output array, based on the broadcasted shape, adding the generated dimensions if needed
+    broadcast = numpy.broadcast(numpy.int32(0.0), numpy.int32(0.0), t_in)
+    c_retval_out = numpy.empty(broadcast.shape+(), dtype=numpy.double)
+    
+    #Create the iterator, broadcasting on all but the consumed dimensions
+    op_axes = [[-1]*(broadcast.nd-arr.ndim)+range(arr.ndim) for arr in [t_in]+[c_retval_out]]
+    op_flags = [['readonly']]*1+[['readwrite']]*1
+    it = numpy.nditer([t_in]+[c_retval_out], op_axes=op_axes, op_flags=op_flags)
+    
+    #Iterate
     cdef double _t
     cdef double _c_retval
-    
-    while numpy.PyArray_MultiIter_NOTDONE(it):
-        _t = (<double*>numpy.PyArray_MultiIter_DATA(it, 0))[0]
-        
+    cdef char** dataptrarray = GetDataPtrArray(GetNpyIter(it))
+    cdef IterNextFunc iternext = GetIterNext(GetNpyIter(it), NULL)
+    cdef int status = 1
+    while status:
+        _t = (<double *>(dataptrarray[0]))[0]
         _c_retval = eraFaom03(_t)
-        (<double*>numpy.PyArray_MultiIter_DATA(it, 1))[0] = _c_retval
-        
-        numpy.PyArray_MultiIter_NEXT(it)
-
+        (<double *>(dataptrarray[1]))[0] = _c_retval
+        status = iternext(GetNpyIter(it))
+    
     return c_retval_out
+
 
 def fapa03(t):
     """
@@ -6507,22 +7171,33 @@ def fapa03(t):
     Derived, with permission, from the SOFA library.  See notes at end of file.
   
     """
-    in_shape = numpy.broadcast(t, 0).shape
-    c_retval_out = numpy.empty(in_shape, dtype=numpy.double)
     
-    cdef numpy.broadcast it = numpy.broadcast(t, c_retval_out)
+    #Turn all inputs into arrays
+    t_in = numpy.array(t, dtype=numpy.double, order="C", copy=False, subok=True)
+    
+    #Create the output array, based on the broadcasted shape, adding the generated dimensions if needed
+    broadcast = numpy.broadcast(numpy.int32(0.0), numpy.int32(0.0), t_in)
+    c_retval_out = numpy.empty(broadcast.shape+(), dtype=numpy.double)
+    
+    #Create the iterator, broadcasting on all but the consumed dimensions
+    op_axes = [[-1]*(broadcast.nd-arr.ndim)+range(arr.ndim) for arr in [t_in]+[c_retval_out]]
+    op_flags = [['readonly']]*1+[['readwrite']]*1
+    it = numpy.nditer([t_in]+[c_retval_out], op_axes=op_axes, op_flags=op_flags)
+    
+    #Iterate
     cdef double _t
     cdef double _c_retval
-    
-    while numpy.PyArray_MultiIter_NOTDONE(it):
-        _t = (<double*>numpy.PyArray_MultiIter_DATA(it, 0))[0]
-        
+    cdef char** dataptrarray = GetDataPtrArray(GetNpyIter(it))
+    cdef IterNextFunc iternext = GetIterNext(GetNpyIter(it), NULL)
+    cdef int status = 1
+    while status:
+        _t = (<double *>(dataptrarray[0]))[0]
         _c_retval = eraFapa03(_t)
-        (<double*>numpy.PyArray_MultiIter_DATA(it, 1))[0] = _c_retval
-        
-        numpy.PyArray_MultiIter_NEXT(it)
-
+        (<double *>(dataptrarray[1]))[0] = _c_retval
+        status = iternext(GetNpyIter(it))
+    
     return c_retval_out
+
 
 def fasa03(t):
     """
@@ -6568,22 +7243,33 @@ def fasa03(t):
     Derived, with permission, from the SOFA library.  See notes at end of file.
   
     """
-    in_shape = numpy.broadcast(t, 0).shape
-    c_retval_out = numpy.empty(in_shape, dtype=numpy.double)
     
-    cdef numpy.broadcast it = numpy.broadcast(t, c_retval_out)
+    #Turn all inputs into arrays
+    t_in = numpy.array(t, dtype=numpy.double, order="C", copy=False, subok=True)
+    
+    #Create the output array, based on the broadcasted shape, adding the generated dimensions if needed
+    broadcast = numpy.broadcast(numpy.int32(0.0), numpy.int32(0.0), t_in)
+    c_retval_out = numpy.empty(broadcast.shape+(), dtype=numpy.double)
+    
+    #Create the iterator, broadcasting on all but the consumed dimensions
+    op_axes = [[-1]*(broadcast.nd-arr.ndim)+range(arr.ndim) for arr in [t_in]+[c_retval_out]]
+    op_flags = [['readonly']]*1+[['readwrite']]*1
+    it = numpy.nditer([t_in]+[c_retval_out], op_axes=op_axes, op_flags=op_flags)
+    
+    #Iterate
     cdef double _t
     cdef double _c_retval
-    
-    while numpy.PyArray_MultiIter_NOTDONE(it):
-        _t = (<double*>numpy.PyArray_MultiIter_DATA(it, 0))[0]
-        
+    cdef char** dataptrarray = GetDataPtrArray(GetNpyIter(it))
+    cdef IterNextFunc iternext = GetIterNext(GetNpyIter(it), NULL)
+    cdef int status = 1
+    while status:
+        _t = (<double *>(dataptrarray[0]))[0]
         _c_retval = eraFasa03(_t)
-        (<double*>numpy.PyArray_MultiIter_DATA(it, 1))[0] = _c_retval
-        
-        numpy.PyArray_MultiIter_NEXT(it)
-
+        (<double *>(dataptrarray[1]))[0] = _c_retval
+        status = iternext(GetNpyIter(it))
+    
     return c_retval_out
+
 
 def faur03(t):
     """
@@ -6626,22 +7312,33 @@ def faur03(t):
     Derived, with permission, from the SOFA library.  See notes at end of file.
   
     """
-    in_shape = numpy.broadcast(t, 0).shape
-    c_retval_out = numpy.empty(in_shape, dtype=numpy.double)
     
-    cdef numpy.broadcast it = numpy.broadcast(t, c_retval_out)
+    #Turn all inputs into arrays
+    t_in = numpy.array(t, dtype=numpy.double, order="C", copy=False, subok=True)
+    
+    #Create the output array, based on the broadcasted shape, adding the generated dimensions if needed
+    broadcast = numpy.broadcast(numpy.int32(0.0), numpy.int32(0.0), t_in)
+    c_retval_out = numpy.empty(broadcast.shape+(), dtype=numpy.double)
+    
+    #Create the iterator, broadcasting on all but the consumed dimensions
+    op_axes = [[-1]*(broadcast.nd-arr.ndim)+range(arr.ndim) for arr in [t_in]+[c_retval_out]]
+    op_flags = [['readonly']]*1+[['readwrite']]*1
+    it = numpy.nditer([t_in]+[c_retval_out], op_axes=op_axes, op_flags=op_flags)
+    
+    #Iterate
     cdef double _t
     cdef double _c_retval
-    
-    while numpy.PyArray_MultiIter_NOTDONE(it):
-        _t = (<double*>numpy.PyArray_MultiIter_DATA(it, 0))[0]
-        
+    cdef char** dataptrarray = GetDataPtrArray(GetNpyIter(it))
+    cdef IterNextFunc iternext = GetIterNext(GetNpyIter(it), NULL)
+    cdef int status = 1
+    while status:
+        _t = (<double *>(dataptrarray[0]))[0]
         _c_retval = eraFaur03(_t)
-        (<double*>numpy.PyArray_MultiIter_DATA(it, 1))[0] = _c_retval
-        
-        numpy.PyArray_MultiIter_NEXT(it)
-
+        (<double *>(dataptrarray[1]))[0] = _c_retval
+        status = iternext(GetNpyIter(it))
+    
     return c_retval_out
+
 
 def fave03(t):
     """
@@ -6687,22 +7384,33 @@ def fave03(t):
     Derived, with permission, from the SOFA library.  See notes at end of file.
   
     """
-    in_shape = numpy.broadcast(t, 0).shape
-    c_retval_out = numpy.empty(in_shape, dtype=numpy.double)
     
-    cdef numpy.broadcast it = numpy.broadcast(t, c_retval_out)
+    #Turn all inputs into arrays
+    t_in = numpy.array(t, dtype=numpy.double, order="C", copy=False, subok=True)
+    
+    #Create the output array, based on the broadcasted shape, adding the generated dimensions if needed
+    broadcast = numpy.broadcast(numpy.int32(0.0), numpy.int32(0.0), t_in)
+    c_retval_out = numpy.empty(broadcast.shape+(), dtype=numpy.double)
+    
+    #Create the iterator, broadcasting on all but the consumed dimensions
+    op_axes = [[-1]*(broadcast.nd-arr.ndim)+range(arr.ndim) for arr in [t_in]+[c_retval_out]]
+    op_flags = [['readonly']]*1+[['readwrite']]*1
+    it = numpy.nditer([t_in]+[c_retval_out], op_axes=op_axes, op_flags=op_flags)
+    
+    #Iterate
     cdef double _t
     cdef double _c_retval
-    
-    while numpy.PyArray_MultiIter_NOTDONE(it):
-        _t = (<double*>numpy.PyArray_MultiIter_DATA(it, 0))[0]
-        
+    cdef char** dataptrarray = GetDataPtrArray(GetNpyIter(it))
+    cdef IterNextFunc iternext = GetIterNext(GetNpyIter(it), NULL)
+    cdef int status = 1
+    while status:
+        _t = (<double *>(dataptrarray[0]))[0]
         _c_retval = eraFave03(_t)
-        (<double*>numpy.PyArray_MultiIter_DATA(it, 1))[0] = _c_retval
-        
-        numpy.PyArray_MultiIter_NEXT(it)
-
+        (<double *>(dataptrarray[1]))[0] = _c_retval
+        status = iternext(GetNpyIter(it))
+    
     return c_retval_out
+
 
 def bi00():
     """
@@ -6755,26 +7463,36 @@ def bi00():
     Derived, with permission, from the SOFA library.  See notes at end of file.
   
     """
-    in_shape = ()
-    dpsibi_out = numpy.empty(in_shape, dtype=numpy.double)
-    depsbi_out = numpy.empty(in_shape, dtype=numpy.double)
-    dra_out = numpy.empty(in_shape, dtype=numpy.double)
     
-    cdef numpy.broadcast it = numpy.broadcast(dpsibi_out, depsbi_out, dra_out)
+    #Turn all inputs into arrays
+    
+    #Create the output array, based on the broadcasted shape, adding the generated dimensions if needed
+    broadcast = numpy.broadcast(numpy.int32(0.0), numpy.int32(0.0), )
+    dpsibi_out = numpy.empty(broadcast.shape+(), dtype=numpy.double)
+    depsbi_out = numpy.empty(broadcast.shape+(), dtype=numpy.double)
+    dra_out = numpy.empty(broadcast.shape+(), dtype=numpy.double)
+    
+    #Create the iterator, broadcasting on all but the consumed dimensions
+    op_axes = [[-1]*(broadcast.nd-arr.ndim)+range(arr.ndim) for arr in []+[dpsibi_out, depsbi_out, dra_out]]
+    op_flags = [['readonly']]*0+[['readwrite']]*3
+    it = numpy.nditer([]+[dpsibi_out, depsbi_out, dra_out], op_axes=op_axes, op_flags=op_flags)
+    
+    #Iterate
     cdef double * _dpsibi
     cdef double * _depsbi
     cdef double * _dra
-    
-    while numpy.PyArray_MultiIter_NOTDONE(it):
-        _dpsibi = (<double *>numpy.PyArray_MultiIter_DATA(it, 0))
-        _depsbi = (<double *>numpy.PyArray_MultiIter_DATA(it, 1))
-        _dra = (<double *>numpy.PyArray_MultiIter_DATA(it, 2))
-    
+    cdef char** dataptrarray = GetDataPtrArray(GetNpyIter(it))
+    cdef IterNextFunc iternext = GetIterNext(GetNpyIter(it), NULL)
+    cdef int status = 1
+    while status:
+        _dpsibi = (<double *>(dataptrarray[0]))
+        _depsbi = (<double *>(dataptrarray[1]))
+        _dra = (<double *>(dataptrarray[2]))
         eraBi00(_dpsibi, _depsbi, _dra)
-        
-        numpy.PyArray_MultiIter_NEXT(it)
-
+        status = iternext(GetNpyIter(it))
+    
     return dpsibi_out, depsbi_out, dra_out
+
 
 def bp00(date1, date2):
     """
@@ -6855,35 +7573,42 @@ def bp00(date1, date2):
     Derived, with permission, from the SOFA library.  See notes at end of file.
   
     """
-    in_shape = numpy.broadcast(date1, date2).shape
-    rb_out = numpy.empty(in_shape, dtype=numpy.dtype([('fi0', 'd', (3,3))]))
-    rp_out = numpy.empty(in_shape, dtype=numpy.dtype([('fi0', 'd', (3,3))]))
-    rbp_out = numpy.empty(in_shape, dtype=numpy.dtype([('fi0', 'd', (3,3))]))
     
-    cdef numpy.broadcast it = numpy.broadcast(date1, date2, rb_out, rp_out, rbp_out)
+    #Turn all inputs into arrays
+    date1_in = numpy.array(date1, dtype=numpy.double, order="C", copy=False, subok=True)
+    date2_in = numpy.array(date2, dtype=numpy.double, order="C", copy=False, subok=True)
+    
+    #Create the output array, based on the broadcasted shape, adding the generated dimensions if needed
+    broadcast = numpy.broadcast(numpy.int32(0.0), numpy.int32(0.0), date1_in, date2_in)
+    rb_out = numpy.empty(broadcast.shape+(3, 3), dtype=numpy.double)
+    rp_out = numpy.empty(broadcast.shape+(3, 3), dtype=numpy.double)
+    rbp_out = numpy.empty(broadcast.shape+(3, 3), dtype=numpy.double)
+    
+    #Create the iterator, broadcasting on all but the consumed dimensions
+    op_axes = [[-1]*(broadcast.nd-arr.ndim)+range(arr.ndim) for arr in [date1_in, date2_in]+[rb_out[...,0,0], rp_out[...,0,0], rbp_out[...,0,0]]]
+    op_flags = [['readonly']]*2+[['readwrite']]*3
+    it = numpy.nditer([date1_in, date2_in]+[rb_out, rp_out, rbp_out], op_axes=op_axes, op_flags=op_flags)
+    
+    #Iterate
     cdef double _date1
     cdef double _date2
     cdef double * _rb
     cdef double * _rp
     cdef double * _rbp
-    
-    while numpy.PyArray_MultiIter_NOTDONE(it):
-        _date1 = (<double*>numpy.PyArray_MultiIter_DATA(it, 0))[0]
-        _date2 = (<double*>numpy.PyArray_MultiIter_DATA(it, 1))[0]
-        _rb = (<double *>numpy.PyArray_MultiIter_DATA(it, 2))
-        _rp = (<double *>numpy.PyArray_MultiIter_DATA(it, 3))
-        _rbp = (<double *>numpy.PyArray_MultiIter_DATA(it, 4))
-        
+    cdef char** dataptrarray = GetDataPtrArray(GetNpyIter(it))
+    cdef IterNextFunc iternext = GetIterNext(GetNpyIter(it), NULL)
+    cdef int status = 1
+    while status:
+        _date1 = (<double *>(dataptrarray[0]))[0]
+        _date2 = (<double *>(dataptrarray[1]))[0]
+        _rb = (<double *>(dataptrarray[2]))
+        _rp = (<double *>(dataptrarray[3]))
+        _rbp = (<double *>(dataptrarray[4]))
         eraBp00(_date1, _date2, _rb, _rp, _rbp)
-        
-        numpy.PyArray_MultiIter_NEXT(it) 
-
-    # convert from single-field structured dtype to regular nd-array
-    rb_out = rb_out['fi0']
-    rp_out = rp_out['fi0']
-    rbp_out = rbp_out['fi0']
-
+        status = iternext(GetNpyIter(it))
+    
     return rb_out, rp_out, rbp_out
+
 
 def bp06(date1, date2):
     """
@@ -6958,35 +7683,42 @@ def bp06(date1, date2):
     Derived, with permission, from the SOFA library.  See notes at end of file.
   
     """
-    in_shape = numpy.broadcast(date1, date2).shape
-    rb_out = numpy.empty(in_shape, dtype=numpy.dtype([('fi0', 'd', (3,3))]))
-    rp_out = numpy.empty(in_shape, dtype=numpy.dtype([('fi0', 'd', (3,3))]))
-    rbp_out = numpy.empty(in_shape, dtype=numpy.dtype([('fi0', 'd', (3,3))]))
     
-    cdef numpy.broadcast it = numpy.broadcast(date1, date2, rb_out, rp_out, rbp_out)
+    #Turn all inputs into arrays
+    date1_in = numpy.array(date1, dtype=numpy.double, order="C", copy=False, subok=True)
+    date2_in = numpy.array(date2, dtype=numpy.double, order="C", copy=False, subok=True)
+    
+    #Create the output array, based on the broadcasted shape, adding the generated dimensions if needed
+    broadcast = numpy.broadcast(numpy.int32(0.0), numpy.int32(0.0), date1_in, date2_in)
+    rb_out = numpy.empty(broadcast.shape+(3, 3), dtype=numpy.double)
+    rp_out = numpy.empty(broadcast.shape+(3, 3), dtype=numpy.double)
+    rbp_out = numpy.empty(broadcast.shape+(3, 3), dtype=numpy.double)
+    
+    #Create the iterator, broadcasting on all but the consumed dimensions
+    op_axes = [[-1]*(broadcast.nd-arr.ndim)+range(arr.ndim) for arr in [date1_in, date2_in]+[rb_out[...,0,0], rp_out[...,0,0], rbp_out[...,0,0]]]
+    op_flags = [['readonly']]*2+[['readwrite']]*3
+    it = numpy.nditer([date1_in, date2_in]+[rb_out, rp_out, rbp_out], op_axes=op_axes, op_flags=op_flags)
+    
+    #Iterate
     cdef double _date1
     cdef double _date2
     cdef double * _rb
     cdef double * _rp
     cdef double * _rbp
-    
-    while numpy.PyArray_MultiIter_NOTDONE(it):
-        _date1 = (<double*>numpy.PyArray_MultiIter_DATA(it, 0))[0]
-        _date2 = (<double*>numpy.PyArray_MultiIter_DATA(it, 1))[0]
-        _rb = (<double *>numpy.PyArray_MultiIter_DATA(it, 2))
-        _rp = (<double *>numpy.PyArray_MultiIter_DATA(it, 3))
-        _rbp = (<double *>numpy.PyArray_MultiIter_DATA(it, 4))
-        
+    cdef char** dataptrarray = GetDataPtrArray(GetNpyIter(it))
+    cdef IterNextFunc iternext = GetIterNext(GetNpyIter(it), NULL)
+    cdef int status = 1
+    while status:
+        _date1 = (<double *>(dataptrarray[0]))[0]
+        _date2 = (<double *>(dataptrarray[1]))[0]
+        _rb = (<double *>(dataptrarray[2]))
+        _rp = (<double *>(dataptrarray[3]))
+        _rbp = (<double *>(dataptrarray[4]))
         eraBp06(_date1, _date2, _rb, _rp, _rbp)
-        
-        numpy.PyArray_MultiIter_NEXT(it) 
-
-    # convert from single-field structured dtype to regular nd-array
-    rb_out = rb_out['fi0']
-    rp_out = rp_out['fi0']
-    rbp_out = rbp_out['fi0']
-
+        status = iternext(GetNpyIter(it))
+    
     return rb_out, rp_out, rbp_out
+
 
 def bpn2xy(rbpn):
     """
@@ -7032,30 +7764,36 @@ def bpn2xy(rbpn):
     Derived, with permission, from the SOFA library.  See notes at end of file.
   
     """
-    # convert nd-array to single-field structured array for argument "rbpn"
-    rbpn_arr = numpy.empty(numpy.shape(rbpn)[:-2], dtype=numpy.dtype([('fi0', 'd', (3,3))]))
-    rbpn_arr['fi0'] = rbpn
-    rbpn = rbpn_arr
     
-    in_shape = numpy.broadcast(rbpn, 0).shape
-    x_out = numpy.empty(in_shape, dtype=numpy.double)
-    y_out = numpy.empty(in_shape, dtype=numpy.double)
+    #Turn all inputs into arrays
+    rbpn_in = numpy.array(rbpn, dtype=numpy.double, order="C", copy=False, subok=True)
     
-    cdef numpy.broadcast it = numpy.broadcast(rbpn, x_out, y_out)
+    #Create the output array, based on the broadcasted shape, adding the generated dimensions if needed
+    broadcast = numpy.broadcast(numpy.int32(0.0), numpy.int32(0.0), rbpn_in[...,0,0])
+    x_out = numpy.empty(broadcast.shape+(), dtype=numpy.double)
+    y_out = numpy.empty(broadcast.shape+(), dtype=numpy.double)
+    
+    #Create the iterator, broadcasting on all but the consumed dimensions
+    op_axes = [[-1]*(broadcast.nd-arr.ndim)+range(arr.ndim) for arr in [rbpn_in[...,0,0]]+[x_out, y_out]]
+    op_flags = [['readonly']]*1+[['readwrite']]*2
+    it = numpy.nditer([rbpn_in]+[x_out, y_out], op_axes=op_axes, op_flags=op_flags)
+    
+    #Iterate
     cdef double * _rbpn
     cdef double * _x
     cdef double * _y
-    
-    while numpy.PyArray_MultiIter_NOTDONE(it):
-        _rbpn = (<double *>numpy.PyArray_MultiIter_DATA(it, 0))
-        _x = (<double *>numpy.PyArray_MultiIter_DATA(it, 1))
-        _y = (<double *>numpy.PyArray_MultiIter_DATA(it, 2))
-        
+    cdef char** dataptrarray = GetDataPtrArray(GetNpyIter(it))
+    cdef IterNextFunc iternext = GetIterNext(GetNpyIter(it), NULL)
+    cdef int status = 1
+    while status:
+        _rbpn = (<double *>(dataptrarray[0]))
+        _x = (<double *>(dataptrarray[1]))
+        _y = (<double *>(dataptrarray[2]))
         eraBpn2xy(_rbpn, _x, _y)
-        
-        numpy.PyArray_MultiIter_NEXT(it)
-
+        status = iternext(GetNpyIter(it))
+    
     return x_out, y_out
+
 
 def c2i00a(date1, date2):
     """
@@ -7135,27 +7873,36 @@ def c2i00a(date1, date2):
     Derived, with permission, from the SOFA library.  See notes at end of file.
   
     """
-    in_shape = numpy.broadcast(date1, date2).shape
-    rc2i_out = numpy.empty(in_shape, dtype=numpy.dtype([('fi0', 'd', (3,3))]))
     
-    cdef numpy.broadcast it = numpy.broadcast(date1, date2, rc2i_out)
+    #Turn all inputs into arrays
+    date1_in = numpy.array(date1, dtype=numpy.double, order="C", copy=False, subok=True)
+    date2_in = numpy.array(date2, dtype=numpy.double, order="C", copy=False, subok=True)
+    
+    #Create the output array, based on the broadcasted shape, adding the generated dimensions if needed
+    broadcast = numpy.broadcast(numpy.int32(0.0), numpy.int32(0.0), date1_in, date2_in)
+    rc2i_out = numpy.empty(broadcast.shape+(3, 3), dtype=numpy.double)
+    
+    #Create the iterator, broadcasting on all but the consumed dimensions
+    op_axes = [[-1]*(broadcast.nd-arr.ndim)+range(arr.ndim) for arr in [date1_in, date2_in]+[rc2i_out[...,0,0]]]
+    op_flags = [['readonly']]*2+[['readwrite']]*1
+    it = numpy.nditer([date1_in, date2_in]+[rc2i_out], op_axes=op_axes, op_flags=op_flags)
+    
+    #Iterate
     cdef double _date1
     cdef double _date2
     cdef double * _rc2i
-    
-    while numpy.PyArray_MultiIter_NOTDONE(it):
-        _date1 = (<double*>numpy.PyArray_MultiIter_DATA(it, 0))[0]
-        _date2 = (<double*>numpy.PyArray_MultiIter_DATA(it, 1))[0]
-        _rc2i = (<double *>numpy.PyArray_MultiIter_DATA(it, 2))
-        
+    cdef char** dataptrarray = GetDataPtrArray(GetNpyIter(it))
+    cdef IterNextFunc iternext = GetIterNext(GetNpyIter(it), NULL)
+    cdef int status = 1
+    while status:
+        _date1 = (<double *>(dataptrarray[0]))[0]
+        _date2 = (<double *>(dataptrarray[1]))[0]
+        _rc2i = (<double *>(dataptrarray[2]))
         eraC2i00a(_date1, _date2, _rc2i)
-        
-        numpy.PyArray_MultiIter_NEXT(it) 
-
-    # convert from single-field structured dtype to regular nd-array
-    rc2i_out = rc2i_out['fi0']
-
+        status = iternext(GetNpyIter(it))
+    
     return rc2i_out
+
 
 def c2i00b(date1, date2):
     """
@@ -7235,27 +7982,36 @@ def c2i00b(date1, date2):
     Derived, with permission, from the SOFA library.  See notes at end of file.
   
     """
-    in_shape = numpy.broadcast(date1, date2).shape
-    rc2i_out = numpy.empty(in_shape, dtype=numpy.dtype([('fi0', 'd', (3,3))]))
     
-    cdef numpy.broadcast it = numpy.broadcast(date1, date2, rc2i_out)
+    #Turn all inputs into arrays
+    date1_in = numpy.array(date1, dtype=numpy.double, order="C", copy=False, subok=True)
+    date2_in = numpy.array(date2, dtype=numpy.double, order="C", copy=False, subok=True)
+    
+    #Create the output array, based on the broadcasted shape, adding the generated dimensions if needed
+    broadcast = numpy.broadcast(numpy.int32(0.0), numpy.int32(0.0), date1_in, date2_in)
+    rc2i_out = numpy.empty(broadcast.shape+(3, 3), dtype=numpy.double)
+    
+    #Create the iterator, broadcasting on all but the consumed dimensions
+    op_axes = [[-1]*(broadcast.nd-arr.ndim)+range(arr.ndim) for arr in [date1_in, date2_in]+[rc2i_out[...,0,0]]]
+    op_flags = [['readonly']]*2+[['readwrite']]*1
+    it = numpy.nditer([date1_in, date2_in]+[rc2i_out], op_axes=op_axes, op_flags=op_flags)
+    
+    #Iterate
     cdef double _date1
     cdef double _date2
     cdef double * _rc2i
-    
-    while numpy.PyArray_MultiIter_NOTDONE(it):
-        _date1 = (<double*>numpy.PyArray_MultiIter_DATA(it, 0))[0]
-        _date2 = (<double*>numpy.PyArray_MultiIter_DATA(it, 1))[0]
-        _rc2i = (<double *>numpy.PyArray_MultiIter_DATA(it, 2))
-        
+    cdef char** dataptrarray = GetDataPtrArray(GetNpyIter(it))
+    cdef IterNextFunc iternext = GetIterNext(GetNpyIter(it), NULL)
+    cdef int status = 1
+    while status:
+        _date1 = (<double *>(dataptrarray[0]))[0]
+        _date2 = (<double *>(dataptrarray[1]))[0]
+        _rc2i = (<double *>(dataptrarray[2]))
         eraC2i00b(_date1, _date2, _rc2i)
-        
-        numpy.PyArray_MultiIter_NEXT(it) 
-
-    # convert from single-field structured dtype to regular nd-array
-    rc2i_out = rc2i_out['fi0']
-
+        status = iternext(GetNpyIter(it))
+    
     return rc2i_out
+
 
 def c2i06a(date1, date2):
     """
@@ -7326,27 +8082,36 @@ def c2i06a(date1, date2):
     Derived, with permission, from the SOFA library.  See notes at end of file.
   
     """
-    in_shape = numpy.broadcast(date1, date2).shape
-    rc2i_out = numpy.empty(in_shape, dtype=numpy.dtype([('fi0', 'd', (3,3))]))
     
-    cdef numpy.broadcast it = numpy.broadcast(date1, date2, rc2i_out)
+    #Turn all inputs into arrays
+    date1_in = numpy.array(date1, dtype=numpy.double, order="C", copy=False, subok=True)
+    date2_in = numpy.array(date2, dtype=numpy.double, order="C", copy=False, subok=True)
+    
+    #Create the output array, based on the broadcasted shape, adding the generated dimensions if needed
+    broadcast = numpy.broadcast(numpy.int32(0.0), numpy.int32(0.0), date1_in, date2_in)
+    rc2i_out = numpy.empty(broadcast.shape+(3, 3), dtype=numpy.double)
+    
+    #Create the iterator, broadcasting on all but the consumed dimensions
+    op_axes = [[-1]*(broadcast.nd-arr.ndim)+range(arr.ndim) for arr in [date1_in, date2_in]+[rc2i_out[...,0,0]]]
+    op_flags = [['readonly']]*2+[['readwrite']]*1
+    it = numpy.nditer([date1_in, date2_in]+[rc2i_out], op_axes=op_axes, op_flags=op_flags)
+    
+    #Iterate
     cdef double _date1
     cdef double _date2
     cdef double * _rc2i
-    
-    while numpy.PyArray_MultiIter_NOTDONE(it):
-        _date1 = (<double*>numpy.PyArray_MultiIter_DATA(it, 0))[0]
-        _date2 = (<double*>numpy.PyArray_MultiIter_DATA(it, 1))[0]
-        _rc2i = (<double *>numpy.PyArray_MultiIter_DATA(it, 2))
-        
+    cdef char** dataptrarray = GetDataPtrArray(GetNpyIter(it))
+    cdef IterNextFunc iternext = GetIterNext(GetNpyIter(it), NULL)
+    cdef int status = 1
+    while status:
+        _date1 = (<double *>(dataptrarray[0]))[0]
+        _date2 = (<double *>(dataptrarray[1]))[0]
+        _rc2i = (<double *>(dataptrarray[2]))
         eraC2i06a(_date1, _date2, _rc2i)
-        
-        numpy.PyArray_MultiIter_NEXT(it) 
-
-    # convert from single-field structured dtype to regular nd-array
-    rc2i_out = rc2i_out['fi0']
-
+        status = iternext(GetNpyIter(it))
+    
     return rc2i_out
+
 
 def c2ibpn(date1, date2, rbpn):
     """
@@ -7428,34 +8193,39 @@ def c2ibpn(date1, date2, rbpn):
     Derived, with permission, from the SOFA library.  See notes at end of file.
   
     """
-    # convert nd-array to single-field structured array for argument "rbpn"
-    rbpn_arr = numpy.empty(numpy.shape(rbpn)[:-2], dtype=numpy.dtype([('fi0', 'd', (3,3))]))
-    rbpn_arr['fi0'] = rbpn
-    rbpn = rbpn_arr
     
-    in_shape = numpy.broadcast(date1, date2, rbpn).shape
-    rc2i_out = numpy.empty(in_shape, dtype=numpy.dtype([('fi0', 'd', (3,3))]))
+    #Turn all inputs into arrays
+    date1_in = numpy.array(date1, dtype=numpy.double, order="C", copy=False, subok=True)
+    date2_in = numpy.array(date2, dtype=numpy.double, order="C", copy=False, subok=True)
+    rbpn_in = numpy.array(rbpn, dtype=numpy.double, order="C", copy=False, subok=True)
     
-    cdef numpy.broadcast it = numpy.broadcast(date1, date2, rbpn, rc2i_out)
+    #Create the output array, based on the broadcasted shape, adding the generated dimensions if needed
+    broadcast = numpy.broadcast(numpy.int32(0.0), numpy.int32(0.0), date1_in, date2_in, rbpn_in[...,0,0])
+    rc2i_out = numpy.empty(broadcast.shape+(3, 3), dtype=numpy.double)
+    
+    #Create the iterator, broadcasting on all but the consumed dimensions
+    op_axes = [[-1]*(broadcast.nd-arr.ndim)+range(arr.ndim) for arr in [date1_in, date2_in, rbpn_in[...,0,0]]+[rc2i_out[...,0,0]]]
+    op_flags = [['readonly']]*3+[['readwrite']]*1
+    it = numpy.nditer([date1_in, date2_in, rbpn_in]+[rc2i_out], op_axes=op_axes, op_flags=op_flags)
+    
+    #Iterate
     cdef double _date1
     cdef double _date2
     cdef double * _rbpn
     cdef double * _rc2i
-    
-    while numpy.PyArray_MultiIter_NOTDONE(it):
-        _date1 = (<double*>numpy.PyArray_MultiIter_DATA(it, 0))[0]
-        _date2 = (<double*>numpy.PyArray_MultiIter_DATA(it, 1))[0]
-        _rbpn = (<double *>numpy.PyArray_MultiIter_DATA(it, 2))
-        _rc2i = (<double *>numpy.PyArray_MultiIter_DATA(it, 3))
-        
+    cdef char** dataptrarray = GetDataPtrArray(GetNpyIter(it))
+    cdef IterNextFunc iternext = GetIterNext(GetNpyIter(it), NULL)
+    cdef int status = 1
+    while status:
+        _date1 = (<double *>(dataptrarray[0]))[0]
+        _date2 = (<double *>(dataptrarray[1]))[0]
+        _rbpn = (<double *>(dataptrarray[2]))
+        _rc2i = (<double *>(dataptrarray[3]))
         eraC2ibpn(_date1, _date2, _rbpn, _rc2i)
-        
-        numpy.PyArray_MultiIter_NEXT(it) 
-
-    # convert from single-field structured dtype to regular nd-array
-    rc2i_out = rc2i_out['fi0']
-
+        status = iternext(GetNpyIter(it))
+    
     return rc2i_out
+
 
 def c2ixy(date1, date2, x, y):
     """
@@ -7531,31 +8301,42 @@ def c2ixy(date1, date2, x, y):
     Derived, with permission, from the SOFA library.  See notes at end of file.
   
     """
-    in_shape = numpy.broadcast(date1, date2, x, y).shape
-    rc2i_out = numpy.empty(in_shape, dtype=numpy.dtype([('fi0', 'd', (3,3))]))
     
-    cdef numpy.broadcast it = numpy.broadcast(date1, date2, x, y, rc2i_out)
+    #Turn all inputs into arrays
+    date1_in = numpy.array(date1, dtype=numpy.double, order="C", copy=False, subok=True)
+    date2_in = numpy.array(date2, dtype=numpy.double, order="C", copy=False, subok=True)
+    x_in = numpy.array(x, dtype=numpy.double, order="C", copy=False, subok=True)
+    y_in = numpy.array(y, dtype=numpy.double, order="C", copy=False, subok=True)
+    
+    #Create the output array, based on the broadcasted shape, adding the generated dimensions if needed
+    broadcast = numpy.broadcast(numpy.int32(0.0), numpy.int32(0.0), date1_in, date2_in, x_in, y_in)
+    rc2i_out = numpy.empty(broadcast.shape+(3, 3), dtype=numpy.double)
+    
+    #Create the iterator, broadcasting on all but the consumed dimensions
+    op_axes = [[-1]*(broadcast.nd-arr.ndim)+range(arr.ndim) for arr in [date1_in, date2_in, x_in, y_in]+[rc2i_out[...,0,0]]]
+    op_flags = [['readonly']]*4+[['readwrite']]*1
+    it = numpy.nditer([date1_in, date2_in, x_in, y_in]+[rc2i_out], op_axes=op_axes, op_flags=op_flags)
+    
+    #Iterate
     cdef double _date1
     cdef double _date2
     cdef double _x
     cdef double _y
     cdef double * _rc2i
-    
-    while numpy.PyArray_MultiIter_NOTDONE(it):
-        _date1 = (<double*>numpy.PyArray_MultiIter_DATA(it, 0))[0]
-        _date2 = (<double*>numpy.PyArray_MultiIter_DATA(it, 1))[0]
-        _x = (<double*>numpy.PyArray_MultiIter_DATA(it, 2))[0]
-        _y = (<double*>numpy.PyArray_MultiIter_DATA(it, 3))[0]
-        _rc2i = (<double *>numpy.PyArray_MultiIter_DATA(it, 4))
-        
+    cdef char** dataptrarray = GetDataPtrArray(GetNpyIter(it))
+    cdef IterNextFunc iternext = GetIterNext(GetNpyIter(it), NULL)
+    cdef int status = 1
+    while status:
+        _date1 = (<double *>(dataptrarray[0]))[0]
+        _date2 = (<double *>(dataptrarray[1]))[0]
+        _x = (<double *>(dataptrarray[2]))[0]
+        _y = (<double *>(dataptrarray[3]))[0]
+        _rc2i = (<double *>(dataptrarray[4]))
         eraC2ixy(_date1, _date2, _x, _y, _rc2i)
-        
-        numpy.PyArray_MultiIter_NEXT(it) 
-
-    # convert from single-field structured dtype to regular nd-array
-    rc2i_out = rc2i_out['fi0']
-
+        status = iternext(GetNpyIter(it))
+    
     return rc2i_out
+
 
 def c2ixys(x, y, s):
     """
@@ -7614,29 +8395,39 @@ def c2ixys(x, y, s):
     Derived, with permission, from the SOFA library.  See notes at end of file.
   
     """
-    in_shape = numpy.broadcast(x, y, s).shape
-    rc2i_out = numpy.empty(in_shape, dtype=numpy.dtype([('fi0', 'd', (3,3))]))
     
-    cdef numpy.broadcast it = numpy.broadcast(x, y, s, rc2i_out)
+    #Turn all inputs into arrays
+    x_in = numpy.array(x, dtype=numpy.double, order="C", copy=False, subok=True)
+    y_in = numpy.array(y, dtype=numpy.double, order="C", copy=False, subok=True)
+    s_in = numpy.array(s, dtype=numpy.double, order="C", copy=False, subok=True)
+    
+    #Create the output array, based on the broadcasted shape, adding the generated dimensions if needed
+    broadcast = numpy.broadcast(numpy.int32(0.0), numpy.int32(0.0), x_in, y_in, s_in)
+    rc2i_out = numpy.empty(broadcast.shape+(3, 3), dtype=numpy.double)
+    
+    #Create the iterator, broadcasting on all but the consumed dimensions
+    op_axes = [[-1]*(broadcast.nd-arr.ndim)+range(arr.ndim) for arr in [x_in, y_in, s_in]+[rc2i_out[...,0,0]]]
+    op_flags = [['readonly']]*3+[['readwrite']]*1
+    it = numpy.nditer([x_in, y_in, s_in]+[rc2i_out], op_axes=op_axes, op_flags=op_flags)
+    
+    #Iterate
     cdef double _x
     cdef double _y
     cdef double _s
     cdef double * _rc2i
-    
-    while numpy.PyArray_MultiIter_NOTDONE(it):
-        _x = (<double*>numpy.PyArray_MultiIter_DATA(it, 0))[0]
-        _y = (<double*>numpy.PyArray_MultiIter_DATA(it, 1))[0]
-        _s = (<double*>numpy.PyArray_MultiIter_DATA(it, 2))[0]
-        _rc2i = (<double *>numpy.PyArray_MultiIter_DATA(it, 3))
-        
+    cdef char** dataptrarray = GetDataPtrArray(GetNpyIter(it))
+    cdef IterNextFunc iternext = GetIterNext(GetNpyIter(it), NULL)
+    cdef int status = 1
+    while status:
+        _x = (<double *>(dataptrarray[0]))[0]
+        _y = (<double *>(dataptrarray[1]))[0]
+        _s = (<double *>(dataptrarray[2]))[0]
+        _rc2i = (<double *>(dataptrarray[3]))
         eraC2ixys(_x, _y, _s, _rc2i)
-        
-        numpy.PyArray_MultiIter_NEXT(it) 
-
-    # convert from single-field structured dtype to regular nd-array
-    rc2i_out = rc2i_out['fi0']
-
+        status = iternext(GetNpyIter(it))
+    
     return rc2i_out
+
 
 def c2t00a(tta, ttb, uta, utb, xp, yp):
     """
@@ -7721,10 +8512,25 @@ def c2t00a(tta, ttb, uta, utb, xp, yp):
     Derived, with permission, from the SOFA library.  See notes at end of file.
   
     """
-    in_shape = numpy.broadcast(tta, ttb, uta, utb, xp, yp).shape
-    rc2t_out = numpy.empty(in_shape, dtype=numpy.dtype([('fi0', 'd', (3,3))]))
     
-    cdef numpy.broadcast it = numpy.broadcast(tta, ttb, uta, utb, xp, yp, rc2t_out)
+    #Turn all inputs into arrays
+    tta_in = numpy.array(tta, dtype=numpy.double, order="C", copy=False, subok=True)
+    ttb_in = numpy.array(ttb, dtype=numpy.double, order="C", copy=False, subok=True)
+    uta_in = numpy.array(uta, dtype=numpy.double, order="C", copy=False, subok=True)
+    utb_in = numpy.array(utb, dtype=numpy.double, order="C", copy=False, subok=True)
+    xp_in = numpy.array(xp, dtype=numpy.double, order="C", copy=False, subok=True)
+    yp_in = numpy.array(yp, dtype=numpy.double, order="C", copy=False, subok=True)
+    
+    #Create the output array, based on the broadcasted shape, adding the generated dimensions if needed
+    broadcast = numpy.broadcast(numpy.int32(0.0), numpy.int32(0.0), tta_in, ttb_in, uta_in, utb_in, xp_in, yp_in)
+    rc2t_out = numpy.empty(broadcast.shape+(3, 3), dtype=numpy.double)
+    
+    #Create the iterator, broadcasting on all but the consumed dimensions
+    op_axes = [[-1]*(broadcast.nd-arr.ndim)+range(arr.ndim) for arr in [tta_in, ttb_in, uta_in, utb_in, xp_in, yp_in]+[rc2t_out[...,0,0]]]
+    op_flags = [['readonly']]*6+[['readwrite']]*1
+    it = numpy.nditer([tta_in, ttb_in, uta_in, utb_in, xp_in, yp_in]+[rc2t_out], op_axes=op_axes, op_flags=op_flags)
+    
+    #Iterate
     cdef double _tta
     cdef double _ttb
     cdef double _uta
@@ -7732,24 +8538,22 @@ def c2t00a(tta, ttb, uta, utb, xp, yp):
     cdef double _xp
     cdef double _yp
     cdef double * _rc2t
-    
-    while numpy.PyArray_MultiIter_NOTDONE(it):
-        _tta = (<double*>numpy.PyArray_MultiIter_DATA(it, 0))[0]
-        _ttb = (<double*>numpy.PyArray_MultiIter_DATA(it, 1))[0]
-        _uta = (<double*>numpy.PyArray_MultiIter_DATA(it, 2))[0]
-        _utb = (<double*>numpy.PyArray_MultiIter_DATA(it, 3))[0]
-        _xp = (<double*>numpy.PyArray_MultiIter_DATA(it, 4))[0]
-        _yp = (<double*>numpy.PyArray_MultiIter_DATA(it, 5))[0]
-        _rc2t = (<double *>numpy.PyArray_MultiIter_DATA(it, 6))
-        
+    cdef char** dataptrarray = GetDataPtrArray(GetNpyIter(it))
+    cdef IterNextFunc iternext = GetIterNext(GetNpyIter(it), NULL)
+    cdef int status = 1
+    while status:
+        _tta = (<double *>(dataptrarray[0]))[0]
+        _ttb = (<double *>(dataptrarray[1]))[0]
+        _uta = (<double *>(dataptrarray[2]))[0]
+        _utb = (<double *>(dataptrarray[3]))[0]
+        _xp = (<double *>(dataptrarray[4]))[0]
+        _yp = (<double *>(dataptrarray[5]))[0]
+        _rc2t = (<double *>(dataptrarray[6]))
         eraC2t00a(_tta, _ttb, _uta, _utb, _xp, _yp, _rc2t)
-        
-        numpy.PyArray_MultiIter_NEXT(it) 
-
-    # convert from single-field structured dtype to regular nd-array
-    rc2t_out = rc2t_out['fi0']
-
+        status = iternext(GetNpyIter(it))
+    
     return rc2t_out
+
 
 def c2t00b(tta, ttb, uta, utb, xp, yp):
     """
@@ -7833,10 +8637,25 @@ def c2t00b(tta, ttb, uta, utb, xp, yp):
     Derived, with permission, from the SOFA library.  See notes at end of file.
   
     """
-    in_shape = numpy.broadcast(tta, ttb, uta, utb, xp, yp).shape
-    rc2t_out = numpy.empty(in_shape, dtype=numpy.dtype([('fi0', 'd', (3,3))]))
     
-    cdef numpy.broadcast it = numpy.broadcast(tta, ttb, uta, utb, xp, yp, rc2t_out)
+    #Turn all inputs into arrays
+    tta_in = numpy.array(tta, dtype=numpy.double, order="C", copy=False, subok=True)
+    ttb_in = numpy.array(ttb, dtype=numpy.double, order="C", copy=False, subok=True)
+    uta_in = numpy.array(uta, dtype=numpy.double, order="C", copy=False, subok=True)
+    utb_in = numpy.array(utb, dtype=numpy.double, order="C", copy=False, subok=True)
+    xp_in = numpy.array(xp, dtype=numpy.double, order="C", copy=False, subok=True)
+    yp_in = numpy.array(yp, dtype=numpy.double, order="C", copy=False, subok=True)
+    
+    #Create the output array, based on the broadcasted shape, adding the generated dimensions if needed
+    broadcast = numpy.broadcast(numpy.int32(0.0), numpy.int32(0.0), tta_in, ttb_in, uta_in, utb_in, xp_in, yp_in)
+    rc2t_out = numpy.empty(broadcast.shape+(3, 3), dtype=numpy.double)
+    
+    #Create the iterator, broadcasting on all but the consumed dimensions
+    op_axes = [[-1]*(broadcast.nd-arr.ndim)+range(arr.ndim) for arr in [tta_in, ttb_in, uta_in, utb_in, xp_in, yp_in]+[rc2t_out[...,0,0]]]
+    op_flags = [['readonly']]*6+[['readwrite']]*1
+    it = numpy.nditer([tta_in, ttb_in, uta_in, utb_in, xp_in, yp_in]+[rc2t_out], op_axes=op_axes, op_flags=op_flags)
+    
+    #Iterate
     cdef double _tta
     cdef double _ttb
     cdef double _uta
@@ -7844,24 +8663,22 @@ def c2t00b(tta, ttb, uta, utb, xp, yp):
     cdef double _xp
     cdef double _yp
     cdef double * _rc2t
-    
-    while numpy.PyArray_MultiIter_NOTDONE(it):
-        _tta = (<double*>numpy.PyArray_MultiIter_DATA(it, 0))[0]
-        _ttb = (<double*>numpy.PyArray_MultiIter_DATA(it, 1))[0]
-        _uta = (<double*>numpy.PyArray_MultiIter_DATA(it, 2))[0]
-        _utb = (<double*>numpy.PyArray_MultiIter_DATA(it, 3))[0]
-        _xp = (<double*>numpy.PyArray_MultiIter_DATA(it, 4))[0]
-        _yp = (<double*>numpy.PyArray_MultiIter_DATA(it, 5))[0]
-        _rc2t = (<double *>numpy.PyArray_MultiIter_DATA(it, 6))
-        
+    cdef char** dataptrarray = GetDataPtrArray(GetNpyIter(it))
+    cdef IterNextFunc iternext = GetIterNext(GetNpyIter(it), NULL)
+    cdef int status = 1
+    while status:
+        _tta = (<double *>(dataptrarray[0]))[0]
+        _ttb = (<double *>(dataptrarray[1]))[0]
+        _uta = (<double *>(dataptrarray[2]))[0]
+        _utb = (<double *>(dataptrarray[3]))[0]
+        _xp = (<double *>(dataptrarray[4]))[0]
+        _yp = (<double *>(dataptrarray[5]))[0]
+        _rc2t = (<double *>(dataptrarray[6]))
         eraC2t00b(_tta, _ttb, _uta, _utb, _xp, _yp, _rc2t)
-        
-        numpy.PyArray_MultiIter_NEXT(it) 
-
-    # convert from single-field structured dtype to regular nd-array
-    rc2t_out = rc2t_out['fi0']
-
+        status = iternext(GetNpyIter(it))
+    
     return rc2t_out
+
 
 def c2t06a(tta, ttb, uta, utb, xp, yp):
     """
@@ -7944,10 +8761,25 @@ def c2t06a(tta, ttb, uta, utb, xp, yp):
     Derived, with permission, from the SOFA library.  See notes at end of file.
   
     """
-    in_shape = numpy.broadcast(tta, ttb, uta, utb, xp, yp).shape
-    rc2t_out = numpy.empty(in_shape, dtype=numpy.dtype([('fi0', 'd', (3,3))]))
     
-    cdef numpy.broadcast it = numpy.broadcast(tta, ttb, uta, utb, xp, yp, rc2t_out)
+    #Turn all inputs into arrays
+    tta_in = numpy.array(tta, dtype=numpy.double, order="C", copy=False, subok=True)
+    ttb_in = numpy.array(ttb, dtype=numpy.double, order="C", copy=False, subok=True)
+    uta_in = numpy.array(uta, dtype=numpy.double, order="C", copy=False, subok=True)
+    utb_in = numpy.array(utb, dtype=numpy.double, order="C", copy=False, subok=True)
+    xp_in = numpy.array(xp, dtype=numpy.double, order="C", copy=False, subok=True)
+    yp_in = numpy.array(yp, dtype=numpy.double, order="C", copy=False, subok=True)
+    
+    #Create the output array, based on the broadcasted shape, adding the generated dimensions if needed
+    broadcast = numpy.broadcast(numpy.int32(0.0), numpy.int32(0.0), tta_in, ttb_in, uta_in, utb_in, xp_in, yp_in)
+    rc2t_out = numpy.empty(broadcast.shape+(3, 3), dtype=numpy.double)
+    
+    #Create the iterator, broadcasting on all but the consumed dimensions
+    op_axes = [[-1]*(broadcast.nd-arr.ndim)+range(arr.ndim) for arr in [tta_in, ttb_in, uta_in, utb_in, xp_in, yp_in]+[rc2t_out[...,0,0]]]
+    op_flags = [['readonly']]*6+[['readwrite']]*1
+    it = numpy.nditer([tta_in, ttb_in, uta_in, utb_in, xp_in, yp_in]+[rc2t_out], op_axes=op_axes, op_flags=op_flags)
+    
+    #Iterate
     cdef double _tta
     cdef double _ttb
     cdef double _uta
@@ -7955,24 +8787,22 @@ def c2t06a(tta, ttb, uta, utb, xp, yp):
     cdef double _xp
     cdef double _yp
     cdef double * _rc2t
-    
-    while numpy.PyArray_MultiIter_NOTDONE(it):
-        _tta = (<double*>numpy.PyArray_MultiIter_DATA(it, 0))[0]
-        _ttb = (<double*>numpy.PyArray_MultiIter_DATA(it, 1))[0]
-        _uta = (<double*>numpy.PyArray_MultiIter_DATA(it, 2))[0]
-        _utb = (<double*>numpy.PyArray_MultiIter_DATA(it, 3))[0]
-        _xp = (<double*>numpy.PyArray_MultiIter_DATA(it, 4))[0]
-        _yp = (<double*>numpy.PyArray_MultiIter_DATA(it, 5))[0]
-        _rc2t = (<double *>numpy.PyArray_MultiIter_DATA(it, 6))
-        
+    cdef char** dataptrarray = GetDataPtrArray(GetNpyIter(it))
+    cdef IterNextFunc iternext = GetIterNext(GetNpyIter(it), NULL)
+    cdef int status = 1
+    while status:
+        _tta = (<double *>(dataptrarray[0]))[0]
+        _ttb = (<double *>(dataptrarray[1]))[0]
+        _uta = (<double *>(dataptrarray[2]))[0]
+        _utb = (<double *>(dataptrarray[3]))[0]
+        _xp = (<double *>(dataptrarray[4]))[0]
+        _yp = (<double *>(dataptrarray[5]))[0]
+        _rc2t = (<double *>(dataptrarray[6]))
         eraC2t06a(_tta, _ttb, _uta, _utb, _xp, _yp, _rc2t)
-        
-        numpy.PyArray_MultiIter_NEXT(it) 
-
-    # convert from single-field structured dtype to regular nd-array
-    rc2t_out = rc2t_out['fi0']
-
+        status = iternext(GetNpyIter(it))
+    
     return rc2t_out
+
 
 def c2tcio(rc2i, era, rpom):
     """
@@ -8035,39 +8865,39 @@ def c2tcio(rc2i, era, rpom):
     Derived, with permission, from the SOFA library.  See notes at end of file.
   
     """
-    # convert nd-array to single-field structured array for argument "rc2i"
-    rc2i_arr = numpy.empty(numpy.shape(rc2i)[:-2], dtype=numpy.dtype([('fi0', 'd', (3,3))]))
-    rc2i_arr['fi0'] = rc2i
-    rc2i = rc2i_arr
     
-    # convert nd-array to single-field structured array for argument "rpom"
-    rpom_arr = numpy.empty(numpy.shape(rpom)[:-2], dtype=numpy.dtype([('fi0', 'd', (3,3))]))
-    rpom_arr['fi0'] = rpom
-    rpom = rpom_arr
+    #Turn all inputs into arrays
+    rc2i_in = numpy.array(rc2i, dtype=numpy.double, order="C", copy=False, subok=True)
+    era_in = numpy.array(era, dtype=numpy.double, order="C", copy=False, subok=True)
+    rpom_in = numpy.array(rpom, dtype=numpy.double, order="C", copy=False, subok=True)
     
-    in_shape = numpy.broadcast(rc2i, era, rpom).shape
-    rc2t_out = numpy.empty(in_shape, dtype=numpy.dtype([('fi0', 'd', (3,3))]))
+    #Create the output array, based on the broadcasted shape, adding the generated dimensions if needed
+    broadcast = numpy.broadcast(numpy.int32(0.0), numpy.int32(0.0), rc2i_in[...,0,0], era_in, rpom_in[...,0,0])
+    rc2t_out = numpy.empty(broadcast.shape+(3, 3), dtype=numpy.double)
     
-    cdef numpy.broadcast it = numpy.broadcast(rc2i, era, rpom, rc2t_out)
+    #Create the iterator, broadcasting on all but the consumed dimensions
+    op_axes = [[-1]*(broadcast.nd-arr.ndim)+range(arr.ndim) for arr in [rc2i_in[...,0,0], era_in, rpom_in[...,0,0]]+[rc2t_out[...,0,0]]]
+    op_flags = [['readonly']]*3+[['readwrite']]*1
+    it = numpy.nditer([rc2i_in, era_in, rpom_in]+[rc2t_out], op_axes=op_axes, op_flags=op_flags)
+    
+    #Iterate
     cdef double * _rc2i
     cdef double _era
     cdef double * _rpom
     cdef double * _rc2t
-    
-    while numpy.PyArray_MultiIter_NOTDONE(it):
-        _rc2i = (<double *>numpy.PyArray_MultiIter_DATA(it, 0))
-        _era = (<double*>numpy.PyArray_MultiIter_DATA(it, 1))[0]
-        _rpom = (<double *>numpy.PyArray_MultiIter_DATA(it, 2))
-        _rc2t = (<double *>numpy.PyArray_MultiIter_DATA(it, 3))
-        
+    cdef char** dataptrarray = GetDataPtrArray(GetNpyIter(it))
+    cdef IterNextFunc iternext = GetIterNext(GetNpyIter(it), NULL)
+    cdef int status = 1
+    while status:
+        _rc2i = (<double *>(dataptrarray[0]))
+        _era = (<double *>(dataptrarray[1]))[0]
+        _rpom = (<double *>(dataptrarray[2]))
+        _rc2t = (<double *>(dataptrarray[3]))
         eraC2tcio(_rc2i, _era, _rpom, _rc2t)
-        
-        numpy.PyArray_MultiIter_NEXT(it) 
-
-    # convert from single-field structured dtype to regular nd-array
-    rc2t_out = rc2t_out['fi0']
-
+        status = iternext(GetNpyIter(it))
+    
     return rc2t_out
+
 
 def c2teqx(rbpn, gst, rpom):
     """
@@ -8130,39 +8960,39 @@ def c2teqx(rbpn, gst, rpom):
     Derived, with permission, from the SOFA library.  See notes at end of file.
   
     """
-    # convert nd-array to single-field structured array for argument "rbpn"
-    rbpn_arr = numpy.empty(numpy.shape(rbpn)[:-2], dtype=numpy.dtype([('fi0', 'd', (3,3))]))
-    rbpn_arr['fi0'] = rbpn
-    rbpn = rbpn_arr
     
-    # convert nd-array to single-field structured array for argument "rpom"
-    rpom_arr = numpy.empty(numpy.shape(rpom)[:-2], dtype=numpy.dtype([('fi0', 'd', (3,3))]))
-    rpom_arr['fi0'] = rpom
-    rpom = rpom_arr
+    #Turn all inputs into arrays
+    rbpn_in = numpy.array(rbpn, dtype=numpy.double, order="C", copy=False, subok=True)
+    gst_in = numpy.array(gst, dtype=numpy.double, order="C", copy=False, subok=True)
+    rpom_in = numpy.array(rpom, dtype=numpy.double, order="C", copy=False, subok=True)
     
-    in_shape = numpy.broadcast(rbpn, gst, rpom).shape
-    rc2t_out = numpy.empty(in_shape, dtype=numpy.dtype([('fi0', 'd', (3,3))]))
+    #Create the output array, based on the broadcasted shape, adding the generated dimensions if needed
+    broadcast = numpy.broadcast(numpy.int32(0.0), numpy.int32(0.0), rbpn_in[...,0,0], gst_in, rpom_in[...,0,0])
+    rc2t_out = numpy.empty(broadcast.shape+(3, 3), dtype=numpy.double)
     
-    cdef numpy.broadcast it = numpy.broadcast(rbpn, gst, rpom, rc2t_out)
+    #Create the iterator, broadcasting on all but the consumed dimensions
+    op_axes = [[-1]*(broadcast.nd-arr.ndim)+range(arr.ndim) for arr in [rbpn_in[...,0,0], gst_in, rpom_in[...,0,0]]+[rc2t_out[...,0,0]]]
+    op_flags = [['readonly']]*3+[['readwrite']]*1
+    it = numpy.nditer([rbpn_in, gst_in, rpom_in]+[rc2t_out], op_axes=op_axes, op_flags=op_flags)
+    
+    #Iterate
     cdef double * _rbpn
     cdef double _gst
     cdef double * _rpom
     cdef double * _rc2t
-    
-    while numpy.PyArray_MultiIter_NOTDONE(it):
-        _rbpn = (<double *>numpy.PyArray_MultiIter_DATA(it, 0))
-        _gst = (<double*>numpy.PyArray_MultiIter_DATA(it, 1))[0]
-        _rpom = (<double *>numpy.PyArray_MultiIter_DATA(it, 2))
-        _rc2t = (<double *>numpy.PyArray_MultiIter_DATA(it, 3))
-        
+    cdef char** dataptrarray = GetDataPtrArray(GetNpyIter(it))
+    cdef IterNextFunc iternext = GetIterNext(GetNpyIter(it), NULL)
+    cdef int status = 1
+    while status:
+        _rbpn = (<double *>(dataptrarray[0]))
+        _gst = (<double *>(dataptrarray[1]))[0]
+        _rpom = (<double *>(dataptrarray[2]))
+        _rc2t = (<double *>(dataptrarray[3]))
         eraC2teqx(_rbpn, _gst, _rpom, _rc2t)
-        
-        numpy.PyArray_MultiIter_NEXT(it) 
-
-    # convert from single-field structured dtype to regular nd-array
-    rc2t_out = rc2t_out['fi0']
-
+        status = iternext(GetNpyIter(it))
+    
     return rc2t_out
+
 
 def c2tpe(tta, ttb, uta, utb, dpsi, deps, xp, yp):
     """
@@ -8255,10 +9085,27 @@ def c2tpe(tta, ttb, uta, utb, dpsi, deps, xp, yp):
     Derived, with permission, from the SOFA library.  See notes at end of file.
   
     """
-    in_shape = numpy.broadcast(tta, ttb, uta, utb, dpsi, deps, xp, yp).shape
-    rc2t_out = numpy.empty(in_shape, dtype=numpy.dtype([('fi0', 'd', (3,3))]))
     
-    cdef numpy.broadcast it = numpy.broadcast(tta, ttb, uta, utb, dpsi, deps, xp, yp, rc2t_out)
+    #Turn all inputs into arrays
+    tta_in = numpy.array(tta, dtype=numpy.double, order="C", copy=False, subok=True)
+    ttb_in = numpy.array(ttb, dtype=numpy.double, order="C", copy=False, subok=True)
+    uta_in = numpy.array(uta, dtype=numpy.double, order="C", copy=False, subok=True)
+    utb_in = numpy.array(utb, dtype=numpy.double, order="C", copy=False, subok=True)
+    dpsi_in = numpy.array(dpsi, dtype=numpy.double, order="C", copy=False, subok=True)
+    deps_in = numpy.array(deps, dtype=numpy.double, order="C", copy=False, subok=True)
+    xp_in = numpy.array(xp, dtype=numpy.double, order="C", copy=False, subok=True)
+    yp_in = numpy.array(yp, dtype=numpy.double, order="C", copy=False, subok=True)
+    
+    #Create the output array, based on the broadcasted shape, adding the generated dimensions if needed
+    broadcast = numpy.broadcast(numpy.int32(0.0), numpy.int32(0.0), tta_in, ttb_in, uta_in, utb_in, dpsi_in, deps_in, xp_in, yp_in)
+    rc2t_out = numpy.empty(broadcast.shape+(3, 3), dtype=numpy.double)
+    
+    #Create the iterator, broadcasting on all but the consumed dimensions
+    op_axes = [[-1]*(broadcast.nd-arr.ndim)+range(arr.ndim) for arr in [tta_in, ttb_in, uta_in, utb_in, dpsi_in, deps_in, xp_in, yp_in]+[rc2t_out[...,0,0]]]
+    op_flags = [['readonly']]*8+[['readwrite']]*1
+    it = numpy.nditer([tta_in, ttb_in, uta_in, utb_in, dpsi_in, deps_in, xp_in, yp_in]+[rc2t_out], op_axes=op_axes, op_flags=op_flags)
+    
+    #Iterate
     cdef double _tta
     cdef double _ttb
     cdef double _uta
@@ -8268,26 +9115,24 @@ def c2tpe(tta, ttb, uta, utb, dpsi, deps, xp, yp):
     cdef double _xp
     cdef double _yp
     cdef double * _rc2t
-    
-    while numpy.PyArray_MultiIter_NOTDONE(it):
-        _tta = (<double*>numpy.PyArray_MultiIter_DATA(it, 0))[0]
-        _ttb = (<double*>numpy.PyArray_MultiIter_DATA(it, 1))[0]
-        _uta = (<double*>numpy.PyArray_MultiIter_DATA(it, 2))[0]
-        _utb = (<double*>numpy.PyArray_MultiIter_DATA(it, 3))[0]
-        _dpsi = (<double*>numpy.PyArray_MultiIter_DATA(it, 4))[0]
-        _deps = (<double*>numpy.PyArray_MultiIter_DATA(it, 5))[0]
-        _xp = (<double*>numpy.PyArray_MultiIter_DATA(it, 6))[0]
-        _yp = (<double*>numpy.PyArray_MultiIter_DATA(it, 7))[0]
-        _rc2t = (<double *>numpy.PyArray_MultiIter_DATA(it, 8))
-        
+    cdef char** dataptrarray = GetDataPtrArray(GetNpyIter(it))
+    cdef IterNextFunc iternext = GetIterNext(GetNpyIter(it), NULL)
+    cdef int status = 1
+    while status:
+        _tta = (<double *>(dataptrarray[0]))[0]
+        _ttb = (<double *>(dataptrarray[1]))[0]
+        _uta = (<double *>(dataptrarray[2]))[0]
+        _utb = (<double *>(dataptrarray[3]))[0]
+        _dpsi = (<double *>(dataptrarray[4]))[0]
+        _deps = (<double *>(dataptrarray[5]))[0]
+        _xp = (<double *>(dataptrarray[6]))[0]
+        _yp = (<double *>(dataptrarray[7]))[0]
+        _rc2t = (<double *>(dataptrarray[8]))
         eraC2tpe(_tta, _ttb, _uta, _utb, _dpsi, _deps, _xp, _yp, _rc2t)
-        
-        numpy.PyArray_MultiIter_NEXT(it) 
-
-    # convert from single-field structured dtype to regular nd-array
-    rc2t_out = rc2t_out['fi0']
-
+        status = iternext(GetNpyIter(it))
+    
     return rc2t_out
+
 
 def c2txy(tta, ttb, uta, utb, x, y, xp, yp):
     """
@@ -8376,10 +9221,27 @@ def c2txy(tta, ttb, uta, utb, x, y, xp, yp):
     Derived, with permission, from the SOFA library.  See notes at end of file.
   
     """
-    in_shape = numpy.broadcast(tta, ttb, uta, utb, x, y, xp, yp).shape
-    rc2t_out = numpy.empty(in_shape, dtype=numpy.dtype([('fi0', 'd', (3,3))]))
     
-    cdef numpy.broadcast it = numpy.broadcast(tta, ttb, uta, utb, x, y, xp, yp, rc2t_out)
+    #Turn all inputs into arrays
+    tta_in = numpy.array(tta, dtype=numpy.double, order="C", copy=False, subok=True)
+    ttb_in = numpy.array(ttb, dtype=numpy.double, order="C", copy=False, subok=True)
+    uta_in = numpy.array(uta, dtype=numpy.double, order="C", copy=False, subok=True)
+    utb_in = numpy.array(utb, dtype=numpy.double, order="C", copy=False, subok=True)
+    x_in = numpy.array(x, dtype=numpy.double, order="C", copy=False, subok=True)
+    y_in = numpy.array(y, dtype=numpy.double, order="C", copy=False, subok=True)
+    xp_in = numpy.array(xp, dtype=numpy.double, order="C", copy=False, subok=True)
+    yp_in = numpy.array(yp, dtype=numpy.double, order="C", copy=False, subok=True)
+    
+    #Create the output array, based on the broadcasted shape, adding the generated dimensions if needed
+    broadcast = numpy.broadcast(numpy.int32(0.0), numpy.int32(0.0), tta_in, ttb_in, uta_in, utb_in, x_in, y_in, xp_in, yp_in)
+    rc2t_out = numpy.empty(broadcast.shape+(3, 3), dtype=numpy.double)
+    
+    #Create the iterator, broadcasting on all but the consumed dimensions
+    op_axes = [[-1]*(broadcast.nd-arr.ndim)+range(arr.ndim) for arr in [tta_in, ttb_in, uta_in, utb_in, x_in, y_in, xp_in, yp_in]+[rc2t_out[...,0,0]]]
+    op_flags = [['readonly']]*8+[['readwrite']]*1
+    it = numpy.nditer([tta_in, ttb_in, uta_in, utb_in, x_in, y_in, xp_in, yp_in]+[rc2t_out], op_axes=op_axes, op_flags=op_flags)
+    
+    #Iterate
     cdef double _tta
     cdef double _ttb
     cdef double _uta
@@ -8389,26 +9251,24 @@ def c2txy(tta, ttb, uta, utb, x, y, xp, yp):
     cdef double _xp
     cdef double _yp
     cdef double * _rc2t
-    
-    while numpy.PyArray_MultiIter_NOTDONE(it):
-        _tta = (<double*>numpy.PyArray_MultiIter_DATA(it, 0))[0]
-        _ttb = (<double*>numpy.PyArray_MultiIter_DATA(it, 1))[0]
-        _uta = (<double*>numpy.PyArray_MultiIter_DATA(it, 2))[0]
-        _utb = (<double*>numpy.PyArray_MultiIter_DATA(it, 3))[0]
-        _x = (<double*>numpy.PyArray_MultiIter_DATA(it, 4))[0]
-        _y = (<double*>numpy.PyArray_MultiIter_DATA(it, 5))[0]
-        _xp = (<double*>numpy.PyArray_MultiIter_DATA(it, 6))[0]
-        _yp = (<double*>numpy.PyArray_MultiIter_DATA(it, 7))[0]
-        _rc2t = (<double *>numpy.PyArray_MultiIter_DATA(it, 8))
-        
+    cdef char** dataptrarray = GetDataPtrArray(GetNpyIter(it))
+    cdef IterNextFunc iternext = GetIterNext(GetNpyIter(it), NULL)
+    cdef int status = 1
+    while status:
+        _tta = (<double *>(dataptrarray[0]))[0]
+        _ttb = (<double *>(dataptrarray[1]))[0]
+        _uta = (<double *>(dataptrarray[2]))[0]
+        _utb = (<double *>(dataptrarray[3]))[0]
+        _x = (<double *>(dataptrarray[4]))[0]
+        _y = (<double *>(dataptrarray[5]))[0]
+        _xp = (<double *>(dataptrarray[6]))[0]
+        _yp = (<double *>(dataptrarray[7]))[0]
+        _rc2t = (<double *>(dataptrarray[8]))
         eraC2txy(_tta, _ttb, _uta, _utb, _x, _y, _xp, _yp, _rc2t)
-        
-        numpy.PyArray_MultiIter_NEXT(it) 
-
-    # convert from single-field structured dtype to regular nd-array
-    rc2t_out = rc2t_out['fi0']
-
+        status = iternext(GetNpyIter(it))
+    
     return rc2t_out
+
 
 def eo06a(date1, date2):
     """
@@ -8474,24 +9334,36 @@ def eo06a(date1, date2):
     Derived, with permission, from the SOFA library.  See notes at end of file.
   
     """
-    in_shape = numpy.broadcast(date1, date2).shape
-    c_retval_out = numpy.empty(in_shape, dtype=numpy.double)
     
-    cdef numpy.broadcast it = numpy.broadcast(date1, date2, c_retval_out)
+    #Turn all inputs into arrays
+    date1_in = numpy.array(date1, dtype=numpy.double, order="C", copy=False, subok=True)
+    date2_in = numpy.array(date2, dtype=numpy.double, order="C", copy=False, subok=True)
+    
+    #Create the output array, based on the broadcasted shape, adding the generated dimensions if needed
+    broadcast = numpy.broadcast(numpy.int32(0.0), numpy.int32(0.0), date1_in, date2_in)
+    c_retval_out = numpy.empty(broadcast.shape+(), dtype=numpy.double)
+    
+    #Create the iterator, broadcasting on all but the consumed dimensions
+    op_axes = [[-1]*(broadcast.nd-arr.ndim)+range(arr.ndim) for arr in [date1_in, date2_in]+[c_retval_out]]
+    op_flags = [['readonly']]*2+[['readwrite']]*1
+    it = numpy.nditer([date1_in, date2_in]+[c_retval_out], op_axes=op_axes, op_flags=op_flags)
+    
+    #Iterate
     cdef double _date1
     cdef double _date2
     cdef double _c_retval
-    
-    while numpy.PyArray_MultiIter_NOTDONE(it):
-        _date1 = (<double*>numpy.PyArray_MultiIter_DATA(it, 0))[0]
-        _date2 = (<double*>numpy.PyArray_MultiIter_DATA(it, 1))[0]
-        
+    cdef char** dataptrarray = GetDataPtrArray(GetNpyIter(it))
+    cdef IterNextFunc iternext = GetIterNext(GetNpyIter(it), NULL)
+    cdef int status = 1
+    while status:
+        _date1 = (<double *>(dataptrarray[0]))[0]
+        _date2 = (<double *>(dataptrarray[1]))[0]
         _c_retval = eraEo06a(_date1, _date2)
-        (<double*>numpy.PyArray_MultiIter_DATA(it, 2))[0] = _c_retval
-        
-        numpy.PyArray_MultiIter_NEXT(it)
-
+        (<double *>(dataptrarray[2]))[0] = _c_retval
+        status = iternext(GetNpyIter(it))
+    
     return c_retval_out
+
 
 def eors(rnpb, s):
     """
@@ -8536,29 +9408,36 @@ def eors(rnpb, s):
     Derived, with permission, from the SOFA library.  See notes at end of file.
   
     """
-    # convert nd-array to single-field structured array for argument "rnpb"
-    rnpb_arr = numpy.empty(numpy.shape(rnpb)[:-2], dtype=numpy.dtype([('fi0', 'd', (3,3))]))
-    rnpb_arr['fi0'] = rnpb
-    rnpb = rnpb_arr
     
-    in_shape = numpy.broadcast(rnpb, s).shape
-    c_retval_out = numpy.empty(in_shape, dtype=numpy.double)
+    #Turn all inputs into arrays
+    rnpb_in = numpy.array(rnpb, dtype=numpy.double, order="C", copy=False, subok=True)
+    s_in = numpy.array(s, dtype=numpy.double, order="C", copy=False, subok=True)
     
-    cdef numpy.broadcast it = numpy.broadcast(rnpb, s, c_retval_out)
+    #Create the output array, based on the broadcasted shape, adding the generated dimensions if needed
+    broadcast = numpy.broadcast(numpy.int32(0.0), numpy.int32(0.0), rnpb_in[...,0,0], s_in)
+    c_retval_out = numpy.empty(broadcast.shape+(), dtype=numpy.double)
+    
+    #Create the iterator, broadcasting on all but the consumed dimensions
+    op_axes = [[-1]*(broadcast.nd-arr.ndim)+range(arr.ndim) for arr in [rnpb_in[...,0,0], s_in]+[c_retval_out]]
+    op_flags = [['readonly']]*2+[['readwrite']]*1
+    it = numpy.nditer([rnpb_in, s_in]+[c_retval_out], op_axes=op_axes, op_flags=op_flags)
+    
+    #Iterate
     cdef double * _rnpb
     cdef double _s
     cdef double _c_retval
-    
-    while numpy.PyArray_MultiIter_NOTDONE(it):
-        _rnpb = (<double *>numpy.PyArray_MultiIter_DATA(it, 0))
-        _s = (<double*>numpy.PyArray_MultiIter_DATA(it, 1))[0]
-        
+    cdef char** dataptrarray = GetDataPtrArray(GetNpyIter(it))
+    cdef IterNextFunc iternext = GetIterNext(GetNpyIter(it), NULL)
+    cdef int status = 1
+    while status:
+        _rnpb = (<double *>(dataptrarray[0]))
+        _s = (<double *>(dataptrarray[1]))[0]
         _c_retval = eraEors(_rnpb, _s)
-        (<double*>numpy.PyArray_MultiIter_DATA(it, 2))[0] = _c_retval
-        
-        numpy.PyArray_MultiIter_NEXT(it)
-
+        (<double *>(dataptrarray[2]))[0] = _c_retval
+        status = iternext(GetNpyIter(it))
+    
     return c_retval_out
+
 
 def fw2m(gamb, phib, psi, eps):
     """
@@ -8634,31 +9513,42 @@ def fw2m(gamb, phib, psi, eps):
     Derived, with permission, from the SOFA library.  See notes at end of file.
   
     """
-    in_shape = numpy.broadcast(gamb, phib, psi, eps).shape
-    r_out = numpy.empty(in_shape, dtype=numpy.dtype([('fi0', 'd', (3,3))]))
     
-    cdef numpy.broadcast it = numpy.broadcast(gamb, phib, psi, eps, r_out)
+    #Turn all inputs into arrays
+    gamb_in = numpy.array(gamb, dtype=numpy.double, order="C", copy=False, subok=True)
+    phib_in = numpy.array(phib, dtype=numpy.double, order="C", copy=False, subok=True)
+    psi_in = numpy.array(psi, dtype=numpy.double, order="C", copy=False, subok=True)
+    eps_in = numpy.array(eps, dtype=numpy.double, order="C", copy=False, subok=True)
+    
+    #Create the output array, based on the broadcasted shape, adding the generated dimensions if needed
+    broadcast = numpy.broadcast(numpy.int32(0.0), numpy.int32(0.0), gamb_in, phib_in, psi_in, eps_in)
+    r_out = numpy.empty(broadcast.shape+(3, 3), dtype=numpy.double)
+    
+    #Create the iterator, broadcasting on all but the consumed dimensions
+    op_axes = [[-1]*(broadcast.nd-arr.ndim)+range(arr.ndim) for arr in [gamb_in, phib_in, psi_in, eps_in]+[r_out[...,0,0]]]
+    op_flags = [['readonly']]*4+[['readwrite']]*1
+    it = numpy.nditer([gamb_in, phib_in, psi_in, eps_in]+[r_out], op_axes=op_axes, op_flags=op_flags)
+    
+    #Iterate
     cdef double _gamb
     cdef double _phib
     cdef double _psi
     cdef double _eps
     cdef double * _r
-    
-    while numpy.PyArray_MultiIter_NOTDONE(it):
-        _gamb = (<double*>numpy.PyArray_MultiIter_DATA(it, 0))[0]
-        _phib = (<double*>numpy.PyArray_MultiIter_DATA(it, 1))[0]
-        _psi = (<double*>numpy.PyArray_MultiIter_DATA(it, 2))[0]
-        _eps = (<double*>numpy.PyArray_MultiIter_DATA(it, 3))[0]
-        _r = (<double *>numpy.PyArray_MultiIter_DATA(it, 4))
-        
+    cdef char** dataptrarray = GetDataPtrArray(GetNpyIter(it))
+    cdef IterNextFunc iternext = GetIterNext(GetNpyIter(it), NULL)
+    cdef int status = 1
+    while status:
+        _gamb = (<double *>(dataptrarray[0]))[0]
+        _phib = (<double *>(dataptrarray[1]))[0]
+        _psi = (<double *>(dataptrarray[2]))[0]
+        _eps = (<double *>(dataptrarray[3]))[0]
+        _r = (<double *>(dataptrarray[4]))
         eraFw2m(_gamb, _phib, _psi, _eps, _r)
-        
-        numpy.PyArray_MultiIter_NEXT(it) 
-
-    # convert from single-field structured dtype to regular nd-array
-    r_out = r_out['fi0']
-
+        status = iternext(GetNpyIter(it))
+    
     return r_out
+
 
 def fw2xy(gamb, phib, psi, eps):
     """
@@ -8719,31 +9609,45 @@ def fw2xy(gamb, phib, psi, eps):
     Derived, with permission, from the SOFA library.  See notes at end of file.
   
     """
-    in_shape = numpy.broadcast(gamb, phib, psi, eps).shape
-    x_out = numpy.empty(in_shape, dtype=numpy.double)
-    y_out = numpy.empty(in_shape, dtype=numpy.double)
     
-    cdef numpy.broadcast it = numpy.broadcast(gamb, phib, psi, eps, x_out, y_out)
+    #Turn all inputs into arrays
+    gamb_in = numpy.array(gamb, dtype=numpy.double, order="C", copy=False, subok=True)
+    phib_in = numpy.array(phib, dtype=numpy.double, order="C", copy=False, subok=True)
+    psi_in = numpy.array(psi, dtype=numpy.double, order="C", copy=False, subok=True)
+    eps_in = numpy.array(eps, dtype=numpy.double, order="C", copy=False, subok=True)
+    
+    #Create the output array, based on the broadcasted shape, adding the generated dimensions if needed
+    broadcast = numpy.broadcast(numpy.int32(0.0), numpy.int32(0.0), gamb_in, phib_in, psi_in, eps_in)
+    x_out = numpy.empty(broadcast.shape+(), dtype=numpy.double)
+    y_out = numpy.empty(broadcast.shape+(), dtype=numpy.double)
+    
+    #Create the iterator, broadcasting on all but the consumed dimensions
+    op_axes = [[-1]*(broadcast.nd-arr.ndim)+range(arr.ndim) for arr in [gamb_in, phib_in, psi_in, eps_in]+[x_out, y_out]]
+    op_flags = [['readonly']]*4+[['readwrite']]*2
+    it = numpy.nditer([gamb_in, phib_in, psi_in, eps_in]+[x_out, y_out], op_axes=op_axes, op_flags=op_flags)
+    
+    #Iterate
     cdef double _gamb
     cdef double _phib
     cdef double _psi
     cdef double _eps
     cdef double * _x
     cdef double * _y
-    
-    while numpy.PyArray_MultiIter_NOTDONE(it):
-        _gamb = (<double*>numpy.PyArray_MultiIter_DATA(it, 0))[0]
-        _phib = (<double*>numpy.PyArray_MultiIter_DATA(it, 1))[0]
-        _psi = (<double*>numpy.PyArray_MultiIter_DATA(it, 2))[0]
-        _eps = (<double*>numpy.PyArray_MultiIter_DATA(it, 3))[0]
-        _x = (<double *>numpy.PyArray_MultiIter_DATA(it, 4))
-        _y = (<double *>numpy.PyArray_MultiIter_DATA(it, 5))
-        
+    cdef char** dataptrarray = GetDataPtrArray(GetNpyIter(it))
+    cdef IterNextFunc iternext = GetIterNext(GetNpyIter(it), NULL)
+    cdef int status = 1
+    while status:
+        _gamb = (<double *>(dataptrarray[0]))[0]
+        _phib = (<double *>(dataptrarray[1]))[0]
+        _psi = (<double *>(dataptrarray[2]))[0]
+        _eps = (<double *>(dataptrarray[3]))[0]
+        _x = (<double *>(dataptrarray[4]))
+        _y = (<double *>(dataptrarray[5]))
         eraFw2xy(_gamb, _phib, _psi, _eps, _x, _y)
-        
-        numpy.PyArray_MultiIter_NEXT(it)
-
+        status = iternext(GetNpyIter(it))
+    
     return x_out, y_out
+
 
 def num00a(date1, date2):
     """
@@ -8807,27 +9711,36 @@ def num00a(date1, date2):
     Derived, with permission, from the SOFA library.  See notes at end of file.
   
     """
-    in_shape = numpy.broadcast(date1, date2).shape
-    rmatn_out = numpy.empty(in_shape, dtype=numpy.dtype([('fi0', 'd', (3,3))]))
     
-    cdef numpy.broadcast it = numpy.broadcast(date1, date2, rmatn_out)
+    #Turn all inputs into arrays
+    date1_in = numpy.array(date1, dtype=numpy.double, order="C", copy=False, subok=True)
+    date2_in = numpy.array(date2, dtype=numpy.double, order="C", copy=False, subok=True)
+    
+    #Create the output array, based on the broadcasted shape, adding the generated dimensions if needed
+    broadcast = numpy.broadcast(numpy.int32(0.0), numpy.int32(0.0), date1_in, date2_in)
+    rmatn_out = numpy.empty(broadcast.shape+(3, 3), dtype=numpy.double)
+    
+    #Create the iterator, broadcasting on all but the consumed dimensions
+    op_axes = [[-1]*(broadcast.nd-arr.ndim)+range(arr.ndim) for arr in [date1_in, date2_in]+[rmatn_out[...,0,0]]]
+    op_flags = [['readonly']]*2+[['readwrite']]*1
+    it = numpy.nditer([date1_in, date2_in]+[rmatn_out], op_axes=op_axes, op_flags=op_flags)
+    
+    #Iterate
     cdef double _date1
     cdef double _date2
     cdef double * _rmatn
-    
-    while numpy.PyArray_MultiIter_NOTDONE(it):
-        _date1 = (<double*>numpy.PyArray_MultiIter_DATA(it, 0))[0]
-        _date2 = (<double*>numpy.PyArray_MultiIter_DATA(it, 1))[0]
-        _rmatn = (<double *>numpy.PyArray_MultiIter_DATA(it, 2))
-        
+    cdef char** dataptrarray = GetDataPtrArray(GetNpyIter(it))
+    cdef IterNextFunc iternext = GetIterNext(GetNpyIter(it), NULL)
+    cdef int status = 1
+    while status:
+        _date1 = (<double *>(dataptrarray[0]))[0]
+        _date2 = (<double *>(dataptrarray[1]))[0]
+        _rmatn = (<double *>(dataptrarray[2]))
         eraNum00a(_date1, _date2, _rmatn)
-        
-        numpy.PyArray_MultiIter_NEXT(it) 
-
-    # convert from single-field structured dtype to regular nd-array
-    rmatn_out = rmatn_out['fi0']
-
+        status = iternext(GetNpyIter(it))
+    
     return rmatn_out
+
 
 def num00b(date1, date2):
     """
@@ -8891,27 +9804,36 @@ def num00b(date1, date2):
     Derived, with permission, from the SOFA library.  See notes at end of file.
   
     """
-    in_shape = numpy.broadcast(date1, date2).shape
-    rmatn_out = numpy.empty(in_shape, dtype=numpy.dtype([('fi0', 'd', (3,3))]))
     
-    cdef numpy.broadcast it = numpy.broadcast(date1, date2, rmatn_out)
+    #Turn all inputs into arrays
+    date1_in = numpy.array(date1, dtype=numpy.double, order="C", copy=False, subok=True)
+    date2_in = numpy.array(date2, dtype=numpy.double, order="C", copy=False, subok=True)
+    
+    #Create the output array, based on the broadcasted shape, adding the generated dimensions if needed
+    broadcast = numpy.broadcast(numpy.int32(0.0), numpy.int32(0.0), date1_in, date2_in)
+    rmatn_out = numpy.empty(broadcast.shape+(3, 3), dtype=numpy.double)
+    
+    #Create the iterator, broadcasting on all but the consumed dimensions
+    op_axes = [[-1]*(broadcast.nd-arr.ndim)+range(arr.ndim) for arr in [date1_in, date2_in]+[rmatn_out[...,0,0]]]
+    op_flags = [['readonly']]*2+[['readwrite']]*1
+    it = numpy.nditer([date1_in, date2_in]+[rmatn_out], op_axes=op_axes, op_flags=op_flags)
+    
+    #Iterate
     cdef double _date1
     cdef double _date2
     cdef double * _rmatn
-    
-    while numpy.PyArray_MultiIter_NOTDONE(it):
-        _date1 = (<double*>numpy.PyArray_MultiIter_DATA(it, 0))[0]
-        _date2 = (<double*>numpy.PyArray_MultiIter_DATA(it, 1))[0]
-        _rmatn = (<double *>numpy.PyArray_MultiIter_DATA(it, 2))
-        
+    cdef char** dataptrarray = GetDataPtrArray(GetNpyIter(it))
+    cdef IterNextFunc iternext = GetIterNext(GetNpyIter(it), NULL)
+    cdef int status = 1
+    while status:
+        _date1 = (<double *>(dataptrarray[0]))[0]
+        _date2 = (<double *>(dataptrarray[1]))[0]
+        _rmatn = (<double *>(dataptrarray[2]))
         eraNum00b(_date1, _date2, _rmatn)
-        
-        numpy.PyArray_MultiIter_NEXT(it) 
-
-    # convert from single-field structured dtype to regular nd-array
-    rmatn_out = rmatn_out['fi0']
-
+        status = iternext(GetNpyIter(it))
+    
     return rmatn_out
+
 
 def num06a(date1, date2):
     """
@@ -8974,27 +9896,36 @@ def num06a(date1, date2):
     Derived, with permission, from the SOFA library.  See notes at end of file.
   
     """
-    in_shape = numpy.broadcast(date1, date2).shape
-    rmatn_out = numpy.empty(in_shape, dtype=numpy.dtype([('fi0', 'd', (3,3))]))
     
-    cdef numpy.broadcast it = numpy.broadcast(date1, date2, rmatn_out)
+    #Turn all inputs into arrays
+    date1_in = numpy.array(date1, dtype=numpy.double, order="C", copy=False, subok=True)
+    date2_in = numpy.array(date2, dtype=numpy.double, order="C", copy=False, subok=True)
+    
+    #Create the output array, based on the broadcasted shape, adding the generated dimensions if needed
+    broadcast = numpy.broadcast(numpy.int32(0.0), numpy.int32(0.0), date1_in, date2_in)
+    rmatn_out = numpy.empty(broadcast.shape+(3, 3), dtype=numpy.double)
+    
+    #Create the iterator, broadcasting on all but the consumed dimensions
+    op_axes = [[-1]*(broadcast.nd-arr.ndim)+range(arr.ndim) for arr in [date1_in, date2_in]+[rmatn_out[...,0,0]]]
+    op_flags = [['readonly']]*2+[['readwrite']]*1
+    it = numpy.nditer([date1_in, date2_in]+[rmatn_out], op_axes=op_axes, op_flags=op_flags)
+    
+    #Iterate
     cdef double _date1
     cdef double _date2
     cdef double * _rmatn
-    
-    while numpy.PyArray_MultiIter_NOTDONE(it):
-        _date1 = (<double*>numpy.PyArray_MultiIter_DATA(it, 0))[0]
-        _date2 = (<double*>numpy.PyArray_MultiIter_DATA(it, 1))[0]
-        _rmatn = (<double *>numpy.PyArray_MultiIter_DATA(it, 2))
-        
+    cdef char** dataptrarray = GetDataPtrArray(GetNpyIter(it))
+    cdef IterNextFunc iternext = GetIterNext(GetNpyIter(it), NULL)
+    cdef int status = 1
+    while status:
+        _date1 = (<double *>(dataptrarray[0]))[0]
+        _date2 = (<double *>(dataptrarray[1]))[0]
+        _rmatn = (<double *>(dataptrarray[2]))
         eraNum06a(_date1, _date2, _rmatn)
-        
-        numpy.PyArray_MultiIter_NEXT(it) 
-
-    # convert from single-field structured dtype to regular nd-array
-    rmatn_out = rmatn_out['fi0']
-
+        status = iternext(GetNpyIter(it))
+    
     return rmatn_out
+
 
 def numat(epsa, dpsi, deps):
     """
@@ -9047,29 +9978,39 @@ def numat(epsa, dpsi, deps):
     Derived, with permission, from the SOFA library.  See notes at end of file.
   
     """
-    in_shape = numpy.broadcast(epsa, dpsi, deps).shape
-    rmatn_out = numpy.empty(in_shape, dtype=numpy.dtype([('fi0', 'd', (3,3))]))
     
-    cdef numpy.broadcast it = numpy.broadcast(epsa, dpsi, deps, rmatn_out)
+    #Turn all inputs into arrays
+    epsa_in = numpy.array(epsa, dtype=numpy.double, order="C", copy=False, subok=True)
+    dpsi_in = numpy.array(dpsi, dtype=numpy.double, order="C", copy=False, subok=True)
+    deps_in = numpy.array(deps, dtype=numpy.double, order="C", copy=False, subok=True)
+    
+    #Create the output array, based on the broadcasted shape, adding the generated dimensions if needed
+    broadcast = numpy.broadcast(numpy.int32(0.0), numpy.int32(0.0), epsa_in, dpsi_in, deps_in)
+    rmatn_out = numpy.empty(broadcast.shape+(3, 3), dtype=numpy.double)
+    
+    #Create the iterator, broadcasting on all but the consumed dimensions
+    op_axes = [[-1]*(broadcast.nd-arr.ndim)+range(arr.ndim) for arr in [epsa_in, dpsi_in, deps_in]+[rmatn_out[...,0,0]]]
+    op_flags = [['readonly']]*3+[['readwrite']]*1
+    it = numpy.nditer([epsa_in, dpsi_in, deps_in]+[rmatn_out], op_axes=op_axes, op_flags=op_flags)
+    
+    #Iterate
     cdef double _epsa
     cdef double _dpsi
     cdef double _deps
     cdef double * _rmatn
-    
-    while numpy.PyArray_MultiIter_NOTDONE(it):
-        _epsa = (<double*>numpy.PyArray_MultiIter_DATA(it, 0))[0]
-        _dpsi = (<double*>numpy.PyArray_MultiIter_DATA(it, 1))[0]
-        _deps = (<double*>numpy.PyArray_MultiIter_DATA(it, 2))[0]
-        _rmatn = (<double *>numpy.PyArray_MultiIter_DATA(it, 3))
-        
+    cdef char** dataptrarray = GetDataPtrArray(GetNpyIter(it))
+    cdef IterNextFunc iternext = GetIterNext(GetNpyIter(it), NULL)
+    cdef int status = 1
+    while status:
+        _epsa = (<double *>(dataptrarray[0]))[0]
+        _dpsi = (<double *>(dataptrarray[1]))[0]
+        _deps = (<double *>(dataptrarray[2]))[0]
+        _rmatn = (<double *>(dataptrarray[3]))
         eraNumat(_epsa, _dpsi, _deps, _rmatn)
-        
-        numpy.PyArray_MultiIter_NEXT(it) 
-
-    # convert from single-field structured dtype to regular nd-array
-    rmatn_out = rmatn_out['fi0']
-
+        status = iternext(GetNpyIter(it))
+    
     return rmatn_out
+
 
 def nut00a(date1, date2):
     """
@@ -9229,27 +10170,39 @@ def nut00a(date1, date2):
     Derived, with permission, from the SOFA library.  See notes at end of file.
   
     """
-    in_shape = numpy.broadcast(date1, date2).shape
-    dpsi_out = numpy.empty(in_shape, dtype=numpy.double)
-    deps_out = numpy.empty(in_shape, dtype=numpy.double)
     
-    cdef numpy.broadcast it = numpy.broadcast(date1, date2, dpsi_out, deps_out)
+    #Turn all inputs into arrays
+    date1_in = numpy.array(date1, dtype=numpy.double, order="C", copy=False, subok=True)
+    date2_in = numpy.array(date2, dtype=numpy.double, order="C", copy=False, subok=True)
+    
+    #Create the output array, based on the broadcasted shape, adding the generated dimensions if needed
+    broadcast = numpy.broadcast(numpy.int32(0.0), numpy.int32(0.0), date1_in, date2_in)
+    dpsi_out = numpy.empty(broadcast.shape+(), dtype=numpy.double)
+    deps_out = numpy.empty(broadcast.shape+(), dtype=numpy.double)
+    
+    #Create the iterator, broadcasting on all but the consumed dimensions
+    op_axes = [[-1]*(broadcast.nd-arr.ndim)+range(arr.ndim) for arr in [date1_in, date2_in]+[dpsi_out, deps_out]]
+    op_flags = [['readonly']]*2+[['readwrite']]*2
+    it = numpy.nditer([date1_in, date2_in]+[dpsi_out, deps_out], op_axes=op_axes, op_flags=op_flags)
+    
+    #Iterate
     cdef double _date1
     cdef double _date2
     cdef double * _dpsi
     cdef double * _deps
-    
-    while numpy.PyArray_MultiIter_NOTDONE(it):
-        _date1 = (<double*>numpy.PyArray_MultiIter_DATA(it, 0))[0]
-        _date2 = (<double*>numpy.PyArray_MultiIter_DATA(it, 1))[0]
-        _dpsi = (<double *>numpy.PyArray_MultiIter_DATA(it, 2))
-        _deps = (<double *>numpy.PyArray_MultiIter_DATA(it, 3))
-        
+    cdef char** dataptrarray = GetDataPtrArray(GetNpyIter(it))
+    cdef IterNextFunc iternext = GetIterNext(GetNpyIter(it), NULL)
+    cdef int status = 1
+    while status:
+        _date1 = (<double *>(dataptrarray[0]))[0]
+        _date2 = (<double *>(dataptrarray[1]))[0]
+        _dpsi = (<double *>(dataptrarray[2]))
+        _deps = (<double *>(dataptrarray[3]))
         eraNut00a(_date1, _date2, _dpsi, _deps)
-        
-        numpy.PyArray_MultiIter_NEXT(it)
-
+        status = iternext(GetNpyIter(it))
+    
     return dpsi_out, deps_out
+
 
 def nut00b(date1, date2):
     """
@@ -9377,27 +10330,39 @@ def nut00b(date1, date2):
     Derived, with permission, from the SOFA library.  See notes at end of file.
   
     """
-    in_shape = numpy.broadcast(date1, date2).shape
-    dpsi_out = numpy.empty(in_shape, dtype=numpy.double)
-    deps_out = numpy.empty(in_shape, dtype=numpy.double)
     
-    cdef numpy.broadcast it = numpy.broadcast(date1, date2, dpsi_out, deps_out)
+    #Turn all inputs into arrays
+    date1_in = numpy.array(date1, dtype=numpy.double, order="C", copy=False, subok=True)
+    date2_in = numpy.array(date2, dtype=numpy.double, order="C", copy=False, subok=True)
+    
+    #Create the output array, based on the broadcasted shape, adding the generated dimensions if needed
+    broadcast = numpy.broadcast(numpy.int32(0.0), numpy.int32(0.0), date1_in, date2_in)
+    dpsi_out = numpy.empty(broadcast.shape+(), dtype=numpy.double)
+    deps_out = numpy.empty(broadcast.shape+(), dtype=numpy.double)
+    
+    #Create the iterator, broadcasting on all but the consumed dimensions
+    op_axes = [[-1]*(broadcast.nd-arr.ndim)+range(arr.ndim) for arr in [date1_in, date2_in]+[dpsi_out, deps_out]]
+    op_flags = [['readonly']]*2+[['readwrite']]*2
+    it = numpy.nditer([date1_in, date2_in]+[dpsi_out, deps_out], op_axes=op_axes, op_flags=op_flags)
+    
+    #Iterate
     cdef double _date1
     cdef double _date2
     cdef double * _dpsi
     cdef double * _deps
-    
-    while numpy.PyArray_MultiIter_NOTDONE(it):
-        _date1 = (<double*>numpy.PyArray_MultiIter_DATA(it, 0))[0]
-        _date2 = (<double*>numpy.PyArray_MultiIter_DATA(it, 1))[0]
-        _dpsi = (<double *>numpy.PyArray_MultiIter_DATA(it, 2))
-        _deps = (<double *>numpy.PyArray_MultiIter_DATA(it, 3))
-        
+    cdef char** dataptrarray = GetDataPtrArray(GetNpyIter(it))
+    cdef IterNextFunc iternext = GetIterNext(GetNpyIter(it), NULL)
+    cdef int status = 1
+    while status:
+        _date1 = (<double *>(dataptrarray[0]))[0]
+        _date2 = (<double *>(dataptrarray[1]))[0]
+        _dpsi = (<double *>(dataptrarray[2]))
+        _deps = (<double *>(dataptrarray[3]))
         eraNut00b(_date1, _date2, _dpsi, _deps)
-        
-        numpy.PyArray_MultiIter_NEXT(it)
-
+        status = iternext(GetNpyIter(it))
+    
     return dpsi_out, deps_out
+
 
 def nut06a(date1, date2):
     """
@@ -9484,27 +10449,39 @@ def nut06a(date1, date2):
     Derived, with permission, from the SOFA library.  See notes at end of file.
   
     """
-    in_shape = numpy.broadcast(date1, date2).shape
-    dpsi_out = numpy.empty(in_shape, dtype=numpy.double)
-    deps_out = numpy.empty(in_shape, dtype=numpy.double)
     
-    cdef numpy.broadcast it = numpy.broadcast(date1, date2, dpsi_out, deps_out)
+    #Turn all inputs into arrays
+    date1_in = numpy.array(date1, dtype=numpy.double, order="C", copy=False, subok=True)
+    date2_in = numpy.array(date2, dtype=numpy.double, order="C", copy=False, subok=True)
+    
+    #Create the output array, based on the broadcasted shape, adding the generated dimensions if needed
+    broadcast = numpy.broadcast(numpy.int32(0.0), numpy.int32(0.0), date1_in, date2_in)
+    dpsi_out = numpy.empty(broadcast.shape+(), dtype=numpy.double)
+    deps_out = numpy.empty(broadcast.shape+(), dtype=numpy.double)
+    
+    #Create the iterator, broadcasting on all but the consumed dimensions
+    op_axes = [[-1]*(broadcast.nd-arr.ndim)+range(arr.ndim) for arr in [date1_in, date2_in]+[dpsi_out, deps_out]]
+    op_flags = [['readonly']]*2+[['readwrite']]*2
+    it = numpy.nditer([date1_in, date2_in]+[dpsi_out, deps_out], op_axes=op_axes, op_flags=op_flags)
+    
+    #Iterate
     cdef double _date1
     cdef double _date2
     cdef double * _dpsi
     cdef double * _deps
-    
-    while numpy.PyArray_MultiIter_NOTDONE(it):
-        _date1 = (<double*>numpy.PyArray_MultiIter_DATA(it, 0))[0]
-        _date2 = (<double*>numpy.PyArray_MultiIter_DATA(it, 1))[0]
-        _dpsi = (<double *>numpy.PyArray_MultiIter_DATA(it, 2))
-        _deps = (<double *>numpy.PyArray_MultiIter_DATA(it, 3))
-        
+    cdef char** dataptrarray = GetDataPtrArray(GetNpyIter(it))
+    cdef IterNextFunc iternext = GetIterNext(GetNpyIter(it), NULL)
+    cdef int status = 1
+    while status:
+        _date1 = (<double *>(dataptrarray[0]))[0]
+        _date2 = (<double *>(dataptrarray[1]))[0]
+        _dpsi = (<double *>(dataptrarray[2]))
+        _deps = (<double *>(dataptrarray[3]))
         eraNut06a(_date1, _date2, _dpsi, _deps)
-        
-        numpy.PyArray_MultiIter_NEXT(it)
-
+        status = iternext(GetNpyIter(it))
+    
     return dpsi_out, deps_out
+
 
 def nut80(date1, date2):
     """
@@ -9564,27 +10541,39 @@ def nut80(date1, date2):
     Derived, with permission, from the SOFA library.  See notes at end of file.
   
     """
-    in_shape = numpy.broadcast(date1, date2).shape
-    dpsi_out = numpy.empty(in_shape, dtype=numpy.double)
-    deps_out = numpy.empty(in_shape, dtype=numpy.double)
     
-    cdef numpy.broadcast it = numpy.broadcast(date1, date2, dpsi_out, deps_out)
+    #Turn all inputs into arrays
+    date1_in = numpy.array(date1, dtype=numpy.double, order="C", copy=False, subok=True)
+    date2_in = numpy.array(date2, dtype=numpy.double, order="C", copy=False, subok=True)
+    
+    #Create the output array, based on the broadcasted shape, adding the generated dimensions if needed
+    broadcast = numpy.broadcast(numpy.int32(0.0), numpy.int32(0.0), date1_in, date2_in)
+    dpsi_out = numpy.empty(broadcast.shape+(), dtype=numpy.double)
+    deps_out = numpy.empty(broadcast.shape+(), dtype=numpy.double)
+    
+    #Create the iterator, broadcasting on all but the consumed dimensions
+    op_axes = [[-1]*(broadcast.nd-arr.ndim)+range(arr.ndim) for arr in [date1_in, date2_in]+[dpsi_out, deps_out]]
+    op_flags = [['readonly']]*2+[['readwrite']]*2
+    it = numpy.nditer([date1_in, date2_in]+[dpsi_out, deps_out], op_axes=op_axes, op_flags=op_flags)
+    
+    #Iterate
     cdef double _date1
     cdef double _date2
     cdef double * _dpsi
     cdef double * _deps
-    
-    while numpy.PyArray_MultiIter_NOTDONE(it):
-        _date1 = (<double*>numpy.PyArray_MultiIter_DATA(it, 0))[0]
-        _date2 = (<double*>numpy.PyArray_MultiIter_DATA(it, 1))[0]
-        _dpsi = (<double *>numpy.PyArray_MultiIter_DATA(it, 2))
-        _deps = (<double *>numpy.PyArray_MultiIter_DATA(it, 3))
-        
+    cdef char** dataptrarray = GetDataPtrArray(GetNpyIter(it))
+    cdef IterNextFunc iternext = GetIterNext(GetNpyIter(it), NULL)
+    cdef int status = 1
+    while status:
+        _date1 = (<double *>(dataptrarray[0]))[0]
+        _date2 = (<double *>(dataptrarray[1]))[0]
+        _dpsi = (<double *>(dataptrarray[2]))
+        _deps = (<double *>(dataptrarray[3]))
         eraNut80(_date1, _date2, _dpsi, _deps)
-        
-        numpy.PyArray_MultiIter_NEXT(it)
-
+        status = iternext(GetNpyIter(it))
+    
     return dpsi_out, deps_out
+
 
 def nutm80(date1, date2):
     """
@@ -9641,27 +10630,36 @@ def nutm80(date1, date2):
     Derived, with permission, from the SOFA library.  See notes at end of file.
   
     """
-    in_shape = numpy.broadcast(date1, date2).shape
-    rmatn_out = numpy.empty(in_shape, dtype=numpy.dtype([('fi0', 'd', (3,3))]))
     
-    cdef numpy.broadcast it = numpy.broadcast(date1, date2, rmatn_out)
+    #Turn all inputs into arrays
+    date1_in = numpy.array(date1, dtype=numpy.double, order="C", copy=False, subok=True)
+    date2_in = numpy.array(date2, dtype=numpy.double, order="C", copy=False, subok=True)
+    
+    #Create the output array, based on the broadcasted shape, adding the generated dimensions if needed
+    broadcast = numpy.broadcast(numpy.int32(0.0), numpy.int32(0.0), date1_in, date2_in)
+    rmatn_out = numpy.empty(broadcast.shape+(3, 3), dtype=numpy.double)
+    
+    #Create the iterator, broadcasting on all but the consumed dimensions
+    op_axes = [[-1]*(broadcast.nd-arr.ndim)+range(arr.ndim) for arr in [date1_in, date2_in]+[rmatn_out[...,0,0]]]
+    op_flags = [['readonly']]*2+[['readwrite']]*1
+    it = numpy.nditer([date1_in, date2_in]+[rmatn_out], op_axes=op_axes, op_flags=op_flags)
+    
+    #Iterate
     cdef double _date1
     cdef double _date2
     cdef double * _rmatn
-    
-    while numpy.PyArray_MultiIter_NOTDONE(it):
-        _date1 = (<double*>numpy.PyArray_MultiIter_DATA(it, 0))[0]
-        _date2 = (<double*>numpy.PyArray_MultiIter_DATA(it, 1))[0]
-        _rmatn = (<double *>numpy.PyArray_MultiIter_DATA(it, 2))
-        
+    cdef char** dataptrarray = GetDataPtrArray(GetNpyIter(it))
+    cdef IterNextFunc iternext = GetIterNext(GetNpyIter(it), NULL)
+    cdef int status = 1
+    while status:
+        _date1 = (<double *>(dataptrarray[0]))[0]
+        _date2 = (<double *>(dataptrarray[1]))[0]
+        _rmatn = (<double *>(dataptrarray[2]))
         eraNutm80(_date1, _date2, _rmatn)
-        
-        numpy.PyArray_MultiIter_NEXT(it) 
-
-    # convert from single-field structured dtype to regular nd-array
-    rmatn_out = rmatn_out['fi0']
-
+        status = iternext(GetNpyIter(it))
+    
     return rmatn_out
+
 
 def obl06(date1, date2):
     """
@@ -9715,24 +10713,36 @@ def obl06(date1, date2):
     Derived, with permission, from the SOFA library.  See notes at end of file.
   
     """
-    in_shape = numpy.broadcast(date1, date2).shape
-    c_retval_out = numpy.empty(in_shape, dtype=numpy.double)
     
-    cdef numpy.broadcast it = numpy.broadcast(date1, date2, c_retval_out)
+    #Turn all inputs into arrays
+    date1_in = numpy.array(date1, dtype=numpy.double, order="C", copy=False, subok=True)
+    date2_in = numpy.array(date2, dtype=numpy.double, order="C", copy=False, subok=True)
+    
+    #Create the output array, based on the broadcasted shape, adding the generated dimensions if needed
+    broadcast = numpy.broadcast(numpy.int32(0.0), numpy.int32(0.0), date1_in, date2_in)
+    c_retval_out = numpy.empty(broadcast.shape+(), dtype=numpy.double)
+    
+    #Create the iterator, broadcasting on all but the consumed dimensions
+    op_axes = [[-1]*(broadcast.nd-arr.ndim)+range(arr.ndim) for arr in [date1_in, date2_in]+[c_retval_out]]
+    op_flags = [['readonly']]*2+[['readwrite']]*1
+    it = numpy.nditer([date1_in, date2_in]+[c_retval_out], op_axes=op_axes, op_flags=op_flags)
+    
+    #Iterate
     cdef double _date1
     cdef double _date2
     cdef double _c_retval
-    
-    while numpy.PyArray_MultiIter_NOTDONE(it):
-        _date1 = (<double*>numpy.PyArray_MultiIter_DATA(it, 0))[0]
-        _date2 = (<double*>numpy.PyArray_MultiIter_DATA(it, 1))[0]
-        
+    cdef char** dataptrarray = GetDataPtrArray(GetNpyIter(it))
+    cdef IterNextFunc iternext = GetIterNext(GetNpyIter(it), NULL)
+    cdef int status = 1
+    while status:
+        _date1 = (<double *>(dataptrarray[0]))[0]
+        _date2 = (<double *>(dataptrarray[1]))[0]
         _c_retval = eraObl06(_date1, _date2)
-        (<double*>numpy.PyArray_MultiIter_DATA(it, 2))[0] = _c_retval
-        
-        numpy.PyArray_MultiIter_NEXT(it)
-
+        (<double *>(dataptrarray[2]))[0] = _c_retval
+        status = iternext(GetNpyIter(it))
+    
     return c_retval_out
+
 
 def obl80(date1, date2):
     """
@@ -9788,24 +10798,36 @@ def obl80(date1, date2):
     Derived, with permission, from the SOFA library.  See notes at end of file.
   
     """
-    in_shape = numpy.broadcast(date1, date2).shape
-    c_retval_out = numpy.empty(in_shape, dtype=numpy.double)
     
-    cdef numpy.broadcast it = numpy.broadcast(date1, date2, c_retval_out)
+    #Turn all inputs into arrays
+    date1_in = numpy.array(date1, dtype=numpy.double, order="C", copy=False, subok=True)
+    date2_in = numpy.array(date2, dtype=numpy.double, order="C", copy=False, subok=True)
+    
+    #Create the output array, based on the broadcasted shape, adding the generated dimensions if needed
+    broadcast = numpy.broadcast(numpy.int32(0.0), numpy.int32(0.0), date1_in, date2_in)
+    c_retval_out = numpy.empty(broadcast.shape+(), dtype=numpy.double)
+    
+    #Create the iterator, broadcasting on all but the consumed dimensions
+    op_axes = [[-1]*(broadcast.nd-arr.ndim)+range(arr.ndim) for arr in [date1_in, date2_in]+[c_retval_out]]
+    op_flags = [['readonly']]*2+[['readwrite']]*1
+    it = numpy.nditer([date1_in, date2_in]+[c_retval_out], op_axes=op_axes, op_flags=op_flags)
+    
+    #Iterate
     cdef double _date1
     cdef double _date2
     cdef double _c_retval
-    
-    while numpy.PyArray_MultiIter_NOTDONE(it):
-        _date1 = (<double*>numpy.PyArray_MultiIter_DATA(it, 0))[0]
-        _date2 = (<double*>numpy.PyArray_MultiIter_DATA(it, 1))[0]
-        
+    cdef char** dataptrarray = GetDataPtrArray(GetNpyIter(it))
+    cdef IterNextFunc iternext = GetIterNext(GetNpyIter(it), NULL)
+    cdef int status = 1
+    while status:
+        _date1 = (<double *>(dataptrarray[0]))[0]
+        _date2 = (<double *>(dataptrarray[1]))[0]
         _c_retval = eraObl80(_date1, _date2)
-        (<double*>numpy.PyArray_MultiIter_DATA(it, 2))[0] = _c_retval
-        
-        numpy.PyArray_MultiIter_NEXT(it)
-
+        (<double *>(dataptrarray[2]))[0] = _c_retval
+        status = iternext(GetNpyIter(it))
+    
     return c_retval_out
+
 
 def p06e(date1, date2):
     """
@@ -9932,25 +10954,36 @@ def p06e(date1, date2):
     Derived, with permission, from the SOFA library.  See notes at end of file.
   
     """
-    in_shape = numpy.broadcast(date1, date2).shape
-    eps0_out = numpy.empty(in_shape, dtype=numpy.double)
-    psia_out = numpy.empty(in_shape, dtype=numpy.double)
-    oma_out = numpy.empty(in_shape, dtype=numpy.double)
-    bpa_out = numpy.empty(in_shape, dtype=numpy.double)
-    bqa_out = numpy.empty(in_shape, dtype=numpy.double)
-    pia_out = numpy.empty(in_shape, dtype=numpy.double)
-    bpia_out = numpy.empty(in_shape, dtype=numpy.double)
-    epsa_out = numpy.empty(in_shape, dtype=numpy.double)
-    chia_out = numpy.empty(in_shape, dtype=numpy.double)
-    za_out = numpy.empty(in_shape, dtype=numpy.double)
-    zetaa_out = numpy.empty(in_shape, dtype=numpy.double)
-    thetaa_out = numpy.empty(in_shape, dtype=numpy.double)
-    pa_out = numpy.empty(in_shape, dtype=numpy.double)
-    gam_out = numpy.empty(in_shape, dtype=numpy.double)
-    phi_out = numpy.empty(in_shape, dtype=numpy.double)
-    psi_out = numpy.empty(in_shape, dtype=numpy.double)
     
-    cdef numpy.broadcast it = numpy.broadcast(date1, date2, eps0_out, psia_out, oma_out, bpa_out, bqa_out, pia_out, bpia_out, epsa_out, chia_out, za_out, zetaa_out, thetaa_out, pa_out, gam_out, phi_out, psi_out)
+    #Turn all inputs into arrays
+    date1_in = numpy.array(date1, dtype=numpy.double, order="C", copy=False, subok=True)
+    date2_in = numpy.array(date2, dtype=numpy.double, order="C", copy=False, subok=True)
+    
+    #Create the output array, based on the broadcasted shape, adding the generated dimensions if needed
+    broadcast = numpy.broadcast(numpy.int32(0.0), numpy.int32(0.0), date1_in, date2_in)
+    eps0_out = numpy.empty(broadcast.shape+(), dtype=numpy.double)
+    psia_out = numpy.empty(broadcast.shape+(), dtype=numpy.double)
+    oma_out = numpy.empty(broadcast.shape+(), dtype=numpy.double)
+    bpa_out = numpy.empty(broadcast.shape+(), dtype=numpy.double)
+    bqa_out = numpy.empty(broadcast.shape+(), dtype=numpy.double)
+    pia_out = numpy.empty(broadcast.shape+(), dtype=numpy.double)
+    bpia_out = numpy.empty(broadcast.shape+(), dtype=numpy.double)
+    epsa_out = numpy.empty(broadcast.shape+(), dtype=numpy.double)
+    chia_out = numpy.empty(broadcast.shape+(), dtype=numpy.double)
+    za_out = numpy.empty(broadcast.shape+(), dtype=numpy.double)
+    zetaa_out = numpy.empty(broadcast.shape+(), dtype=numpy.double)
+    thetaa_out = numpy.empty(broadcast.shape+(), dtype=numpy.double)
+    pa_out = numpy.empty(broadcast.shape+(), dtype=numpy.double)
+    gam_out = numpy.empty(broadcast.shape+(), dtype=numpy.double)
+    phi_out = numpy.empty(broadcast.shape+(), dtype=numpy.double)
+    psi_out = numpy.empty(broadcast.shape+(), dtype=numpy.double)
+    
+    #Create the iterator, broadcasting on all but the consumed dimensions
+    op_axes = [[-1]*(broadcast.nd-arr.ndim)+range(arr.ndim) for arr in [date1_in, date2_in]+[eps0_out, psia_out, oma_out, bpa_out, bqa_out, pia_out, bpia_out, epsa_out, chia_out, za_out, zetaa_out, thetaa_out, pa_out, gam_out, phi_out, psi_out]]
+    op_flags = [['readonly']]*2+[['readwrite']]*16
+    it = numpy.nditer([date1_in, date2_in]+[eps0_out, psia_out, oma_out, bpa_out, bqa_out, pia_out, bpia_out, epsa_out, chia_out, za_out, zetaa_out, thetaa_out, pa_out, gam_out, phi_out, psi_out], op_axes=op_axes, op_flags=op_flags)
+    
+    #Iterate
     cdef double _date1
     cdef double _date2
     cdef double * _eps0
@@ -9969,32 +11002,33 @@ def p06e(date1, date2):
     cdef double * _gam
     cdef double * _phi
     cdef double * _psi
-    
-    while numpy.PyArray_MultiIter_NOTDONE(it):
-        _date1 = (<double*>numpy.PyArray_MultiIter_DATA(it, 0))[0]
-        _date2 = (<double*>numpy.PyArray_MultiIter_DATA(it, 1))[0]
-        _eps0 = (<double *>numpy.PyArray_MultiIter_DATA(it, 2))
-        _psia = (<double *>numpy.PyArray_MultiIter_DATA(it, 3))
-        _oma = (<double *>numpy.PyArray_MultiIter_DATA(it, 4))
-        _bpa = (<double *>numpy.PyArray_MultiIter_DATA(it, 5))
-        _bqa = (<double *>numpy.PyArray_MultiIter_DATA(it, 6))
-        _pia = (<double *>numpy.PyArray_MultiIter_DATA(it, 7))
-        _bpia = (<double *>numpy.PyArray_MultiIter_DATA(it, 8))
-        _epsa = (<double *>numpy.PyArray_MultiIter_DATA(it, 9))
-        _chia = (<double *>numpy.PyArray_MultiIter_DATA(it, 10))
-        _za = (<double *>numpy.PyArray_MultiIter_DATA(it, 11))
-        _zetaa = (<double *>numpy.PyArray_MultiIter_DATA(it, 12))
-        _thetaa = (<double *>numpy.PyArray_MultiIter_DATA(it, 13))
-        _pa = (<double *>numpy.PyArray_MultiIter_DATA(it, 14))
-        _gam = (<double *>numpy.PyArray_MultiIter_DATA(it, 15))
-        _phi = (<double *>numpy.PyArray_MultiIter_DATA(it, 16))
-        _psi = (<double *>numpy.PyArray_MultiIter_DATA(it, 17))
-        
+    cdef char** dataptrarray = GetDataPtrArray(GetNpyIter(it))
+    cdef IterNextFunc iternext = GetIterNext(GetNpyIter(it), NULL)
+    cdef int status = 1
+    while status:
+        _date1 = (<double *>(dataptrarray[0]))[0]
+        _date2 = (<double *>(dataptrarray[1]))[0]
+        _eps0 = (<double *>(dataptrarray[2]))
+        _psia = (<double *>(dataptrarray[3]))
+        _oma = (<double *>(dataptrarray[4]))
+        _bpa = (<double *>(dataptrarray[5]))
+        _bqa = (<double *>(dataptrarray[6]))
+        _pia = (<double *>(dataptrarray[7]))
+        _bpia = (<double *>(dataptrarray[8]))
+        _epsa = (<double *>(dataptrarray[9]))
+        _chia = (<double *>(dataptrarray[10]))
+        _za = (<double *>(dataptrarray[11]))
+        _zetaa = (<double *>(dataptrarray[12]))
+        _thetaa = (<double *>(dataptrarray[13]))
+        _pa = (<double *>(dataptrarray[14]))
+        _gam = (<double *>(dataptrarray[15]))
+        _phi = (<double *>(dataptrarray[16]))
+        _psi = (<double *>(dataptrarray[17]))
         eraP06e(_date1, _date2, _eps0, _psia, _oma, _bpa, _bqa, _pia, _bpia, _epsa, _chia, _za, _zetaa, _thetaa, _pa, _gam, _phi, _psi)
-        
-        numpy.PyArray_MultiIter_NEXT(it)
-
+        status = iternext(GetNpyIter(it))
+    
     return eps0_out, psia_out, oma_out, bpa_out, bqa_out, pia_out, bpia_out, epsa_out, chia_out, za_out, zetaa_out, thetaa_out, pa_out, gam_out, phi_out, psi_out
+
 
 def pb06(date1, date2):
     """
@@ -10068,30 +11102,42 @@ def pb06(date1, date2):
     Derived, with permission, from the SOFA library.  See notes at end of file.
   
     """
-    in_shape = numpy.broadcast(date1, date2).shape
-    bzeta_out = numpy.empty(in_shape, dtype=numpy.double)
-    bz_out = numpy.empty(in_shape, dtype=numpy.double)
-    btheta_out = numpy.empty(in_shape, dtype=numpy.double)
     
-    cdef numpy.broadcast it = numpy.broadcast(date1, date2, bzeta_out, bz_out, btheta_out)
+    #Turn all inputs into arrays
+    date1_in = numpy.array(date1, dtype=numpy.double, order="C", copy=False, subok=True)
+    date2_in = numpy.array(date2, dtype=numpy.double, order="C", copy=False, subok=True)
+    
+    #Create the output array, based on the broadcasted shape, adding the generated dimensions if needed
+    broadcast = numpy.broadcast(numpy.int32(0.0), numpy.int32(0.0), date1_in, date2_in)
+    bzeta_out = numpy.empty(broadcast.shape+(), dtype=numpy.double)
+    bz_out = numpy.empty(broadcast.shape+(), dtype=numpy.double)
+    btheta_out = numpy.empty(broadcast.shape+(), dtype=numpy.double)
+    
+    #Create the iterator, broadcasting on all but the consumed dimensions
+    op_axes = [[-1]*(broadcast.nd-arr.ndim)+range(arr.ndim) for arr in [date1_in, date2_in]+[bzeta_out, bz_out, btheta_out]]
+    op_flags = [['readonly']]*2+[['readwrite']]*3
+    it = numpy.nditer([date1_in, date2_in]+[bzeta_out, bz_out, btheta_out], op_axes=op_axes, op_flags=op_flags)
+    
+    #Iterate
     cdef double _date1
     cdef double _date2
     cdef double * _bzeta
     cdef double * _bz
     cdef double * _btheta
-    
-    while numpy.PyArray_MultiIter_NOTDONE(it):
-        _date1 = (<double*>numpy.PyArray_MultiIter_DATA(it, 0))[0]
-        _date2 = (<double*>numpy.PyArray_MultiIter_DATA(it, 1))[0]
-        _bzeta = (<double *>numpy.PyArray_MultiIter_DATA(it, 2))
-        _bz = (<double *>numpy.PyArray_MultiIter_DATA(it, 3))
-        _btheta = (<double *>numpy.PyArray_MultiIter_DATA(it, 4))
-        
+    cdef char** dataptrarray = GetDataPtrArray(GetNpyIter(it))
+    cdef IterNextFunc iternext = GetIterNext(GetNpyIter(it), NULL)
+    cdef int status = 1
+    while status:
+        _date1 = (<double *>(dataptrarray[0]))[0]
+        _date2 = (<double *>(dataptrarray[1]))[0]
+        _bzeta = (<double *>(dataptrarray[2]))
+        _bz = (<double *>(dataptrarray[3]))
+        _btheta = (<double *>(dataptrarray[4]))
         eraPb06(_date1, _date2, _bzeta, _bz, _btheta)
-        
-        numpy.PyArray_MultiIter_NEXT(it)
-
+        status = iternext(GetNpyIter(it))
+    
     return bzeta_out, bz_out, btheta_out
+
 
 def pfw06(date1, date2):
     """
@@ -10175,33 +11221,45 @@ def pfw06(date1, date2):
     Derived, with permission, from the SOFA library.  See notes at end of file.
   
     """
-    in_shape = numpy.broadcast(date1, date2).shape
-    gamb_out = numpy.empty(in_shape, dtype=numpy.double)
-    phib_out = numpy.empty(in_shape, dtype=numpy.double)
-    psib_out = numpy.empty(in_shape, dtype=numpy.double)
-    epsa_out = numpy.empty(in_shape, dtype=numpy.double)
     
-    cdef numpy.broadcast it = numpy.broadcast(date1, date2, gamb_out, phib_out, psib_out, epsa_out)
+    #Turn all inputs into arrays
+    date1_in = numpy.array(date1, dtype=numpy.double, order="C", copy=False, subok=True)
+    date2_in = numpy.array(date2, dtype=numpy.double, order="C", copy=False, subok=True)
+    
+    #Create the output array, based on the broadcasted shape, adding the generated dimensions if needed
+    broadcast = numpy.broadcast(numpy.int32(0.0), numpy.int32(0.0), date1_in, date2_in)
+    gamb_out = numpy.empty(broadcast.shape+(), dtype=numpy.double)
+    phib_out = numpy.empty(broadcast.shape+(), dtype=numpy.double)
+    psib_out = numpy.empty(broadcast.shape+(), dtype=numpy.double)
+    epsa_out = numpy.empty(broadcast.shape+(), dtype=numpy.double)
+    
+    #Create the iterator, broadcasting on all but the consumed dimensions
+    op_axes = [[-1]*(broadcast.nd-arr.ndim)+range(arr.ndim) for arr in [date1_in, date2_in]+[gamb_out, phib_out, psib_out, epsa_out]]
+    op_flags = [['readonly']]*2+[['readwrite']]*4
+    it = numpy.nditer([date1_in, date2_in]+[gamb_out, phib_out, psib_out, epsa_out], op_axes=op_axes, op_flags=op_flags)
+    
+    #Iterate
     cdef double _date1
     cdef double _date2
     cdef double * _gamb
     cdef double * _phib
     cdef double * _psib
     cdef double * _epsa
-    
-    while numpy.PyArray_MultiIter_NOTDONE(it):
-        _date1 = (<double*>numpy.PyArray_MultiIter_DATA(it, 0))[0]
-        _date2 = (<double*>numpy.PyArray_MultiIter_DATA(it, 1))[0]
-        _gamb = (<double *>numpy.PyArray_MultiIter_DATA(it, 2))
-        _phib = (<double *>numpy.PyArray_MultiIter_DATA(it, 3))
-        _psib = (<double *>numpy.PyArray_MultiIter_DATA(it, 4))
-        _epsa = (<double *>numpy.PyArray_MultiIter_DATA(it, 5))
-        
+    cdef char** dataptrarray = GetDataPtrArray(GetNpyIter(it))
+    cdef IterNextFunc iternext = GetIterNext(GetNpyIter(it), NULL)
+    cdef int status = 1
+    while status:
+        _date1 = (<double *>(dataptrarray[0]))[0]
+        _date2 = (<double *>(dataptrarray[1]))[0]
+        _gamb = (<double *>(dataptrarray[2]))
+        _phib = (<double *>(dataptrarray[3]))
+        _psib = (<double *>(dataptrarray[4]))
+        _epsa = (<double *>(dataptrarray[5]))
         eraPfw06(_date1, _date2, _gamb, _phib, _psib, _epsa)
-        
-        numpy.PyArray_MultiIter_NEXT(it)
-
+        status = iternext(GetNpyIter(it))
+    
     return gamb_out, phib_out, psib_out, epsa_out
+
 
 def pmat00(date1, date2):
     """
@@ -10263,27 +11321,36 @@ def pmat00(date1, date2):
     Derived, with permission, from the SOFA library.  See notes at end of file.
   
     """
-    in_shape = numpy.broadcast(date1, date2).shape
-    rbp_out = numpy.empty(in_shape, dtype=numpy.dtype([('fi0', 'd', (3,3))]))
     
-    cdef numpy.broadcast it = numpy.broadcast(date1, date2, rbp_out)
+    #Turn all inputs into arrays
+    date1_in = numpy.array(date1, dtype=numpy.double, order="C", copy=False, subok=True)
+    date2_in = numpy.array(date2, dtype=numpy.double, order="C", copy=False, subok=True)
+    
+    #Create the output array, based on the broadcasted shape, adding the generated dimensions if needed
+    broadcast = numpy.broadcast(numpy.int32(0.0), numpy.int32(0.0), date1_in, date2_in)
+    rbp_out = numpy.empty(broadcast.shape+(3, 3), dtype=numpy.double)
+    
+    #Create the iterator, broadcasting on all but the consumed dimensions
+    op_axes = [[-1]*(broadcast.nd-arr.ndim)+range(arr.ndim) for arr in [date1_in, date2_in]+[rbp_out[...,0,0]]]
+    op_flags = [['readonly']]*2+[['readwrite']]*1
+    it = numpy.nditer([date1_in, date2_in]+[rbp_out], op_axes=op_axes, op_flags=op_flags)
+    
+    #Iterate
     cdef double _date1
     cdef double _date2
     cdef double * _rbp
-    
-    while numpy.PyArray_MultiIter_NOTDONE(it):
-        _date1 = (<double*>numpy.PyArray_MultiIter_DATA(it, 0))[0]
-        _date2 = (<double*>numpy.PyArray_MultiIter_DATA(it, 1))[0]
-        _rbp = (<double *>numpy.PyArray_MultiIter_DATA(it, 2))
-        
+    cdef char** dataptrarray = GetDataPtrArray(GetNpyIter(it))
+    cdef IterNextFunc iternext = GetIterNext(GetNpyIter(it), NULL)
+    cdef int status = 1
+    while status:
+        _date1 = (<double *>(dataptrarray[0]))[0]
+        _date2 = (<double *>(dataptrarray[1]))[0]
+        _rbp = (<double *>(dataptrarray[2]))
         eraPmat00(_date1, _date2, _rbp)
-        
-        numpy.PyArray_MultiIter_NEXT(it) 
-
-    # convert from single-field structured dtype to regular nd-array
-    rbp_out = rbp_out['fi0']
-
+        status = iternext(GetNpyIter(it))
+    
     return rbp_out
+
 
 def pmat06(date1, date2):
     """
@@ -10346,27 +11413,36 @@ def pmat06(date1, date2):
     Derived, with permission, from the SOFA library.  See notes at end of file.
   
     """
-    in_shape = numpy.broadcast(date1, date2).shape
-    rbp_out = numpy.empty(in_shape, dtype=numpy.dtype([('fi0', 'd', (3,3))]))
     
-    cdef numpy.broadcast it = numpy.broadcast(date1, date2, rbp_out)
+    #Turn all inputs into arrays
+    date1_in = numpy.array(date1, dtype=numpy.double, order="C", copy=False, subok=True)
+    date2_in = numpy.array(date2, dtype=numpy.double, order="C", copy=False, subok=True)
+    
+    #Create the output array, based on the broadcasted shape, adding the generated dimensions if needed
+    broadcast = numpy.broadcast(numpy.int32(0.0), numpy.int32(0.0), date1_in, date2_in)
+    rbp_out = numpy.empty(broadcast.shape+(3, 3), dtype=numpy.double)
+    
+    #Create the iterator, broadcasting on all but the consumed dimensions
+    op_axes = [[-1]*(broadcast.nd-arr.ndim)+range(arr.ndim) for arr in [date1_in, date2_in]+[rbp_out[...,0,0]]]
+    op_flags = [['readonly']]*2+[['readwrite']]*1
+    it = numpy.nditer([date1_in, date2_in]+[rbp_out], op_axes=op_axes, op_flags=op_flags)
+    
+    #Iterate
     cdef double _date1
     cdef double _date2
     cdef double * _rbp
-    
-    while numpy.PyArray_MultiIter_NOTDONE(it):
-        _date1 = (<double*>numpy.PyArray_MultiIter_DATA(it, 0))[0]
-        _date2 = (<double*>numpy.PyArray_MultiIter_DATA(it, 1))[0]
-        _rbp = (<double *>numpy.PyArray_MultiIter_DATA(it, 2))
-        
+    cdef char** dataptrarray = GetDataPtrArray(GetNpyIter(it))
+    cdef IterNextFunc iternext = GetIterNext(GetNpyIter(it), NULL)
+    cdef int status = 1
+    while status:
+        _date1 = (<double *>(dataptrarray[0]))[0]
+        _date2 = (<double *>(dataptrarray[1]))[0]
+        _rbp = (<double *>(dataptrarray[2]))
         eraPmat06(_date1, _date2, _rbp)
-        
-        numpy.PyArray_MultiIter_NEXT(it) 
-
-    # convert from single-field structured dtype to regular nd-array
-    rbp_out = rbp_out['fi0']
-
+        status = iternext(GetNpyIter(it))
+    
     return rbp_out
+
 
 def pmat76(date1, date2):
     """
@@ -10444,27 +11520,36 @@ def pmat76(date1, date2):
     Derived, with permission, from the SOFA library.  See notes at end of file.
   
     """
-    in_shape = numpy.broadcast(date1, date2).shape
-    rmatp_out = numpy.empty(in_shape, dtype=numpy.dtype([('fi0', 'd', (3,3))]))
     
-    cdef numpy.broadcast it = numpy.broadcast(date1, date2, rmatp_out)
+    #Turn all inputs into arrays
+    date1_in = numpy.array(date1, dtype=numpy.double, order="C", copy=False, subok=True)
+    date2_in = numpy.array(date2, dtype=numpy.double, order="C", copy=False, subok=True)
+    
+    #Create the output array, based on the broadcasted shape, adding the generated dimensions if needed
+    broadcast = numpy.broadcast(numpy.int32(0.0), numpy.int32(0.0), date1_in, date2_in)
+    rmatp_out = numpy.empty(broadcast.shape+(3, 3), dtype=numpy.double)
+    
+    #Create the iterator, broadcasting on all but the consumed dimensions
+    op_axes = [[-1]*(broadcast.nd-arr.ndim)+range(arr.ndim) for arr in [date1_in, date2_in]+[rmatp_out[...,0,0]]]
+    op_flags = [['readonly']]*2+[['readwrite']]*1
+    it = numpy.nditer([date1_in, date2_in]+[rmatp_out], op_axes=op_axes, op_flags=op_flags)
+    
+    #Iterate
     cdef double _date1
     cdef double _date2
     cdef double * _rmatp
-    
-    while numpy.PyArray_MultiIter_NOTDONE(it):
-        _date1 = (<double*>numpy.PyArray_MultiIter_DATA(it, 0))[0]
-        _date2 = (<double*>numpy.PyArray_MultiIter_DATA(it, 1))[0]
-        _rmatp = (<double *>numpy.PyArray_MultiIter_DATA(it, 2))
-        
+    cdef char** dataptrarray = GetDataPtrArray(GetNpyIter(it))
+    cdef IterNextFunc iternext = GetIterNext(GetNpyIter(it), NULL)
+    cdef int status = 1
+    while status:
+        _date1 = (<double *>(dataptrarray[0]))[0]
+        _date2 = (<double *>(dataptrarray[1]))[0]
+        _rmatp = (<double *>(dataptrarray[2]))
         eraPmat76(_date1, _date2, _rmatp)
-        
-        numpy.PyArray_MultiIter_NEXT(it) 
-
-    # convert from single-field structured dtype to regular nd-array
-    rmatp_out = rmatp_out['fi0']
-
+        status = iternext(GetNpyIter(it))
+    
     return rmatp_out
+
 
 def pn00(date1, date2, dpsi, deps):
     """
@@ -10568,15 +11653,28 @@ def pn00(date1, date2, dpsi, deps):
     Derived, with permission, from the SOFA library.  See notes at end of file.
   
     """
-    in_shape = numpy.broadcast(date1, date2, dpsi, deps).shape
-    epsa_out = numpy.empty(in_shape, dtype=numpy.double)
-    rb_out = numpy.empty(in_shape, dtype=numpy.dtype([('fi0', 'd', (3,3))]))
-    rp_out = numpy.empty(in_shape, dtype=numpy.dtype([('fi0', 'd', (3,3))]))
-    rbp_out = numpy.empty(in_shape, dtype=numpy.dtype([('fi0', 'd', (3,3))]))
-    rn_out = numpy.empty(in_shape, dtype=numpy.dtype([('fi0', 'd', (3,3))]))
-    rbpn_out = numpy.empty(in_shape, dtype=numpy.dtype([('fi0', 'd', (3,3))]))
     
-    cdef numpy.broadcast it = numpy.broadcast(date1, date2, dpsi, deps, epsa_out, rb_out, rp_out, rbp_out, rn_out, rbpn_out)
+    #Turn all inputs into arrays
+    date1_in = numpy.array(date1, dtype=numpy.double, order="C", copy=False, subok=True)
+    date2_in = numpy.array(date2, dtype=numpy.double, order="C", copy=False, subok=True)
+    dpsi_in = numpy.array(dpsi, dtype=numpy.double, order="C", copy=False, subok=True)
+    deps_in = numpy.array(deps, dtype=numpy.double, order="C", copy=False, subok=True)
+    
+    #Create the output array, based on the broadcasted shape, adding the generated dimensions if needed
+    broadcast = numpy.broadcast(numpy.int32(0.0), numpy.int32(0.0), date1_in, date2_in, dpsi_in, deps_in)
+    epsa_out = numpy.empty(broadcast.shape+(), dtype=numpy.double)
+    rb_out = numpy.empty(broadcast.shape+(3, 3), dtype=numpy.double)
+    rp_out = numpy.empty(broadcast.shape+(3, 3), dtype=numpy.double)
+    rbp_out = numpy.empty(broadcast.shape+(3, 3), dtype=numpy.double)
+    rn_out = numpy.empty(broadcast.shape+(3, 3), dtype=numpy.double)
+    rbpn_out = numpy.empty(broadcast.shape+(3, 3), dtype=numpy.double)
+    
+    #Create the iterator, broadcasting on all but the consumed dimensions
+    op_axes = [[-1]*(broadcast.nd-arr.ndim)+range(arr.ndim) for arr in [date1_in, date2_in, dpsi_in, deps_in]+[epsa_out, rb_out[...,0,0], rp_out[...,0,0], rbp_out[...,0,0], rn_out[...,0,0], rbpn_out[...,0,0]]]
+    op_flags = [['readonly']]*4+[['readwrite']]*6
+    it = numpy.nditer([date1_in, date2_in, dpsi_in, deps_in]+[epsa_out, rb_out, rp_out, rbp_out, rn_out, rbpn_out], op_axes=op_axes, op_flags=op_flags)
+    
+    #Iterate
     cdef double _date1
     cdef double _date2
     cdef double _dpsi
@@ -10587,31 +11685,25 @@ def pn00(date1, date2, dpsi, deps):
     cdef double * _rbp
     cdef double * _rn
     cdef double * _rbpn
-    
-    while numpy.PyArray_MultiIter_NOTDONE(it):
-        _date1 = (<double*>numpy.PyArray_MultiIter_DATA(it, 0))[0]
-        _date2 = (<double*>numpy.PyArray_MultiIter_DATA(it, 1))[0]
-        _dpsi = (<double*>numpy.PyArray_MultiIter_DATA(it, 2))[0]
-        _deps = (<double*>numpy.PyArray_MultiIter_DATA(it, 3))[0]
-        _epsa = (<double *>numpy.PyArray_MultiIter_DATA(it, 4))
-        _rb = (<double *>numpy.PyArray_MultiIter_DATA(it, 5))
-        _rp = (<double *>numpy.PyArray_MultiIter_DATA(it, 6))
-        _rbp = (<double *>numpy.PyArray_MultiIter_DATA(it, 7))
-        _rn = (<double *>numpy.PyArray_MultiIter_DATA(it, 8))
-        _rbpn = (<double *>numpy.PyArray_MultiIter_DATA(it, 9))
-        
+    cdef char** dataptrarray = GetDataPtrArray(GetNpyIter(it))
+    cdef IterNextFunc iternext = GetIterNext(GetNpyIter(it), NULL)
+    cdef int status = 1
+    while status:
+        _date1 = (<double *>(dataptrarray[0]))[0]
+        _date2 = (<double *>(dataptrarray[1]))[0]
+        _dpsi = (<double *>(dataptrarray[2]))[0]
+        _deps = (<double *>(dataptrarray[3]))[0]
+        _epsa = (<double *>(dataptrarray[4]))
+        _rb = (<double *>(dataptrarray[5]))
+        _rp = (<double *>(dataptrarray[6]))
+        _rbp = (<double *>(dataptrarray[7]))
+        _rn = (<double *>(dataptrarray[8]))
+        _rbpn = (<double *>(dataptrarray[9]))
         eraPn00(_date1, _date2, _dpsi, _deps, _epsa, _rb, _rp, _rbp, _rn, _rbpn)
-        
-        numpy.PyArray_MultiIter_NEXT(it) 
-
-    # convert from single-field structured dtype to regular nd-array
-    rb_out = rb_out['fi0']
-    rp_out = rp_out['fi0']
-    rbp_out = rbp_out['fi0']
-    rn_out = rn_out['fi0']
-    rbpn_out = rbpn_out['fi0']
-
+        status = iternext(GetNpyIter(it))
+    
     return epsa_out, rb_out, rp_out, rbp_out, rn_out, rbpn_out
+
 
 def pn00a(date1, date2):
     """
@@ -10715,17 +11807,28 @@ def pn00a(date1, date2):
     Derived, with permission, from the SOFA library.  See notes at end of file.
   
     """
-    in_shape = numpy.broadcast(date1, date2).shape
-    dpsi_out = numpy.empty(in_shape, dtype=numpy.double)
-    deps_out = numpy.empty(in_shape, dtype=numpy.double)
-    epsa_out = numpy.empty(in_shape, dtype=numpy.double)
-    rb_out = numpy.empty(in_shape, dtype=numpy.dtype([('fi0', 'd', (3,3))]))
-    rp_out = numpy.empty(in_shape, dtype=numpy.dtype([('fi0', 'd', (3,3))]))
-    rbp_out = numpy.empty(in_shape, dtype=numpy.dtype([('fi0', 'd', (3,3))]))
-    rn_out = numpy.empty(in_shape, dtype=numpy.dtype([('fi0', 'd', (3,3))]))
-    rbpn_out = numpy.empty(in_shape, dtype=numpy.dtype([('fi0', 'd', (3,3))]))
     
-    cdef numpy.broadcast it = numpy.broadcast(date1, date2, dpsi_out, deps_out, epsa_out, rb_out, rp_out, rbp_out, rn_out, rbpn_out)
+    #Turn all inputs into arrays
+    date1_in = numpy.array(date1, dtype=numpy.double, order="C", copy=False, subok=True)
+    date2_in = numpy.array(date2, dtype=numpy.double, order="C", copy=False, subok=True)
+    
+    #Create the output array, based on the broadcasted shape, adding the generated dimensions if needed
+    broadcast = numpy.broadcast(numpy.int32(0.0), numpy.int32(0.0), date1_in, date2_in)
+    dpsi_out = numpy.empty(broadcast.shape+(), dtype=numpy.double)
+    deps_out = numpy.empty(broadcast.shape+(), dtype=numpy.double)
+    epsa_out = numpy.empty(broadcast.shape+(), dtype=numpy.double)
+    rb_out = numpy.empty(broadcast.shape+(3, 3), dtype=numpy.double)
+    rp_out = numpy.empty(broadcast.shape+(3, 3), dtype=numpy.double)
+    rbp_out = numpy.empty(broadcast.shape+(3, 3), dtype=numpy.double)
+    rn_out = numpy.empty(broadcast.shape+(3, 3), dtype=numpy.double)
+    rbpn_out = numpy.empty(broadcast.shape+(3, 3), dtype=numpy.double)
+    
+    #Create the iterator, broadcasting on all but the consumed dimensions
+    op_axes = [[-1]*(broadcast.nd-arr.ndim)+range(arr.ndim) for arr in [date1_in, date2_in]+[dpsi_out, deps_out, epsa_out, rb_out[...,0,0], rp_out[...,0,0], rbp_out[...,0,0], rn_out[...,0,0], rbpn_out[...,0,0]]]
+    op_flags = [['readonly']]*2+[['readwrite']]*8
+    it = numpy.nditer([date1_in, date2_in]+[dpsi_out, deps_out, epsa_out, rb_out, rp_out, rbp_out, rn_out, rbpn_out], op_axes=op_axes, op_flags=op_flags)
+    
+    #Iterate
     cdef double _date1
     cdef double _date2
     cdef double * _dpsi
@@ -10736,31 +11839,25 @@ def pn00a(date1, date2):
     cdef double * _rbp
     cdef double * _rn
     cdef double * _rbpn
-    
-    while numpy.PyArray_MultiIter_NOTDONE(it):
-        _date1 = (<double*>numpy.PyArray_MultiIter_DATA(it, 0))[0]
-        _date2 = (<double*>numpy.PyArray_MultiIter_DATA(it, 1))[0]
-        _dpsi = (<double *>numpy.PyArray_MultiIter_DATA(it, 2))
-        _deps = (<double *>numpy.PyArray_MultiIter_DATA(it, 3))
-        _epsa = (<double *>numpy.PyArray_MultiIter_DATA(it, 4))
-        _rb = (<double *>numpy.PyArray_MultiIter_DATA(it, 5))
-        _rp = (<double *>numpy.PyArray_MultiIter_DATA(it, 6))
-        _rbp = (<double *>numpy.PyArray_MultiIter_DATA(it, 7))
-        _rn = (<double *>numpy.PyArray_MultiIter_DATA(it, 8))
-        _rbpn = (<double *>numpy.PyArray_MultiIter_DATA(it, 9))
-        
+    cdef char** dataptrarray = GetDataPtrArray(GetNpyIter(it))
+    cdef IterNextFunc iternext = GetIterNext(GetNpyIter(it), NULL)
+    cdef int status = 1
+    while status:
+        _date1 = (<double *>(dataptrarray[0]))[0]
+        _date2 = (<double *>(dataptrarray[1]))[0]
+        _dpsi = (<double *>(dataptrarray[2]))
+        _deps = (<double *>(dataptrarray[3]))
+        _epsa = (<double *>(dataptrarray[4]))
+        _rb = (<double *>(dataptrarray[5]))
+        _rp = (<double *>(dataptrarray[6]))
+        _rbp = (<double *>(dataptrarray[7]))
+        _rn = (<double *>(dataptrarray[8]))
+        _rbpn = (<double *>(dataptrarray[9]))
         eraPn00a(_date1, _date2, _dpsi, _deps, _epsa, _rb, _rp, _rbp, _rn, _rbpn)
-        
-        numpy.PyArray_MultiIter_NEXT(it) 
-
-    # convert from single-field structured dtype to regular nd-array
-    rb_out = rb_out['fi0']
-    rp_out = rp_out['fi0']
-    rbp_out = rbp_out['fi0']
-    rn_out = rn_out['fi0']
-    rbpn_out = rbpn_out['fi0']
-
+        status = iternext(GetNpyIter(it))
+    
     return dpsi_out, deps_out, epsa_out, rb_out, rp_out, rbp_out, rn_out, rbpn_out
+
 
 def pn00b(date1, date2):
     """
@@ -10864,17 +11961,28 @@ def pn00b(date1, date2):
     Derived, with permission, from the SOFA library.  See notes at end of file.
   
     """
-    in_shape = numpy.broadcast(date1, date2).shape
-    dpsi_out = numpy.empty(in_shape, dtype=numpy.double)
-    deps_out = numpy.empty(in_shape, dtype=numpy.double)
-    epsa_out = numpy.empty(in_shape, dtype=numpy.double)
-    rb_out = numpy.empty(in_shape, dtype=numpy.dtype([('fi0', 'd', (3,3))]))
-    rp_out = numpy.empty(in_shape, dtype=numpy.dtype([('fi0', 'd', (3,3))]))
-    rbp_out = numpy.empty(in_shape, dtype=numpy.dtype([('fi0', 'd', (3,3))]))
-    rn_out = numpy.empty(in_shape, dtype=numpy.dtype([('fi0', 'd', (3,3))]))
-    rbpn_out = numpy.empty(in_shape, dtype=numpy.dtype([('fi0', 'd', (3,3))]))
     
-    cdef numpy.broadcast it = numpy.broadcast(date1, date2, dpsi_out, deps_out, epsa_out, rb_out, rp_out, rbp_out, rn_out, rbpn_out)
+    #Turn all inputs into arrays
+    date1_in = numpy.array(date1, dtype=numpy.double, order="C", copy=False, subok=True)
+    date2_in = numpy.array(date2, dtype=numpy.double, order="C", copy=False, subok=True)
+    
+    #Create the output array, based on the broadcasted shape, adding the generated dimensions if needed
+    broadcast = numpy.broadcast(numpy.int32(0.0), numpy.int32(0.0), date1_in, date2_in)
+    dpsi_out = numpy.empty(broadcast.shape+(), dtype=numpy.double)
+    deps_out = numpy.empty(broadcast.shape+(), dtype=numpy.double)
+    epsa_out = numpy.empty(broadcast.shape+(), dtype=numpy.double)
+    rb_out = numpy.empty(broadcast.shape+(3, 3), dtype=numpy.double)
+    rp_out = numpy.empty(broadcast.shape+(3, 3), dtype=numpy.double)
+    rbp_out = numpy.empty(broadcast.shape+(3, 3), dtype=numpy.double)
+    rn_out = numpy.empty(broadcast.shape+(3, 3), dtype=numpy.double)
+    rbpn_out = numpy.empty(broadcast.shape+(3, 3), dtype=numpy.double)
+    
+    #Create the iterator, broadcasting on all but the consumed dimensions
+    op_axes = [[-1]*(broadcast.nd-arr.ndim)+range(arr.ndim) for arr in [date1_in, date2_in]+[dpsi_out, deps_out, epsa_out, rb_out[...,0,0], rp_out[...,0,0], rbp_out[...,0,0], rn_out[...,0,0], rbpn_out[...,0,0]]]
+    op_flags = [['readonly']]*2+[['readwrite']]*8
+    it = numpy.nditer([date1_in, date2_in]+[dpsi_out, deps_out, epsa_out, rb_out, rp_out, rbp_out, rn_out, rbpn_out], op_axes=op_axes, op_flags=op_flags)
+    
+    #Iterate
     cdef double _date1
     cdef double _date2
     cdef double * _dpsi
@@ -10885,31 +11993,25 @@ def pn00b(date1, date2):
     cdef double * _rbp
     cdef double * _rn
     cdef double * _rbpn
-    
-    while numpy.PyArray_MultiIter_NOTDONE(it):
-        _date1 = (<double*>numpy.PyArray_MultiIter_DATA(it, 0))[0]
-        _date2 = (<double*>numpy.PyArray_MultiIter_DATA(it, 1))[0]
-        _dpsi = (<double *>numpy.PyArray_MultiIter_DATA(it, 2))
-        _deps = (<double *>numpy.PyArray_MultiIter_DATA(it, 3))
-        _epsa = (<double *>numpy.PyArray_MultiIter_DATA(it, 4))
-        _rb = (<double *>numpy.PyArray_MultiIter_DATA(it, 5))
-        _rp = (<double *>numpy.PyArray_MultiIter_DATA(it, 6))
-        _rbp = (<double *>numpy.PyArray_MultiIter_DATA(it, 7))
-        _rn = (<double *>numpy.PyArray_MultiIter_DATA(it, 8))
-        _rbpn = (<double *>numpy.PyArray_MultiIter_DATA(it, 9))
-        
+    cdef char** dataptrarray = GetDataPtrArray(GetNpyIter(it))
+    cdef IterNextFunc iternext = GetIterNext(GetNpyIter(it), NULL)
+    cdef int status = 1
+    while status:
+        _date1 = (<double *>(dataptrarray[0]))[0]
+        _date2 = (<double *>(dataptrarray[1]))[0]
+        _dpsi = (<double *>(dataptrarray[2]))
+        _deps = (<double *>(dataptrarray[3]))
+        _epsa = (<double *>(dataptrarray[4]))
+        _rb = (<double *>(dataptrarray[5]))
+        _rp = (<double *>(dataptrarray[6]))
+        _rbp = (<double *>(dataptrarray[7]))
+        _rn = (<double *>(dataptrarray[8]))
+        _rbpn = (<double *>(dataptrarray[9]))
         eraPn00b(_date1, _date2, _dpsi, _deps, _epsa, _rb, _rp, _rbp, _rn, _rbpn)
-        
-        numpy.PyArray_MultiIter_NEXT(it) 
-
-    # convert from single-field structured dtype to regular nd-array
-    rb_out = rb_out['fi0']
-    rp_out = rp_out['fi0']
-    rbp_out = rbp_out['fi0']
-    rn_out = rn_out['fi0']
-    rbpn_out = rbpn_out['fi0']
-
+        status = iternext(GetNpyIter(it))
+    
     return dpsi_out, deps_out, epsa_out, rb_out, rp_out, rbp_out, rn_out, rbpn_out
+
 
 def pn06(date1, date2, dpsi, deps):
     """
@@ -11011,15 +12113,28 @@ def pn06(date1, date2, dpsi, deps):
     Derived, with permission, from the SOFA library.  See notes at end of file.
   
     """
-    in_shape = numpy.broadcast(date1, date2, dpsi, deps).shape
-    epsa_out = numpy.empty(in_shape, dtype=numpy.double)
-    rb_out = numpy.empty(in_shape, dtype=numpy.dtype([('fi0', 'd', (3,3))]))
-    rp_out = numpy.empty(in_shape, dtype=numpy.dtype([('fi0', 'd', (3,3))]))
-    rbp_out = numpy.empty(in_shape, dtype=numpy.dtype([('fi0', 'd', (3,3))]))
-    rn_out = numpy.empty(in_shape, dtype=numpy.dtype([('fi0', 'd', (3,3))]))
-    rbpn_out = numpy.empty(in_shape, dtype=numpy.dtype([('fi0', 'd', (3,3))]))
     
-    cdef numpy.broadcast it = numpy.broadcast(date1, date2, dpsi, deps, epsa_out, rb_out, rp_out, rbp_out, rn_out, rbpn_out)
+    #Turn all inputs into arrays
+    date1_in = numpy.array(date1, dtype=numpy.double, order="C", copy=False, subok=True)
+    date2_in = numpy.array(date2, dtype=numpy.double, order="C", copy=False, subok=True)
+    dpsi_in = numpy.array(dpsi, dtype=numpy.double, order="C", copy=False, subok=True)
+    deps_in = numpy.array(deps, dtype=numpy.double, order="C", copy=False, subok=True)
+    
+    #Create the output array, based on the broadcasted shape, adding the generated dimensions if needed
+    broadcast = numpy.broadcast(numpy.int32(0.0), numpy.int32(0.0), date1_in, date2_in, dpsi_in, deps_in)
+    epsa_out = numpy.empty(broadcast.shape+(), dtype=numpy.double)
+    rb_out = numpy.empty(broadcast.shape+(3, 3), dtype=numpy.double)
+    rp_out = numpy.empty(broadcast.shape+(3, 3), dtype=numpy.double)
+    rbp_out = numpy.empty(broadcast.shape+(3, 3), dtype=numpy.double)
+    rn_out = numpy.empty(broadcast.shape+(3, 3), dtype=numpy.double)
+    rbpn_out = numpy.empty(broadcast.shape+(3, 3), dtype=numpy.double)
+    
+    #Create the iterator, broadcasting on all but the consumed dimensions
+    op_axes = [[-1]*(broadcast.nd-arr.ndim)+range(arr.ndim) for arr in [date1_in, date2_in, dpsi_in, deps_in]+[epsa_out, rb_out[...,0,0], rp_out[...,0,0], rbp_out[...,0,0], rn_out[...,0,0], rbpn_out[...,0,0]]]
+    op_flags = [['readonly']]*4+[['readwrite']]*6
+    it = numpy.nditer([date1_in, date2_in, dpsi_in, deps_in]+[epsa_out, rb_out, rp_out, rbp_out, rn_out, rbpn_out], op_axes=op_axes, op_flags=op_flags)
+    
+    #Iterate
     cdef double _date1
     cdef double _date2
     cdef double _dpsi
@@ -11030,31 +12145,25 @@ def pn06(date1, date2, dpsi, deps):
     cdef double * _rbp
     cdef double * _rn
     cdef double * _rbpn
-    
-    while numpy.PyArray_MultiIter_NOTDONE(it):
-        _date1 = (<double*>numpy.PyArray_MultiIter_DATA(it, 0))[0]
-        _date2 = (<double*>numpy.PyArray_MultiIter_DATA(it, 1))[0]
-        _dpsi = (<double*>numpy.PyArray_MultiIter_DATA(it, 2))[0]
-        _deps = (<double*>numpy.PyArray_MultiIter_DATA(it, 3))[0]
-        _epsa = (<double *>numpy.PyArray_MultiIter_DATA(it, 4))
-        _rb = (<double *>numpy.PyArray_MultiIter_DATA(it, 5))
-        _rp = (<double *>numpy.PyArray_MultiIter_DATA(it, 6))
-        _rbp = (<double *>numpy.PyArray_MultiIter_DATA(it, 7))
-        _rn = (<double *>numpy.PyArray_MultiIter_DATA(it, 8))
-        _rbpn = (<double *>numpy.PyArray_MultiIter_DATA(it, 9))
-        
+    cdef char** dataptrarray = GetDataPtrArray(GetNpyIter(it))
+    cdef IterNextFunc iternext = GetIterNext(GetNpyIter(it), NULL)
+    cdef int status = 1
+    while status:
+        _date1 = (<double *>(dataptrarray[0]))[0]
+        _date2 = (<double *>(dataptrarray[1]))[0]
+        _dpsi = (<double *>(dataptrarray[2]))[0]
+        _deps = (<double *>(dataptrarray[3]))[0]
+        _epsa = (<double *>(dataptrarray[4]))
+        _rb = (<double *>(dataptrarray[5]))
+        _rp = (<double *>(dataptrarray[6]))
+        _rbp = (<double *>(dataptrarray[7]))
+        _rn = (<double *>(dataptrarray[8]))
+        _rbpn = (<double *>(dataptrarray[9]))
         eraPn06(_date1, _date2, _dpsi, _deps, _epsa, _rb, _rp, _rbp, _rn, _rbpn)
-        
-        numpy.PyArray_MultiIter_NEXT(it) 
-
-    # convert from single-field structured dtype to regular nd-array
-    rb_out = rb_out['fi0']
-    rp_out = rp_out['fi0']
-    rbp_out = rbp_out['fi0']
-    rn_out = rn_out['fi0']
-    rbpn_out = rbpn_out['fi0']
-
+        status = iternext(GetNpyIter(it))
+    
     return epsa_out, rb_out, rp_out, rbp_out, rn_out, rbpn_out
+
 
 def pn06a(date1, date2):
     """
@@ -11148,17 +12257,28 @@ def pn06a(date1, date2):
     Derived, with permission, from the SOFA library.  See notes at end of file.
   
     """
-    in_shape = numpy.broadcast(date1, date2).shape
-    dpsi_out = numpy.empty(in_shape, dtype=numpy.double)
-    deps_out = numpy.empty(in_shape, dtype=numpy.double)
-    epsa_out = numpy.empty(in_shape, dtype=numpy.double)
-    rb_out = numpy.empty(in_shape, dtype=numpy.dtype([('fi0', 'd', (3,3))]))
-    rp_out = numpy.empty(in_shape, dtype=numpy.dtype([('fi0', 'd', (3,3))]))
-    rbp_out = numpy.empty(in_shape, dtype=numpy.dtype([('fi0', 'd', (3,3))]))
-    rn_out = numpy.empty(in_shape, dtype=numpy.dtype([('fi0', 'd', (3,3))]))
-    rbpn_out = numpy.empty(in_shape, dtype=numpy.dtype([('fi0', 'd', (3,3))]))
     
-    cdef numpy.broadcast it = numpy.broadcast(date1, date2, dpsi_out, deps_out, epsa_out, rb_out, rp_out, rbp_out, rn_out, rbpn_out)
+    #Turn all inputs into arrays
+    date1_in = numpy.array(date1, dtype=numpy.double, order="C", copy=False, subok=True)
+    date2_in = numpy.array(date2, dtype=numpy.double, order="C", copy=False, subok=True)
+    
+    #Create the output array, based on the broadcasted shape, adding the generated dimensions if needed
+    broadcast = numpy.broadcast(numpy.int32(0.0), numpy.int32(0.0), date1_in, date2_in)
+    dpsi_out = numpy.empty(broadcast.shape+(), dtype=numpy.double)
+    deps_out = numpy.empty(broadcast.shape+(), dtype=numpy.double)
+    epsa_out = numpy.empty(broadcast.shape+(), dtype=numpy.double)
+    rb_out = numpy.empty(broadcast.shape+(3, 3), dtype=numpy.double)
+    rp_out = numpy.empty(broadcast.shape+(3, 3), dtype=numpy.double)
+    rbp_out = numpy.empty(broadcast.shape+(3, 3), dtype=numpy.double)
+    rn_out = numpy.empty(broadcast.shape+(3, 3), dtype=numpy.double)
+    rbpn_out = numpy.empty(broadcast.shape+(3, 3), dtype=numpy.double)
+    
+    #Create the iterator, broadcasting on all but the consumed dimensions
+    op_axes = [[-1]*(broadcast.nd-arr.ndim)+range(arr.ndim) for arr in [date1_in, date2_in]+[dpsi_out, deps_out, epsa_out, rb_out[...,0,0], rp_out[...,0,0], rbp_out[...,0,0], rn_out[...,0,0], rbpn_out[...,0,0]]]
+    op_flags = [['readonly']]*2+[['readwrite']]*8
+    it = numpy.nditer([date1_in, date2_in]+[dpsi_out, deps_out, epsa_out, rb_out, rp_out, rbp_out, rn_out, rbpn_out], op_axes=op_axes, op_flags=op_flags)
+    
+    #Iterate
     cdef double _date1
     cdef double _date2
     cdef double * _dpsi
@@ -11169,31 +12289,25 @@ def pn06a(date1, date2):
     cdef double * _rbp
     cdef double * _rn
     cdef double * _rbpn
-    
-    while numpy.PyArray_MultiIter_NOTDONE(it):
-        _date1 = (<double*>numpy.PyArray_MultiIter_DATA(it, 0))[0]
-        _date2 = (<double*>numpy.PyArray_MultiIter_DATA(it, 1))[0]
-        _dpsi = (<double *>numpy.PyArray_MultiIter_DATA(it, 2))
-        _deps = (<double *>numpy.PyArray_MultiIter_DATA(it, 3))
-        _epsa = (<double *>numpy.PyArray_MultiIter_DATA(it, 4))
-        _rb = (<double *>numpy.PyArray_MultiIter_DATA(it, 5))
-        _rp = (<double *>numpy.PyArray_MultiIter_DATA(it, 6))
-        _rbp = (<double *>numpy.PyArray_MultiIter_DATA(it, 7))
-        _rn = (<double *>numpy.PyArray_MultiIter_DATA(it, 8))
-        _rbpn = (<double *>numpy.PyArray_MultiIter_DATA(it, 9))
-        
+    cdef char** dataptrarray = GetDataPtrArray(GetNpyIter(it))
+    cdef IterNextFunc iternext = GetIterNext(GetNpyIter(it), NULL)
+    cdef int status = 1
+    while status:
+        _date1 = (<double *>(dataptrarray[0]))[0]
+        _date2 = (<double *>(dataptrarray[1]))[0]
+        _dpsi = (<double *>(dataptrarray[2]))
+        _deps = (<double *>(dataptrarray[3]))
+        _epsa = (<double *>(dataptrarray[4]))
+        _rb = (<double *>(dataptrarray[5]))
+        _rp = (<double *>(dataptrarray[6]))
+        _rbp = (<double *>(dataptrarray[7]))
+        _rn = (<double *>(dataptrarray[8]))
+        _rbpn = (<double *>(dataptrarray[9]))
         eraPn06a(_date1, _date2, _dpsi, _deps, _epsa, _rb, _rp, _rbp, _rn, _rbpn)
-        
-        numpy.PyArray_MultiIter_NEXT(it) 
-
-    # convert from single-field structured dtype to regular nd-array
-    rb_out = rb_out['fi0']
-    rp_out = rp_out['fi0']
-    rbp_out = rbp_out['fi0']
-    rn_out = rn_out['fi0']
-    rbpn_out = rbpn_out['fi0']
-
+        status = iternext(GetNpyIter(it))
+    
     return dpsi_out, deps_out, epsa_out, rb_out, rp_out, rbp_out, rn_out, rbpn_out
+
 
 def pnm00a(date1, date2):
     """
@@ -11258,27 +12372,36 @@ def pnm00a(date1, date2):
     Derived, with permission, from the SOFA library.  See notes at end of file.
   
     """
-    in_shape = numpy.broadcast(date1, date2).shape
-    rbpn_out = numpy.empty(in_shape, dtype=numpy.dtype([('fi0', 'd', (3,3))]))
     
-    cdef numpy.broadcast it = numpy.broadcast(date1, date2, rbpn_out)
+    #Turn all inputs into arrays
+    date1_in = numpy.array(date1, dtype=numpy.double, order="C", copy=False, subok=True)
+    date2_in = numpy.array(date2, dtype=numpy.double, order="C", copy=False, subok=True)
+    
+    #Create the output array, based on the broadcasted shape, adding the generated dimensions if needed
+    broadcast = numpy.broadcast(numpy.int32(0.0), numpy.int32(0.0), date1_in, date2_in)
+    rbpn_out = numpy.empty(broadcast.shape+(3, 3), dtype=numpy.double)
+    
+    #Create the iterator, broadcasting on all but the consumed dimensions
+    op_axes = [[-1]*(broadcast.nd-arr.ndim)+range(arr.ndim) for arr in [date1_in, date2_in]+[rbpn_out[...,0,0]]]
+    op_flags = [['readonly']]*2+[['readwrite']]*1
+    it = numpy.nditer([date1_in, date2_in]+[rbpn_out], op_axes=op_axes, op_flags=op_flags)
+    
+    #Iterate
     cdef double _date1
     cdef double _date2
     cdef double * _rbpn
-    
-    while numpy.PyArray_MultiIter_NOTDONE(it):
-        _date1 = (<double*>numpy.PyArray_MultiIter_DATA(it, 0))[0]
-        _date2 = (<double*>numpy.PyArray_MultiIter_DATA(it, 1))[0]
-        _rbpn = (<double *>numpy.PyArray_MultiIter_DATA(it, 2))
-        
+    cdef char** dataptrarray = GetDataPtrArray(GetNpyIter(it))
+    cdef IterNextFunc iternext = GetIterNext(GetNpyIter(it), NULL)
+    cdef int status = 1
+    while status:
+        _date1 = (<double *>(dataptrarray[0]))[0]
+        _date2 = (<double *>(dataptrarray[1]))[0]
+        _rbpn = (<double *>(dataptrarray[2]))
         eraPnm00a(_date1, _date2, _rbpn)
-        
-        numpy.PyArray_MultiIter_NEXT(it) 
-
-    # convert from single-field structured dtype to regular nd-array
-    rbpn_out = rbpn_out['fi0']
-
+        status = iternext(GetNpyIter(it))
+    
     return rbpn_out
+
 
 def pnm00b(date1, date2):
     """
@@ -11343,27 +12466,36 @@ def pnm00b(date1, date2):
     Derived, with permission, from the SOFA library.  See notes at end of file.
   
     """
-    in_shape = numpy.broadcast(date1, date2).shape
-    rbpn_out = numpy.empty(in_shape, dtype=numpy.dtype([('fi0', 'd', (3,3))]))
     
-    cdef numpy.broadcast it = numpy.broadcast(date1, date2, rbpn_out)
+    #Turn all inputs into arrays
+    date1_in = numpy.array(date1, dtype=numpy.double, order="C", copy=False, subok=True)
+    date2_in = numpy.array(date2, dtype=numpy.double, order="C", copy=False, subok=True)
+    
+    #Create the output array, based on the broadcasted shape, adding the generated dimensions if needed
+    broadcast = numpy.broadcast(numpy.int32(0.0), numpy.int32(0.0), date1_in, date2_in)
+    rbpn_out = numpy.empty(broadcast.shape+(3, 3), dtype=numpy.double)
+    
+    #Create the iterator, broadcasting on all but the consumed dimensions
+    op_axes = [[-1]*(broadcast.nd-arr.ndim)+range(arr.ndim) for arr in [date1_in, date2_in]+[rbpn_out[...,0,0]]]
+    op_flags = [['readonly']]*2+[['readwrite']]*1
+    it = numpy.nditer([date1_in, date2_in]+[rbpn_out], op_axes=op_axes, op_flags=op_flags)
+    
+    #Iterate
     cdef double _date1
     cdef double _date2
     cdef double * _rbpn
-    
-    while numpy.PyArray_MultiIter_NOTDONE(it):
-        _date1 = (<double*>numpy.PyArray_MultiIter_DATA(it, 0))[0]
-        _date2 = (<double*>numpy.PyArray_MultiIter_DATA(it, 1))[0]
-        _rbpn = (<double *>numpy.PyArray_MultiIter_DATA(it, 2))
-        
+    cdef char** dataptrarray = GetDataPtrArray(GetNpyIter(it))
+    cdef IterNextFunc iternext = GetIterNext(GetNpyIter(it), NULL)
+    cdef int status = 1
+    while status:
+        _date1 = (<double *>(dataptrarray[0]))[0]
+        _date2 = (<double *>(dataptrarray[1]))[0]
+        _rbpn = (<double *>(dataptrarray[2]))
         eraPnm00b(_date1, _date2, _rbpn)
-        
-        numpy.PyArray_MultiIter_NEXT(it) 
-
-    # convert from single-field structured dtype to regular nd-array
-    rbpn_out = rbpn_out['fi0']
-
+        status = iternext(GetNpyIter(it))
+    
     return rbpn_out
+
 
 def pnm06a(date1, date2):
     """
@@ -11425,27 +12557,36 @@ def pnm06a(date1, date2):
     Derived, with permission, from the SOFA library.  See notes at end of file.
   
     """
-    in_shape = numpy.broadcast(date1, date2).shape
-    rnpb_out = numpy.empty(in_shape, dtype=numpy.dtype([('fi0', 'd', (3,3))]))
     
-    cdef numpy.broadcast it = numpy.broadcast(date1, date2, rnpb_out)
+    #Turn all inputs into arrays
+    date1_in = numpy.array(date1, dtype=numpy.double, order="C", copy=False, subok=True)
+    date2_in = numpy.array(date2, dtype=numpy.double, order="C", copy=False, subok=True)
+    
+    #Create the output array, based on the broadcasted shape, adding the generated dimensions if needed
+    broadcast = numpy.broadcast(numpy.int32(0.0), numpy.int32(0.0), date1_in, date2_in)
+    rnpb_out = numpy.empty(broadcast.shape+(3, 3), dtype=numpy.double)
+    
+    #Create the iterator, broadcasting on all but the consumed dimensions
+    op_axes = [[-1]*(broadcast.nd-arr.ndim)+range(arr.ndim) for arr in [date1_in, date2_in]+[rnpb_out[...,0,0]]]
+    op_flags = [['readonly']]*2+[['readwrite']]*1
+    it = numpy.nditer([date1_in, date2_in]+[rnpb_out], op_axes=op_axes, op_flags=op_flags)
+    
+    #Iterate
     cdef double _date1
     cdef double _date2
     cdef double * _rnpb
-    
-    while numpy.PyArray_MultiIter_NOTDONE(it):
-        _date1 = (<double*>numpy.PyArray_MultiIter_DATA(it, 0))[0]
-        _date2 = (<double*>numpy.PyArray_MultiIter_DATA(it, 1))[0]
-        _rnpb = (<double *>numpy.PyArray_MultiIter_DATA(it, 2))
-        
+    cdef char** dataptrarray = GetDataPtrArray(GetNpyIter(it))
+    cdef IterNextFunc iternext = GetIterNext(GetNpyIter(it), NULL)
+    cdef int status = 1
+    while status:
+        _date1 = (<double *>(dataptrarray[0]))[0]
+        _date2 = (<double *>(dataptrarray[1]))[0]
+        _rnpb = (<double *>(dataptrarray[2]))
         eraPnm06a(_date1, _date2, _rnpb)
-        
-        numpy.PyArray_MultiIter_NEXT(it) 
-
-    # convert from single-field structured dtype to regular nd-array
-    rnpb_out = rnpb_out['fi0']
-
+        status = iternext(GetNpyIter(it))
+    
     return rnpb_out
+
 
 def pnm80(date1, date2):
     """
@@ -11509,27 +12650,36 @@ def pnm80(date1, date2):
     Derived, with permission, from the SOFA library.  See notes at end of file.
   
     """
-    in_shape = numpy.broadcast(date1, date2).shape
-    rmatpn_out = numpy.empty(in_shape, dtype=numpy.dtype([('fi0', 'd', (3,3))]))
     
-    cdef numpy.broadcast it = numpy.broadcast(date1, date2, rmatpn_out)
+    #Turn all inputs into arrays
+    date1_in = numpy.array(date1, dtype=numpy.double, order="C", copy=False, subok=True)
+    date2_in = numpy.array(date2, dtype=numpy.double, order="C", copy=False, subok=True)
+    
+    #Create the output array, based on the broadcasted shape, adding the generated dimensions if needed
+    broadcast = numpy.broadcast(numpy.int32(0.0), numpy.int32(0.0), date1_in, date2_in)
+    rmatpn_out = numpy.empty(broadcast.shape+(3, 3), dtype=numpy.double)
+    
+    #Create the iterator, broadcasting on all but the consumed dimensions
+    op_axes = [[-1]*(broadcast.nd-arr.ndim)+range(arr.ndim) for arr in [date1_in, date2_in]+[rmatpn_out[...,0,0]]]
+    op_flags = [['readonly']]*2+[['readwrite']]*1
+    it = numpy.nditer([date1_in, date2_in]+[rmatpn_out], op_axes=op_axes, op_flags=op_flags)
+    
+    #Iterate
     cdef double _date1
     cdef double _date2
     cdef double * _rmatpn
-    
-    while numpy.PyArray_MultiIter_NOTDONE(it):
-        _date1 = (<double*>numpy.PyArray_MultiIter_DATA(it, 0))[0]
-        _date2 = (<double*>numpy.PyArray_MultiIter_DATA(it, 1))[0]
-        _rmatpn = (<double *>numpy.PyArray_MultiIter_DATA(it, 2))
-        
+    cdef char** dataptrarray = GetDataPtrArray(GetNpyIter(it))
+    cdef IterNextFunc iternext = GetIterNext(GetNpyIter(it), NULL)
+    cdef int status = 1
+    while status:
+        _date1 = (<double *>(dataptrarray[0]))[0]
+        _date2 = (<double *>(dataptrarray[1]))[0]
+        _rmatpn = (<double *>(dataptrarray[2]))
         eraPnm80(_date1, _date2, _rmatpn)
-        
-        numpy.PyArray_MultiIter_NEXT(it) 
-
-    # convert from single-field structured dtype to regular nd-array
-    rmatpn_out = rmatpn_out['fi0']
-
+        status = iternext(GetNpyIter(it))
+    
     return rmatpn_out
+
 
 def pom00(xp, yp, sp):
     """
@@ -11587,29 +12737,39 @@ def pom00(xp, yp, sp):
     Derived, with permission, from the SOFA library.  See notes at end of file.
   
     """
-    in_shape = numpy.broadcast(xp, yp, sp).shape
-    rpom_out = numpy.empty(in_shape, dtype=numpy.dtype([('fi0', 'd', (3,3))]))
     
-    cdef numpy.broadcast it = numpy.broadcast(xp, yp, sp, rpom_out)
+    #Turn all inputs into arrays
+    xp_in = numpy.array(xp, dtype=numpy.double, order="C", copy=False, subok=True)
+    yp_in = numpy.array(yp, dtype=numpy.double, order="C", copy=False, subok=True)
+    sp_in = numpy.array(sp, dtype=numpy.double, order="C", copy=False, subok=True)
+    
+    #Create the output array, based on the broadcasted shape, adding the generated dimensions if needed
+    broadcast = numpy.broadcast(numpy.int32(0.0), numpy.int32(0.0), xp_in, yp_in, sp_in)
+    rpom_out = numpy.empty(broadcast.shape+(3, 3), dtype=numpy.double)
+    
+    #Create the iterator, broadcasting on all but the consumed dimensions
+    op_axes = [[-1]*(broadcast.nd-arr.ndim)+range(arr.ndim) for arr in [xp_in, yp_in, sp_in]+[rpom_out[...,0,0]]]
+    op_flags = [['readonly']]*3+[['readwrite']]*1
+    it = numpy.nditer([xp_in, yp_in, sp_in]+[rpom_out], op_axes=op_axes, op_flags=op_flags)
+    
+    #Iterate
     cdef double _xp
     cdef double _yp
     cdef double _sp
     cdef double * _rpom
-    
-    while numpy.PyArray_MultiIter_NOTDONE(it):
-        _xp = (<double*>numpy.PyArray_MultiIter_DATA(it, 0))[0]
-        _yp = (<double*>numpy.PyArray_MultiIter_DATA(it, 1))[0]
-        _sp = (<double*>numpy.PyArray_MultiIter_DATA(it, 2))[0]
-        _rpom = (<double *>numpy.PyArray_MultiIter_DATA(it, 3))
-        
+    cdef char** dataptrarray = GetDataPtrArray(GetNpyIter(it))
+    cdef IterNextFunc iternext = GetIterNext(GetNpyIter(it), NULL)
+    cdef int status = 1
+    while status:
+        _xp = (<double *>(dataptrarray[0]))[0]
+        _yp = (<double *>(dataptrarray[1]))[0]
+        _sp = (<double *>(dataptrarray[2]))[0]
+        _rpom = (<double *>(dataptrarray[3]))
         eraPom00(_xp, _yp, _sp, _rpom)
-        
-        numpy.PyArray_MultiIter_NEXT(it) 
-
-    # convert from single-field structured dtype to regular nd-array
-    rpom_out = rpom_out['fi0']
-
+        status = iternext(GetNpyIter(it))
+    
     return rpom_out
+
 
 def pr00(date1, date2):
     """
@@ -11687,27 +12847,39 @@ def pr00(date1, date2):
     Derived, with permission, from the SOFA library.  See notes at end of file.
   
     """
-    in_shape = numpy.broadcast(date1, date2).shape
-    dpsipr_out = numpy.empty(in_shape, dtype=numpy.double)
-    depspr_out = numpy.empty(in_shape, dtype=numpy.double)
     
-    cdef numpy.broadcast it = numpy.broadcast(date1, date2, dpsipr_out, depspr_out)
+    #Turn all inputs into arrays
+    date1_in = numpy.array(date1, dtype=numpy.double, order="C", copy=False, subok=True)
+    date2_in = numpy.array(date2, dtype=numpy.double, order="C", copy=False, subok=True)
+    
+    #Create the output array, based on the broadcasted shape, adding the generated dimensions if needed
+    broadcast = numpy.broadcast(numpy.int32(0.0), numpy.int32(0.0), date1_in, date2_in)
+    dpsipr_out = numpy.empty(broadcast.shape+(), dtype=numpy.double)
+    depspr_out = numpy.empty(broadcast.shape+(), dtype=numpy.double)
+    
+    #Create the iterator, broadcasting on all but the consumed dimensions
+    op_axes = [[-1]*(broadcast.nd-arr.ndim)+range(arr.ndim) for arr in [date1_in, date2_in]+[dpsipr_out, depspr_out]]
+    op_flags = [['readonly']]*2+[['readwrite']]*2
+    it = numpy.nditer([date1_in, date2_in]+[dpsipr_out, depspr_out], op_axes=op_axes, op_flags=op_flags)
+    
+    #Iterate
     cdef double _date1
     cdef double _date2
     cdef double * _dpsipr
     cdef double * _depspr
-    
-    while numpy.PyArray_MultiIter_NOTDONE(it):
-        _date1 = (<double*>numpy.PyArray_MultiIter_DATA(it, 0))[0]
-        _date2 = (<double*>numpy.PyArray_MultiIter_DATA(it, 1))[0]
-        _dpsipr = (<double *>numpy.PyArray_MultiIter_DATA(it, 2))
-        _depspr = (<double *>numpy.PyArray_MultiIter_DATA(it, 3))
-        
+    cdef char** dataptrarray = GetDataPtrArray(GetNpyIter(it))
+    cdef IterNextFunc iternext = GetIterNext(GetNpyIter(it), NULL)
+    cdef int status = 1
+    while status:
+        _date1 = (<double *>(dataptrarray[0]))[0]
+        _date2 = (<double *>(dataptrarray[1]))[0]
+        _dpsipr = (<double *>(dataptrarray[2]))
+        _depspr = (<double *>(dataptrarray[3]))
         eraPr00(_date1, _date2, _dpsipr, _depspr)
-        
-        numpy.PyArray_MultiIter_NEXT(it)
-
+        status = iternext(GetNpyIter(it))
+    
     return dpsipr_out, depspr_out
+
 
 def prec76(date01, date02, date11, date12):
     """
@@ -11784,12 +12956,25 @@ def prec76(date01, date02, date11, date12):
     Derived, with permission, from the SOFA library.  See notes at end of file.
   
     """
-    in_shape = numpy.broadcast(date01, date02, date11, date12).shape
-    zeta_out = numpy.empty(in_shape, dtype=numpy.double)
-    z_out = numpy.empty(in_shape, dtype=numpy.double)
-    theta_out = numpy.empty(in_shape, dtype=numpy.double)
     
-    cdef numpy.broadcast it = numpy.broadcast(date01, date02, date11, date12, zeta_out, z_out, theta_out)
+    #Turn all inputs into arrays
+    date01_in = numpy.array(date01, dtype=numpy.double, order="C", copy=False, subok=True)
+    date02_in = numpy.array(date02, dtype=numpy.double, order="C", copy=False, subok=True)
+    date11_in = numpy.array(date11, dtype=numpy.double, order="C", copy=False, subok=True)
+    date12_in = numpy.array(date12, dtype=numpy.double, order="C", copy=False, subok=True)
+    
+    #Create the output array, based on the broadcasted shape, adding the generated dimensions if needed
+    broadcast = numpy.broadcast(numpy.int32(0.0), numpy.int32(0.0), date01_in, date02_in, date11_in, date12_in)
+    zeta_out = numpy.empty(broadcast.shape+(), dtype=numpy.double)
+    z_out = numpy.empty(broadcast.shape+(), dtype=numpy.double)
+    theta_out = numpy.empty(broadcast.shape+(), dtype=numpy.double)
+    
+    #Create the iterator, broadcasting on all but the consumed dimensions
+    op_axes = [[-1]*(broadcast.nd-arr.ndim)+range(arr.ndim) for arr in [date01_in, date02_in, date11_in, date12_in]+[zeta_out, z_out, theta_out]]
+    op_flags = [['readonly']]*4+[['readwrite']]*3
+    it = numpy.nditer([date01_in, date02_in, date11_in, date12_in]+[zeta_out, z_out, theta_out], op_axes=op_axes, op_flags=op_flags)
+    
+    #Iterate
     cdef double _date01
     cdef double _date02
     cdef double _date11
@@ -11797,21 +12982,22 @@ def prec76(date01, date02, date11, date12):
     cdef double * _zeta
     cdef double * _z
     cdef double * _theta
-    
-    while numpy.PyArray_MultiIter_NOTDONE(it):
-        _date01 = (<double*>numpy.PyArray_MultiIter_DATA(it, 0))[0]
-        _date02 = (<double*>numpy.PyArray_MultiIter_DATA(it, 1))[0]
-        _date11 = (<double*>numpy.PyArray_MultiIter_DATA(it, 2))[0]
-        _date12 = (<double*>numpy.PyArray_MultiIter_DATA(it, 3))[0]
-        _zeta = (<double *>numpy.PyArray_MultiIter_DATA(it, 4))
-        _z = (<double *>numpy.PyArray_MultiIter_DATA(it, 5))
-        _theta = (<double *>numpy.PyArray_MultiIter_DATA(it, 6))
-        
+    cdef char** dataptrarray = GetDataPtrArray(GetNpyIter(it))
+    cdef IterNextFunc iternext = GetIterNext(GetNpyIter(it), NULL)
+    cdef int status = 1
+    while status:
+        _date01 = (<double *>(dataptrarray[0]))[0]
+        _date02 = (<double *>(dataptrarray[1]))[0]
+        _date11 = (<double *>(dataptrarray[2]))[0]
+        _date12 = (<double *>(dataptrarray[3]))[0]
+        _zeta = (<double *>(dataptrarray[4]))
+        _z = (<double *>(dataptrarray[5]))
+        _theta = (<double *>(dataptrarray[6]))
         eraPrec76(_date01, _date02, _date11, _date12, _zeta, _z, _theta)
-        
-        numpy.PyArray_MultiIter_NEXT(it)
-
+        status = iternext(GetNpyIter(it))
+    
     return zeta_out, z_out, theta_out
+
 
 def s00(date1, date2, x, y):
     """
@@ -11899,28 +13085,42 @@ def s00(date1, date2, x, y):
     Derived, with permission, from the SOFA library.  See notes at end of file.
   
     """
-    in_shape = numpy.broadcast(date1, date2, x, y).shape
-    c_retval_out = numpy.empty(in_shape, dtype=numpy.double)
     
-    cdef numpy.broadcast it = numpy.broadcast(date1, date2, x, y, c_retval_out)
+    #Turn all inputs into arrays
+    date1_in = numpy.array(date1, dtype=numpy.double, order="C", copy=False, subok=True)
+    date2_in = numpy.array(date2, dtype=numpy.double, order="C", copy=False, subok=True)
+    x_in = numpy.array(x, dtype=numpy.double, order="C", copy=False, subok=True)
+    y_in = numpy.array(y, dtype=numpy.double, order="C", copy=False, subok=True)
+    
+    #Create the output array, based on the broadcasted shape, adding the generated dimensions if needed
+    broadcast = numpy.broadcast(numpy.int32(0.0), numpy.int32(0.0), date1_in, date2_in, x_in, y_in)
+    c_retval_out = numpy.empty(broadcast.shape+(), dtype=numpy.double)
+    
+    #Create the iterator, broadcasting on all but the consumed dimensions
+    op_axes = [[-1]*(broadcast.nd-arr.ndim)+range(arr.ndim) for arr in [date1_in, date2_in, x_in, y_in]+[c_retval_out]]
+    op_flags = [['readonly']]*4+[['readwrite']]*1
+    it = numpy.nditer([date1_in, date2_in, x_in, y_in]+[c_retval_out], op_axes=op_axes, op_flags=op_flags)
+    
+    #Iterate
     cdef double _date1
     cdef double _date2
     cdef double _x
     cdef double _y
     cdef double _c_retval
-    
-    while numpy.PyArray_MultiIter_NOTDONE(it):
-        _date1 = (<double*>numpy.PyArray_MultiIter_DATA(it, 0))[0]
-        _date2 = (<double*>numpy.PyArray_MultiIter_DATA(it, 1))[0]
-        _x = (<double*>numpy.PyArray_MultiIter_DATA(it, 2))[0]
-        _y = (<double*>numpy.PyArray_MultiIter_DATA(it, 3))[0]
-        
+    cdef char** dataptrarray = GetDataPtrArray(GetNpyIter(it))
+    cdef IterNextFunc iternext = GetIterNext(GetNpyIter(it), NULL)
+    cdef int status = 1
+    while status:
+        _date1 = (<double *>(dataptrarray[0]))[0]
+        _date2 = (<double *>(dataptrarray[1]))[0]
+        _x = (<double *>(dataptrarray[2]))[0]
+        _y = (<double *>(dataptrarray[3]))[0]
         _c_retval = eraS00(_date1, _date2, _x, _y)
-        (<double*>numpy.PyArray_MultiIter_DATA(it, 4))[0] = _c_retval
-        
-        numpy.PyArray_MultiIter_NEXT(it)
-
+        (<double *>(dataptrarray[4]))[0] = _c_retval
+        status = iternext(GetNpyIter(it))
+    
     return c_retval_out
+
 
 def s00a(date1, date2):
     """
@@ -12001,24 +13201,36 @@ def s00a(date1, date2):
     Derived, with permission, from the SOFA library.  See notes at end of file.
   
     """
-    in_shape = numpy.broadcast(date1, date2).shape
-    c_retval_out = numpy.empty(in_shape, dtype=numpy.double)
     
-    cdef numpy.broadcast it = numpy.broadcast(date1, date2, c_retval_out)
+    #Turn all inputs into arrays
+    date1_in = numpy.array(date1, dtype=numpy.double, order="C", copy=False, subok=True)
+    date2_in = numpy.array(date2, dtype=numpy.double, order="C", copy=False, subok=True)
+    
+    #Create the output array, based on the broadcasted shape, adding the generated dimensions if needed
+    broadcast = numpy.broadcast(numpy.int32(0.0), numpy.int32(0.0), date1_in, date2_in)
+    c_retval_out = numpy.empty(broadcast.shape+(), dtype=numpy.double)
+    
+    #Create the iterator, broadcasting on all but the consumed dimensions
+    op_axes = [[-1]*(broadcast.nd-arr.ndim)+range(arr.ndim) for arr in [date1_in, date2_in]+[c_retval_out]]
+    op_flags = [['readonly']]*2+[['readwrite']]*1
+    it = numpy.nditer([date1_in, date2_in]+[c_retval_out], op_axes=op_axes, op_flags=op_flags)
+    
+    #Iterate
     cdef double _date1
     cdef double _date2
     cdef double _c_retval
-    
-    while numpy.PyArray_MultiIter_NOTDONE(it):
-        _date1 = (<double*>numpy.PyArray_MultiIter_DATA(it, 0))[0]
-        _date2 = (<double*>numpy.PyArray_MultiIter_DATA(it, 1))[0]
-        
+    cdef char** dataptrarray = GetDataPtrArray(GetNpyIter(it))
+    cdef IterNextFunc iternext = GetIterNext(GetNpyIter(it), NULL)
+    cdef int status = 1
+    while status:
+        _date1 = (<double *>(dataptrarray[0]))[0]
+        _date2 = (<double *>(dataptrarray[1]))[0]
         _c_retval = eraS00a(_date1, _date2)
-        (<double*>numpy.PyArray_MultiIter_DATA(it, 2))[0] = _c_retval
-        
-        numpy.PyArray_MultiIter_NEXT(it)
-
+        (<double *>(dataptrarray[2]))[0] = _c_retval
+        status = iternext(GetNpyIter(it))
+    
     return c_retval_out
+
 
 def s00b(date1, date2):
     """
@@ -12099,24 +13311,36 @@ def s00b(date1, date2):
     Derived, with permission, from the SOFA library.  See notes at end of file.
   
     """
-    in_shape = numpy.broadcast(date1, date2).shape
-    c_retval_out = numpy.empty(in_shape, dtype=numpy.double)
     
-    cdef numpy.broadcast it = numpy.broadcast(date1, date2, c_retval_out)
+    #Turn all inputs into arrays
+    date1_in = numpy.array(date1, dtype=numpy.double, order="C", copy=False, subok=True)
+    date2_in = numpy.array(date2, dtype=numpy.double, order="C", copy=False, subok=True)
+    
+    #Create the output array, based on the broadcasted shape, adding the generated dimensions if needed
+    broadcast = numpy.broadcast(numpy.int32(0.0), numpy.int32(0.0), date1_in, date2_in)
+    c_retval_out = numpy.empty(broadcast.shape+(), dtype=numpy.double)
+    
+    #Create the iterator, broadcasting on all but the consumed dimensions
+    op_axes = [[-1]*(broadcast.nd-arr.ndim)+range(arr.ndim) for arr in [date1_in, date2_in]+[c_retval_out]]
+    op_flags = [['readonly']]*2+[['readwrite']]*1
+    it = numpy.nditer([date1_in, date2_in]+[c_retval_out], op_axes=op_axes, op_flags=op_flags)
+    
+    #Iterate
     cdef double _date1
     cdef double _date2
     cdef double _c_retval
-    
-    while numpy.PyArray_MultiIter_NOTDONE(it):
-        _date1 = (<double*>numpy.PyArray_MultiIter_DATA(it, 0))[0]
-        _date2 = (<double*>numpy.PyArray_MultiIter_DATA(it, 1))[0]
-        
+    cdef char** dataptrarray = GetDataPtrArray(GetNpyIter(it))
+    cdef IterNextFunc iternext = GetIterNext(GetNpyIter(it), NULL)
+    cdef int status = 1
+    while status:
+        _date1 = (<double *>(dataptrarray[0]))[0]
+        _date2 = (<double *>(dataptrarray[1]))[0]
         _c_retval = eraS00b(_date1, _date2)
-        (<double*>numpy.PyArray_MultiIter_DATA(it, 2))[0] = _c_retval
-        
-        numpy.PyArray_MultiIter_NEXT(it)
-
+        (<double *>(dataptrarray[2]))[0] = _c_retval
+        status = iternext(GetNpyIter(it))
+    
     return c_retval_out
+
 
 def s06(date1, date2, x, y):
     """
@@ -12201,28 +13425,42 @@ def s06(date1, date2, x, y):
     Derived, with permission, from the SOFA library.  See notes at end of file.
   
     """
-    in_shape = numpy.broadcast(date1, date2, x, y).shape
-    c_retval_out = numpy.empty(in_shape, dtype=numpy.double)
     
-    cdef numpy.broadcast it = numpy.broadcast(date1, date2, x, y, c_retval_out)
+    #Turn all inputs into arrays
+    date1_in = numpy.array(date1, dtype=numpy.double, order="C", copy=False, subok=True)
+    date2_in = numpy.array(date2, dtype=numpy.double, order="C", copy=False, subok=True)
+    x_in = numpy.array(x, dtype=numpy.double, order="C", copy=False, subok=True)
+    y_in = numpy.array(y, dtype=numpy.double, order="C", copy=False, subok=True)
+    
+    #Create the output array, based on the broadcasted shape, adding the generated dimensions if needed
+    broadcast = numpy.broadcast(numpy.int32(0.0), numpy.int32(0.0), date1_in, date2_in, x_in, y_in)
+    c_retval_out = numpy.empty(broadcast.shape+(), dtype=numpy.double)
+    
+    #Create the iterator, broadcasting on all but the consumed dimensions
+    op_axes = [[-1]*(broadcast.nd-arr.ndim)+range(arr.ndim) for arr in [date1_in, date2_in, x_in, y_in]+[c_retval_out]]
+    op_flags = [['readonly']]*4+[['readwrite']]*1
+    it = numpy.nditer([date1_in, date2_in, x_in, y_in]+[c_retval_out], op_axes=op_axes, op_flags=op_flags)
+    
+    #Iterate
     cdef double _date1
     cdef double _date2
     cdef double _x
     cdef double _y
     cdef double _c_retval
-    
-    while numpy.PyArray_MultiIter_NOTDONE(it):
-        _date1 = (<double*>numpy.PyArray_MultiIter_DATA(it, 0))[0]
-        _date2 = (<double*>numpy.PyArray_MultiIter_DATA(it, 1))[0]
-        _x = (<double*>numpy.PyArray_MultiIter_DATA(it, 2))[0]
-        _y = (<double*>numpy.PyArray_MultiIter_DATA(it, 3))[0]
-        
+    cdef char** dataptrarray = GetDataPtrArray(GetNpyIter(it))
+    cdef IterNextFunc iternext = GetIterNext(GetNpyIter(it), NULL)
+    cdef int status = 1
+    while status:
+        _date1 = (<double *>(dataptrarray[0]))[0]
+        _date2 = (<double *>(dataptrarray[1]))[0]
+        _x = (<double *>(dataptrarray[2]))[0]
+        _y = (<double *>(dataptrarray[3]))[0]
         _c_retval = eraS06(_date1, _date2, _x, _y)
-        (<double*>numpy.PyArray_MultiIter_DATA(it, 4))[0] = _c_retval
-        
-        numpy.PyArray_MultiIter_NEXT(it)
-
+        (<double *>(dataptrarray[4]))[0] = _c_retval
+        status = iternext(GetNpyIter(it))
+    
     return c_retval_out
+
 
 def s06a(date1, date2):
     """
@@ -12305,24 +13543,36 @@ def s06a(date1, date2):
     Derived, with permission, from the SOFA library.  See notes at end of file.
   
     """
-    in_shape = numpy.broadcast(date1, date2).shape
-    c_retval_out = numpy.empty(in_shape, dtype=numpy.double)
     
-    cdef numpy.broadcast it = numpy.broadcast(date1, date2, c_retval_out)
+    #Turn all inputs into arrays
+    date1_in = numpy.array(date1, dtype=numpy.double, order="C", copy=False, subok=True)
+    date2_in = numpy.array(date2, dtype=numpy.double, order="C", copy=False, subok=True)
+    
+    #Create the output array, based on the broadcasted shape, adding the generated dimensions if needed
+    broadcast = numpy.broadcast(numpy.int32(0.0), numpy.int32(0.0), date1_in, date2_in)
+    c_retval_out = numpy.empty(broadcast.shape+(), dtype=numpy.double)
+    
+    #Create the iterator, broadcasting on all but the consumed dimensions
+    op_axes = [[-1]*(broadcast.nd-arr.ndim)+range(arr.ndim) for arr in [date1_in, date2_in]+[c_retval_out]]
+    op_flags = [['readonly']]*2+[['readwrite']]*1
+    it = numpy.nditer([date1_in, date2_in]+[c_retval_out], op_axes=op_axes, op_flags=op_flags)
+    
+    #Iterate
     cdef double _date1
     cdef double _date2
     cdef double _c_retval
-    
-    while numpy.PyArray_MultiIter_NOTDONE(it):
-        _date1 = (<double*>numpy.PyArray_MultiIter_DATA(it, 0))[0]
-        _date2 = (<double*>numpy.PyArray_MultiIter_DATA(it, 1))[0]
-        
+    cdef char** dataptrarray = GetDataPtrArray(GetNpyIter(it))
+    cdef IterNextFunc iternext = GetIterNext(GetNpyIter(it), NULL)
+    cdef int status = 1
+    while status:
+        _date1 = (<double *>(dataptrarray[0]))[0]
+        _date2 = (<double *>(dataptrarray[1]))[0]
         _c_retval = eraS06a(_date1, _date2)
-        (<double*>numpy.PyArray_MultiIter_DATA(it, 2))[0] = _c_retval
-        
-        numpy.PyArray_MultiIter_NEXT(it)
-
+        (<double *>(dataptrarray[2]))[0] = _c_retval
+        status = iternext(GetNpyIter(it))
+    
     return c_retval_out
+
 
 def sp00(date1, date2):
     """
@@ -12381,24 +13631,36 @@ def sp00(date1, date2):
     Derived, with permission, from the SOFA library.  See notes at end of file.
   
     """
-    in_shape = numpy.broadcast(date1, date2).shape
-    c_retval_out = numpy.empty(in_shape, dtype=numpy.double)
     
-    cdef numpy.broadcast it = numpy.broadcast(date1, date2, c_retval_out)
+    #Turn all inputs into arrays
+    date1_in = numpy.array(date1, dtype=numpy.double, order="C", copy=False, subok=True)
+    date2_in = numpy.array(date2, dtype=numpy.double, order="C", copy=False, subok=True)
+    
+    #Create the output array, based on the broadcasted shape, adding the generated dimensions if needed
+    broadcast = numpy.broadcast(numpy.int32(0.0), numpy.int32(0.0), date1_in, date2_in)
+    c_retval_out = numpy.empty(broadcast.shape+(), dtype=numpy.double)
+    
+    #Create the iterator, broadcasting on all but the consumed dimensions
+    op_axes = [[-1]*(broadcast.nd-arr.ndim)+range(arr.ndim) for arr in [date1_in, date2_in]+[c_retval_out]]
+    op_flags = [['readonly']]*2+[['readwrite']]*1
+    it = numpy.nditer([date1_in, date2_in]+[c_retval_out], op_axes=op_axes, op_flags=op_flags)
+    
+    #Iterate
     cdef double _date1
     cdef double _date2
     cdef double _c_retval
-    
-    while numpy.PyArray_MultiIter_NOTDONE(it):
-        _date1 = (<double*>numpy.PyArray_MultiIter_DATA(it, 0))[0]
-        _date2 = (<double*>numpy.PyArray_MultiIter_DATA(it, 1))[0]
-        
+    cdef char** dataptrarray = GetDataPtrArray(GetNpyIter(it))
+    cdef IterNextFunc iternext = GetIterNext(GetNpyIter(it), NULL)
+    cdef int status = 1
+    while status:
+        _date1 = (<double *>(dataptrarray[0]))[0]
+        _date2 = (<double *>(dataptrarray[1]))[0]
         _c_retval = eraSp00(_date1, _date2)
-        (<double*>numpy.PyArray_MultiIter_DATA(it, 2))[0] = _c_retval
-        
-        numpy.PyArray_MultiIter_NEXT(it)
-
+        (<double *>(dataptrarray[2]))[0] = _c_retval
+        status = iternext(GetNpyIter(it))
+    
     return c_retval_out
+
 
 def xy06(date1, date2):
     """
@@ -12495,27 +13757,39 @@ def xy06(date1, date2):
     Derived, with permission, from the SOFA library.  See notes at end of file.
   
     """
-    in_shape = numpy.broadcast(date1, date2).shape
-    x_out = numpy.empty(in_shape, dtype=numpy.double)
-    y_out = numpy.empty(in_shape, dtype=numpy.double)
     
-    cdef numpy.broadcast it = numpy.broadcast(date1, date2, x_out, y_out)
+    #Turn all inputs into arrays
+    date1_in = numpy.array(date1, dtype=numpy.double, order="C", copy=False, subok=True)
+    date2_in = numpy.array(date2, dtype=numpy.double, order="C", copy=False, subok=True)
+    
+    #Create the output array, based on the broadcasted shape, adding the generated dimensions if needed
+    broadcast = numpy.broadcast(numpy.int32(0.0), numpy.int32(0.0), date1_in, date2_in)
+    x_out = numpy.empty(broadcast.shape+(), dtype=numpy.double)
+    y_out = numpy.empty(broadcast.shape+(), dtype=numpy.double)
+    
+    #Create the iterator, broadcasting on all but the consumed dimensions
+    op_axes = [[-1]*(broadcast.nd-arr.ndim)+range(arr.ndim) for arr in [date1_in, date2_in]+[x_out, y_out]]
+    op_flags = [['readonly']]*2+[['readwrite']]*2
+    it = numpy.nditer([date1_in, date2_in]+[x_out, y_out], op_axes=op_axes, op_flags=op_flags)
+    
+    #Iterate
     cdef double _date1
     cdef double _date2
     cdef double * _x
     cdef double * _y
-    
-    while numpy.PyArray_MultiIter_NOTDONE(it):
-        _date1 = (<double*>numpy.PyArray_MultiIter_DATA(it, 0))[0]
-        _date2 = (<double*>numpy.PyArray_MultiIter_DATA(it, 1))[0]
-        _x = (<double *>numpy.PyArray_MultiIter_DATA(it, 2))
-        _y = (<double *>numpy.PyArray_MultiIter_DATA(it, 3))
-        
+    cdef char** dataptrarray = GetDataPtrArray(GetNpyIter(it))
+    cdef IterNextFunc iternext = GetIterNext(GetNpyIter(it), NULL)
+    cdef int status = 1
+    while status:
+        _date1 = (<double *>(dataptrarray[0]))[0]
+        _date2 = (<double *>(dataptrarray[1]))[0]
+        _x = (<double *>(dataptrarray[2]))
+        _y = (<double *>(dataptrarray[3]))
         eraXy06(_date1, _date2, _x, _y)
-        
-        numpy.PyArray_MultiIter_NEXT(it)
-
+        status = iternext(GetNpyIter(it))
+    
     return x_out, y_out
+
 
 def xys00a(date1, date2):
     """
@@ -12585,30 +13859,42 @@ def xys00a(date1, date2):
     Derived, with permission, from the SOFA library.  See notes at end of file.
   
     """
-    in_shape = numpy.broadcast(date1, date2).shape
-    x_out = numpy.empty(in_shape, dtype=numpy.double)
-    y_out = numpy.empty(in_shape, dtype=numpy.double)
-    s_out = numpy.empty(in_shape, dtype=numpy.double)
     
-    cdef numpy.broadcast it = numpy.broadcast(date1, date2, x_out, y_out, s_out)
+    #Turn all inputs into arrays
+    date1_in = numpy.array(date1, dtype=numpy.double, order="C", copy=False, subok=True)
+    date2_in = numpy.array(date2, dtype=numpy.double, order="C", copy=False, subok=True)
+    
+    #Create the output array, based on the broadcasted shape, adding the generated dimensions if needed
+    broadcast = numpy.broadcast(numpy.int32(0.0), numpy.int32(0.0), date1_in, date2_in)
+    x_out = numpy.empty(broadcast.shape+(), dtype=numpy.double)
+    y_out = numpy.empty(broadcast.shape+(), dtype=numpy.double)
+    s_out = numpy.empty(broadcast.shape+(), dtype=numpy.double)
+    
+    #Create the iterator, broadcasting on all but the consumed dimensions
+    op_axes = [[-1]*(broadcast.nd-arr.ndim)+range(arr.ndim) for arr in [date1_in, date2_in]+[x_out, y_out, s_out]]
+    op_flags = [['readonly']]*2+[['readwrite']]*3
+    it = numpy.nditer([date1_in, date2_in]+[x_out, y_out, s_out], op_axes=op_axes, op_flags=op_flags)
+    
+    #Iterate
     cdef double _date1
     cdef double _date2
     cdef double * _x
     cdef double * _y
     cdef double * _s
-    
-    while numpy.PyArray_MultiIter_NOTDONE(it):
-        _date1 = (<double*>numpy.PyArray_MultiIter_DATA(it, 0))[0]
-        _date2 = (<double*>numpy.PyArray_MultiIter_DATA(it, 1))[0]
-        _x = (<double *>numpy.PyArray_MultiIter_DATA(it, 2))
-        _y = (<double *>numpy.PyArray_MultiIter_DATA(it, 3))
-        _s = (<double *>numpy.PyArray_MultiIter_DATA(it, 4))
-        
+    cdef char** dataptrarray = GetDataPtrArray(GetNpyIter(it))
+    cdef IterNextFunc iternext = GetIterNext(GetNpyIter(it), NULL)
+    cdef int status = 1
+    while status:
+        _date1 = (<double *>(dataptrarray[0]))[0]
+        _date2 = (<double *>(dataptrarray[1]))[0]
+        _x = (<double *>(dataptrarray[2]))
+        _y = (<double *>(dataptrarray[3]))
+        _s = (<double *>(dataptrarray[4]))
         eraXys00a(_date1, _date2, _x, _y, _s)
-        
-        numpy.PyArray_MultiIter_NEXT(it)
-
+        status = iternext(GetNpyIter(it))
+    
     return x_out, y_out, s_out
+
 
 def xys00b(date1, date2):
     """
@@ -12678,30 +13964,42 @@ def xys00b(date1, date2):
     Derived, with permission, from the SOFA library.  See notes at end of file.
   
     """
-    in_shape = numpy.broadcast(date1, date2).shape
-    x_out = numpy.empty(in_shape, dtype=numpy.double)
-    y_out = numpy.empty(in_shape, dtype=numpy.double)
-    s_out = numpy.empty(in_shape, dtype=numpy.double)
     
-    cdef numpy.broadcast it = numpy.broadcast(date1, date2, x_out, y_out, s_out)
+    #Turn all inputs into arrays
+    date1_in = numpy.array(date1, dtype=numpy.double, order="C", copy=False, subok=True)
+    date2_in = numpy.array(date2, dtype=numpy.double, order="C", copy=False, subok=True)
+    
+    #Create the output array, based on the broadcasted shape, adding the generated dimensions if needed
+    broadcast = numpy.broadcast(numpy.int32(0.0), numpy.int32(0.0), date1_in, date2_in)
+    x_out = numpy.empty(broadcast.shape+(), dtype=numpy.double)
+    y_out = numpy.empty(broadcast.shape+(), dtype=numpy.double)
+    s_out = numpy.empty(broadcast.shape+(), dtype=numpy.double)
+    
+    #Create the iterator, broadcasting on all but the consumed dimensions
+    op_axes = [[-1]*(broadcast.nd-arr.ndim)+range(arr.ndim) for arr in [date1_in, date2_in]+[x_out, y_out, s_out]]
+    op_flags = [['readonly']]*2+[['readwrite']]*3
+    it = numpy.nditer([date1_in, date2_in]+[x_out, y_out, s_out], op_axes=op_axes, op_flags=op_flags)
+    
+    #Iterate
     cdef double _date1
     cdef double _date2
     cdef double * _x
     cdef double * _y
     cdef double * _s
-    
-    while numpy.PyArray_MultiIter_NOTDONE(it):
-        _date1 = (<double*>numpy.PyArray_MultiIter_DATA(it, 0))[0]
-        _date2 = (<double*>numpy.PyArray_MultiIter_DATA(it, 1))[0]
-        _x = (<double *>numpy.PyArray_MultiIter_DATA(it, 2))
-        _y = (<double *>numpy.PyArray_MultiIter_DATA(it, 3))
-        _s = (<double *>numpy.PyArray_MultiIter_DATA(it, 4))
-        
+    cdef char** dataptrarray = GetDataPtrArray(GetNpyIter(it))
+    cdef IterNextFunc iternext = GetIterNext(GetNpyIter(it), NULL)
+    cdef int status = 1
+    while status:
+        _date1 = (<double *>(dataptrarray[0]))[0]
+        _date2 = (<double *>(dataptrarray[1]))[0]
+        _x = (<double *>(dataptrarray[2]))
+        _y = (<double *>(dataptrarray[3]))
+        _s = (<double *>(dataptrarray[4]))
         eraXys00b(_date1, _date2, _x, _y, _s)
-        
-        numpy.PyArray_MultiIter_NEXT(it)
-
+        status = iternext(GetNpyIter(it))
+    
     return x_out, y_out, s_out
+
 
 def xys06a(date1, date2):
     """
@@ -12771,30 +14069,42 @@ def xys06a(date1, date2):
     Derived, with permission, from the SOFA library.  See notes at end of file.
   
     """
-    in_shape = numpy.broadcast(date1, date2).shape
-    x_out = numpy.empty(in_shape, dtype=numpy.double)
-    y_out = numpy.empty(in_shape, dtype=numpy.double)
-    s_out = numpy.empty(in_shape, dtype=numpy.double)
     
-    cdef numpy.broadcast it = numpy.broadcast(date1, date2, x_out, y_out, s_out)
+    #Turn all inputs into arrays
+    date1_in = numpy.array(date1, dtype=numpy.double, order="C", copy=False, subok=True)
+    date2_in = numpy.array(date2, dtype=numpy.double, order="C", copy=False, subok=True)
+    
+    #Create the output array, based on the broadcasted shape, adding the generated dimensions if needed
+    broadcast = numpy.broadcast(numpy.int32(0.0), numpy.int32(0.0), date1_in, date2_in)
+    x_out = numpy.empty(broadcast.shape+(), dtype=numpy.double)
+    y_out = numpy.empty(broadcast.shape+(), dtype=numpy.double)
+    s_out = numpy.empty(broadcast.shape+(), dtype=numpy.double)
+    
+    #Create the iterator, broadcasting on all but the consumed dimensions
+    op_axes = [[-1]*(broadcast.nd-arr.ndim)+range(arr.ndim) for arr in [date1_in, date2_in]+[x_out, y_out, s_out]]
+    op_flags = [['readonly']]*2+[['readwrite']]*3
+    it = numpy.nditer([date1_in, date2_in]+[x_out, y_out, s_out], op_axes=op_axes, op_flags=op_flags)
+    
+    #Iterate
     cdef double _date1
     cdef double _date2
     cdef double * _x
     cdef double * _y
     cdef double * _s
-    
-    while numpy.PyArray_MultiIter_NOTDONE(it):
-        _date1 = (<double*>numpy.PyArray_MultiIter_DATA(it, 0))[0]
-        _date2 = (<double*>numpy.PyArray_MultiIter_DATA(it, 1))[0]
-        _x = (<double *>numpy.PyArray_MultiIter_DATA(it, 2))
-        _y = (<double *>numpy.PyArray_MultiIter_DATA(it, 3))
-        _s = (<double *>numpy.PyArray_MultiIter_DATA(it, 4))
-        
+    cdef char** dataptrarray = GetDataPtrArray(GetNpyIter(it))
+    cdef IterNextFunc iternext = GetIterNext(GetNpyIter(it), NULL)
+    cdef int status = 1
+    while status:
+        _date1 = (<double *>(dataptrarray[0]))[0]
+        _date2 = (<double *>(dataptrarray[1]))[0]
+        _x = (<double *>(dataptrarray[2]))
+        _y = (<double *>(dataptrarray[3]))
+        _s = (<double *>(dataptrarray[4]))
         eraXys06a(_date1, _date2, _x, _y, _s)
-        
-        numpy.PyArray_MultiIter_NEXT(it)
-
+        status = iternext(GetNpyIter(it))
+    
     return x_out, y_out, s_out
+
 
 def ee00(date1, date2, epsa, dpsi):
     """
@@ -12866,28 +14176,42 @@ def ee00(date1, date2, epsa, dpsi):
     Derived, with permission, from the SOFA library.  See notes at end of file.
   
     """
-    in_shape = numpy.broadcast(date1, date2, epsa, dpsi).shape
-    c_retval_out = numpy.empty(in_shape, dtype=numpy.double)
     
-    cdef numpy.broadcast it = numpy.broadcast(date1, date2, epsa, dpsi, c_retval_out)
+    #Turn all inputs into arrays
+    date1_in = numpy.array(date1, dtype=numpy.double, order="C", copy=False, subok=True)
+    date2_in = numpy.array(date2, dtype=numpy.double, order="C", copy=False, subok=True)
+    epsa_in = numpy.array(epsa, dtype=numpy.double, order="C", copy=False, subok=True)
+    dpsi_in = numpy.array(dpsi, dtype=numpy.double, order="C", copy=False, subok=True)
+    
+    #Create the output array, based on the broadcasted shape, adding the generated dimensions if needed
+    broadcast = numpy.broadcast(numpy.int32(0.0), numpy.int32(0.0), date1_in, date2_in, epsa_in, dpsi_in)
+    c_retval_out = numpy.empty(broadcast.shape+(), dtype=numpy.double)
+    
+    #Create the iterator, broadcasting on all but the consumed dimensions
+    op_axes = [[-1]*(broadcast.nd-arr.ndim)+range(arr.ndim) for arr in [date1_in, date2_in, epsa_in, dpsi_in]+[c_retval_out]]
+    op_flags = [['readonly']]*4+[['readwrite']]*1
+    it = numpy.nditer([date1_in, date2_in, epsa_in, dpsi_in]+[c_retval_out], op_axes=op_axes, op_flags=op_flags)
+    
+    #Iterate
     cdef double _date1
     cdef double _date2
     cdef double _epsa
     cdef double _dpsi
     cdef double _c_retval
-    
-    while numpy.PyArray_MultiIter_NOTDONE(it):
-        _date1 = (<double*>numpy.PyArray_MultiIter_DATA(it, 0))[0]
-        _date2 = (<double*>numpy.PyArray_MultiIter_DATA(it, 1))[0]
-        _epsa = (<double*>numpy.PyArray_MultiIter_DATA(it, 2))[0]
-        _dpsi = (<double*>numpy.PyArray_MultiIter_DATA(it, 3))[0]
-        
+    cdef char** dataptrarray = GetDataPtrArray(GetNpyIter(it))
+    cdef IterNextFunc iternext = GetIterNext(GetNpyIter(it), NULL)
+    cdef int status = 1
+    while status:
+        _date1 = (<double *>(dataptrarray[0]))[0]
+        _date2 = (<double *>(dataptrarray[1]))[0]
+        _epsa = (<double *>(dataptrarray[2]))[0]
+        _dpsi = (<double *>(dataptrarray[3]))[0]
         _c_retval = eraEe00(_date1, _date2, _epsa, _dpsi)
-        (<double*>numpy.PyArray_MultiIter_DATA(it, 4))[0] = _c_retval
-        
-        numpy.PyArray_MultiIter_NEXT(it)
-
+        (<double *>(dataptrarray[4]))[0] = _c_retval
+        status = iternext(GetNpyIter(it))
+    
     return c_retval_out
+
 
 def ee00a(date1, date2):
     """
@@ -12957,24 +14281,36 @@ def ee00a(date1, date2):
     Derived, with permission, from the SOFA library.  See notes at end of file.
   
     """
-    in_shape = numpy.broadcast(date1, date2).shape
-    c_retval_out = numpy.empty(in_shape, dtype=numpy.double)
     
-    cdef numpy.broadcast it = numpy.broadcast(date1, date2, c_retval_out)
+    #Turn all inputs into arrays
+    date1_in = numpy.array(date1, dtype=numpy.double, order="C", copy=False, subok=True)
+    date2_in = numpy.array(date2, dtype=numpy.double, order="C", copy=False, subok=True)
+    
+    #Create the output array, based on the broadcasted shape, adding the generated dimensions if needed
+    broadcast = numpy.broadcast(numpy.int32(0.0), numpy.int32(0.0), date1_in, date2_in)
+    c_retval_out = numpy.empty(broadcast.shape+(), dtype=numpy.double)
+    
+    #Create the iterator, broadcasting on all but the consumed dimensions
+    op_axes = [[-1]*(broadcast.nd-arr.ndim)+range(arr.ndim) for arr in [date1_in, date2_in]+[c_retval_out]]
+    op_flags = [['readonly']]*2+[['readwrite']]*1
+    it = numpy.nditer([date1_in, date2_in]+[c_retval_out], op_axes=op_axes, op_flags=op_flags)
+    
+    #Iterate
     cdef double _date1
     cdef double _date2
     cdef double _c_retval
-    
-    while numpy.PyArray_MultiIter_NOTDONE(it):
-        _date1 = (<double*>numpy.PyArray_MultiIter_DATA(it, 0))[0]
-        _date2 = (<double*>numpy.PyArray_MultiIter_DATA(it, 1))[0]
-        
+    cdef char** dataptrarray = GetDataPtrArray(GetNpyIter(it))
+    cdef IterNextFunc iternext = GetIterNext(GetNpyIter(it), NULL)
+    cdef int status = 1
+    while status:
+        _date1 = (<double *>(dataptrarray[0]))[0]
+        _date2 = (<double *>(dataptrarray[1]))[0]
         _c_retval = eraEe00a(_date1, _date2)
-        (<double*>numpy.PyArray_MultiIter_DATA(it, 2))[0] = _c_retval
-        
-        numpy.PyArray_MultiIter_NEXT(it)
-
+        (<double *>(dataptrarray[2]))[0] = _c_retval
+        status = iternext(GetNpyIter(it))
+    
     return c_retval_out
+
 
 def ee00b(date1, date2):
     """
@@ -13050,24 +14386,36 @@ def ee00b(date1, date2):
     Derived, with permission, from the SOFA library.  See notes at end of file.
   
     """
-    in_shape = numpy.broadcast(date1, date2).shape
-    c_retval_out = numpy.empty(in_shape, dtype=numpy.double)
     
-    cdef numpy.broadcast it = numpy.broadcast(date1, date2, c_retval_out)
+    #Turn all inputs into arrays
+    date1_in = numpy.array(date1, dtype=numpy.double, order="C", copy=False, subok=True)
+    date2_in = numpy.array(date2, dtype=numpy.double, order="C", copy=False, subok=True)
+    
+    #Create the output array, based on the broadcasted shape, adding the generated dimensions if needed
+    broadcast = numpy.broadcast(numpy.int32(0.0), numpy.int32(0.0), date1_in, date2_in)
+    c_retval_out = numpy.empty(broadcast.shape+(), dtype=numpy.double)
+    
+    #Create the iterator, broadcasting on all but the consumed dimensions
+    op_axes = [[-1]*(broadcast.nd-arr.ndim)+range(arr.ndim) for arr in [date1_in, date2_in]+[c_retval_out]]
+    op_flags = [['readonly']]*2+[['readwrite']]*1
+    it = numpy.nditer([date1_in, date2_in]+[c_retval_out], op_axes=op_axes, op_flags=op_flags)
+    
+    #Iterate
     cdef double _date1
     cdef double _date2
     cdef double _c_retval
-    
-    while numpy.PyArray_MultiIter_NOTDONE(it):
-        _date1 = (<double*>numpy.PyArray_MultiIter_DATA(it, 0))[0]
-        _date2 = (<double*>numpy.PyArray_MultiIter_DATA(it, 1))[0]
-        
+    cdef char** dataptrarray = GetDataPtrArray(GetNpyIter(it))
+    cdef IterNextFunc iternext = GetIterNext(GetNpyIter(it), NULL)
+    cdef int status = 1
+    while status:
+        _date1 = (<double *>(dataptrarray[0]))[0]
+        _date2 = (<double *>(dataptrarray[1]))[0]
         _c_retval = eraEe00b(_date1, _date2)
-        (<double*>numpy.PyArray_MultiIter_DATA(it, 2))[0] = _c_retval
-        
-        numpy.PyArray_MultiIter_NEXT(it)
-
+        (<double *>(dataptrarray[2]))[0] = _c_retval
+        status = iternext(GetNpyIter(it))
+    
     return c_retval_out
+
 
 def ee06a(date1, date2):
     """
@@ -13129,24 +14477,36 @@ def ee06a(date1, date2):
     Derived, with permission, from the SOFA library.  See notes at end of file.
   
     """
-    in_shape = numpy.broadcast(date1, date2).shape
-    c_retval_out = numpy.empty(in_shape, dtype=numpy.double)
     
-    cdef numpy.broadcast it = numpy.broadcast(date1, date2, c_retval_out)
+    #Turn all inputs into arrays
+    date1_in = numpy.array(date1, dtype=numpy.double, order="C", copy=False, subok=True)
+    date2_in = numpy.array(date2, dtype=numpy.double, order="C", copy=False, subok=True)
+    
+    #Create the output array, based on the broadcasted shape, adding the generated dimensions if needed
+    broadcast = numpy.broadcast(numpy.int32(0.0), numpy.int32(0.0), date1_in, date2_in)
+    c_retval_out = numpy.empty(broadcast.shape+(), dtype=numpy.double)
+    
+    #Create the iterator, broadcasting on all but the consumed dimensions
+    op_axes = [[-1]*(broadcast.nd-arr.ndim)+range(arr.ndim) for arr in [date1_in, date2_in]+[c_retval_out]]
+    op_flags = [['readonly']]*2+[['readwrite']]*1
+    it = numpy.nditer([date1_in, date2_in]+[c_retval_out], op_axes=op_axes, op_flags=op_flags)
+    
+    #Iterate
     cdef double _date1
     cdef double _date2
     cdef double _c_retval
-    
-    while numpy.PyArray_MultiIter_NOTDONE(it):
-        _date1 = (<double*>numpy.PyArray_MultiIter_DATA(it, 0))[0]
-        _date2 = (<double*>numpy.PyArray_MultiIter_DATA(it, 1))[0]
-        
+    cdef char** dataptrarray = GetDataPtrArray(GetNpyIter(it))
+    cdef IterNextFunc iternext = GetIterNext(GetNpyIter(it), NULL)
+    cdef int status = 1
+    while status:
+        _date1 = (<double *>(dataptrarray[0]))[0]
+        _date2 = (<double *>(dataptrarray[1]))[0]
         _c_retval = eraEe06a(_date1, _date2)
-        (<double*>numpy.PyArray_MultiIter_DATA(it, 2))[0] = _c_retval
-        
-        numpy.PyArray_MultiIter_NEXT(it)
-
+        (<double *>(dataptrarray[2]))[0] = _c_retval
+        status = iternext(GetNpyIter(it))
+    
     return c_retval_out
+
 
 def eect00(date1, date2):
     """
@@ -13249,24 +14609,36 @@ def eect00(date1, date2):
     Derived, with permission, from the SOFA library.  See notes at end of file.
   
     """
-    in_shape = numpy.broadcast(date1, date2).shape
-    c_retval_out = numpy.empty(in_shape, dtype=numpy.double)
     
-    cdef numpy.broadcast it = numpy.broadcast(date1, date2, c_retval_out)
+    #Turn all inputs into arrays
+    date1_in = numpy.array(date1, dtype=numpy.double, order="C", copy=False, subok=True)
+    date2_in = numpy.array(date2, dtype=numpy.double, order="C", copy=False, subok=True)
+    
+    #Create the output array, based on the broadcasted shape, adding the generated dimensions if needed
+    broadcast = numpy.broadcast(numpy.int32(0.0), numpy.int32(0.0), date1_in, date2_in)
+    c_retval_out = numpy.empty(broadcast.shape+(), dtype=numpy.double)
+    
+    #Create the iterator, broadcasting on all but the consumed dimensions
+    op_axes = [[-1]*(broadcast.nd-arr.ndim)+range(arr.ndim) for arr in [date1_in, date2_in]+[c_retval_out]]
+    op_flags = [['readonly']]*2+[['readwrite']]*1
+    it = numpy.nditer([date1_in, date2_in]+[c_retval_out], op_axes=op_axes, op_flags=op_flags)
+    
+    #Iterate
     cdef double _date1
     cdef double _date2
     cdef double _c_retval
-    
-    while numpy.PyArray_MultiIter_NOTDONE(it):
-        _date1 = (<double*>numpy.PyArray_MultiIter_DATA(it, 0))[0]
-        _date2 = (<double*>numpy.PyArray_MultiIter_DATA(it, 1))[0]
-        
+    cdef char** dataptrarray = GetDataPtrArray(GetNpyIter(it))
+    cdef IterNextFunc iternext = GetIterNext(GetNpyIter(it), NULL)
+    cdef int status = 1
+    while status:
+        _date1 = (<double *>(dataptrarray[0]))[0]
+        _date2 = (<double *>(dataptrarray[1]))[0]
         _c_retval = eraEect00(_date1, _date2)
-        (<double*>numpy.PyArray_MultiIter_DATA(it, 2))[0] = _c_retval
-        
-        numpy.PyArray_MultiIter_NEXT(it)
-
+        (<double *>(dataptrarray[2]))[0] = _c_retval
+        status = iternext(GetNpyIter(it))
+    
     return c_retval_out
+
 
 def eqeq94(date1, date2):
     """
@@ -13329,24 +14701,36 @@ def eqeq94(date1, date2):
     Derived, with permission, from the SOFA library.  See notes at end of file.
   
     """
-    in_shape = numpy.broadcast(date1, date2).shape
-    c_retval_out = numpy.empty(in_shape, dtype=numpy.double)
     
-    cdef numpy.broadcast it = numpy.broadcast(date1, date2, c_retval_out)
+    #Turn all inputs into arrays
+    date1_in = numpy.array(date1, dtype=numpy.double, order="C", copy=False, subok=True)
+    date2_in = numpy.array(date2, dtype=numpy.double, order="C", copy=False, subok=True)
+    
+    #Create the output array, based on the broadcasted shape, adding the generated dimensions if needed
+    broadcast = numpy.broadcast(numpy.int32(0.0), numpy.int32(0.0), date1_in, date2_in)
+    c_retval_out = numpy.empty(broadcast.shape+(), dtype=numpy.double)
+    
+    #Create the iterator, broadcasting on all but the consumed dimensions
+    op_axes = [[-1]*(broadcast.nd-arr.ndim)+range(arr.ndim) for arr in [date1_in, date2_in]+[c_retval_out]]
+    op_flags = [['readonly']]*2+[['readwrite']]*1
+    it = numpy.nditer([date1_in, date2_in]+[c_retval_out], op_axes=op_axes, op_flags=op_flags)
+    
+    #Iterate
     cdef double _date1
     cdef double _date2
     cdef double _c_retval
-    
-    while numpy.PyArray_MultiIter_NOTDONE(it):
-        _date1 = (<double*>numpy.PyArray_MultiIter_DATA(it, 0))[0]
-        _date2 = (<double*>numpy.PyArray_MultiIter_DATA(it, 1))[0]
-        
+    cdef char** dataptrarray = GetDataPtrArray(GetNpyIter(it))
+    cdef IterNextFunc iternext = GetIterNext(GetNpyIter(it), NULL)
+    cdef int status = 1
+    while status:
+        _date1 = (<double *>(dataptrarray[0]))[0]
+        _date2 = (<double *>(dataptrarray[1]))[0]
         _c_retval = eraEqeq94(_date1, _date2)
-        (<double*>numpy.PyArray_MultiIter_DATA(it, 2))[0] = _c_retval
-        
-        numpy.PyArray_MultiIter_NEXT(it)
-
+        (<double *>(dataptrarray[2]))[0] = _c_retval
+        status = iternext(GetNpyIter(it))
+    
     return c_retval_out
+
 
 def era00(dj1, dj2):
     """
@@ -13412,24 +14796,36 @@ def era00(dj1, dj2):
     Derived, with permission, from the SOFA library.  See notes at end of file.
   
     """
-    in_shape = numpy.broadcast(dj1, dj2).shape
-    c_retval_out = numpy.empty(in_shape, dtype=numpy.double)
     
-    cdef numpy.broadcast it = numpy.broadcast(dj1, dj2, c_retval_out)
+    #Turn all inputs into arrays
+    dj1_in = numpy.array(dj1, dtype=numpy.double, order="C", copy=False, subok=True)
+    dj2_in = numpy.array(dj2, dtype=numpy.double, order="C", copy=False, subok=True)
+    
+    #Create the output array, based on the broadcasted shape, adding the generated dimensions if needed
+    broadcast = numpy.broadcast(numpy.int32(0.0), numpy.int32(0.0), dj1_in, dj2_in)
+    c_retval_out = numpy.empty(broadcast.shape+(), dtype=numpy.double)
+    
+    #Create the iterator, broadcasting on all but the consumed dimensions
+    op_axes = [[-1]*(broadcast.nd-arr.ndim)+range(arr.ndim) for arr in [dj1_in, dj2_in]+[c_retval_out]]
+    op_flags = [['readonly']]*2+[['readwrite']]*1
+    it = numpy.nditer([dj1_in, dj2_in]+[c_retval_out], op_axes=op_axes, op_flags=op_flags)
+    
+    #Iterate
     cdef double _dj1
     cdef double _dj2
     cdef double _c_retval
-    
-    while numpy.PyArray_MultiIter_NOTDONE(it):
-        _dj1 = (<double*>numpy.PyArray_MultiIter_DATA(it, 0))[0]
-        _dj2 = (<double*>numpy.PyArray_MultiIter_DATA(it, 1))[0]
-        
+    cdef char** dataptrarray = GetDataPtrArray(GetNpyIter(it))
+    cdef IterNextFunc iternext = GetIterNext(GetNpyIter(it), NULL)
+    cdef int status = 1
+    while status:
+        _dj1 = (<double *>(dataptrarray[0]))[0]
+        _dj2 = (<double *>(dataptrarray[1]))[0]
         _c_retval = eraEra00(_dj1, _dj2)
-        (<double*>numpy.PyArray_MultiIter_DATA(it, 2))[0] = _c_retval
-        
-        numpy.PyArray_MultiIter_NEXT(it)
-
+        (<double *>(dataptrarray[2]))[0] = _c_retval
+        status = iternext(GetNpyIter(it))
+    
     return c_retval_out
+
 
 def gmst00(uta, utb, tta, ttb):
     """
@@ -13509,28 +14905,42 @@ def gmst00(uta, utb, tta, ttb):
     Derived, with permission, from the SOFA library.  See notes at end of file.
   
     """
-    in_shape = numpy.broadcast(uta, utb, tta, ttb).shape
-    c_retval_out = numpy.empty(in_shape, dtype=numpy.double)
     
-    cdef numpy.broadcast it = numpy.broadcast(uta, utb, tta, ttb, c_retval_out)
+    #Turn all inputs into arrays
+    uta_in = numpy.array(uta, dtype=numpy.double, order="C", copy=False, subok=True)
+    utb_in = numpy.array(utb, dtype=numpy.double, order="C", copy=False, subok=True)
+    tta_in = numpy.array(tta, dtype=numpy.double, order="C", copy=False, subok=True)
+    ttb_in = numpy.array(ttb, dtype=numpy.double, order="C", copy=False, subok=True)
+    
+    #Create the output array, based on the broadcasted shape, adding the generated dimensions if needed
+    broadcast = numpy.broadcast(numpy.int32(0.0), numpy.int32(0.0), uta_in, utb_in, tta_in, ttb_in)
+    c_retval_out = numpy.empty(broadcast.shape+(), dtype=numpy.double)
+    
+    #Create the iterator, broadcasting on all but the consumed dimensions
+    op_axes = [[-1]*(broadcast.nd-arr.ndim)+range(arr.ndim) for arr in [uta_in, utb_in, tta_in, ttb_in]+[c_retval_out]]
+    op_flags = [['readonly']]*4+[['readwrite']]*1
+    it = numpy.nditer([uta_in, utb_in, tta_in, ttb_in]+[c_retval_out], op_axes=op_axes, op_flags=op_flags)
+    
+    #Iterate
     cdef double _uta
     cdef double _utb
     cdef double _tta
     cdef double _ttb
     cdef double _c_retval
-    
-    while numpy.PyArray_MultiIter_NOTDONE(it):
-        _uta = (<double*>numpy.PyArray_MultiIter_DATA(it, 0))[0]
-        _utb = (<double*>numpy.PyArray_MultiIter_DATA(it, 1))[0]
-        _tta = (<double*>numpy.PyArray_MultiIter_DATA(it, 2))[0]
-        _ttb = (<double*>numpy.PyArray_MultiIter_DATA(it, 3))[0]
-        
+    cdef char** dataptrarray = GetDataPtrArray(GetNpyIter(it))
+    cdef IterNextFunc iternext = GetIterNext(GetNpyIter(it), NULL)
+    cdef int status = 1
+    while status:
+        _uta = (<double *>(dataptrarray[0]))[0]
+        _utb = (<double *>(dataptrarray[1]))[0]
+        _tta = (<double *>(dataptrarray[2]))[0]
+        _ttb = (<double *>(dataptrarray[3]))[0]
         _c_retval = eraGmst00(_uta, _utb, _tta, _ttb)
-        (<double*>numpy.PyArray_MultiIter_DATA(it, 4))[0] = _c_retval
-        
-        numpy.PyArray_MultiIter_NEXT(it)
-
+        (<double *>(dataptrarray[4]))[0] = _c_retval
+        status = iternext(GetNpyIter(it))
+    
     return c_retval_out
+
 
 def gmst06(uta, utb, tta, ttb):
     """
@@ -13600,28 +15010,42 @@ def gmst06(uta, utb, tta, ttb):
     Derived, with permission, from the SOFA library.  See notes at end of file.
   
     """
-    in_shape = numpy.broadcast(uta, utb, tta, ttb).shape
-    c_retval_out = numpy.empty(in_shape, dtype=numpy.double)
     
-    cdef numpy.broadcast it = numpy.broadcast(uta, utb, tta, ttb, c_retval_out)
+    #Turn all inputs into arrays
+    uta_in = numpy.array(uta, dtype=numpy.double, order="C", copy=False, subok=True)
+    utb_in = numpy.array(utb, dtype=numpy.double, order="C", copy=False, subok=True)
+    tta_in = numpy.array(tta, dtype=numpy.double, order="C", copy=False, subok=True)
+    ttb_in = numpy.array(ttb, dtype=numpy.double, order="C", copy=False, subok=True)
+    
+    #Create the output array, based on the broadcasted shape, adding the generated dimensions if needed
+    broadcast = numpy.broadcast(numpy.int32(0.0), numpy.int32(0.0), uta_in, utb_in, tta_in, ttb_in)
+    c_retval_out = numpy.empty(broadcast.shape+(), dtype=numpy.double)
+    
+    #Create the iterator, broadcasting on all but the consumed dimensions
+    op_axes = [[-1]*(broadcast.nd-arr.ndim)+range(arr.ndim) for arr in [uta_in, utb_in, tta_in, ttb_in]+[c_retval_out]]
+    op_flags = [['readonly']]*4+[['readwrite']]*1
+    it = numpy.nditer([uta_in, utb_in, tta_in, ttb_in]+[c_retval_out], op_axes=op_axes, op_flags=op_flags)
+    
+    #Iterate
     cdef double _uta
     cdef double _utb
     cdef double _tta
     cdef double _ttb
     cdef double _c_retval
-    
-    while numpy.PyArray_MultiIter_NOTDONE(it):
-        _uta = (<double*>numpy.PyArray_MultiIter_DATA(it, 0))[0]
-        _utb = (<double*>numpy.PyArray_MultiIter_DATA(it, 1))[0]
-        _tta = (<double*>numpy.PyArray_MultiIter_DATA(it, 2))[0]
-        _ttb = (<double*>numpy.PyArray_MultiIter_DATA(it, 3))[0]
-        
+    cdef char** dataptrarray = GetDataPtrArray(GetNpyIter(it))
+    cdef IterNextFunc iternext = GetIterNext(GetNpyIter(it), NULL)
+    cdef int status = 1
+    while status:
+        _uta = (<double *>(dataptrarray[0]))[0]
+        _utb = (<double *>(dataptrarray[1]))[0]
+        _tta = (<double *>(dataptrarray[2]))[0]
+        _ttb = (<double *>(dataptrarray[3]))[0]
         _c_retval = eraGmst06(_uta, _utb, _tta, _ttb)
-        (<double*>numpy.PyArray_MultiIter_DATA(it, 4))[0] = _c_retval
-        
-        numpy.PyArray_MultiIter_NEXT(it)
-
+        (<double *>(dataptrarray[4]))[0] = _c_retval
+        status = iternext(GetNpyIter(it))
+    
     return c_retval_out
+
 
 def gmst82(dj1, dj2):
     """
@@ -13693,24 +15117,36 @@ def gmst82(dj1, dj2):
     Derived, with permission, from the SOFA library.  See notes at end of file.
   
     """
-    in_shape = numpy.broadcast(dj1, dj2).shape
-    c_retval_out = numpy.empty(in_shape, dtype=numpy.double)
     
-    cdef numpy.broadcast it = numpy.broadcast(dj1, dj2, c_retval_out)
+    #Turn all inputs into arrays
+    dj1_in = numpy.array(dj1, dtype=numpy.double, order="C", copy=False, subok=True)
+    dj2_in = numpy.array(dj2, dtype=numpy.double, order="C", copy=False, subok=True)
+    
+    #Create the output array, based on the broadcasted shape, adding the generated dimensions if needed
+    broadcast = numpy.broadcast(numpy.int32(0.0), numpy.int32(0.0), dj1_in, dj2_in)
+    c_retval_out = numpy.empty(broadcast.shape+(), dtype=numpy.double)
+    
+    #Create the iterator, broadcasting on all but the consumed dimensions
+    op_axes = [[-1]*(broadcast.nd-arr.ndim)+range(arr.ndim) for arr in [dj1_in, dj2_in]+[c_retval_out]]
+    op_flags = [['readonly']]*2+[['readwrite']]*1
+    it = numpy.nditer([dj1_in, dj2_in]+[c_retval_out], op_axes=op_axes, op_flags=op_flags)
+    
+    #Iterate
     cdef double _dj1
     cdef double _dj2
     cdef double _c_retval
-    
-    while numpy.PyArray_MultiIter_NOTDONE(it):
-        _dj1 = (<double*>numpy.PyArray_MultiIter_DATA(it, 0))[0]
-        _dj2 = (<double*>numpy.PyArray_MultiIter_DATA(it, 1))[0]
-        
+    cdef char** dataptrarray = GetDataPtrArray(GetNpyIter(it))
+    cdef IterNextFunc iternext = GetIterNext(GetNpyIter(it), NULL)
+    cdef int status = 1
+    while status:
+        _dj1 = (<double *>(dataptrarray[0]))[0]
+        _dj2 = (<double *>(dataptrarray[1]))[0]
         _c_retval = eraGmst82(_dj1, _dj2)
-        (<double*>numpy.PyArray_MultiIter_DATA(it, 2))[0] = _c_retval
-        
-        numpy.PyArray_MultiIter_NEXT(it)
-
+        (<double *>(dataptrarray[2]))[0] = _c_retval
+        status = iternext(GetNpyIter(it))
+    
     return c_retval_out
+
 
 def gst00a(uta, utb, tta, ttb):
     """
@@ -13791,28 +15227,42 @@ def gst00a(uta, utb, tta, ttb):
     Derived, with permission, from the SOFA library.  See notes at end of file.
   
     """
-    in_shape = numpy.broadcast(uta, utb, tta, ttb).shape
-    c_retval_out = numpy.empty(in_shape, dtype=numpy.double)
     
-    cdef numpy.broadcast it = numpy.broadcast(uta, utb, tta, ttb, c_retval_out)
+    #Turn all inputs into arrays
+    uta_in = numpy.array(uta, dtype=numpy.double, order="C", copy=False, subok=True)
+    utb_in = numpy.array(utb, dtype=numpy.double, order="C", copy=False, subok=True)
+    tta_in = numpy.array(tta, dtype=numpy.double, order="C", copy=False, subok=True)
+    ttb_in = numpy.array(ttb, dtype=numpy.double, order="C", copy=False, subok=True)
+    
+    #Create the output array, based on the broadcasted shape, adding the generated dimensions if needed
+    broadcast = numpy.broadcast(numpy.int32(0.0), numpy.int32(0.0), uta_in, utb_in, tta_in, ttb_in)
+    c_retval_out = numpy.empty(broadcast.shape+(), dtype=numpy.double)
+    
+    #Create the iterator, broadcasting on all but the consumed dimensions
+    op_axes = [[-1]*(broadcast.nd-arr.ndim)+range(arr.ndim) for arr in [uta_in, utb_in, tta_in, ttb_in]+[c_retval_out]]
+    op_flags = [['readonly']]*4+[['readwrite']]*1
+    it = numpy.nditer([uta_in, utb_in, tta_in, ttb_in]+[c_retval_out], op_axes=op_axes, op_flags=op_flags)
+    
+    #Iterate
     cdef double _uta
     cdef double _utb
     cdef double _tta
     cdef double _ttb
     cdef double _c_retval
-    
-    while numpy.PyArray_MultiIter_NOTDONE(it):
-        _uta = (<double*>numpy.PyArray_MultiIter_DATA(it, 0))[0]
-        _utb = (<double*>numpy.PyArray_MultiIter_DATA(it, 1))[0]
-        _tta = (<double*>numpy.PyArray_MultiIter_DATA(it, 2))[0]
-        _ttb = (<double*>numpy.PyArray_MultiIter_DATA(it, 3))[0]
-        
+    cdef char** dataptrarray = GetDataPtrArray(GetNpyIter(it))
+    cdef IterNextFunc iternext = GetIterNext(GetNpyIter(it), NULL)
+    cdef int status = 1
+    while status:
+        _uta = (<double *>(dataptrarray[0]))[0]
+        _utb = (<double *>(dataptrarray[1]))[0]
+        _tta = (<double *>(dataptrarray[2]))[0]
+        _ttb = (<double *>(dataptrarray[3]))[0]
         _c_retval = eraGst00a(_uta, _utb, _tta, _ttb)
-        (<double*>numpy.PyArray_MultiIter_DATA(it, 4))[0] = _c_retval
-        
-        numpy.PyArray_MultiIter_NEXT(it)
-
+        (<double *>(dataptrarray[4]))[0] = _c_retval
+        status = iternext(GetNpyIter(it))
+    
     return c_retval_out
+
 
 def gst00b(uta, utb):
     """
@@ -13901,24 +15351,36 @@ def gst00b(uta, utb):
     Derived, with permission, from the SOFA library.  See notes at end of file.
   
     """
-    in_shape = numpy.broadcast(uta, utb).shape
-    c_retval_out = numpy.empty(in_shape, dtype=numpy.double)
     
-    cdef numpy.broadcast it = numpy.broadcast(uta, utb, c_retval_out)
+    #Turn all inputs into arrays
+    uta_in = numpy.array(uta, dtype=numpy.double, order="C", copy=False, subok=True)
+    utb_in = numpy.array(utb, dtype=numpy.double, order="C", copy=False, subok=True)
+    
+    #Create the output array, based on the broadcasted shape, adding the generated dimensions if needed
+    broadcast = numpy.broadcast(numpy.int32(0.0), numpy.int32(0.0), uta_in, utb_in)
+    c_retval_out = numpy.empty(broadcast.shape+(), dtype=numpy.double)
+    
+    #Create the iterator, broadcasting on all but the consumed dimensions
+    op_axes = [[-1]*(broadcast.nd-arr.ndim)+range(arr.ndim) for arr in [uta_in, utb_in]+[c_retval_out]]
+    op_flags = [['readonly']]*2+[['readwrite']]*1
+    it = numpy.nditer([uta_in, utb_in]+[c_retval_out], op_axes=op_axes, op_flags=op_flags)
+    
+    #Iterate
     cdef double _uta
     cdef double _utb
     cdef double _c_retval
-    
-    while numpy.PyArray_MultiIter_NOTDONE(it):
-        _uta = (<double*>numpy.PyArray_MultiIter_DATA(it, 0))[0]
-        _utb = (<double*>numpy.PyArray_MultiIter_DATA(it, 1))[0]
-        
+    cdef char** dataptrarray = GetDataPtrArray(GetNpyIter(it))
+    cdef IterNextFunc iternext = GetIterNext(GetNpyIter(it), NULL)
+    cdef int status = 1
+    while status:
+        _uta = (<double *>(dataptrarray[0]))[0]
+        _utb = (<double *>(dataptrarray[1]))[0]
         _c_retval = eraGst00b(_uta, _utb)
-        (<double*>numpy.PyArray_MultiIter_DATA(it, 2))[0] = _c_retval
-        
-        numpy.PyArray_MultiIter_NEXT(it)
-
+        (<double *>(dataptrarray[2]))[0] = _c_retval
+        status = iternext(GetNpyIter(it))
+    
     return c_retval_out
+
 
 def gst06(uta, utb, tta, ttb, rnpb):
     """
@@ -13993,35 +15455,45 @@ def gst06(uta, utb, tta, ttb, rnpb):
     Derived, with permission, from the SOFA library.  See notes at end of file.
   
     """
-    # convert nd-array to single-field structured array for argument "rnpb"
-    rnpb_arr = numpy.empty(numpy.shape(rnpb)[:-2], dtype=numpy.dtype([('fi0', 'd', (3,3))]))
-    rnpb_arr['fi0'] = rnpb
-    rnpb = rnpb_arr
     
-    in_shape = numpy.broadcast(uta, utb, tta, ttb, rnpb).shape
-    c_retval_out = numpy.empty(in_shape, dtype=numpy.double)
+    #Turn all inputs into arrays
+    uta_in = numpy.array(uta, dtype=numpy.double, order="C", copy=False, subok=True)
+    utb_in = numpy.array(utb, dtype=numpy.double, order="C", copy=False, subok=True)
+    tta_in = numpy.array(tta, dtype=numpy.double, order="C", copy=False, subok=True)
+    ttb_in = numpy.array(ttb, dtype=numpy.double, order="C", copy=False, subok=True)
+    rnpb_in = numpy.array(rnpb, dtype=numpy.double, order="C", copy=False, subok=True)
     
-    cdef numpy.broadcast it = numpy.broadcast(uta, utb, tta, ttb, rnpb, c_retval_out)
+    #Create the output array, based on the broadcasted shape, adding the generated dimensions if needed
+    broadcast = numpy.broadcast(numpy.int32(0.0), numpy.int32(0.0), uta_in, utb_in, tta_in, ttb_in, rnpb_in[...,0,0])
+    c_retval_out = numpy.empty(broadcast.shape+(), dtype=numpy.double)
+    
+    #Create the iterator, broadcasting on all but the consumed dimensions
+    op_axes = [[-1]*(broadcast.nd-arr.ndim)+range(arr.ndim) for arr in [uta_in, utb_in, tta_in, ttb_in, rnpb_in[...,0,0]]+[c_retval_out]]
+    op_flags = [['readonly']]*5+[['readwrite']]*1
+    it = numpy.nditer([uta_in, utb_in, tta_in, ttb_in, rnpb_in]+[c_retval_out], op_axes=op_axes, op_flags=op_flags)
+    
+    #Iterate
     cdef double _uta
     cdef double _utb
     cdef double _tta
     cdef double _ttb
     cdef double * _rnpb
     cdef double _c_retval
-    
-    while numpy.PyArray_MultiIter_NOTDONE(it):
-        _uta = (<double*>numpy.PyArray_MultiIter_DATA(it, 0))[0]
-        _utb = (<double*>numpy.PyArray_MultiIter_DATA(it, 1))[0]
-        _tta = (<double*>numpy.PyArray_MultiIter_DATA(it, 2))[0]
-        _ttb = (<double*>numpy.PyArray_MultiIter_DATA(it, 3))[0]
-        _rnpb = (<double *>numpy.PyArray_MultiIter_DATA(it, 4))
-        
+    cdef char** dataptrarray = GetDataPtrArray(GetNpyIter(it))
+    cdef IterNextFunc iternext = GetIterNext(GetNpyIter(it), NULL)
+    cdef int status = 1
+    while status:
+        _uta = (<double *>(dataptrarray[0]))[0]
+        _utb = (<double *>(dataptrarray[1]))[0]
+        _tta = (<double *>(dataptrarray[2]))[0]
+        _ttb = (<double *>(dataptrarray[3]))[0]
+        _rnpb = (<double *>(dataptrarray[4]))
         _c_retval = eraGst06(_uta, _utb, _tta, _ttb, _rnpb)
-        (<double*>numpy.PyArray_MultiIter_DATA(it, 5))[0] = _c_retval
-        
-        numpy.PyArray_MultiIter_NEXT(it)
-
+        (<double *>(dataptrarray[5]))[0] = _c_retval
+        status = iternext(GetNpyIter(it))
+    
     return c_retval_out
+
 
 def gst06a(uta, utb, tta, ttb):
     """
@@ -14093,28 +15565,42 @@ def gst06a(uta, utb, tta, ttb):
     Derived, with permission, from the SOFA library.  See notes at end of file.
   
     """
-    in_shape = numpy.broadcast(uta, utb, tta, ttb).shape
-    c_retval_out = numpy.empty(in_shape, dtype=numpy.double)
     
-    cdef numpy.broadcast it = numpy.broadcast(uta, utb, tta, ttb, c_retval_out)
+    #Turn all inputs into arrays
+    uta_in = numpy.array(uta, dtype=numpy.double, order="C", copy=False, subok=True)
+    utb_in = numpy.array(utb, dtype=numpy.double, order="C", copy=False, subok=True)
+    tta_in = numpy.array(tta, dtype=numpy.double, order="C", copy=False, subok=True)
+    ttb_in = numpy.array(ttb, dtype=numpy.double, order="C", copy=False, subok=True)
+    
+    #Create the output array, based on the broadcasted shape, adding the generated dimensions if needed
+    broadcast = numpy.broadcast(numpy.int32(0.0), numpy.int32(0.0), uta_in, utb_in, tta_in, ttb_in)
+    c_retval_out = numpy.empty(broadcast.shape+(), dtype=numpy.double)
+    
+    #Create the iterator, broadcasting on all but the consumed dimensions
+    op_axes = [[-1]*(broadcast.nd-arr.ndim)+range(arr.ndim) for arr in [uta_in, utb_in, tta_in, ttb_in]+[c_retval_out]]
+    op_flags = [['readonly']]*4+[['readwrite']]*1
+    it = numpy.nditer([uta_in, utb_in, tta_in, ttb_in]+[c_retval_out], op_axes=op_axes, op_flags=op_flags)
+    
+    #Iterate
     cdef double _uta
     cdef double _utb
     cdef double _tta
     cdef double _ttb
     cdef double _c_retval
-    
-    while numpy.PyArray_MultiIter_NOTDONE(it):
-        _uta = (<double*>numpy.PyArray_MultiIter_DATA(it, 0))[0]
-        _utb = (<double*>numpy.PyArray_MultiIter_DATA(it, 1))[0]
-        _tta = (<double*>numpy.PyArray_MultiIter_DATA(it, 2))[0]
-        _ttb = (<double*>numpy.PyArray_MultiIter_DATA(it, 3))[0]
-        
+    cdef char** dataptrarray = GetDataPtrArray(GetNpyIter(it))
+    cdef IterNextFunc iternext = GetIterNext(GetNpyIter(it), NULL)
+    cdef int status = 1
+    while status:
+        _uta = (<double *>(dataptrarray[0]))[0]
+        _utb = (<double *>(dataptrarray[1]))[0]
+        _tta = (<double *>(dataptrarray[2]))[0]
+        _ttb = (<double *>(dataptrarray[3]))[0]
         _c_retval = eraGst06a(_uta, _utb, _tta, _ttb)
-        (<double*>numpy.PyArray_MultiIter_DATA(it, 4))[0] = _c_retval
-        
-        numpy.PyArray_MultiIter_NEXT(it)
-
+        (<double *>(dataptrarray[4]))[0] = _c_retval
+        status = iternext(GetNpyIter(it))
+    
     return c_retval_out
+
 
 def gst94(uta, utb):
     """
@@ -14188,24 +15674,36 @@ def gst94(uta, utb):
     Derived, with permission, from the SOFA library.  See notes at end of file.
   
     """
-    in_shape = numpy.broadcast(uta, utb).shape
-    c_retval_out = numpy.empty(in_shape, dtype=numpy.double)
     
-    cdef numpy.broadcast it = numpy.broadcast(uta, utb, c_retval_out)
+    #Turn all inputs into arrays
+    uta_in = numpy.array(uta, dtype=numpy.double, order="C", copy=False, subok=True)
+    utb_in = numpy.array(utb, dtype=numpy.double, order="C", copy=False, subok=True)
+    
+    #Create the output array, based on the broadcasted shape, adding the generated dimensions if needed
+    broadcast = numpy.broadcast(numpy.int32(0.0), numpy.int32(0.0), uta_in, utb_in)
+    c_retval_out = numpy.empty(broadcast.shape+(), dtype=numpy.double)
+    
+    #Create the iterator, broadcasting on all but the consumed dimensions
+    op_axes = [[-1]*(broadcast.nd-arr.ndim)+range(arr.ndim) for arr in [uta_in, utb_in]+[c_retval_out]]
+    op_flags = [['readonly']]*2+[['readwrite']]*1
+    it = numpy.nditer([uta_in, utb_in]+[c_retval_out], op_axes=op_axes, op_flags=op_flags)
+    
+    #Iterate
     cdef double _uta
     cdef double _utb
     cdef double _c_retval
-    
-    while numpy.PyArray_MultiIter_NOTDONE(it):
-        _uta = (<double*>numpy.PyArray_MultiIter_DATA(it, 0))[0]
-        _utb = (<double*>numpy.PyArray_MultiIter_DATA(it, 1))[0]
-        
+    cdef char** dataptrarray = GetDataPtrArray(GetNpyIter(it))
+    cdef IterNextFunc iternext = GetIterNext(GetNpyIter(it), NULL)
+    cdef int status = 1
+    while status:
+        _uta = (<double *>(dataptrarray[0]))[0]
+        _utb = (<double *>(dataptrarray[1]))[0]
         _c_retval = eraGst94(_uta, _utb)
-        (<double*>numpy.PyArray_MultiIter_DATA(it, 2))[0] = _c_retval
-        
-        numpy.PyArray_MultiIter_NEXT(it)
-
+        (<double *>(dataptrarray[2]))[0] = _c_retval
+        status = iternext(GetNpyIter(it))
+    
     return c_retval_out
+
 
 def pmsafe(ra1, dec1, pmr1, pmd1, px1, rv1, ep1a, ep1b, ep2a, ep2b):
     """
@@ -14318,16 +15816,35 @@ def pmsafe(ra1, dec1, pmr1, pmd1, px1, rv1, ep1a, ep1b, ep2a, ep2b):
     Derived, with permission, from the SOFA library.  See notes at end of file.
   
     """
-    in_shape = numpy.broadcast(ra1, dec1, pmr1, pmd1, px1, rv1, ep1a, ep1b, ep2a, ep2b).shape
-    ra2_out = numpy.empty(in_shape, dtype=numpy.double)
-    dec2_out = numpy.empty(in_shape, dtype=numpy.double)
-    pmr2_out = numpy.empty(in_shape, dtype=numpy.double)
-    pmd2_out = numpy.empty(in_shape, dtype=numpy.double)
-    px2_out = numpy.empty(in_shape, dtype=numpy.double)
-    rv2_out = numpy.empty(in_shape, dtype=numpy.double)
-    c_retval_out = numpy.empty(in_shape, dtype=numpy.intc)
     
-    cdef numpy.broadcast it = numpy.broadcast(ra1, dec1, pmr1, pmd1, px1, rv1, ep1a, ep1b, ep2a, ep2b, ra2_out, dec2_out, pmr2_out, pmd2_out, px2_out, rv2_out, c_retval_out)
+    #Turn all inputs into arrays
+    ra1_in = numpy.array(ra1, dtype=numpy.double, order="C", copy=False, subok=True)
+    dec1_in = numpy.array(dec1, dtype=numpy.double, order="C", copy=False, subok=True)
+    pmr1_in = numpy.array(pmr1, dtype=numpy.double, order="C", copy=False, subok=True)
+    pmd1_in = numpy.array(pmd1, dtype=numpy.double, order="C", copy=False, subok=True)
+    px1_in = numpy.array(px1, dtype=numpy.double, order="C", copy=False, subok=True)
+    rv1_in = numpy.array(rv1, dtype=numpy.double, order="C", copy=False, subok=True)
+    ep1a_in = numpy.array(ep1a, dtype=numpy.double, order="C", copy=False, subok=True)
+    ep1b_in = numpy.array(ep1b, dtype=numpy.double, order="C", copy=False, subok=True)
+    ep2a_in = numpy.array(ep2a, dtype=numpy.double, order="C", copy=False, subok=True)
+    ep2b_in = numpy.array(ep2b, dtype=numpy.double, order="C", copy=False, subok=True)
+    
+    #Create the output array, based on the broadcasted shape, adding the generated dimensions if needed
+    broadcast = numpy.broadcast(numpy.int32(0.0), numpy.int32(0.0), ra1_in, dec1_in, pmr1_in, pmd1_in, px1_in, rv1_in, ep1a_in, ep1b_in, ep2a_in, ep2b_in)
+    ra2_out = numpy.empty(broadcast.shape+(), dtype=numpy.double)
+    dec2_out = numpy.empty(broadcast.shape+(), dtype=numpy.double)
+    pmr2_out = numpy.empty(broadcast.shape+(), dtype=numpy.double)
+    pmd2_out = numpy.empty(broadcast.shape+(), dtype=numpy.double)
+    px2_out = numpy.empty(broadcast.shape+(), dtype=numpy.double)
+    rv2_out = numpy.empty(broadcast.shape+(), dtype=numpy.double)
+    c_retval_out = numpy.empty(broadcast.shape+(), dtype=numpy.intc)
+    
+    #Create the iterator, broadcasting on all but the consumed dimensions
+    op_axes = [[-1]*(broadcast.nd-arr.ndim)+range(arr.ndim) for arr in [ra1_in, dec1_in, pmr1_in, pmd1_in, px1_in, rv1_in, ep1a_in, ep1b_in, ep2a_in, ep2b_in]+[ra2_out, dec2_out, pmr2_out, pmd2_out, px2_out, rv2_out, c_retval_out]]
+    op_flags = [['readonly']]*10+[['readwrite']]*7
+    it = numpy.nditer([ra1_in, dec1_in, pmr1_in, pmd1_in, px1_in, rv1_in, ep1a_in, ep1b_in, ep2a_in, ep2b_in]+[ra2_out, dec2_out, pmr2_out, pmd2_out, px2_out, rv2_out, c_retval_out], op_axes=op_axes, op_flags=op_flags)
+    
+    #Iterate
     cdef double _ra1
     cdef double _dec1
     cdef double _pmr1
@@ -14346,37 +15863,38 @@ def pmsafe(ra1, dec1, pmr1, pmd1, px1, rv1, ep1a, ep1b, ep2a, ep2b):
     cdef double * _rv2
     cdef int _c_retval
     cdef bint stat_ok = True
-    
-    while numpy.PyArray_MultiIter_NOTDONE(it):
-        _ra1 = (<double*>numpy.PyArray_MultiIter_DATA(it, 0))[0]
-        _dec1 = (<double*>numpy.PyArray_MultiIter_DATA(it, 1))[0]
-        _pmr1 = (<double*>numpy.PyArray_MultiIter_DATA(it, 2))[0]
-        _pmd1 = (<double*>numpy.PyArray_MultiIter_DATA(it, 3))[0]
-        _px1 = (<double*>numpy.PyArray_MultiIter_DATA(it, 4))[0]
-        _rv1 = (<double*>numpy.PyArray_MultiIter_DATA(it, 5))[0]
-        _ep1a = (<double*>numpy.PyArray_MultiIter_DATA(it, 6))[0]
-        _ep1b = (<double*>numpy.PyArray_MultiIter_DATA(it, 7))[0]
-        _ep2a = (<double*>numpy.PyArray_MultiIter_DATA(it, 8))[0]
-        _ep2b = (<double*>numpy.PyArray_MultiIter_DATA(it, 9))[0]
-        _ra2 = (<double *>numpy.PyArray_MultiIter_DATA(it, 10))
-        _dec2 = (<double *>numpy.PyArray_MultiIter_DATA(it, 11))
-        _pmr2 = (<double *>numpy.PyArray_MultiIter_DATA(it, 12))
-        _pmd2 = (<double *>numpy.PyArray_MultiIter_DATA(it, 13))
-        _px2 = (<double *>numpy.PyArray_MultiIter_DATA(it, 14))
-        _rv2 = (<double *>numpy.PyArray_MultiIter_DATA(it, 15))
-        
+    cdef char** dataptrarray = GetDataPtrArray(GetNpyIter(it))
+    cdef IterNextFunc iternext = GetIterNext(GetNpyIter(it), NULL)
+    cdef int status = 1
+    while status:
+        _ra1 = (<double *>(dataptrarray[0]))[0]
+        _dec1 = (<double *>(dataptrarray[1]))[0]
+        _pmr1 = (<double *>(dataptrarray[2]))[0]
+        _pmd1 = (<double *>(dataptrarray[3]))[0]
+        _px1 = (<double *>(dataptrarray[4]))[0]
+        _rv1 = (<double *>(dataptrarray[5]))[0]
+        _ep1a = (<double *>(dataptrarray[6]))[0]
+        _ep1b = (<double *>(dataptrarray[7]))[0]
+        _ep2a = (<double *>(dataptrarray[8]))[0]
+        _ep2b = (<double *>(dataptrarray[9]))[0]
+        _ra2 = (<double *>(dataptrarray[10]))
+        _dec2 = (<double *>(dataptrarray[11]))
+        _pmr2 = (<double *>(dataptrarray[12]))
+        _pmd2 = (<double *>(dataptrarray[13]))
+        _px2 = (<double *>(dataptrarray[14]))
+        _rv2 = (<double *>(dataptrarray[15]))
         _c_retval = eraPmsafe(_ra1, _dec1, _pmr1, _pmd1, _px1, _rv1, _ep1a, _ep1b, _ep2a, _ep2b, _ra2, _dec2, _pmr2, _pmd2, _px2, _rv2)
-        (<int*>numpy.PyArray_MultiIter_DATA(it, 16))[0] = _c_retval
+        (<int *>(dataptrarray[16]))[0] = _c_retval
         if _c_retval != 0:
             stat_ok = False
-        
-        numpy.PyArray_MultiIter_NEXT(it)
-
+        status = iternext(GetNpyIter(it))
+    
     if not stat_ok:
         check_errwarn(c_retval_out, 'pmsafe')
-
+    
     return ra2_out, dec2_out, pmr2_out, pmd2_out, px2_out, rv2_out
 STATUS_CODES['pmsafe'] = {0: u'no warnings or errors', 1: u'distance overridden (Note 6)', 2: u'excessive velocity (Note 7)', 4: u"solution didn't converge (Note 8)", u'else': u'binary logical OR of the above warnings', -1: u'system error (should not occur)'}
+
 
 
 def pvstar(pv):
@@ -14481,21 +15999,26 @@ def pvstar(pv):
     Derived, with permission, from the SOFA library.  See notes at end of file.
   
     """
-    # convert nd-array to single-field structured array for argument "pv"
-    pv_arr = numpy.empty(numpy.shape(pv)[:-2], dtype=numpy.dtype([('fi0', 'd', (2,3))]))
-    pv_arr['fi0'] = pv
-    pv = pv_arr
     
-    in_shape = numpy.broadcast(pv, 0).shape
-    ra_out = numpy.empty(in_shape, dtype=numpy.double)
-    dec_out = numpy.empty(in_shape, dtype=numpy.double)
-    pmr_out = numpy.empty(in_shape, dtype=numpy.double)
-    pmd_out = numpy.empty(in_shape, dtype=numpy.double)
-    px_out = numpy.empty(in_shape, dtype=numpy.double)
-    rv_out = numpy.empty(in_shape, dtype=numpy.double)
-    c_retval_out = numpy.empty(in_shape, dtype=numpy.intc)
+    #Turn all inputs into arrays
+    pv_in = numpy.array(pv, dtype=numpy.double, order="C", copy=False, subok=True)
     
-    cdef numpy.broadcast it = numpy.broadcast(pv, ra_out, dec_out, pmr_out, pmd_out, px_out, rv_out, c_retval_out)
+    #Create the output array, based on the broadcasted shape, adding the generated dimensions if needed
+    broadcast = numpy.broadcast(numpy.int32(0.0), numpy.int32(0.0), pv_in[...,0,0])
+    ra_out = numpy.empty(broadcast.shape+(), dtype=numpy.double)
+    dec_out = numpy.empty(broadcast.shape+(), dtype=numpy.double)
+    pmr_out = numpy.empty(broadcast.shape+(), dtype=numpy.double)
+    pmd_out = numpy.empty(broadcast.shape+(), dtype=numpy.double)
+    px_out = numpy.empty(broadcast.shape+(), dtype=numpy.double)
+    rv_out = numpy.empty(broadcast.shape+(), dtype=numpy.double)
+    c_retval_out = numpy.empty(broadcast.shape+(), dtype=numpy.intc)
+    
+    #Create the iterator, broadcasting on all but the consumed dimensions
+    op_axes = [[-1]*(broadcast.nd-arr.ndim)+range(arr.ndim) for arr in [pv_in[...,0,0]]+[ra_out, dec_out, pmr_out, pmd_out, px_out, rv_out, c_retval_out]]
+    op_flags = [['readonly']]*1+[['readwrite']]*7
+    it = numpy.nditer([pv_in]+[ra_out, dec_out, pmr_out, pmd_out, px_out, rv_out, c_retval_out], op_axes=op_axes, op_flags=op_flags)
+    
+    #Iterate
     cdef double * _pv
     cdef double * _ra
     cdef double * _dec
@@ -14505,28 +16028,29 @@ def pvstar(pv):
     cdef double * _rv
     cdef int _c_retval
     cdef bint stat_ok = True
-    
-    while numpy.PyArray_MultiIter_NOTDONE(it):
-        _pv = (<double *>numpy.PyArray_MultiIter_DATA(it, 0))
-        _ra = (<double *>numpy.PyArray_MultiIter_DATA(it, 1))
-        _dec = (<double *>numpy.PyArray_MultiIter_DATA(it, 2))
-        _pmr = (<double *>numpy.PyArray_MultiIter_DATA(it, 3))
-        _pmd = (<double *>numpy.PyArray_MultiIter_DATA(it, 4))
-        _px = (<double *>numpy.PyArray_MultiIter_DATA(it, 5))
-        _rv = (<double *>numpy.PyArray_MultiIter_DATA(it, 6))
-        
+    cdef char** dataptrarray = GetDataPtrArray(GetNpyIter(it))
+    cdef IterNextFunc iternext = GetIterNext(GetNpyIter(it), NULL)
+    cdef int status = 1
+    while status:
+        _pv = (<double *>(dataptrarray[0]))
+        _ra = (<double *>(dataptrarray[1]))
+        _dec = (<double *>(dataptrarray[2]))
+        _pmr = (<double *>(dataptrarray[3]))
+        _pmd = (<double *>(dataptrarray[4]))
+        _px = (<double *>(dataptrarray[5]))
+        _rv = (<double *>(dataptrarray[6]))
         _c_retval = eraPvstar(_pv, _ra, _dec, _pmr, _pmd, _px, _rv)
-        (<int*>numpy.PyArray_MultiIter_DATA(it, 7))[0] = _c_retval
+        (<int *>(dataptrarray[7]))[0] = _c_retval
         if _c_retval != 0:
             stat_ok = False
-        
-        numpy.PyArray_MultiIter_NEXT(it)
-
+        status = iternext(GetNpyIter(it))
+    
     if not stat_ok:
         check_errwarn(c_retval_out, 'pvstar')
-
+    
     return ra_out, dec_out, pmr_out, pmd_out, px_out, rv_out
 STATUS_CODES['pvstar'] = {0: u'OK', -2: u'null position vector', -1: u'superluminal speed (Note 5)'}
+
 
 
 def starpv(ra, dec, pmr, pmd, px, rv):
@@ -14650,11 +16174,26 @@ def starpv(ra, dec, pmr, pmd, px, rv):
     Derived, with permission, from the SOFA library.  See notes at end of file.
   
     """
-    in_shape = numpy.broadcast(ra, dec, pmr, pmd, px, rv).shape
-    pv_out = numpy.empty(in_shape, dtype=numpy.dtype([('fi0', 'd', (2,3))]))
-    c_retval_out = numpy.empty(in_shape, dtype=numpy.intc)
     
-    cdef numpy.broadcast it = numpy.broadcast(ra, dec, pmr, pmd, px, rv, pv_out, c_retval_out)
+    #Turn all inputs into arrays
+    ra_in = numpy.array(ra, dtype=numpy.double, order="C", copy=False, subok=True)
+    dec_in = numpy.array(dec, dtype=numpy.double, order="C", copy=False, subok=True)
+    pmr_in = numpy.array(pmr, dtype=numpy.double, order="C", copy=False, subok=True)
+    pmd_in = numpy.array(pmd, dtype=numpy.double, order="C", copy=False, subok=True)
+    px_in = numpy.array(px, dtype=numpy.double, order="C", copy=False, subok=True)
+    rv_in = numpy.array(rv, dtype=numpy.double, order="C", copy=False, subok=True)
+    
+    #Create the output array, based on the broadcasted shape, adding the generated dimensions if needed
+    broadcast = numpy.broadcast(numpy.int32(0.0), numpy.int32(0.0), ra_in, dec_in, pmr_in, pmd_in, px_in, rv_in)
+    pv_out = numpy.empty(broadcast.shape+(2, 3), dtype=numpy.double)
+    c_retval_out = numpy.empty(broadcast.shape+(), dtype=numpy.intc)
+    
+    #Create the iterator, broadcasting on all but the consumed dimensions
+    op_axes = [[-1]*(broadcast.nd-arr.ndim)+range(arr.ndim) for arr in [ra_in, dec_in, pmr_in, pmd_in, px_in, rv_in]+[pv_out[...,0,0], c_retval_out]]
+    op_flags = [['readonly']]*6+[['readwrite']]*2
+    it = numpy.nditer([ra_in, dec_in, pmr_in, pmd_in, px_in, rv_in]+[pv_out, c_retval_out], op_axes=op_axes, op_flags=op_flags)
+    
+    #Iterate
     cdef double _ra
     cdef double _dec
     cdef double _pmr
@@ -14664,31 +16203,29 @@ def starpv(ra, dec, pmr, pmd, px, rv):
     cdef double * _pv
     cdef int _c_retval
     cdef bint stat_ok = True
-    
-    while numpy.PyArray_MultiIter_NOTDONE(it):
-        _ra = (<double*>numpy.PyArray_MultiIter_DATA(it, 0))[0]
-        _dec = (<double*>numpy.PyArray_MultiIter_DATA(it, 1))[0]
-        _pmr = (<double*>numpy.PyArray_MultiIter_DATA(it, 2))[0]
-        _pmd = (<double*>numpy.PyArray_MultiIter_DATA(it, 3))[0]
-        _px = (<double*>numpy.PyArray_MultiIter_DATA(it, 4))[0]
-        _rv = (<double*>numpy.PyArray_MultiIter_DATA(it, 5))[0]
-        _pv = (<double *>numpy.PyArray_MultiIter_DATA(it, 6))
-        
+    cdef char** dataptrarray = GetDataPtrArray(GetNpyIter(it))
+    cdef IterNextFunc iternext = GetIterNext(GetNpyIter(it), NULL)
+    cdef int status = 1
+    while status:
+        _ra = (<double *>(dataptrarray[0]))[0]
+        _dec = (<double *>(dataptrarray[1]))[0]
+        _pmr = (<double *>(dataptrarray[2]))[0]
+        _pmd = (<double *>(dataptrarray[3]))[0]
+        _px = (<double *>(dataptrarray[4]))[0]
+        _rv = (<double *>(dataptrarray[5]))[0]
+        _pv = (<double *>(dataptrarray[6]))
         _c_retval = eraStarpv(_ra, _dec, _pmr, _pmd, _px, _rv, _pv)
-        (<int*>numpy.PyArray_MultiIter_DATA(it, 7))[0] = _c_retval
+        (<int *>(dataptrarray[7]))[0] = _c_retval
         if _c_retval != 0:
             stat_ok = False
-        
-        numpy.PyArray_MultiIter_NEXT(it)
-
+        status = iternext(GetNpyIter(it))
+    
     if not stat_ok:
-        check_errwarn(c_retval_out, 'starpv') 
-
-    # convert from single-field structured dtype to regular nd-array
-    pv_out = pv_out['fi0']
-
+        check_errwarn(c_retval_out, 'starpv')
+    
     return pv_out
 STATUS_CODES['starpv'] = {0: u'no warnings', 1: u'distance overridden (Note 6)', 2: u'excessive speed (Note 7)', 4: u"solution didn't converge (Note 8)", u'else': u'binary logical OR of the above'}
+
 
 
 def fk52h(r5, d5, dr5, dd5, px5, rv5):
@@ -14751,15 +16288,30 @@ def fk52h(r5, d5, dr5, dd5, px5, rv5):
     Derived, with permission, from the SOFA library.  See notes at end of file.
   
     """
-    in_shape = numpy.broadcast(r5, d5, dr5, dd5, px5, rv5).shape
-    rh_out = numpy.empty(in_shape, dtype=numpy.double)
-    dh_out = numpy.empty(in_shape, dtype=numpy.double)
-    drh_out = numpy.empty(in_shape, dtype=numpy.double)
-    ddh_out = numpy.empty(in_shape, dtype=numpy.double)
-    pxh_out = numpy.empty(in_shape, dtype=numpy.double)
-    rvh_out = numpy.empty(in_shape, dtype=numpy.double)
     
-    cdef numpy.broadcast it = numpy.broadcast(r5, d5, dr5, dd5, px5, rv5, rh_out, dh_out, drh_out, ddh_out, pxh_out, rvh_out)
+    #Turn all inputs into arrays
+    r5_in = numpy.array(r5, dtype=numpy.double, order="C", copy=False, subok=True)
+    d5_in = numpy.array(d5, dtype=numpy.double, order="C", copy=False, subok=True)
+    dr5_in = numpy.array(dr5, dtype=numpy.double, order="C", copy=False, subok=True)
+    dd5_in = numpy.array(dd5, dtype=numpy.double, order="C", copy=False, subok=True)
+    px5_in = numpy.array(px5, dtype=numpy.double, order="C", copy=False, subok=True)
+    rv5_in = numpy.array(rv5, dtype=numpy.double, order="C", copy=False, subok=True)
+    
+    #Create the output array, based on the broadcasted shape, adding the generated dimensions if needed
+    broadcast = numpy.broadcast(numpy.int32(0.0), numpy.int32(0.0), r5_in, d5_in, dr5_in, dd5_in, px5_in, rv5_in)
+    rh_out = numpy.empty(broadcast.shape+(), dtype=numpy.double)
+    dh_out = numpy.empty(broadcast.shape+(), dtype=numpy.double)
+    drh_out = numpy.empty(broadcast.shape+(), dtype=numpy.double)
+    ddh_out = numpy.empty(broadcast.shape+(), dtype=numpy.double)
+    pxh_out = numpy.empty(broadcast.shape+(), dtype=numpy.double)
+    rvh_out = numpy.empty(broadcast.shape+(), dtype=numpy.double)
+    
+    #Create the iterator, broadcasting on all but the consumed dimensions
+    op_axes = [[-1]*(broadcast.nd-arr.ndim)+range(arr.ndim) for arr in [r5_in, d5_in, dr5_in, dd5_in, px5_in, rv5_in]+[rh_out, dh_out, drh_out, ddh_out, pxh_out, rvh_out]]
+    op_flags = [['readonly']]*6+[['readwrite']]*6
+    it = numpy.nditer([r5_in, d5_in, dr5_in, dd5_in, px5_in, rv5_in]+[rh_out, dh_out, drh_out, ddh_out, pxh_out, rvh_out], op_axes=op_axes, op_flags=op_flags)
+    
+    #Iterate
     cdef double _r5
     cdef double _d5
     cdef double _dr5
@@ -14772,26 +16324,27 @@ def fk52h(r5, d5, dr5, dd5, px5, rv5):
     cdef double * _ddh
     cdef double * _pxh
     cdef double * _rvh
-    
-    while numpy.PyArray_MultiIter_NOTDONE(it):
-        _r5 = (<double*>numpy.PyArray_MultiIter_DATA(it, 0))[0]
-        _d5 = (<double*>numpy.PyArray_MultiIter_DATA(it, 1))[0]
-        _dr5 = (<double*>numpy.PyArray_MultiIter_DATA(it, 2))[0]
-        _dd5 = (<double*>numpy.PyArray_MultiIter_DATA(it, 3))[0]
-        _px5 = (<double*>numpy.PyArray_MultiIter_DATA(it, 4))[0]
-        _rv5 = (<double*>numpy.PyArray_MultiIter_DATA(it, 5))[0]
-        _rh = (<double *>numpy.PyArray_MultiIter_DATA(it, 6))
-        _dh = (<double *>numpy.PyArray_MultiIter_DATA(it, 7))
-        _drh = (<double *>numpy.PyArray_MultiIter_DATA(it, 8))
-        _ddh = (<double *>numpy.PyArray_MultiIter_DATA(it, 9))
-        _pxh = (<double *>numpy.PyArray_MultiIter_DATA(it, 10))
-        _rvh = (<double *>numpy.PyArray_MultiIter_DATA(it, 11))
-        
+    cdef char** dataptrarray = GetDataPtrArray(GetNpyIter(it))
+    cdef IterNextFunc iternext = GetIterNext(GetNpyIter(it), NULL)
+    cdef int status = 1
+    while status:
+        _r5 = (<double *>(dataptrarray[0]))[0]
+        _d5 = (<double *>(dataptrarray[1]))[0]
+        _dr5 = (<double *>(dataptrarray[2]))[0]
+        _dd5 = (<double *>(dataptrarray[3]))[0]
+        _px5 = (<double *>(dataptrarray[4]))[0]
+        _rv5 = (<double *>(dataptrarray[5]))[0]
+        _rh = (<double *>(dataptrarray[6]))
+        _dh = (<double *>(dataptrarray[7]))
+        _drh = (<double *>(dataptrarray[8]))
+        _ddh = (<double *>(dataptrarray[9]))
+        _pxh = (<double *>(dataptrarray[10]))
+        _rvh = (<double *>(dataptrarray[11]))
         eraFk52h(_r5, _d5, _dr5, _dd5, _px5, _rv5, _rh, _dh, _drh, _ddh, _pxh, _rvh)
-        
-        numpy.PyArray_MultiIter_NEXT(it)
-
+        status = iternext(GetNpyIter(it))
+    
     return rh_out, dh_out, drh_out, ddh_out, pxh_out, rvh_out
+
 
 def fk5hip():
     """
@@ -14839,27 +16392,33 @@ def fk5hip():
     Derived, with permission, from the SOFA library.  See notes at end of file.
   
     """
-    in_shape = ()
-    r5h_out = numpy.empty(in_shape, dtype=numpy.dtype([('fi0', 'd', (3,3))]))
-    s5h_out = numpy.empty(in_shape, dtype=numpy.dtype([('fi0', 'd', (3,))]))
     
-    cdef numpy.broadcast it = numpy.broadcast(r5h_out, s5h_out)
+    #Turn all inputs into arrays
+    
+    #Create the output array, based on the broadcasted shape, adding the generated dimensions if needed
+    broadcast = numpy.broadcast(numpy.int32(0.0), numpy.int32(0.0), )
+    r5h_out = numpy.empty(broadcast.shape+(3, 3), dtype=numpy.double)
+    s5h_out = numpy.empty(broadcast.shape+(3,), dtype=numpy.double)
+    
+    #Create the iterator, broadcasting on all but the consumed dimensions
+    op_axes = [[-1]*(broadcast.nd-arr.ndim)+range(arr.ndim) for arr in []+[r5h_out[...,0,0], s5h_out[...,0]]]
+    op_flags = [['readonly']]*0+[['readwrite']]*2
+    it = numpy.nditer([]+[r5h_out, s5h_out], op_axes=op_axes, op_flags=op_flags)
+    
+    #Iterate
     cdef double * _r5h
     cdef double * _s5h
-    
-    while numpy.PyArray_MultiIter_NOTDONE(it):
-        _r5h = (<double *>numpy.PyArray_MultiIter_DATA(it, 0))
-        _s5h = (<double *>numpy.PyArray_MultiIter_DATA(it, 1))
-    
+    cdef char** dataptrarray = GetDataPtrArray(GetNpyIter(it))
+    cdef IterNextFunc iternext = GetIterNext(GetNpyIter(it), NULL)
+    cdef int status = 1
+    while status:
+        _r5h = (<double *>(dataptrarray[0]))
+        _s5h = (<double *>(dataptrarray[1]))
         eraFk5hip(_r5h, _s5h)
-        
-        numpy.PyArray_MultiIter_NEXT(it) 
-
-    # convert from single-field structured dtype to regular nd-array
-    r5h_out = r5h_out['fi0']
-    s5h_out = s5h_out['fi0']
-
+        status = iternext(GetNpyIter(it))
+    
     return r5h_out, s5h_out
+
 
 def fk5hz(r5, d5, date1, date2):
     """
@@ -14939,31 +16498,45 @@ def fk5hz(r5, d5, date1, date2):
     Derived, with permission, from the SOFA library.  See notes at end of file.
   
     """
-    in_shape = numpy.broadcast(r5, d5, date1, date2).shape
-    rh_out = numpy.empty(in_shape, dtype=numpy.double)
-    dh_out = numpy.empty(in_shape, dtype=numpy.double)
     
-    cdef numpy.broadcast it = numpy.broadcast(r5, d5, date1, date2, rh_out, dh_out)
+    #Turn all inputs into arrays
+    r5_in = numpy.array(r5, dtype=numpy.double, order="C", copy=False, subok=True)
+    d5_in = numpy.array(d5, dtype=numpy.double, order="C", copy=False, subok=True)
+    date1_in = numpy.array(date1, dtype=numpy.double, order="C", copy=False, subok=True)
+    date2_in = numpy.array(date2, dtype=numpy.double, order="C", copy=False, subok=True)
+    
+    #Create the output array, based on the broadcasted shape, adding the generated dimensions if needed
+    broadcast = numpy.broadcast(numpy.int32(0.0), numpy.int32(0.0), r5_in, d5_in, date1_in, date2_in)
+    rh_out = numpy.empty(broadcast.shape+(), dtype=numpy.double)
+    dh_out = numpy.empty(broadcast.shape+(), dtype=numpy.double)
+    
+    #Create the iterator, broadcasting on all but the consumed dimensions
+    op_axes = [[-1]*(broadcast.nd-arr.ndim)+range(arr.ndim) for arr in [r5_in, d5_in, date1_in, date2_in]+[rh_out, dh_out]]
+    op_flags = [['readonly']]*4+[['readwrite']]*2
+    it = numpy.nditer([r5_in, d5_in, date1_in, date2_in]+[rh_out, dh_out], op_axes=op_axes, op_flags=op_flags)
+    
+    #Iterate
     cdef double _r5
     cdef double _d5
     cdef double _date1
     cdef double _date2
     cdef double * _rh
     cdef double * _dh
-    
-    while numpy.PyArray_MultiIter_NOTDONE(it):
-        _r5 = (<double*>numpy.PyArray_MultiIter_DATA(it, 0))[0]
-        _d5 = (<double*>numpy.PyArray_MultiIter_DATA(it, 1))[0]
-        _date1 = (<double*>numpy.PyArray_MultiIter_DATA(it, 2))[0]
-        _date2 = (<double*>numpy.PyArray_MultiIter_DATA(it, 3))[0]
-        _rh = (<double *>numpy.PyArray_MultiIter_DATA(it, 4))
-        _dh = (<double *>numpy.PyArray_MultiIter_DATA(it, 5))
-        
+    cdef char** dataptrarray = GetDataPtrArray(GetNpyIter(it))
+    cdef IterNextFunc iternext = GetIterNext(GetNpyIter(it), NULL)
+    cdef int status = 1
+    while status:
+        _r5 = (<double *>(dataptrarray[0]))[0]
+        _d5 = (<double *>(dataptrarray[1]))[0]
+        _date1 = (<double *>(dataptrarray[2]))[0]
+        _date2 = (<double *>(dataptrarray[3]))[0]
+        _rh = (<double *>(dataptrarray[4]))
+        _dh = (<double *>(dataptrarray[5]))
         eraFk5hz(_r5, _d5, _date1, _date2, _rh, _dh)
-        
-        numpy.PyArray_MultiIter_NEXT(it)
-
+        status = iternext(GetNpyIter(it))
+    
     return rh_out, dh_out
+
 
 def h2fk5(rh, dh, drh, ddh, pxh, rvh):
     """
@@ -15027,15 +16600,30 @@ def h2fk5(rh, dh, drh, ddh, pxh, rvh):
     Derived, with permission, from the SOFA library.  See notes at end of file.
   
     """
-    in_shape = numpy.broadcast(rh, dh, drh, ddh, pxh, rvh).shape
-    r5_out = numpy.empty(in_shape, dtype=numpy.double)
-    d5_out = numpy.empty(in_shape, dtype=numpy.double)
-    dr5_out = numpy.empty(in_shape, dtype=numpy.double)
-    dd5_out = numpy.empty(in_shape, dtype=numpy.double)
-    px5_out = numpy.empty(in_shape, dtype=numpy.double)
-    rv5_out = numpy.empty(in_shape, dtype=numpy.double)
     
-    cdef numpy.broadcast it = numpy.broadcast(rh, dh, drh, ddh, pxh, rvh, r5_out, d5_out, dr5_out, dd5_out, px5_out, rv5_out)
+    #Turn all inputs into arrays
+    rh_in = numpy.array(rh, dtype=numpy.double, order="C", copy=False, subok=True)
+    dh_in = numpy.array(dh, dtype=numpy.double, order="C", copy=False, subok=True)
+    drh_in = numpy.array(drh, dtype=numpy.double, order="C", copy=False, subok=True)
+    ddh_in = numpy.array(ddh, dtype=numpy.double, order="C", copy=False, subok=True)
+    pxh_in = numpy.array(pxh, dtype=numpy.double, order="C", copy=False, subok=True)
+    rvh_in = numpy.array(rvh, dtype=numpy.double, order="C", copy=False, subok=True)
+    
+    #Create the output array, based on the broadcasted shape, adding the generated dimensions if needed
+    broadcast = numpy.broadcast(numpy.int32(0.0), numpy.int32(0.0), rh_in, dh_in, drh_in, ddh_in, pxh_in, rvh_in)
+    r5_out = numpy.empty(broadcast.shape+(), dtype=numpy.double)
+    d5_out = numpy.empty(broadcast.shape+(), dtype=numpy.double)
+    dr5_out = numpy.empty(broadcast.shape+(), dtype=numpy.double)
+    dd5_out = numpy.empty(broadcast.shape+(), dtype=numpy.double)
+    px5_out = numpy.empty(broadcast.shape+(), dtype=numpy.double)
+    rv5_out = numpy.empty(broadcast.shape+(), dtype=numpy.double)
+    
+    #Create the iterator, broadcasting on all but the consumed dimensions
+    op_axes = [[-1]*(broadcast.nd-arr.ndim)+range(arr.ndim) for arr in [rh_in, dh_in, drh_in, ddh_in, pxh_in, rvh_in]+[r5_out, d5_out, dr5_out, dd5_out, px5_out, rv5_out]]
+    op_flags = [['readonly']]*6+[['readwrite']]*6
+    it = numpy.nditer([rh_in, dh_in, drh_in, ddh_in, pxh_in, rvh_in]+[r5_out, d5_out, dr5_out, dd5_out, px5_out, rv5_out], op_axes=op_axes, op_flags=op_flags)
+    
+    #Iterate
     cdef double _rh
     cdef double _dh
     cdef double _drh
@@ -15048,26 +16636,27 @@ def h2fk5(rh, dh, drh, ddh, pxh, rvh):
     cdef double * _dd5
     cdef double * _px5
     cdef double * _rv5
-    
-    while numpy.PyArray_MultiIter_NOTDONE(it):
-        _rh = (<double*>numpy.PyArray_MultiIter_DATA(it, 0))[0]
-        _dh = (<double*>numpy.PyArray_MultiIter_DATA(it, 1))[0]
-        _drh = (<double*>numpy.PyArray_MultiIter_DATA(it, 2))[0]
-        _ddh = (<double*>numpy.PyArray_MultiIter_DATA(it, 3))[0]
-        _pxh = (<double*>numpy.PyArray_MultiIter_DATA(it, 4))[0]
-        _rvh = (<double*>numpy.PyArray_MultiIter_DATA(it, 5))[0]
-        _r5 = (<double *>numpy.PyArray_MultiIter_DATA(it, 6))
-        _d5 = (<double *>numpy.PyArray_MultiIter_DATA(it, 7))
-        _dr5 = (<double *>numpy.PyArray_MultiIter_DATA(it, 8))
-        _dd5 = (<double *>numpy.PyArray_MultiIter_DATA(it, 9))
-        _px5 = (<double *>numpy.PyArray_MultiIter_DATA(it, 10))
-        _rv5 = (<double *>numpy.PyArray_MultiIter_DATA(it, 11))
-        
+    cdef char** dataptrarray = GetDataPtrArray(GetNpyIter(it))
+    cdef IterNextFunc iternext = GetIterNext(GetNpyIter(it), NULL)
+    cdef int status = 1
+    while status:
+        _rh = (<double *>(dataptrarray[0]))[0]
+        _dh = (<double *>(dataptrarray[1]))[0]
+        _drh = (<double *>(dataptrarray[2]))[0]
+        _ddh = (<double *>(dataptrarray[3]))[0]
+        _pxh = (<double *>(dataptrarray[4]))[0]
+        _rvh = (<double *>(dataptrarray[5]))[0]
+        _r5 = (<double *>(dataptrarray[6]))
+        _d5 = (<double *>(dataptrarray[7]))
+        _dr5 = (<double *>(dataptrarray[8]))
+        _dd5 = (<double *>(dataptrarray[9]))
+        _px5 = (<double *>(dataptrarray[10]))
+        _rv5 = (<double *>(dataptrarray[11]))
         eraH2fk5(_rh, _dh, _drh, _ddh, _pxh, _rvh, _r5, _d5, _dr5, _dd5, _px5, _rv5)
-        
-        numpy.PyArray_MultiIter_NEXT(it)
-
+        status = iternext(GetNpyIter(it))
+    
     return r5_out, d5_out, dr5_out, dd5_out, px5_out, rv5_out
+
 
 def hfk5z(rh, dh, date1, date2):
     """
@@ -15152,13 +16741,26 @@ def hfk5z(rh, dh, date1, date2):
     Derived, with permission, from the SOFA library.  See notes at end of file.
   
     """
-    in_shape = numpy.broadcast(rh, dh, date1, date2).shape
-    r5_out = numpy.empty(in_shape, dtype=numpy.double)
-    d5_out = numpy.empty(in_shape, dtype=numpy.double)
-    dr5_out = numpy.empty(in_shape, dtype=numpy.double)
-    dd5_out = numpy.empty(in_shape, dtype=numpy.double)
     
-    cdef numpy.broadcast it = numpy.broadcast(rh, dh, date1, date2, r5_out, d5_out, dr5_out, dd5_out)
+    #Turn all inputs into arrays
+    rh_in = numpy.array(rh, dtype=numpy.double, order="C", copy=False, subok=True)
+    dh_in = numpy.array(dh, dtype=numpy.double, order="C", copy=False, subok=True)
+    date1_in = numpy.array(date1, dtype=numpy.double, order="C", copy=False, subok=True)
+    date2_in = numpy.array(date2, dtype=numpy.double, order="C", copy=False, subok=True)
+    
+    #Create the output array, based on the broadcasted shape, adding the generated dimensions if needed
+    broadcast = numpy.broadcast(numpy.int32(0.0), numpy.int32(0.0), rh_in, dh_in, date1_in, date2_in)
+    r5_out = numpy.empty(broadcast.shape+(), dtype=numpy.double)
+    d5_out = numpy.empty(broadcast.shape+(), dtype=numpy.double)
+    dr5_out = numpy.empty(broadcast.shape+(), dtype=numpy.double)
+    dd5_out = numpy.empty(broadcast.shape+(), dtype=numpy.double)
+    
+    #Create the iterator, broadcasting on all but the consumed dimensions
+    op_axes = [[-1]*(broadcast.nd-arr.ndim)+range(arr.ndim) for arr in [rh_in, dh_in, date1_in, date2_in]+[r5_out, d5_out, dr5_out, dd5_out]]
+    op_flags = [['readonly']]*4+[['readwrite']]*4
+    it = numpy.nditer([rh_in, dh_in, date1_in, date2_in]+[r5_out, d5_out, dr5_out, dd5_out], op_axes=op_axes, op_flags=op_flags)
+    
+    #Iterate
     cdef double _rh
     cdef double _dh
     cdef double _date1
@@ -15167,22 +16769,23 @@ def hfk5z(rh, dh, date1, date2):
     cdef double * _d5
     cdef double * _dr5
     cdef double * _dd5
-    
-    while numpy.PyArray_MultiIter_NOTDONE(it):
-        _rh = (<double*>numpy.PyArray_MultiIter_DATA(it, 0))[0]
-        _dh = (<double*>numpy.PyArray_MultiIter_DATA(it, 1))[0]
-        _date1 = (<double*>numpy.PyArray_MultiIter_DATA(it, 2))[0]
-        _date2 = (<double*>numpy.PyArray_MultiIter_DATA(it, 3))[0]
-        _r5 = (<double *>numpy.PyArray_MultiIter_DATA(it, 4))
-        _d5 = (<double *>numpy.PyArray_MultiIter_DATA(it, 5))
-        _dr5 = (<double *>numpy.PyArray_MultiIter_DATA(it, 6))
-        _dd5 = (<double *>numpy.PyArray_MultiIter_DATA(it, 7))
-        
+    cdef char** dataptrarray = GetDataPtrArray(GetNpyIter(it))
+    cdef IterNextFunc iternext = GetIterNext(GetNpyIter(it), NULL)
+    cdef int status = 1
+    while status:
+        _rh = (<double *>(dataptrarray[0]))[0]
+        _dh = (<double *>(dataptrarray[1]))[0]
+        _date1 = (<double *>(dataptrarray[2]))[0]
+        _date2 = (<double *>(dataptrarray[3]))[0]
+        _r5 = (<double *>(dataptrarray[4]))
+        _d5 = (<double *>(dataptrarray[5]))
+        _dr5 = (<double *>(dataptrarray[6]))
+        _dd5 = (<double *>(dataptrarray[7]))
         eraHfk5z(_rh, _dh, _date1, _date2, _r5, _d5, _dr5, _dd5)
-        
-        numpy.PyArray_MultiIter_NEXT(it)
-
+        status = iternext(GetNpyIter(it))
+    
     return r5_out, d5_out, dr5_out, dd5_out
+
 
 def starpm(ra1, dec1, pmr1, pmd1, px1, rv1, ep1a, ep1b, ep2a, ep2b):
     """
@@ -15296,16 +16899,35 @@ def starpm(ra1, dec1, pmr1, pmd1, px1, rv1, ep1a, ep1b, ep2a, ep2b):
     Derived, with permission, from the SOFA library.  See notes at end of file.
   
     """
-    in_shape = numpy.broadcast(ra1, dec1, pmr1, pmd1, px1, rv1, ep1a, ep1b, ep2a, ep2b).shape
-    ra2_out = numpy.empty(in_shape, dtype=numpy.double)
-    dec2_out = numpy.empty(in_shape, dtype=numpy.double)
-    pmr2_out = numpy.empty(in_shape, dtype=numpy.double)
-    pmd2_out = numpy.empty(in_shape, dtype=numpy.double)
-    px2_out = numpy.empty(in_shape, dtype=numpy.double)
-    rv2_out = numpy.empty(in_shape, dtype=numpy.double)
-    c_retval_out = numpy.empty(in_shape, dtype=numpy.intc)
     
-    cdef numpy.broadcast it = numpy.broadcast(ra1, dec1, pmr1, pmd1, px1, rv1, ep1a, ep1b, ep2a, ep2b, ra2_out, dec2_out, pmr2_out, pmd2_out, px2_out, rv2_out, c_retval_out)
+    #Turn all inputs into arrays
+    ra1_in = numpy.array(ra1, dtype=numpy.double, order="C", copy=False, subok=True)
+    dec1_in = numpy.array(dec1, dtype=numpy.double, order="C", copy=False, subok=True)
+    pmr1_in = numpy.array(pmr1, dtype=numpy.double, order="C", copy=False, subok=True)
+    pmd1_in = numpy.array(pmd1, dtype=numpy.double, order="C", copy=False, subok=True)
+    px1_in = numpy.array(px1, dtype=numpy.double, order="C", copy=False, subok=True)
+    rv1_in = numpy.array(rv1, dtype=numpy.double, order="C", copy=False, subok=True)
+    ep1a_in = numpy.array(ep1a, dtype=numpy.double, order="C", copy=False, subok=True)
+    ep1b_in = numpy.array(ep1b, dtype=numpy.double, order="C", copy=False, subok=True)
+    ep2a_in = numpy.array(ep2a, dtype=numpy.double, order="C", copy=False, subok=True)
+    ep2b_in = numpy.array(ep2b, dtype=numpy.double, order="C", copy=False, subok=True)
+    
+    #Create the output array, based on the broadcasted shape, adding the generated dimensions if needed
+    broadcast = numpy.broadcast(numpy.int32(0.0), numpy.int32(0.0), ra1_in, dec1_in, pmr1_in, pmd1_in, px1_in, rv1_in, ep1a_in, ep1b_in, ep2a_in, ep2b_in)
+    ra2_out = numpy.empty(broadcast.shape+(), dtype=numpy.double)
+    dec2_out = numpy.empty(broadcast.shape+(), dtype=numpy.double)
+    pmr2_out = numpy.empty(broadcast.shape+(), dtype=numpy.double)
+    pmd2_out = numpy.empty(broadcast.shape+(), dtype=numpy.double)
+    px2_out = numpy.empty(broadcast.shape+(), dtype=numpy.double)
+    rv2_out = numpy.empty(broadcast.shape+(), dtype=numpy.double)
+    c_retval_out = numpy.empty(broadcast.shape+(), dtype=numpy.intc)
+    
+    #Create the iterator, broadcasting on all but the consumed dimensions
+    op_axes = [[-1]*(broadcast.nd-arr.ndim)+range(arr.ndim) for arr in [ra1_in, dec1_in, pmr1_in, pmd1_in, px1_in, rv1_in, ep1a_in, ep1b_in, ep2a_in, ep2b_in]+[ra2_out, dec2_out, pmr2_out, pmd2_out, px2_out, rv2_out, c_retval_out]]
+    op_flags = [['readonly']]*10+[['readwrite']]*7
+    it = numpy.nditer([ra1_in, dec1_in, pmr1_in, pmd1_in, px1_in, rv1_in, ep1a_in, ep1b_in, ep2a_in, ep2b_in]+[ra2_out, dec2_out, pmr2_out, pmd2_out, px2_out, rv2_out, c_retval_out], op_axes=op_axes, op_flags=op_flags)
+    
+    #Iterate
     cdef double _ra1
     cdef double _dec1
     cdef double _pmr1
@@ -15324,37 +16946,38 @@ def starpm(ra1, dec1, pmr1, pmd1, px1, rv1, ep1a, ep1b, ep2a, ep2b):
     cdef double * _rv2
     cdef int _c_retval
     cdef bint stat_ok = True
-    
-    while numpy.PyArray_MultiIter_NOTDONE(it):
-        _ra1 = (<double*>numpy.PyArray_MultiIter_DATA(it, 0))[0]
-        _dec1 = (<double*>numpy.PyArray_MultiIter_DATA(it, 1))[0]
-        _pmr1 = (<double*>numpy.PyArray_MultiIter_DATA(it, 2))[0]
-        _pmd1 = (<double*>numpy.PyArray_MultiIter_DATA(it, 3))[0]
-        _px1 = (<double*>numpy.PyArray_MultiIter_DATA(it, 4))[0]
-        _rv1 = (<double*>numpy.PyArray_MultiIter_DATA(it, 5))[0]
-        _ep1a = (<double*>numpy.PyArray_MultiIter_DATA(it, 6))[0]
-        _ep1b = (<double*>numpy.PyArray_MultiIter_DATA(it, 7))[0]
-        _ep2a = (<double*>numpy.PyArray_MultiIter_DATA(it, 8))[0]
-        _ep2b = (<double*>numpy.PyArray_MultiIter_DATA(it, 9))[0]
-        _ra2 = (<double *>numpy.PyArray_MultiIter_DATA(it, 10))
-        _dec2 = (<double *>numpy.PyArray_MultiIter_DATA(it, 11))
-        _pmr2 = (<double *>numpy.PyArray_MultiIter_DATA(it, 12))
-        _pmd2 = (<double *>numpy.PyArray_MultiIter_DATA(it, 13))
-        _px2 = (<double *>numpy.PyArray_MultiIter_DATA(it, 14))
-        _rv2 = (<double *>numpy.PyArray_MultiIter_DATA(it, 15))
-        
+    cdef char** dataptrarray = GetDataPtrArray(GetNpyIter(it))
+    cdef IterNextFunc iternext = GetIterNext(GetNpyIter(it), NULL)
+    cdef int status = 1
+    while status:
+        _ra1 = (<double *>(dataptrarray[0]))[0]
+        _dec1 = (<double *>(dataptrarray[1]))[0]
+        _pmr1 = (<double *>(dataptrarray[2]))[0]
+        _pmd1 = (<double *>(dataptrarray[3]))[0]
+        _px1 = (<double *>(dataptrarray[4]))[0]
+        _rv1 = (<double *>(dataptrarray[5]))[0]
+        _ep1a = (<double *>(dataptrarray[6]))[0]
+        _ep1b = (<double *>(dataptrarray[7]))[0]
+        _ep2a = (<double *>(dataptrarray[8]))[0]
+        _ep2b = (<double *>(dataptrarray[9]))[0]
+        _ra2 = (<double *>(dataptrarray[10]))
+        _dec2 = (<double *>(dataptrarray[11]))
+        _pmr2 = (<double *>(dataptrarray[12]))
+        _pmd2 = (<double *>(dataptrarray[13]))
+        _px2 = (<double *>(dataptrarray[14]))
+        _rv2 = (<double *>(dataptrarray[15]))
         _c_retval = eraStarpm(_ra1, _dec1, _pmr1, _pmd1, _px1, _rv1, _ep1a, _ep1b, _ep2a, _ep2b, _ra2, _dec2, _pmr2, _pmd2, _px2, _rv2)
-        (<int*>numpy.PyArray_MultiIter_DATA(it, 16))[0] = _c_retval
+        (<int *>(dataptrarray[16]))[0] = _c_retval
         if _c_retval != 0:
             stat_ok = False
-        
-        numpy.PyArray_MultiIter_NEXT(it)
-
+        status = iternext(GetNpyIter(it))
+    
     if not stat_ok:
         check_errwarn(c_retval_out, 'starpm')
-
+    
     return ra2_out, dec2_out, pmr2_out, pmd2_out, px2_out, rv2_out
 STATUS_CODES['starpm'] = {0: u'no warnings or errors', 1: u'distance overridden (Note 6)', 2: u'excessive velocity (Note 7)', 4: u"solution didn't converge (Note 8)", u'else': u'binary logical OR of the above warnings', -1: u'system error (should not occur)'}
+
 
 
 def eform(n):
@@ -15422,35 +17045,46 @@ def eform(n):
     Derived, with permission, from the SOFA library.  See notes at end of file.
   
     """
-    in_shape = numpy.broadcast(n, 0).shape
-    a_out = numpy.empty(in_shape, dtype=numpy.double)
-    f_out = numpy.empty(in_shape, dtype=numpy.double)
-    c_retval_out = numpy.empty(in_shape, dtype=numpy.intc)
     
-    cdef numpy.broadcast it = numpy.broadcast(n, a_out, f_out, c_retval_out)
+    #Turn all inputs into arrays
+    n_in = numpy.array(n, dtype=numpy.intc, order="C", copy=False, subok=True)
+    
+    #Create the output array, based on the broadcasted shape, adding the generated dimensions if needed
+    broadcast = numpy.broadcast(numpy.int32(0.0), numpy.int32(0.0), n_in)
+    a_out = numpy.empty(broadcast.shape+(), dtype=numpy.double)
+    f_out = numpy.empty(broadcast.shape+(), dtype=numpy.double)
+    c_retval_out = numpy.empty(broadcast.shape+(), dtype=numpy.intc)
+    
+    #Create the iterator, broadcasting on all but the consumed dimensions
+    op_axes = [[-1]*(broadcast.nd-arr.ndim)+range(arr.ndim) for arr in [n_in]+[a_out, f_out, c_retval_out]]
+    op_flags = [['readonly']]*1+[['readwrite']]*3
+    it = numpy.nditer([n_in]+[a_out, f_out, c_retval_out], op_axes=op_axes, op_flags=op_flags)
+    
+    #Iterate
     cdef int _n
     cdef double * _a
     cdef double * _f
     cdef int _c_retval
     cdef bint stat_ok = True
-    
-    while numpy.PyArray_MultiIter_NOTDONE(it):
-        _n = (<int*>numpy.PyArray_MultiIter_DATA(it, 0))[0]
-        _a = (<double *>numpy.PyArray_MultiIter_DATA(it, 1))
-        _f = (<double *>numpy.PyArray_MultiIter_DATA(it, 2))
-        
+    cdef char** dataptrarray = GetDataPtrArray(GetNpyIter(it))
+    cdef IterNextFunc iternext = GetIterNext(GetNpyIter(it), NULL)
+    cdef int status = 1
+    while status:
+        _n = (<int *>(dataptrarray[0]))[0]
+        _a = (<double *>(dataptrarray[1]))
+        _f = (<double *>(dataptrarray[2]))
         _c_retval = eraEform(_n, _a, _f)
-        (<int*>numpy.PyArray_MultiIter_DATA(it, 3))[0] = _c_retval
+        (<int *>(dataptrarray[3]))[0] = _c_retval
         if _c_retval != 0:
             stat_ok = False
-        
-        numpy.PyArray_MultiIter_NEXT(it)
-
+        status = iternext(GetNpyIter(it))
+    
     if not stat_ok:
         check_errwarn(c_retval_out, 'eform')
-
+    
     return a_out, f_out
 STATUS_CODES['eform'] = {0: u'OK', -1: u'illegal identifier (Note 3)'}
+
 
 
 def gc2gd(n, xyz):
@@ -15513,18 +17147,24 @@ def gc2gd(n, xyz):
     Derived, with permission, from the SOFA library.  See notes at end of file.
   
     """
-    # convert nd-array to single-field structured array for argument "xyz"
-    xyz_arr = numpy.empty(numpy.shape(xyz)[:-1], dtype=numpy.dtype([('fi0', 'd', (3,))]))
-    xyz_arr['fi0'] = xyz
-    xyz = xyz_arr
     
-    in_shape = numpy.broadcast(n, xyz).shape
-    elong_out = numpy.empty(in_shape, dtype=numpy.double)
-    phi_out = numpy.empty(in_shape, dtype=numpy.double)
-    height_out = numpy.empty(in_shape, dtype=numpy.double)
-    c_retval_out = numpy.empty(in_shape, dtype=numpy.intc)
+    #Turn all inputs into arrays
+    n_in = numpy.array(n, dtype=numpy.intc, order="C", copy=False, subok=True)
+    xyz_in = numpy.array(xyz, dtype=numpy.double, order="C", copy=False, subok=True)
     
-    cdef numpy.broadcast it = numpy.broadcast(n, xyz, elong_out, phi_out, height_out, c_retval_out)
+    #Create the output array, based on the broadcasted shape, adding the generated dimensions if needed
+    broadcast = numpy.broadcast(numpy.int32(0.0), numpy.int32(0.0), n_in, xyz_in[...,0])
+    elong_out = numpy.empty(broadcast.shape+(), dtype=numpy.double)
+    phi_out = numpy.empty(broadcast.shape+(), dtype=numpy.double)
+    height_out = numpy.empty(broadcast.shape+(), dtype=numpy.double)
+    c_retval_out = numpy.empty(broadcast.shape+(), dtype=numpy.intc)
+    
+    #Create the iterator, broadcasting on all but the consumed dimensions
+    op_axes = [[-1]*(broadcast.nd-arr.ndim)+range(arr.ndim) for arr in [n_in, xyz_in[...,0]]+[elong_out, phi_out, height_out, c_retval_out]]
+    op_flags = [['readonly']]*2+[['readwrite']]*4
+    it = numpy.nditer([n_in, xyz_in]+[elong_out, phi_out, height_out, c_retval_out], op_axes=op_axes, op_flags=op_flags)
+    
+    #Iterate
     cdef int _n
     cdef double * _xyz
     cdef double * _elong
@@ -15532,26 +17172,27 @@ def gc2gd(n, xyz):
     cdef double * _height
     cdef int _c_retval
     cdef bint stat_ok = True
-    
-    while numpy.PyArray_MultiIter_NOTDONE(it):
-        _n = (<int*>numpy.PyArray_MultiIter_DATA(it, 0))[0]
-        _xyz = (<double *>numpy.PyArray_MultiIter_DATA(it, 1))
-        _elong = (<double *>numpy.PyArray_MultiIter_DATA(it, 2))
-        _phi = (<double *>numpy.PyArray_MultiIter_DATA(it, 3))
-        _height = (<double *>numpy.PyArray_MultiIter_DATA(it, 4))
-        
+    cdef char** dataptrarray = GetDataPtrArray(GetNpyIter(it))
+    cdef IterNextFunc iternext = GetIterNext(GetNpyIter(it), NULL)
+    cdef int status = 1
+    while status:
+        _n = (<int *>(dataptrarray[0]))[0]
+        _xyz = (<double *>(dataptrarray[1]))
+        _elong = (<double *>(dataptrarray[2]))
+        _phi = (<double *>(dataptrarray[3]))
+        _height = (<double *>(dataptrarray[4]))
         _c_retval = eraGc2gd(_n, _xyz, _elong, _phi, _height)
-        (<int*>numpy.PyArray_MultiIter_DATA(it, 5))[0] = _c_retval
+        (<int *>(dataptrarray[5]))[0] = _c_retval
         if _c_retval != 0:
             stat_ok = False
-        
-        numpy.PyArray_MultiIter_NEXT(it)
-
+        status = iternext(GetNpyIter(it))
+    
     if not stat_ok:
         check_errwarn(c_retval_out, 'gc2gd')
-
+    
     return elong_out, phi_out, height_out
 STATUS_CODES['gc2gd'] = {0: u'OK', -2: u'internal error (Note 3)', -1: u'illegal identifier (Note 3)'}
+
 
 
 def gc2gde(a, f, xyz):
@@ -15619,18 +17260,25 @@ def gc2gde(a, f, xyz):
     Derived, with permission, from the SOFA library.  See notes at end of file.
   
     """
-    # convert nd-array to single-field structured array for argument "xyz"
-    xyz_arr = numpy.empty(numpy.shape(xyz)[:-1], dtype=numpy.dtype([('fi0', 'd', (3,))]))
-    xyz_arr['fi0'] = xyz
-    xyz = xyz_arr
     
-    in_shape = numpy.broadcast(a, f, xyz).shape
-    elong_out = numpy.empty(in_shape, dtype=numpy.double)
-    phi_out = numpy.empty(in_shape, dtype=numpy.double)
-    height_out = numpy.empty(in_shape, dtype=numpy.double)
-    c_retval_out = numpy.empty(in_shape, dtype=numpy.intc)
+    #Turn all inputs into arrays
+    a_in = numpy.array(a, dtype=numpy.double, order="C", copy=False, subok=True)
+    f_in = numpy.array(f, dtype=numpy.double, order="C", copy=False, subok=True)
+    xyz_in = numpy.array(xyz, dtype=numpy.double, order="C", copy=False, subok=True)
     
-    cdef numpy.broadcast it = numpy.broadcast(a, f, xyz, elong_out, phi_out, height_out, c_retval_out)
+    #Create the output array, based on the broadcasted shape, adding the generated dimensions if needed
+    broadcast = numpy.broadcast(numpy.int32(0.0), numpy.int32(0.0), a_in, f_in, xyz_in[...,0])
+    elong_out = numpy.empty(broadcast.shape+(), dtype=numpy.double)
+    phi_out = numpy.empty(broadcast.shape+(), dtype=numpy.double)
+    height_out = numpy.empty(broadcast.shape+(), dtype=numpy.double)
+    c_retval_out = numpy.empty(broadcast.shape+(), dtype=numpy.intc)
+    
+    #Create the iterator, broadcasting on all but the consumed dimensions
+    op_axes = [[-1]*(broadcast.nd-arr.ndim)+range(arr.ndim) for arr in [a_in, f_in, xyz_in[...,0]]+[elong_out, phi_out, height_out, c_retval_out]]
+    op_flags = [['readonly']]*3+[['readwrite']]*4
+    it = numpy.nditer([a_in, f_in, xyz_in]+[elong_out, phi_out, height_out, c_retval_out], op_axes=op_axes, op_flags=op_flags)
+    
+    #Iterate
     cdef double _a
     cdef double _f
     cdef double * _xyz
@@ -15639,27 +17287,28 @@ def gc2gde(a, f, xyz):
     cdef double * _height
     cdef int _c_retval
     cdef bint stat_ok = True
-    
-    while numpy.PyArray_MultiIter_NOTDONE(it):
-        _a = (<double*>numpy.PyArray_MultiIter_DATA(it, 0))[0]
-        _f = (<double*>numpy.PyArray_MultiIter_DATA(it, 1))[0]
-        _xyz = (<double *>numpy.PyArray_MultiIter_DATA(it, 2))
-        _elong = (<double *>numpy.PyArray_MultiIter_DATA(it, 3))
-        _phi = (<double *>numpy.PyArray_MultiIter_DATA(it, 4))
-        _height = (<double *>numpy.PyArray_MultiIter_DATA(it, 5))
-        
+    cdef char** dataptrarray = GetDataPtrArray(GetNpyIter(it))
+    cdef IterNextFunc iternext = GetIterNext(GetNpyIter(it), NULL)
+    cdef int status = 1
+    while status:
+        _a = (<double *>(dataptrarray[0]))[0]
+        _f = (<double *>(dataptrarray[1]))[0]
+        _xyz = (<double *>(dataptrarray[2]))
+        _elong = (<double *>(dataptrarray[3]))
+        _phi = (<double *>(dataptrarray[4]))
+        _height = (<double *>(dataptrarray[5]))
         _c_retval = eraGc2gde(_a, _f, _xyz, _elong, _phi, _height)
-        (<int*>numpy.PyArray_MultiIter_DATA(it, 6))[0] = _c_retval
+        (<int *>(dataptrarray[6]))[0] = _c_retval
         if _c_retval != 0:
             stat_ok = False
-        
-        numpy.PyArray_MultiIter_NEXT(it)
-
+        status = iternext(GetNpyIter(it))
+    
     if not stat_ok:
         check_errwarn(c_retval_out, 'gc2gde')
-
+    
     return elong_out, phi_out, height_out
 STATUS_CODES['gc2gde'] = {0: u'OK', -2: u'illegal a', -1: u'illegal f'}
+
 
 
 def gd2gc(n, elong, phi, height):
@@ -15725,11 +17374,24 @@ def gd2gc(n, elong, phi, height):
     Derived, with permission, from the SOFA library.  See notes at end of file.
   
     """
-    in_shape = numpy.broadcast(n, elong, phi, height).shape
-    xyz_out = numpy.empty(in_shape, dtype=numpy.dtype([('fi0', 'd', (3,))]))
-    c_retval_out = numpy.empty(in_shape, dtype=numpy.intc)
     
-    cdef numpy.broadcast it = numpy.broadcast(n, elong, phi, height, xyz_out, c_retval_out)
+    #Turn all inputs into arrays
+    n_in = numpy.array(n, dtype=numpy.intc, order="C", copy=False, subok=True)
+    elong_in = numpy.array(elong, dtype=numpy.double, order="C", copy=False, subok=True)
+    phi_in = numpy.array(phi, dtype=numpy.double, order="C", copy=False, subok=True)
+    height_in = numpy.array(height, dtype=numpy.double, order="C", copy=False, subok=True)
+    
+    #Create the output array, based on the broadcasted shape, adding the generated dimensions if needed
+    broadcast = numpy.broadcast(numpy.int32(0.0), numpy.int32(0.0), n_in, elong_in, phi_in, height_in)
+    xyz_out = numpy.empty(broadcast.shape+(3,), dtype=numpy.double)
+    c_retval_out = numpy.empty(broadcast.shape+(), dtype=numpy.intc)
+    
+    #Create the iterator, broadcasting on all but the consumed dimensions
+    op_axes = [[-1]*(broadcast.nd-arr.ndim)+range(arr.ndim) for arr in [n_in, elong_in, phi_in, height_in]+[xyz_out[...,0], c_retval_out]]
+    op_flags = [['readonly']]*4+[['readwrite']]*2
+    it = numpy.nditer([n_in, elong_in, phi_in, height_in]+[xyz_out, c_retval_out], op_axes=op_axes, op_flags=op_flags)
+    
+    #Iterate
     cdef int _n
     cdef double _elong
     cdef double _phi
@@ -15737,29 +17399,27 @@ def gd2gc(n, elong, phi, height):
     cdef double * _xyz
     cdef int _c_retval
     cdef bint stat_ok = True
-    
-    while numpy.PyArray_MultiIter_NOTDONE(it):
-        _n = (<int*>numpy.PyArray_MultiIter_DATA(it, 0))[0]
-        _elong = (<double*>numpy.PyArray_MultiIter_DATA(it, 1))[0]
-        _phi = (<double*>numpy.PyArray_MultiIter_DATA(it, 2))[0]
-        _height = (<double*>numpy.PyArray_MultiIter_DATA(it, 3))[0]
-        _xyz = (<double *>numpy.PyArray_MultiIter_DATA(it, 4))
-        
+    cdef char** dataptrarray = GetDataPtrArray(GetNpyIter(it))
+    cdef IterNextFunc iternext = GetIterNext(GetNpyIter(it), NULL)
+    cdef int status = 1
+    while status:
+        _n = (<int *>(dataptrarray[0]))[0]
+        _elong = (<double *>(dataptrarray[1]))[0]
+        _phi = (<double *>(dataptrarray[2]))[0]
+        _height = (<double *>(dataptrarray[3]))[0]
+        _xyz = (<double *>(dataptrarray[4]))
         _c_retval = eraGd2gc(_n, _elong, _phi, _height, _xyz)
-        (<int*>numpy.PyArray_MultiIter_DATA(it, 5))[0] = _c_retval
+        (<int *>(dataptrarray[5]))[0] = _c_retval
         if _c_retval != 0:
             stat_ok = False
-        
-        numpy.PyArray_MultiIter_NEXT(it)
-
+        status = iternext(GetNpyIter(it))
+    
     if not stat_ok:
-        check_errwarn(c_retval_out, 'gd2gc') 
-
-    # convert from single-field structured dtype to regular nd-array
-    xyz_out = xyz_out['fi0']
-
+        check_errwarn(c_retval_out, 'gd2gc')
+    
     return xyz_out
 STATUS_CODES['gd2gc'] = {0: u'OK', -2: u'illegal case (Note 3)', -1: u'illegal identifier (Note 3)'}
+
 
 
 def gd2gce(a, f, elong, phi, height):
@@ -15826,11 +17486,25 @@ def gd2gce(a, f, elong, phi, height):
     Derived, with permission, from the SOFA library.  See notes at end of file.
   
     """
-    in_shape = numpy.broadcast(a, f, elong, phi, height).shape
-    xyz_out = numpy.empty(in_shape, dtype=numpy.dtype([('fi0', 'd', (3,))]))
-    c_retval_out = numpy.empty(in_shape, dtype=numpy.intc)
     
-    cdef numpy.broadcast it = numpy.broadcast(a, f, elong, phi, height, xyz_out, c_retval_out)
+    #Turn all inputs into arrays
+    a_in = numpy.array(a, dtype=numpy.double, order="C", copy=False, subok=True)
+    f_in = numpy.array(f, dtype=numpy.double, order="C", copy=False, subok=True)
+    elong_in = numpy.array(elong, dtype=numpy.double, order="C", copy=False, subok=True)
+    phi_in = numpy.array(phi, dtype=numpy.double, order="C", copy=False, subok=True)
+    height_in = numpy.array(height, dtype=numpy.double, order="C", copy=False, subok=True)
+    
+    #Create the output array, based on the broadcasted shape, adding the generated dimensions if needed
+    broadcast = numpy.broadcast(numpy.int32(0.0), numpy.int32(0.0), a_in, f_in, elong_in, phi_in, height_in)
+    xyz_out = numpy.empty(broadcast.shape+(3,), dtype=numpy.double)
+    c_retval_out = numpy.empty(broadcast.shape+(), dtype=numpy.intc)
+    
+    #Create the iterator, broadcasting on all but the consumed dimensions
+    op_axes = [[-1]*(broadcast.nd-arr.ndim)+range(arr.ndim) for arr in [a_in, f_in, elong_in, phi_in, height_in]+[xyz_out[...,0], c_retval_out]]
+    op_flags = [['readonly']]*5+[['readwrite']]*2
+    it = numpy.nditer([a_in, f_in, elong_in, phi_in, height_in]+[xyz_out, c_retval_out], op_axes=op_axes, op_flags=op_flags)
+    
+    #Iterate
     cdef double _a
     cdef double _f
     cdef double _elong
@@ -15839,30 +17513,28 @@ def gd2gce(a, f, elong, phi, height):
     cdef double * _xyz
     cdef int _c_retval
     cdef bint stat_ok = True
-    
-    while numpy.PyArray_MultiIter_NOTDONE(it):
-        _a = (<double*>numpy.PyArray_MultiIter_DATA(it, 0))[0]
-        _f = (<double*>numpy.PyArray_MultiIter_DATA(it, 1))[0]
-        _elong = (<double*>numpy.PyArray_MultiIter_DATA(it, 2))[0]
-        _phi = (<double*>numpy.PyArray_MultiIter_DATA(it, 3))[0]
-        _height = (<double*>numpy.PyArray_MultiIter_DATA(it, 4))[0]
-        _xyz = (<double *>numpy.PyArray_MultiIter_DATA(it, 5))
-        
+    cdef char** dataptrarray = GetDataPtrArray(GetNpyIter(it))
+    cdef IterNextFunc iternext = GetIterNext(GetNpyIter(it), NULL)
+    cdef int status = 1
+    while status:
+        _a = (<double *>(dataptrarray[0]))[0]
+        _f = (<double *>(dataptrarray[1]))[0]
+        _elong = (<double *>(dataptrarray[2]))[0]
+        _phi = (<double *>(dataptrarray[3]))[0]
+        _height = (<double *>(dataptrarray[4]))[0]
+        _xyz = (<double *>(dataptrarray[5]))
         _c_retval = eraGd2gce(_a, _f, _elong, _phi, _height, _xyz)
-        (<int*>numpy.PyArray_MultiIter_DATA(it, 6))[0] = _c_retval
+        (<int *>(dataptrarray[6]))[0] = _c_retval
         if _c_retval != 0:
             stat_ok = False
-        
-        numpy.PyArray_MultiIter_NEXT(it)
-
+        status = iternext(GetNpyIter(it))
+    
     if not stat_ok:
-        check_errwarn(c_retval_out, 'gd2gce') 
-
-    # convert from single-field structured dtype to regular nd-array
-    xyz_out = xyz_out['fi0']
-
+        check_errwarn(c_retval_out, 'gd2gce')
+    
     return xyz_out
 STATUS_CODES['gd2gce'] = {0: u'OK', -1: u'illegal case (Note 4)Notes:'}
+
 
 
 def pvtob(elong, phi, hm, xp, yp, sp, theta):
@@ -15934,10 +17606,26 @@ def pvtob(elong, phi, hm, xp, yp, sp, theta):
     Derived, with permission, from the SOFA library.  See notes at end of file.
   
     """
-    in_shape = numpy.broadcast(elong, phi, hm, xp, yp, sp, theta).shape
-    pv_out = numpy.empty(in_shape, dtype=numpy.dtype([('fi0', 'd', (2,3))]))
     
-    cdef numpy.broadcast it = numpy.broadcast(elong, phi, hm, xp, yp, sp, theta, pv_out)
+    #Turn all inputs into arrays
+    elong_in = numpy.array(elong, dtype=numpy.double, order="C", copy=False, subok=True)
+    phi_in = numpy.array(phi, dtype=numpy.double, order="C", copy=False, subok=True)
+    hm_in = numpy.array(hm, dtype=numpy.double, order="C", copy=False, subok=True)
+    xp_in = numpy.array(xp, dtype=numpy.double, order="C", copy=False, subok=True)
+    yp_in = numpy.array(yp, dtype=numpy.double, order="C", copy=False, subok=True)
+    sp_in = numpy.array(sp, dtype=numpy.double, order="C", copy=False, subok=True)
+    theta_in = numpy.array(theta, dtype=numpy.double, order="C", copy=False, subok=True)
+    
+    #Create the output array, based on the broadcasted shape, adding the generated dimensions if needed
+    broadcast = numpy.broadcast(numpy.int32(0.0), numpy.int32(0.0), elong_in, phi_in, hm_in, xp_in, yp_in, sp_in, theta_in)
+    pv_out = numpy.empty(broadcast.shape+(2, 3), dtype=numpy.double)
+    
+    #Create the iterator, broadcasting on all but the consumed dimensions
+    op_axes = [[-1]*(broadcast.nd-arr.ndim)+range(arr.ndim) for arr in [elong_in, phi_in, hm_in, xp_in, yp_in, sp_in, theta_in]+[pv_out[...,0,0]]]
+    op_flags = [['readonly']]*7+[['readwrite']]*1
+    it = numpy.nditer([elong_in, phi_in, hm_in, xp_in, yp_in, sp_in, theta_in]+[pv_out], op_axes=op_axes, op_flags=op_flags)
+    
+    #Iterate
     cdef double _elong
     cdef double _phi
     cdef double _hm
@@ -15946,25 +17634,23 @@ def pvtob(elong, phi, hm, xp, yp, sp, theta):
     cdef double _sp
     cdef double _theta
     cdef double * _pv
-    
-    while numpy.PyArray_MultiIter_NOTDONE(it):
-        _elong = (<double*>numpy.PyArray_MultiIter_DATA(it, 0))[0]
-        _phi = (<double*>numpy.PyArray_MultiIter_DATA(it, 1))[0]
-        _hm = (<double*>numpy.PyArray_MultiIter_DATA(it, 2))[0]
-        _xp = (<double*>numpy.PyArray_MultiIter_DATA(it, 3))[0]
-        _yp = (<double*>numpy.PyArray_MultiIter_DATA(it, 4))[0]
-        _sp = (<double*>numpy.PyArray_MultiIter_DATA(it, 5))[0]
-        _theta = (<double*>numpy.PyArray_MultiIter_DATA(it, 6))[0]
-        _pv = (<double *>numpy.PyArray_MultiIter_DATA(it, 7))
-        
+    cdef char** dataptrarray = GetDataPtrArray(GetNpyIter(it))
+    cdef IterNextFunc iternext = GetIterNext(GetNpyIter(it), NULL)
+    cdef int status = 1
+    while status:
+        _elong = (<double *>(dataptrarray[0]))[0]
+        _phi = (<double *>(dataptrarray[1]))[0]
+        _hm = (<double *>(dataptrarray[2]))[0]
+        _xp = (<double *>(dataptrarray[3]))[0]
+        _yp = (<double *>(dataptrarray[4]))[0]
+        _sp = (<double *>(dataptrarray[5]))[0]
+        _theta = (<double *>(dataptrarray[6]))[0]
+        _pv = (<double *>(dataptrarray[7]))
         eraPvtob(_elong, _phi, _hm, _xp, _yp, _sp, _theta, _pv)
-        
-        numpy.PyArray_MultiIter_NEXT(it) 
-
-    # convert from single-field structured dtype to regular nd-array
-    pv_out = pv_out['fi0']
-
+        status = iternext(GetNpyIter(it))
+    
     return pv_out
+
 
 def d2dtf(scale, ndp, d1, d2):
     """
@@ -16045,15 +17731,28 @@ def d2dtf(scale, ndp, d1, d2):
     Derived, with permission, from the SOFA library.  See notes at end of file.
   
     """
-    in_shape = numpy.broadcast(scale, ndp, d1, d2).shape
-    iy_out = numpy.empty(in_shape, dtype=numpy.intc)
-    im_out = numpy.empty(in_shape, dtype=numpy.intc)
-    id_out = numpy.empty(in_shape, dtype=numpy.intc)
-    ihmsf_out = numpy.empty(in_shape, dtype=numpy.dtype([('fi0', 'i', (4,))]))
-    c_retval_out = numpy.empty(in_shape, dtype=numpy.intc)
     
-    cdef numpy.broadcast it = numpy.broadcast(scale, ndp, d1, d2, iy_out, im_out, id_out, ihmsf_out, c_retval_out)
-    cdef char * _scale
+    #Turn all inputs into arrays
+    scale_in = numpy.array(scale, dtype=numpy.dtype('S16'), order="C", copy=False, subok=True)
+    ndp_in = numpy.array(ndp, dtype=numpy.intc, order="C", copy=False, subok=True)
+    d1_in = numpy.array(d1, dtype=numpy.double, order="C", copy=False, subok=True)
+    d2_in = numpy.array(d2, dtype=numpy.double, order="C", copy=False, subok=True)
+    
+    #Create the output array, based on the broadcasted shape, adding the generated dimensions if needed
+    broadcast = numpy.broadcast(numpy.int32(0.0), numpy.int32(0.0), scale_in, ndp_in, d1_in, d2_in)
+    iy_out = numpy.empty(broadcast.shape+(), dtype=numpy.intc)
+    im_out = numpy.empty(broadcast.shape+(), dtype=numpy.intc)
+    id_out = numpy.empty(broadcast.shape+(), dtype=numpy.intc)
+    ihmsf_out = numpy.empty(broadcast.shape+(4,), dtype=numpy.intc)
+    c_retval_out = numpy.empty(broadcast.shape+(), dtype=numpy.intc)
+    
+    #Create the iterator, broadcasting on all but the consumed dimensions
+    op_axes = [[-1]*(broadcast.nd-arr.ndim)+range(arr.ndim) for arr in [scale_in, ndp_in, d1_in, d2_in]+[iy_out, im_out, id_out, ihmsf_out[...,0], c_retval_out]]
+    op_flags = [['readonly']]*4+[['readwrite']]*5
+    it = numpy.nditer([scale_in, ndp_in, d1_in, d2_in]+[iy_out, im_out, id_out, ihmsf_out, c_retval_out], op_axes=op_axes, op_flags=op_flags)
+    
+    #Iterate
+    cdef const char * _scale
     cdef int _ndp
     cdef double _d1
     cdef double _d2
@@ -16063,32 +17762,30 @@ def d2dtf(scale, ndp, d1, d2):
     cdef int * _ihmsf
     cdef int _c_retval
     cdef bint stat_ok = True
-    
-    while numpy.PyArray_MultiIter_NOTDONE(it):
-        _scale = (<char *>numpy.PyArray_MultiIter_DATA(it, 0))
-        _ndp = (<int*>numpy.PyArray_MultiIter_DATA(it, 1))[0]
-        _d1 = (<double*>numpy.PyArray_MultiIter_DATA(it, 2))[0]
-        _d2 = (<double*>numpy.PyArray_MultiIter_DATA(it, 3))[0]
-        _iy = (<int *>numpy.PyArray_MultiIter_DATA(it, 4))
-        _im = (<int *>numpy.PyArray_MultiIter_DATA(it, 5))
-        _id = (<int *>numpy.PyArray_MultiIter_DATA(it, 6))
-        _ihmsf = (<int *>numpy.PyArray_MultiIter_DATA(it, 7))
-        
+    cdef char** dataptrarray = GetDataPtrArray(GetNpyIter(it))
+    cdef IterNextFunc iternext = GetIterNext(GetNpyIter(it), NULL)
+    cdef int status = 1
+    while status:
+        _scale = (<const char *>(dataptrarray[0]))
+        _ndp = (<int *>(dataptrarray[1]))[0]
+        _d1 = (<double *>(dataptrarray[2]))[0]
+        _d2 = (<double *>(dataptrarray[3]))[0]
+        _iy = (<int *>(dataptrarray[4]))
+        _im = (<int *>(dataptrarray[5]))
+        _id = (<int *>(dataptrarray[6]))
+        _ihmsf = (<int *>(dataptrarray[7]))
         _c_retval = eraD2dtf(_scale, _ndp, _d1, _d2, _iy, _im, _id, _ihmsf)
-        (<int*>numpy.PyArray_MultiIter_DATA(it, 8))[0] = _c_retval
+        (<int *>(dataptrarray[8]))[0] = _c_retval
         if _c_retval != 0:
             stat_ok = False
-        
-        numpy.PyArray_MultiIter_NEXT(it)
-
+        status = iternext(GetNpyIter(it))
+    
     if not stat_ok:
-        check_errwarn(c_retval_out, 'd2dtf') 
-
-    # convert from single-field structured dtype to regular nd-array
-    ihmsf_out = ihmsf_out['fi0']
-
+        check_errwarn(c_retval_out, 'd2dtf')
+    
     return iy_out, im_out, id_out, ihmsf_out
 STATUS_CODES['d2dtf'] = {0: u'OK', 1: u'dubious year (Note 5)', -1: u'unacceptable date (Note 6)'}
+
 
 
 def dat(iy, im, id, fd):
@@ -16216,11 +17913,24 @@ def dat(iy, im, id, fd):
     Derived, with permission, from the SOFA library.  See notes at end of file.
   
     """
-    in_shape = numpy.broadcast(iy, im, id, fd).shape
-    deltat_out = numpy.empty(in_shape, dtype=numpy.double)
-    c_retval_out = numpy.empty(in_shape, dtype=numpy.intc)
     
-    cdef numpy.broadcast it = numpy.broadcast(iy, im, id, fd, deltat_out, c_retval_out)
+    #Turn all inputs into arrays
+    iy_in = numpy.array(iy, dtype=numpy.intc, order="C", copy=False, subok=True)
+    im_in = numpy.array(im, dtype=numpy.intc, order="C", copy=False, subok=True)
+    id_in = numpy.array(id, dtype=numpy.intc, order="C", copy=False, subok=True)
+    fd_in = numpy.array(fd, dtype=numpy.double, order="C", copy=False, subok=True)
+    
+    #Create the output array, based on the broadcasted shape, adding the generated dimensions if needed
+    broadcast = numpy.broadcast(numpy.int32(0.0), numpy.int32(0.0), iy_in, im_in, id_in, fd_in)
+    deltat_out = numpy.empty(broadcast.shape+(), dtype=numpy.double)
+    c_retval_out = numpy.empty(broadcast.shape+(), dtype=numpy.intc)
+    
+    #Create the iterator, broadcasting on all but the consumed dimensions
+    op_axes = [[-1]*(broadcast.nd-arr.ndim)+range(arr.ndim) for arr in [iy_in, im_in, id_in, fd_in]+[deltat_out, c_retval_out]]
+    op_flags = [['readonly']]*4+[['readwrite']]*2
+    it = numpy.nditer([iy_in, im_in, id_in, fd_in]+[deltat_out, c_retval_out], op_axes=op_axes, op_flags=op_flags)
+    
+    #Iterate
     cdef int _iy
     cdef int _im
     cdef int _id
@@ -16228,26 +17938,27 @@ def dat(iy, im, id, fd):
     cdef double * _deltat
     cdef int _c_retval
     cdef bint stat_ok = True
-    
-    while numpy.PyArray_MultiIter_NOTDONE(it):
-        _iy = (<int*>numpy.PyArray_MultiIter_DATA(it, 0))[0]
-        _im = (<int*>numpy.PyArray_MultiIter_DATA(it, 1))[0]
-        _id = (<int*>numpy.PyArray_MultiIter_DATA(it, 2))[0]
-        _fd = (<double*>numpy.PyArray_MultiIter_DATA(it, 3))[0]
-        _deltat = (<double *>numpy.PyArray_MultiIter_DATA(it, 4))
-        
+    cdef char** dataptrarray = GetDataPtrArray(GetNpyIter(it))
+    cdef IterNextFunc iternext = GetIterNext(GetNpyIter(it), NULL)
+    cdef int status = 1
+    while status:
+        _iy = (<int *>(dataptrarray[0]))[0]
+        _im = (<int *>(dataptrarray[1]))[0]
+        _id = (<int *>(dataptrarray[2]))[0]
+        _fd = (<double *>(dataptrarray[3]))[0]
+        _deltat = (<double *>(dataptrarray[4]))
         _c_retval = eraDat(_iy, _im, _id, _fd, _deltat)
-        (<int*>numpy.PyArray_MultiIter_DATA(it, 5))[0] = _c_retval
+        (<int *>(dataptrarray[5]))[0] = _c_retval
         if _c_retval != 0:
             stat_ok = False
-        
-        numpy.PyArray_MultiIter_NEXT(it)
-
+        status = iternext(GetNpyIter(it))
+    
     if not stat_ok:
         check_errwarn(c_retval_out, 'dat')
-
+    
     return deltat_out
 STATUS_CODES['dat'] = {0: u'OK', 1: u'dubious year (Note 1)', -1: u'bad year', -5: u'internal error', -4: u'bad fraction (Note 4)', -3: u'bad day (Note 3)', -2: u'bad month'}
+
 
 
 def dtdb(date1, date2, ut, elong, u, v):
@@ -16416,10 +18127,25 @@ def dtdb(date1, date2, ut, elong, u, v):
     Derived, with permission, from the SOFA library.  See notes at end of file.
   
     """
-    in_shape = numpy.broadcast(date1, date2, ut, elong, u, v).shape
-    c_retval_out = numpy.empty(in_shape, dtype=numpy.double)
     
-    cdef numpy.broadcast it = numpy.broadcast(date1, date2, ut, elong, u, v, c_retval_out)
+    #Turn all inputs into arrays
+    date1_in = numpy.array(date1, dtype=numpy.double, order="C", copy=False, subok=True)
+    date2_in = numpy.array(date2, dtype=numpy.double, order="C", copy=False, subok=True)
+    ut_in = numpy.array(ut, dtype=numpy.double, order="C", copy=False, subok=True)
+    elong_in = numpy.array(elong, dtype=numpy.double, order="C", copy=False, subok=True)
+    u_in = numpy.array(u, dtype=numpy.double, order="C", copy=False, subok=True)
+    v_in = numpy.array(v, dtype=numpy.double, order="C", copy=False, subok=True)
+    
+    #Create the output array, based on the broadcasted shape, adding the generated dimensions if needed
+    broadcast = numpy.broadcast(numpy.int32(0.0), numpy.int32(0.0), date1_in, date2_in, ut_in, elong_in, u_in, v_in)
+    c_retval_out = numpy.empty(broadcast.shape+(), dtype=numpy.double)
+    
+    #Create the iterator, broadcasting on all but the consumed dimensions
+    op_axes = [[-1]*(broadcast.nd-arr.ndim)+range(arr.ndim) for arr in [date1_in, date2_in, ut_in, elong_in, u_in, v_in]+[c_retval_out]]
+    op_flags = [['readonly']]*6+[['readwrite']]*1
+    it = numpy.nditer([date1_in, date2_in, ut_in, elong_in, u_in, v_in]+[c_retval_out], op_axes=op_axes, op_flags=op_flags)
+    
+    #Iterate
     cdef double _date1
     cdef double _date2
     cdef double _ut
@@ -16427,21 +18153,22 @@ def dtdb(date1, date2, ut, elong, u, v):
     cdef double _u
     cdef double _v
     cdef double _c_retval
-    
-    while numpy.PyArray_MultiIter_NOTDONE(it):
-        _date1 = (<double*>numpy.PyArray_MultiIter_DATA(it, 0))[0]
-        _date2 = (<double*>numpy.PyArray_MultiIter_DATA(it, 1))[0]
-        _ut = (<double*>numpy.PyArray_MultiIter_DATA(it, 2))[0]
-        _elong = (<double*>numpy.PyArray_MultiIter_DATA(it, 3))[0]
-        _u = (<double*>numpy.PyArray_MultiIter_DATA(it, 4))[0]
-        _v = (<double*>numpy.PyArray_MultiIter_DATA(it, 5))[0]
-        
+    cdef char** dataptrarray = GetDataPtrArray(GetNpyIter(it))
+    cdef IterNextFunc iternext = GetIterNext(GetNpyIter(it), NULL)
+    cdef int status = 1
+    while status:
+        _date1 = (<double *>(dataptrarray[0]))[0]
+        _date2 = (<double *>(dataptrarray[1]))[0]
+        _ut = (<double *>(dataptrarray[2]))[0]
+        _elong = (<double *>(dataptrarray[3]))[0]
+        _u = (<double *>(dataptrarray[4]))[0]
+        _v = (<double *>(dataptrarray[5]))[0]
         _c_retval = eraDtdb(_date1, _date2, _ut, _elong, _u, _v)
-        (<double*>numpy.PyArray_MultiIter_DATA(it, 6))[0] = _c_retval
-        
-        numpy.PyArray_MultiIter_NEXT(it)
-
+        (<double *>(dataptrarray[6]))[0] = _c_retval
+        status = iternext(GetNpyIter(it))
+    
     return c_retval_out
+
 
 def dtf2d(scale, iy, im, id, ihr, imn, sec):
     """
@@ -16526,13 +18253,29 @@ def dtf2d(scale, iy, im, id, ihr, imn, sec):
     Derived, with permission, from the SOFA library.  See notes at end of file.
   
     """
-    in_shape = numpy.broadcast(scale, iy, im, id, ihr, imn, sec).shape
-    d1_out = numpy.empty(in_shape, dtype=numpy.double)
-    d2_out = numpy.empty(in_shape, dtype=numpy.double)
-    c_retval_out = numpy.empty(in_shape, dtype=numpy.intc)
     
-    cdef numpy.broadcast it = numpy.broadcast(scale, iy, im, id, ihr, imn, sec, d1_out, d2_out, c_retval_out)
-    cdef char * _scale
+    #Turn all inputs into arrays
+    scale_in = numpy.array(scale, dtype=numpy.dtype('S16'), order="C", copy=False, subok=True)
+    iy_in = numpy.array(iy, dtype=numpy.intc, order="C", copy=False, subok=True)
+    im_in = numpy.array(im, dtype=numpy.intc, order="C", copy=False, subok=True)
+    id_in = numpy.array(id, dtype=numpy.intc, order="C", copy=False, subok=True)
+    ihr_in = numpy.array(ihr, dtype=numpy.intc, order="C", copy=False, subok=True)
+    imn_in = numpy.array(imn, dtype=numpy.intc, order="C", copy=False, subok=True)
+    sec_in = numpy.array(sec, dtype=numpy.double, order="C", copy=False, subok=True)
+    
+    #Create the output array, based on the broadcasted shape, adding the generated dimensions if needed
+    broadcast = numpy.broadcast(numpy.int32(0.0), numpy.int32(0.0), scale_in, iy_in, im_in, id_in, ihr_in, imn_in, sec_in)
+    d1_out = numpy.empty(broadcast.shape+(), dtype=numpy.double)
+    d2_out = numpy.empty(broadcast.shape+(), dtype=numpy.double)
+    c_retval_out = numpy.empty(broadcast.shape+(), dtype=numpy.intc)
+    
+    #Create the iterator, broadcasting on all but the consumed dimensions
+    op_axes = [[-1]*(broadcast.nd-arr.ndim)+range(arr.ndim) for arr in [scale_in, iy_in, im_in, id_in, ihr_in, imn_in, sec_in]+[d1_out, d2_out, c_retval_out]]
+    op_flags = [['readonly']]*7+[['readwrite']]*3
+    it = numpy.nditer([scale_in, iy_in, im_in, id_in, ihr_in, imn_in, sec_in]+[d1_out, d2_out, c_retval_out], op_axes=op_axes, op_flags=op_flags)
+    
+    #Iterate
+    cdef const char * _scale
     cdef int _iy
     cdef int _im
     cdef int _id
@@ -16543,30 +18286,31 @@ def dtf2d(scale, iy, im, id, ihr, imn, sec):
     cdef double * _d2
     cdef int _c_retval
     cdef bint stat_ok = True
-    
-    while numpy.PyArray_MultiIter_NOTDONE(it):
-        _scale = (<char *>numpy.PyArray_MultiIter_DATA(it, 0))
-        _iy = (<int*>numpy.PyArray_MultiIter_DATA(it, 1))[0]
-        _im = (<int*>numpy.PyArray_MultiIter_DATA(it, 2))[0]
-        _id = (<int*>numpy.PyArray_MultiIter_DATA(it, 3))[0]
-        _ihr = (<int*>numpy.PyArray_MultiIter_DATA(it, 4))[0]
-        _imn = (<int*>numpy.PyArray_MultiIter_DATA(it, 5))[0]
-        _sec = (<double*>numpy.PyArray_MultiIter_DATA(it, 6))[0]
-        _d1 = (<double *>numpy.PyArray_MultiIter_DATA(it, 7))
-        _d2 = (<double *>numpy.PyArray_MultiIter_DATA(it, 8))
-        
+    cdef char** dataptrarray = GetDataPtrArray(GetNpyIter(it))
+    cdef IterNextFunc iternext = GetIterNext(GetNpyIter(it), NULL)
+    cdef int status = 1
+    while status:
+        _scale = (<const char *>(dataptrarray[0]))
+        _iy = (<int *>(dataptrarray[1]))[0]
+        _im = (<int *>(dataptrarray[2]))[0]
+        _id = (<int *>(dataptrarray[3]))[0]
+        _ihr = (<int *>(dataptrarray[4]))[0]
+        _imn = (<int *>(dataptrarray[5]))[0]
+        _sec = (<double *>(dataptrarray[6]))[0]
+        _d1 = (<double *>(dataptrarray[7]))
+        _d2 = (<double *>(dataptrarray[8]))
         _c_retval = eraDtf2d(_scale, _iy, _im, _id, _ihr, _imn, _sec, _d1, _d2)
-        (<int*>numpy.PyArray_MultiIter_DATA(it, 9))[0] = _c_retval
+        (<int *>(dataptrarray[9]))[0] = _c_retval
         if _c_retval != 0:
             stat_ok = False
-        
-        numpy.PyArray_MultiIter_NEXT(it)
-
+        status = iternext(GetNpyIter(it))
+    
     if not stat_ok:
         check_errwarn(c_retval_out, 'dtf2d')
-
+    
     return d1_out, d2_out
 STATUS_CODES['dtf2d'] = {0: u'OK', 1: u'dubious year (Note 6)', 2: u'time is after end of day (Note 5)', 3: u'both of next two', -1: u'bad year', -6: u'bad second (<0)', -5: u'bad minute', -4: u'bad hour', -3: u'bad day', -2: u'bad month'}
+
 
 
 def taitt(tai1, tai2):
@@ -16612,37 +18356,49 @@ def taitt(tai1, tai2):
     Derived, with permission, from the SOFA library.  See notes at end of file.
   
     """
-    in_shape = numpy.broadcast(tai1, tai2).shape
-    tt1_out = numpy.empty(in_shape, dtype=numpy.double)
-    tt2_out = numpy.empty(in_shape, dtype=numpy.double)
-    c_retval_out = numpy.empty(in_shape, dtype=numpy.intc)
     
-    cdef numpy.broadcast it = numpy.broadcast(tai1, tai2, tt1_out, tt2_out, c_retval_out)
+    #Turn all inputs into arrays
+    tai1_in = numpy.array(tai1, dtype=numpy.double, order="C", copy=False, subok=True)
+    tai2_in = numpy.array(tai2, dtype=numpy.double, order="C", copy=False, subok=True)
+    
+    #Create the output array, based on the broadcasted shape, adding the generated dimensions if needed
+    broadcast = numpy.broadcast(numpy.int32(0.0), numpy.int32(0.0), tai1_in, tai2_in)
+    tt1_out = numpy.empty(broadcast.shape+(), dtype=numpy.double)
+    tt2_out = numpy.empty(broadcast.shape+(), dtype=numpy.double)
+    c_retval_out = numpy.empty(broadcast.shape+(), dtype=numpy.intc)
+    
+    #Create the iterator, broadcasting on all but the consumed dimensions
+    op_axes = [[-1]*(broadcast.nd-arr.ndim)+range(arr.ndim) for arr in [tai1_in, tai2_in]+[tt1_out, tt2_out, c_retval_out]]
+    op_flags = [['readonly']]*2+[['readwrite']]*3
+    it = numpy.nditer([tai1_in, tai2_in]+[tt1_out, tt2_out, c_retval_out], op_axes=op_axes, op_flags=op_flags)
+    
+    #Iterate
     cdef double _tai1
     cdef double _tai2
     cdef double * _tt1
     cdef double * _tt2
     cdef int _c_retval
     cdef bint stat_ok = True
-    
-    while numpy.PyArray_MultiIter_NOTDONE(it):
-        _tai1 = (<double*>numpy.PyArray_MultiIter_DATA(it, 0))[0]
-        _tai2 = (<double*>numpy.PyArray_MultiIter_DATA(it, 1))[0]
-        _tt1 = (<double *>numpy.PyArray_MultiIter_DATA(it, 2))
-        _tt2 = (<double *>numpy.PyArray_MultiIter_DATA(it, 3))
-        
+    cdef char** dataptrarray = GetDataPtrArray(GetNpyIter(it))
+    cdef IterNextFunc iternext = GetIterNext(GetNpyIter(it), NULL)
+    cdef int status = 1
+    while status:
+        _tai1 = (<double *>(dataptrarray[0]))[0]
+        _tai2 = (<double *>(dataptrarray[1]))[0]
+        _tt1 = (<double *>(dataptrarray[2]))
+        _tt2 = (<double *>(dataptrarray[3]))
         _c_retval = eraTaitt(_tai1, _tai2, _tt1, _tt2)
-        (<int*>numpy.PyArray_MultiIter_DATA(it, 4))[0] = _c_retval
+        (<int *>(dataptrarray[4]))[0] = _c_retval
         if _c_retval != 0:
             stat_ok = False
-        
-        numpy.PyArray_MultiIter_NEXT(it)
-
+        status = iternext(GetNpyIter(it))
+    
     if not stat_ok:
         check_errwarn(c_retval_out, 'taitt')
-
+    
     return tt1_out, tt2_out
 STATUS_CODES['taitt'] = {0: u'OK'}
+
 
 
 def taiut1(tai1, tai2, dta):
@@ -16689,12 +18445,24 @@ def taiut1(tai1, tai2, dta):
     Derived, with permission, from the SOFA library.  See notes at end of file.
   
     """
-    in_shape = numpy.broadcast(tai1, tai2, dta).shape
-    ut11_out = numpy.empty(in_shape, dtype=numpy.double)
-    ut12_out = numpy.empty(in_shape, dtype=numpy.double)
-    c_retval_out = numpy.empty(in_shape, dtype=numpy.intc)
     
-    cdef numpy.broadcast it = numpy.broadcast(tai1, tai2, dta, ut11_out, ut12_out, c_retval_out)
+    #Turn all inputs into arrays
+    tai1_in = numpy.array(tai1, dtype=numpy.double, order="C", copy=False, subok=True)
+    tai2_in = numpy.array(tai2, dtype=numpy.double, order="C", copy=False, subok=True)
+    dta_in = numpy.array(dta, dtype=numpy.double, order="C", copy=False, subok=True)
+    
+    #Create the output array, based on the broadcasted shape, adding the generated dimensions if needed
+    broadcast = numpy.broadcast(numpy.int32(0.0), numpy.int32(0.0), tai1_in, tai2_in, dta_in)
+    ut11_out = numpy.empty(broadcast.shape+(), dtype=numpy.double)
+    ut12_out = numpy.empty(broadcast.shape+(), dtype=numpy.double)
+    c_retval_out = numpy.empty(broadcast.shape+(), dtype=numpy.intc)
+    
+    #Create the iterator, broadcasting on all but the consumed dimensions
+    op_axes = [[-1]*(broadcast.nd-arr.ndim)+range(arr.ndim) for arr in [tai1_in, tai2_in, dta_in]+[ut11_out, ut12_out, c_retval_out]]
+    op_flags = [['readonly']]*3+[['readwrite']]*3
+    it = numpy.nditer([tai1_in, tai2_in, dta_in]+[ut11_out, ut12_out, c_retval_out], op_axes=op_axes, op_flags=op_flags)
+    
+    #Iterate
     cdef double _tai1
     cdef double _tai2
     cdef double _dta
@@ -16702,26 +18470,27 @@ def taiut1(tai1, tai2, dta):
     cdef double * _ut12
     cdef int _c_retval
     cdef bint stat_ok = True
-    
-    while numpy.PyArray_MultiIter_NOTDONE(it):
-        _tai1 = (<double*>numpy.PyArray_MultiIter_DATA(it, 0))[0]
-        _tai2 = (<double*>numpy.PyArray_MultiIter_DATA(it, 1))[0]
-        _dta = (<double*>numpy.PyArray_MultiIter_DATA(it, 2))[0]
-        _ut11 = (<double *>numpy.PyArray_MultiIter_DATA(it, 3))
-        _ut12 = (<double *>numpy.PyArray_MultiIter_DATA(it, 4))
-        
+    cdef char** dataptrarray = GetDataPtrArray(GetNpyIter(it))
+    cdef IterNextFunc iternext = GetIterNext(GetNpyIter(it), NULL)
+    cdef int status = 1
+    while status:
+        _tai1 = (<double *>(dataptrarray[0]))[0]
+        _tai2 = (<double *>(dataptrarray[1]))[0]
+        _dta = (<double *>(dataptrarray[2]))[0]
+        _ut11 = (<double *>(dataptrarray[3]))
+        _ut12 = (<double *>(dataptrarray[4]))
         _c_retval = eraTaiut1(_tai1, _tai2, _dta, _ut11, _ut12)
-        (<int*>numpy.PyArray_MultiIter_DATA(it, 5))[0] = _c_retval
+        (<int *>(dataptrarray[5]))[0] = _c_retval
         if _c_retval != 0:
             stat_ok = False
-        
-        numpy.PyArray_MultiIter_NEXT(it)
-
+        status = iternext(GetNpyIter(it))
+    
     if not stat_ok:
         check_errwarn(c_retval_out, 'taiut1')
-
+    
     return ut11_out, ut12_out
 STATUS_CODES['taiut1'] = {0: u'OK'}
+
 
 
 def taiutc(tai1, tai2):
@@ -16790,37 +18559,49 @@ def taiutc(tai1, tai2):
     Derived, with permission, from the SOFA library.  See notes at end of file.
   
     """
-    in_shape = numpy.broadcast(tai1, tai2).shape
-    utc1_out = numpy.empty(in_shape, dtype=numpy.double)
-    utc2_out = numpy.empty(in_shape, dtype=numpy.double)
-    c_retval_out = numpy.empty(in_shape, dtype=numpy.intc)
     
-    cdef numpy.broadcast it = numpy.broadcast(tai1, tai2, utc1_out, utc2_out, c_retval_out)
+    #Turn all inputs into arrays
+    tai1_in = numpy.array(tai1, dtype=numpy.double, order="C", copy=False, subok=True)
+    tai2_in = numpy.array(tai2, dtype=numpy.double, order="C", copy=False, subok=True)
+    
+    #Create the output array, based on the broadcasted shape, adding the generated dimensions if needed
+    broadcast = numpy.broadcast(numpy.int32(0.0), numpy.int32(0.0), tai1_in, tai2_in)
+    utc1_out = numpy.empty(broadcast.shape+(), dtype=numpy.double)
+    utc2_out = numpy.empty(broadcast.shape+(), dtype=numpy.double)
+    c_retval_out = numpy.empty(broadcast.shape+(), dtype=numpy.intc)
+    
+    #Create the iterator, broadcasting on all but the consumed dimensions
+    op_axes = [[-1]*(broadcast.nd-arr.ndim)+range(arr.ndim) for arr in [tai1_in, tai2_in]+[utc1_out, utc2_out, c_retval_out]]
+    op_flags = [['readonly']]*2+[['readwrite']]*3
+    it = numpy.nditer([tai1_in, tai2_in]+[utc1_out, utc2_out, c_retval_out], op_axes=op_axes, op_flags=op_flags)
+    
+    #Iterate
     cdef double _tai1
     cdef double _tai2
     cdef double * _utc1
     cdef double * _utc2
     cdef int _c_retval
     cdef bint stat_ok = True
-    
-    while numpy.PyArray_MultiIter_NOTDONE(it):
-        _tai1 = (<double*>numpy.PyArray_MultiIter_DATA(it, 0))[0]
-        _tai2 = (<double*>numpy.PyArray_MultiIter_DATA(it, 1))[0]
-        _utc1 = (<double *>numpy.PyArray_MultiIter_DATA(it, 2))
-        _utc2 = (<double *>numpy.PyArray_MultiIter_DATA(it, 3))
-        
+    cdef char** dataptrarray = GetDataPtrArray(GetNpyIter(it))
+    cdef IterNextFunc iternext = GetIterNext(GetNpyIter(it), NULL)
+    cdef int status = 1
+    while status:
+        _tai1 = (<double *>(dataptrarray[0]))[0]
+        _tai2 = (<double *>(dataptrarray[1]))[0]
+        _utc1 = (<double *>(dataptrarray[2]))
+        _utc2 = (<double *>(dataptrarray[3]))
         _c_retval = eraTaiutc(_tai1, _tai2, _utc1, _utc2)
-        (<int*>numpy.PyArray_MultiIter_DATA(it, 4))[0] = _c_retval
+        (<int *>(dataptrarray[4]))[0] = _c_retval
         if _c_retval != 0:
             stat_ok = False
-        
-        numpy.PyArray_MultiIter_NEXT(it)
-
+        status = iternext(GetNpyIter(it))
+    
     if not stat_ok:
         check_errwarn(c_retval_out, 'taiutc')
-
+    
     return utc1_out, utc2_out
 STATUS_CODES['taiutc'] = {0: u'OK', 1: u'dubious year (Note 4)', -1: u'unacceptable date'}
+
 
 
 def tcbtdb(tcb1, tcb2):
@@ -16880,37 +18661,49 @@ def tcbtdb(tcb1, tcb2):
     Derived, with permission, from the SOFA library.  See notes at end of file.
   
     """
-    in_shape = numpy.broadcast(tcb1, tcb2).shape
-    tdb1_out = numpy.empty(in_shape, dtype=numpy.double)
-    tdb2_out = numpy.empty(in_shape, dtype=numpy.double)
-    c_retval_out = numpy.empty(in_shape, dtype=numpy.intc)
     
-    cdef numpy.broadcast it = numpy.broadcast(tcb1, tcb2, tdb1_out, tdb2_out, c_retval_out)
+    #Turn all inputs into arrays
+    tcb1_in = numpy.array(tcb1, dtype=numpy.double, order="C", copy=False, subok=True)
+    tcb2_in = numpy.array(tcb2, dtype=numpy.double, order="C", copy=False, subok=True)
+    
+    #Create the output array, based on the broadcasted shape, adding the generated dimensions if needed
+    broadcast = numpy.broadcast(numpy.int32(0.0), numpy.int32(0.0), tcb1_in, tcb2_in)
+    tdb1_out = numpy.empty(broadcast.shape+(), dtype=numpy.double)
+    tdb2_out = numpy.empty(broadcast.shape+(), dtype=numpy.double)
+    c_retval_out = numpy.empty(broadcast.shape+(), dtype=numpy.intc)
+    
+    #Create the iterator, broadcasting on all but the consumed dimensions
+    op_axes = [[-1]*(broadcast.nd-arr.ndim)+range(arr.ndim) for arr in [tcb1_in, tcb2_in]+[tdb1_out, tdb2_out, c_retval_out]]
+    op_flags = [['readonly']]*2+[['readwrite']]*3
+    it = numpy.nditer([tcb1_in, tcb2_in]+[tdb1_out, tdb2_out, c_retval_out], op_axes=op_axes, op_flags=op_flags)
+    
+    #Iterate
     cdef double _tcb1
     cdef double _tcb2
     cdef double * _tdb1
     cdef double * _tdb2
     cdef int _c_retval
     cdef bint stat_ok = True
-    
-    while numpy.PyArray_MultiIter_NOTDONE(it):
-        _tcb1 = (<double*>numpy.PyArray_MultiIter_DATA(it, 0))[0]
-        _tcb2 = (<double*>numpy.PyArray_MultiIter_DATA(it, 1))[0]
-        _tdb1 = (<double *>numpy.PyArray_MultiIter_DATA(it, 2))
-        _tdb2 = (<double *>numpy.PyArray_MultiIter_DATA(it, 3))
-        
+    cdef char** dataptrarray = GetDataPtrArray(GetNpyIter(it))
+    cdef IterNextFunc iternext = GetIterNext(GetNpyIter(it), NULL)
+    cdef int status = 1
+    while status:
+        _tcb1 = (<double *>(dataptrarray[0]))[0]
+        _tcb2 = (<double *>(dataptrarray[1]))[0]
+        _tdb1 = (<double *>(dataptrarray[2]))
+        _tdb2 = (<double *>(dataptrarray[3]))
         _c_retval = eraTcbtdb(_tcb1, _tcb2, _tdb1, _tdb2)
-        (<int*>numpy.PyArray_MultiIter_DATA(it, 4))[0] = _c_retval
+        (<int *>(dataptrarray[4]))[0] = _c_retval
         if _c_retval != 0:
             stat_ok = False
-        
-        numpy.PyArray_MultiIter_NEXT(it)
-
+        status = iternext(GetNpyIter(it))
+    
     if not stat_ok:
         check_errwarn(c_retval_out, 'tcbtdb')
-
+    
     return tdb1_out, tdb2_out
 STATUS_CODES['tcbtdb'] = {0: u'OK'}
+
 
 
 def tcgtt(tcg1, tcg2):
@@ -16955,37 +18748,49 @@ def tcgtt(tcg1, tcg2):
     Derived, with permission, from the SOFA library.  See notes at end of file.
   
     """
-    in_shape = numpy.broadcast(tcg1, tcg2).shape
-    tt1_out = numpy.empty(in_shape, dtype=numpy.double)
-    tt2_out = numpy.empty(in_shape, dtype=numpy.double)
-    c_retval_out = numpy.empty(in_shape, dtype=numpy.intc)
     
-    cdef numpy.broadcast it = numpy.broadcast(tcg1, tcg2, tt1_out, tt2_out, c_retval_out)
+    #Turn all inputs into arrays
+    tcg1_in = numpy.array(tcg1, dtype=numpy.double, order="C", copy=False, subok=True)
+    tcg2_in = numpy.array(tcg2, dtype=numpy.double, order="C", copy=False, subok=True)
+    
+    #Create the output array, based on the broadcasted shape, adding the generated dimensions if needed
+    broadcast = numpy.broadcast(numpy.int32(0.0), numpy.int32(0.0), tcg1_in, tcg2_in)
+    tt1_out = numpy.empty(broadcast.shape+(), dtype=numpy.double)
+    tt2_out = numpy.empty(broadcast.shape+(), dtype=numpy.double)
+    c_retval_out = numpy.empty(broadcast.shape+(), dtype=numpy.intc)
+    
+    #Create the iterator, broadcasting on all but the consumed dimensions
+    op_axes = [[-1]*(broadcast.nd-arr.ndim)+range(arr.ndim) for arr in [tcg1_in, tcg2_in]+[tt1_out, tt2_out, c_retval_out]]
+    op_flags = [['readonly']]*2+[['readwrite']]*3
+    it = numpy.nditer([tcg1_in, tcg2_in]+[tt1_out, tt2_out, c_retval_out], op_axes=op_axes, op_flags=op_flags)
+    
+    #Iterate
     cdef double _tcg1
     cdef double _tcg2
     cdef double * _tt1
     cdef double * _tt2
     cdef int _c_retval
     cdef bint stat_ok = True
-    
-    while numpy.PyArray_MultiIter_NOTDONE(it):
-        _tcg1 = (<double*>numpy.PyArray_MultiIter_DATA(it, 0))[0]
-        _tcg2 = (<double*>numpy.PyArray_MultiIter_DATA(it, 1))[0]
-        _tt1 = (<double *>numpy.PyArray_MultiIter_DATA(it, 2))
-        _tt2 = (<double *>numpy.PyArray_MultiIter_DATA(it, 3))
-        
+    cdef char** dataptrarray = GetDataPtrArray(GetNpyIter(it))
+    cdef IterNextFunc iternext = GetIterNext(GetNpyIter(it), NULL)
+    cdef int status = 1
+    while status:
+        _tcg1 = (<double *>(dataptrarray[0]))[0]
+        _tcg2 = (<double *>(dataptrarray[1]))[0]
+        _tt1 = (<double *>(dataptrarray[2]))
+        _tt2 = (<double *>(dataptrarray[3]))
         _c_retval = eraTcgtt(_tcg1, _tcg2, _tt1, _tt2)
-        (<int*>numpy.PyArray_MultiIter_DATA(it, 4))[0] = _c_retval
+        (<int *>(dataptrarray[4]))[0] = _c_retval
         if _c_retval != 0:
             stat_ok = False
-        
-        numpy.PyArray_MultiIter_NEXT(it)
-
+        status = iternext(GetNpyIter(it))
+    
     if not stat_ok:
         check_errwarn(c_retval_out, 'tcgtt')
-
+    
     return tt1_out, tt2_out
 STATUS_CODES['tcgtt'] = {0: u'OK'}
+
 
 
 def tdbtcb(tdb1, tdb2):
@@ -17045,37 +18850,49 @@ def tdbtcb(tdb1, tdb2):
     Derived, with permission, from the SOFA library.  See notes at end of file.
   
     """
-    in_shape = numpy.broadcast(tdb1, tdb2).shape
-    tcb1_out = numpy.empty(in_shape, dtype=numpy.double)
-    tcb2_out = numpy.empty(in_shape, dtype=numpy.double)
-    c_retval_out = numpy.empty(in_shape, dtype=numpy.intc)
     
-    cdef numpy.broadcast it = numpy.broadcast(tdb1, tdb2, tcb1_out, tcb2_out, c_retval_out)
+    #Turn all inputs into arrays
+    tdb1_in = numpy.array(tdb1, dtype=numpy.double, order="C", copy=False, subok=True)
+    tdb2_in = numpy.array(tdb2, dtype=numpy.double, order="C", copy=False, subok=True)
+    
+    #Create the output array, based on the broadcasted shape, adding the generated dimensions if needed
+    broadcast = numpy.broadcast(numpy.int32(0.0), numpy.int32(0.0), tdb1_in, tdb2_in)
+    tcb1_out = numpy.empty(broadcast.shape+(), dtype=numpy.double)
+    tcb2_out = numpy.empty(broadcast.shape+(), dtype=numpy.double)
+    c_retval_out = numpy.empty(broadcast.shape+(), dtype=numpy.intc)
+    
+    #Create the iterator, broadcasting on all but the consumed dimensions
+    op_axes = [[-1]*(broadcast.nd-arr.ndim)+range(arr.ndim) for arr in [tdb1_in, tdb2_in]+[tcb1_out, tcb2_out, c_retval_out]]
+    op_flags = [['readonly']]*2+[['readwrite']]*3
+    it = numpy.nditer([tdb1_in, tdb2_in]+[tcb1_out, tcb2_out, c_retval_out], op_axes=op_axes, op_flags=op_flags)
+    
+    #Iterate
     cdef double _tdb1
     cdef double _tdb2
     cdef double * _tcb1
     cdef double * _tcb2
     cdef int _c_retval
     cdef bint stat_ok = True
-    
-    while numpy.PyArray_MultiIter_NOTDONE(it):
-        _tdb1 = (<double*>numpy.PyArray_MultiIter_DATA(it, 0))[0]
-        _tdb2 = (<double*>numpy.PyArray_MultiIter_DATA(it, 1))[0]
-        _tcb1 = (<double *>numpy.PyArray_MultiIter_DATA(it, 2))
-        _tcb2 = (<double *>numpy.PyArray_MultiIter_DATA(it, 3))
-        
+    cdef char** dataptrarray = GetDataPtrArray(GetNpyIter(it))
+    cdef IterNextFunc iternext = GetIterNext(GetNpyIter(it), NULL)
+    cdef int status = 1
+    while status:
+        _tdb1 = (<double *>(dataptrarray[0]))[0]
+        _tdb2 = (<double *>(dataptrarray[1]))[0]
+        _tcb1 = (<double *>(dataptrarray[2]))
+        _tcb2 = (<double *>(dataptrarray[3]))
         _c_retval = eraTdbtcb(_tdb1, _tdb2, _tcb1, _tcb2)
-        (<int*>numpy.PyArray_MultiIter_DATA(it, 4))[0] = _c_retval
+        (<int *>(dataptrarray[4]))[0] = _c_retval
         if _c_retval != 0:
             stat_ok = False
-        
-        numpy.PyArray_MultiIter_NEXT(it)
-
+        status = iternext(GetNpyIter(it))
+    
     if not stat_ok:
         check_errwarn(c_retval_out, 'tdbtcb')
-
+    
     return tcb1_out, tcb2_out
 STATUS_CODES['tdbtcb'] = {0: u'OK'}
+
 
 
 def tdbtt(tdb1, tdb2, dtr):
@@ -17132,12 +18949,24 @@ def tdbtt(tdb1, tdb2, dtr):
     Derived, with permission, from the SOFA library.  See notes at end of file.
   
     """
-    in_shape = numpy.broadcast(tdb1, tdb2, dtr).shape
-    tt1_out = numpy.empty(in_shape, dtype=numpy.double)
-    tt2_out = numpy.empty(in_shape, dtype=numpy.double)
-    c_retval_out = numpy.empty(in_shape, dtype=numpy.intc)
     
-    cdef numpy.broadcast it = numpy.broadcast(tdb1, tdb2, dtr, tt1_out, tt2_out, c_retval_out)
+    #Turn all inputs into arrays
+    tdb1_in = numpy.array(tdb1, dtype=numpy.double, order="C", copy=False, subok=True)
+    tdb2_in = numpy.array(tdb2, dtype=numpy.double, order="C", copy=False, subok=True)
+    dtr_in = numpy.array(dtr, dtype=numpy.double, order="C", copy=False, subok=True)
+    
+    #Create the output array, based on the broadcasted shape, adding the generated dimensions if needed
+    broadcast = numpy.broadcast(numpy.int32(0.0), numpy.int32(0.0), tdb1_in, tdb2_in, dtr_in)
+    tt1_out = numpy.empty(broadcast.shape+(), dtype=numpy.double)
+    tt2_out = numpy.empty(broadcast.shape+(), dtype=numpy.double)
+    c_retval_out = numpy.empty(broadcast.shape+(), dtype=numpy.intc)
+    
+    #Create the iterator, broadcasting on all but the consumed dimensions
+    op_axes = [[-1]*(broadcast.nd-arr.ndim)+range(arr.ndim) for arr in [tdb1_in, tdb2_in, dtr_in]+[tt1_out, tt2_out, c_retval_out]]
+    op_flags = [['readonly']]*3+[['readwrite']]*3
+    it = numpy.nditer([tdb1_in, tdb2_in, dtr_in]+[tt1_out, tt2_out, c_retval_out], op_axes=op_axes, op_flags=op_flags)
+    
+    #Iterate
     cdef double _tdb1
     cdef double _tdb2
     cdef double _dtr
@@ -17145,26 +18974,27 @@ def tdbtt(tdb1, tdb2, dtr):
     cdef double * _tt2
     cdef int _c_retval
     cdef bint stat_ok = True
-    
-    while numpy.PyArray_MultiIter_NOTDONE(it):
-        _tdb1 = (<double*>numpy.PyArray_MultiIter_DATA(it, 0))[0]
-        _tdb2 = (<double*>numpy.PyArray_MultiIter_DATA(it, 1))[0]
-        _dtr = (<double*>numpy.PyArray_MultiIter_DATA(it, 2))[0]
-        _tt1 = (<double *>numpy.PyArray_MultiIter_DATA(it, 3))
-        _tt2 = (<double *>numpy.PyArray_MultiIter_DATA(it, 4))
-        
+    cdef char** dataptrarray = GetDataPtrArray(GetNpyIter(it))
+    cdef IterNextFunc iternext = GetIterNext(GetNpyIter(it), NULL)
+    cdef int status = 1
+    while status:
+        _tdb1 = (<double *>(dataptrarray[0]))[0]
+        _tdb2 = (<double *>(dataptrarray[1]))[0]
+        _dtr = (<double *>(dataptrarray[2]))[0]
+        _tt1 = (<double *>(dataptrarray[3]))
+        _tt2 = (<double *>(dataptrarray[4]))
         _c_retval = eraTdbtt(_tdb1, _tdb2, _dtr, _tt1, _tt2)
-        (<int*>numpy.PyArray_MultiIter_DATA(it, 5))[0] = _c_retval
+        (<int *>(dataptrarray[5]))[0] = _c_retval
         if _c_retval != 0:
             stat_ok = False
-        
-        numpy.PyArray_MultiIter_NEXT(it)
-
+        status = iternext(GetNpyIter(it))
+    
     if not stat_ok:
         check_errwarn(c_retval_out, 'tdbtt')
-
+    
     return tt1_out, tt2_out
 STATUS_CODES['tdbtt'] = {0: u'OK'}
+
 
 
 def tttai(tt1, tt2):
@@ -17210,37 +19040,49 @@ def tttai(tt1, tt2):
     Derived, with permission, from the SOFA library.  See notes at end of file.
   
     """
-    in_shape = numpy.broadcast(tt1, tt2).shape
-    tai1_out = numpy.empty(in_shape, dtype=numpy.double)
-    tai2_out = numpy.empty(in_shape, dtype=numpy.double)
-    c_retval_out = numpy.empty(in_shape, dtype=numpy.intc)
     
-    cdef numpy.broadcast it = numpy.broadcast(tt1, tt2, tai1_out, tai2_out, c_retval_out)
+    #Turn all inputs into arrays
+    tt1_in = numpy.array(tt1, dtype=numpy.double, order="C", copy=False, subok=True)
+    tt2_in = numpy.array(tt2, dtype=numpy.double, order="C", copy=False, subok=True)
+    
+    #Create the output array, based on the broadcasted shape, adding the generated dimensions if needed
+    broadcast = numpy.broadcast(numpy.int32(0.0), numpy.int32(0.0), tt1_in, tt2_in)
+    tai1_out = numpy.empty(broadcast.shape+(), dtype=numpy.double)
+    tai2_out = numpy.empty(broadcast.shape+(), dtype=numpy.double)
+    c_retval_out = numpy.empty(broadcast.shape+(), dtype=numpy.intc)
+    
+    #Create the iterator, broadcasting on all but the consumed dimensions
+    op_axes = [[-1]*(broadcast.nd-arr.ndim)+range(arr.ndim) for arr in [tt1_in, tt2_in]+[tai1_out, tai2_out, c_retval_out]]
+    op_flags = [['readonly']]*2+[['readwrite']]*3
+    it = numpy.nditer([tt1_in, tt2_in]+[tai1_out, tai2_out, c_retval_out], op_axes=op_axes, op_flags=op_flags)
+    
+    #Iterate
     cdef double _tt1
     cdef double _tt2
     cdef double * _tai1
     cdef double * _tai2
     cdef int _c_retval
     cdef bint stat_ok = True
-    
-    while numpy.PyArray_MultiIter_NOTDONE(it):
-        _tt1 = (<double*>numpy.PyArray_MultiIter_DATA(it, 0))[0]
-        _tt2 = (<double*>numpy.PyArray_MultiIter_DATA(it, 1))[0]
-        _tai1 = (<double *>numpy.PyArray_MultiIter_DATA(it, 2))
-        _tai2 = (<double *>numpy.PyArray_MultiIter_DATA(it, 3))
-        
+    cdef char** dataptrarray = GetDataPtrArray(GetNpyIter(it))
+    cdef IterNextFunc iternext = GetIterNext(GetNpyIter(it), NULL)
+    cdef int status = 1
+    while status:
+        _tt1 = (<double *>(dataptrarray[0]))[0]
+        _tt2 = (<double *>(dataptrarray[1]))[0]
+        _tai1 = (<double *>(dataptrarray[2]))
+        _tai2 = (<double *>(dataptrarray[3]))
         _c_retval = eraTttai(_tt1, _tt2, _tai1, _tai2)
-        (<int*>numpy.PyArray_MultiIter_DATA(it, 4))[0] = _c_retval
+        (<int *>(dataptrarray[4]))[0] = _c_retval
         if _c_retval != 0:
             stat_ok = False
-        
-        numpy.PyArray_MultiIter_NEXT(it)
-
+        status = iternext(GetNpyIter(it))
+    
     if not stat_ok:
         check_errwarn(c_retval_out, 'tttai')
-
+    
     return tai1_out, tai2_out
 STATUS_CODES['tttai'] = {0: u'OK'}
+
 
 
 def tttcg(tt1, tt2):
@@ -17285,37 +19127,49 @@ def tttcg(tt1, tt2):
     Derived, with permission, from the SOFA library.  See notes at end of file.
   
     """
-    in_shape = numpy.broadcast(tt1, tt2).shape
-    tcg1_out = numpy.empty(in_shape, dtype=numpy.double)
-    tcg2_out = numpy.empty(in_shape, dtype=numpy.double)
-    c_retval_out = numpy.empty(in_shape, dtype=numpy.intc)
     
-    cdef numpy.broadcast it = numpy.broadcast(tt1, tt2, tcg1_out, tcg2_out, c_retval_out)
+    #Turn all inputs into arrays
+    tt1_in = numpy.array(tt1, dtype=numpy.double, order="C", copy=False, subok=True)
+    tt2_in = numpy.array(tt2, dtype=numpy.double, order="C", copy=False, subok=True)
+    
+    #Create the output array, based on the broadcasted shape, adding the generated dimensions if needed
+    broadcast = numpy.broadcast(numpy.int32(0.0), numpy.int32(0.0), tt1_in, tt2_in)
+    tcg1_out = numpy.empty(broadcast.shape+(), dtype=numpy.double)
+    tcg2_out = numpy.empty(broadcast.shape+(), dtype=numpy.double)
+    c_retval_out = numpy.empty(broadcast.shape+(), dtype=numpy.intc)
+    
+    #Create the iterator, broadcasting on all but the consumed dimensions
+    op_axes = [[-1]*(broadcast.nd-arr.ndim)+range(arr.ndim) for arr in [tt1_in, tt2_in]+[tcg1_out, tcg2_out, c_retval_out]]
+    op_flags = [['readonly']]*2+[['readwrite']]*3
+    it = numpy.nditer([tt1_in, tt2_in]+[tcg1_out, tcg2_out, c_retval_out], op_axes=op_axes, op_flags=op_flags)
+    
+    #Iterate
     cdef double _tt1
     cdef double _tt2
     cdef double * _tcg1
     cdef double * _tcg2
     cdef int _c_retval
     cdef bint stat_ok = True
-    
-    while numpy.PyArray_MultiIter_NOTDONE(it):
-        _tt1 = (<double*>numpy.PyArray_MultiIter_DATA(it, 0))[0]
-        _tt2 = (<double*>numpy.PyArray_MultiIter_DATA(it, 1))[0]
-        _tcg1 = (<double *>numpy.PyArray_MultiIter_DATA(it, 2))
-        _tcg2 = (<double *>numpy.PyArray_MultiIter_DATA(it, 3))
-        
+    cdef char** dataptrarray = GetDataPtrArray(GetNpyIter(it))
+    cdef IterNextFunc iternext = GetIterNext(GetNpyIter(it), NULL)
+    cdef int status = 1
+    while status:
+        _tt1 = (<double *>(dataptrarray[0]))[0]
+        _tt2 = (<double *>(dataptrarray[1]))[0]
+        _tcg1 = (<double *>(dataptrarray[2]))
+        _tcg2 = (<double *>(dataptrarray[3]))
         _c_retval = eraTttcg(_tt1, _tt2, _tcg1, _tcg2)
-        (<int*>numpy.PyArray_MultiIter_DATA(it, 4))[0] = _c_retval
+        (<int *>(dataptrarray[4]))[0] = _c_retval
         if _c_retval != 0:
             stat_ok = False
-        
-        numpy.PyArray_MultiIter_NEXT(it)
-
+        status = iternext(GetNpyIter(it))
+    
     if not stat_ok:
         check_errwarn(c_retval_out, 'tttcg')
-
+    
     return tcg1_out, tcg2_out
 STATUS_CODES['tttcg'] = {0: u'OK'}
+
 
 
 def tttdb(tt1, tt2, dtr):
@@ -17372,12 +19226,24 @@ def tttdb(tt1, tt2, dtr):
     Derived, with permission, from the SOFA library.  See notes at end of file.
   
     """
-    in_shape = numpy.broadcast(tt1, tt2, dtr).shape
-    tdb1_out = numpy.empty(in_shape, dtype=numpy.double)
-    tdb2_out = numpy.empty(in_shape, dtype=numpy.double)
-    c_retval_out = numpy.empty(in_shape, dtype=numpy.intc)
     
-    cdef numpy.broadcast it = numpy.broadcast(tt1, tt2, dtr, tdb1_out, tdb2_out, c_retval_out)
+    #Turn all inputs into arrays
+    tt1_in = numpy.array(tt1, dtype=numpy.double, order="C", copy=False, subok=True)
+    tt2_in = numpy.array(tt2, dtype=numpy.double, order="C", copy=False, subok=True)
+    dtr_in = numpy.array(dtr, dtype=numpy.double, order="C", copy=False, subok=True)
+    
+    #Create the output array, based on the broadcasted shape, adding the generated dimensions if needed
+    broadcast = numpy.broadcast(numpy.int32(0.0), numpy.int32(0.0), tt1_in, tt2_in, dtr_in)
+    tdb1_out = numpy.empty(broadcast.shape+(), dtype=numpy.double)
+    tdb2_out = numpy.empty(broadcast.shape+(), dtype=numpy.double)
+    c_retval_out = numpy.empty(broadcast.shape+(), dtype=numpy.intc)
+    
+    #Create the iterator, broadcasting on all but the consumed dimensions
+    op_axes = [[-1]*(broadcast.nd-arr.ndim)+range(arr.ndim) for arr in [tt1_in, tt2_in, dtr_in]+[tdb1_out, tdb2_out, c_retval_out]]
+    op_flags = [['readonly']]*3+[['readwrite']]*3
+    it = numpy.nditer([tt1_in, tt2_in, dtr_in]+[tdb1_out, tdb2_out, c_retval_out], op_axes=op_axes, op_flags=op_flags)
+    
+    #Iterate
     cdef double _tt1
     cdef double _tt2
     cdef double _dtr
@@ -17385,26 +19251,27 @@ def tttdb(tt1, tt2, dtr):
     cdef double * _tdb2
     cdef int _c_retval
     cdef bint stat_ok = True
-    
-    while numpy.PyArray_MultiIter_NOTDONE(it):
-        _tt1 = (<double*>numpy.PyArray_MultiIter_DATA(it, 0))[0]
-        _tt2 = (<double*>numpy.PyArray_MultiIter_DATA(it, 1))[0]
-        _dtr = (<double*>numpy.PyArray_MultiIter_DATA(it, 2))[0]
-        _tdb1 = (<double *>numpy.PyArray_MultiIter_DATA(it, 3))
-        _tdb2 = (<double *>numpy.PyArray_MultiIter_DATA(it, 4))
-        
+    cdef char** dataptrarray = GetDataPtrArray(GetNpyIter(it))
+    cdef IterNextFunc iternext = GetIterNext(GetNpyIter(it), NULL)
+    cdef int status = 1
+    while status:
+        _tt1 = (<double *>(dataptrarray[0]))[0]
+        _tt2 = (<double *>(dataptrarray[1]))[0]
+        _dtr = (<double *>(dataptrarray[2]))[0]
+        _tdb1 = (<double *>(dataptrarray[3]))
+        _tdb2 = (<double *>(dataptrarray[4]))
         _c_retval = eraTttdb(_tt1, _tt2, _dtr, _tdb1, _tdb2)
-        (<int*>numpy.PyArray_MultiIter_DATA(it, 5))[0] = _c_retval
+        (<int *>(dataptrarray[5]))[0] = _c_retval
         if _c_retval != 0:
             stat_ok = False
-        
-        numpy.PyArray_MultiIter_NEXT(it)
-
+        status = iternext(GetNpyIter(it))
+    
     if not stat_ok:
         check_errwarn(c_retval_out, 'tttdb')
-
+    
     return tdb1_out, tdb2_out
 STATUS_CODES['tttdb'] = {0: u'OK'}
+
 
 
 def ttut1(tt1, tt2, dt):
@@ -17450,12 +19317,24 @@ def ttut1(tt1, tt2, dt):
     Derived, with permission, from the SOFA library.  See notes at end of file.
   
     """
-    in_shape = numpy.broadcast(tt1, tt2, dt).shape
-    ut11_out = numpy.empty(in_shape, dtype=numpy.double)
-    ut12_out = numpy.empty(in_shape, dtype=numpy.double)
-    c_retval_out = numpy.empty(in_shape, dtype=numpy.intc)
     
-    cdef numpy.broadcast it = numpy.broadcast(tt1, tt2, dt, ut11_out, ut12_out, c_retval_out)
+    #Turn all inputs into arrays
+    tt1_in = numpy.array(tt1, dtype=numpy.double, order="C", copy=False, subok=True)
+    tt2_in = numpy.array(tt2, dtype=numpy.double, order="C", copy=False, subok=True)
+    dt_in = numpy.array(dt, dtype=numpy.double, order="C", copy=False, subok=True)
+    
+    #Create the output array, based on the broadcasted shape, adding the generated dimensions if needed
+    broadcast = numpy.broadcast(numpy.int32(0.0), numpy.int32(0.0), tt1_in, tt2_in, dt_in)
+    ut11_out = numpy.empty(broadcast.shape+(), dtype=numpy.double)
+    ut12_out = numpy.empty(broadcast.shape+(), dtype=numpy.double)
+    c_retval_out = numpy.empty(broadcast.shape+(), dtype=numpy.intc)
+    
+    #Create the iterator, broadcasting on all but the consumed dimensions
+    op_axes = [[-1]*(broadcast.nd-arr.ndim)+range(arr.ndim) for arr in [tt1_in, tt2_in, dt_in]+[ut11_out, ut12_out, c_retval_out]]
+    op_flags = [['readonly']]*3+[['readwrite']]*3
+    it = numpy.nditer([tt1_in, tt2_in, dt_in]+[ut11_out, ut12_out, c_retval_out], op_axes=op_axes, op_flags=op_flags)
+    
+    #Iterate
     cdef double _tt1
     cdef double _tt2
     cdef double _dt
@@ -17463,26 +19342,27 @@ def ttut1(tt1, tt2, dt):
     cdef double * _ut12
     cdef int _c_retval
     cdef bint stat_ok = True
-    
-    while numpy.PyArray_MultiIter_NOTDONE(it):
-        _tt1 = (<double*>numpy.PyArray_MultiIter_DATA(it, 0))[0]
-        _tt2 = (<double*>numpy.PyArray_MultiIter_DATA(it, 1))[0]
-        _dt = (<double*>numpy.PyArray_MultiIter_DATA(it, 2))[0]
-        _ut11 = (<double *>numpy.PyArray_MultiIter_DATA(it, 3))
-        _ut12 = (<double *>numpy.PyArray_MultiIter_DATA(it, 4))
-        
+    cdef char** dataptrarray = GetDataPtrArray(GetNpyIter(it))
+    cdef IterNextFunc iternext = GetIterNext(GetNpyIter(it), NULL)
+    cdef int status = 1
+    while status:
+        _tt1 = (<double *>(dataptrarray[0]))[0]
+        _tt2 = (<double *>(dataptrarray[1]))[0]
+        _dt = (<double *>(dataptrarray[2]))[0]
+        _ut11 = (<double *>(dataptrarray[3]))
+        _ut12 = (<double *>(dataptrarray[4]))
         _c_retval = eraTtut1(_tt1, _tt2, _dt, _ut11, _ut12)
-        (<int*>numpy.PyArray_MultiIter_DATA(it, 5))[0] = _c_retval
+        (<int *>(dataptrarray[5]))[0] = _c_retval
         if _c_retval != 0:
             stat_ok = False
-        
-        numpy.PyArray_MultiIter_NEXT(it)
-
+        status = iternext(GetNpyIter(it))
+    
     if not stat_ok:
         check_errwarn(c_retval_out, 'ttut1')
-
+    
     return ut11_out, ut12_out
 STATUS_CODES['ttut1'] = {0: u'OK'}
+
 
 
 def ut1tai(ut11, ut12, dta):
@@ -17529,12 +19409,24 @@ def ut1tai(ut11, ut12, dta):
     Derived, with permission, from the SOFA library.  See notes at end of file.
   
     """
-    in_shape = numpy.broadcast(ut11, ut12, dta).shape
-    tai1_out = numpy.empty(in_shape, dtype=numpy.double)
-    tai2_out = numpy.empty(in_shape, dtype=numpy.double)
-    c_retval_out = numpy.empty(in_shape, dtype=numpy.intc)
     
-    cdef numpy.broadcast it = numpy.broadcast(ut11, ut12, dta, tai1_out, tai2_out, c_retval_out)
+    #Turn all inputs into arrays
+    ut11_in = numpy.array(ut11, dtype=numpy.double, order="C", copy=False, subok=True)
+    ut12_in = numpy.array(ut12, dtype=numpy.double, order="C", copy=False, subok=True)
+    dta_in = numpy.array(dta, dtype=numpy.double, order="C", copy=False, subok=True)
+    
+    #Create the output array, based on the broadcasted shape, adding the generated dimensions if needed
+    broadcast = numpy.broadcast(numpy.int32(0.0), numpy.int32(0.0), ut11_in, ut12_in, dta_in)
+    tai1_out = numpy.empty(broadcast.shape+(), dtype=numpy.double)
+    tai2_out = numpy.empty(broadcast.shape+(), dtype=numpy.double)
+    c_retval_out = numpy.empty(broadcast.shape+(), dtype=numpy.intc)
+    
+    #Create the iterator, broadcasting on all but the consumed dimensions
+    op_axes = [[-1]*(broadcast.nd-arr.ndim)+range(arr.ndim) for arr in [ut11_in, ut12_in, dta_in]+[tai1_out, tai2_out, c_retval_out]]
+    op_flags = [['readonly']]*3+[['readwrite']]*3
+    it = numpy.nditer([ut11_in, ut12_in, dta_in]+[tai1_out, tai2_out, c_retval_out], op_axes=op_axes, op_flags=op_flags)
+    
+    #Iterate
     cdef double _ut11
     cdef double _ut12
     cdef double _dta
@@ -17542,26 +19434,27 @@ def ut1tai(ut11, ut12, dta):
     cdef double * _tai2
     cdef int _c_retval
     cdef bint stat_ok = True
-    
-    while numpy.PyArray_MultiIter_NOTDONE(it):
-        _ut11 = (<double*>numpy.PyArray_MultiIter_DATA(it, 0))[0]
-        _ut12 = (<double*>numpy.PyArray_MultiIter_DATA(it, 1))[0]
-        _dta = (<double*>numpy.PyArray_MultiIter_DATA(it, 2))[0]
-        _tai1 = (<double *>numpy.PyArray_MultiIter_DATA(it, 3))
-        _tai2 = (<double *>numpy.PyArray_MultiIter_DATA(it, 4))
-        
+    cdef char** dataptrarray = GetDataPtrArray(GetNpyIter(it))
+    cdef IterNextFunc iternext = GetIterNext(GetNpyIter(it), NULL)
+    cdef int status = 1
+    while status:
+        _ut11 = (<double *>(dataptrarray[0]))[0]
+        _ut12 = (<double *>(dataptrarray[1]))[0]
+        _dta = (<double *>(dataptrarray[2]))[0]
+        _tai1 = (<double *>(dataptrarray[3]))
+        _tai2 = (<double *>(dataptrarray[4]))
         _c_retval = eraUt1tai(_ut11, _ut12, _dta, _tai1, _tai2)
-        (<int*>numpy.PyArray_MultiIter_DATA(it, 5))[0] = _c_retval
+        (<int *>(dataptrarray[5]))[0] = _c_retval
         if _c_retval != 0:
             stat_ok = False
-        
-        numpy.PyArray_MultiIter_NEXT(it)
-
+        status = iternext(GetNpyIter(it))
+    
     if not stat_ok:
         check_errwarn(c_retval_out, 'ut1tai')
-
+    
     return tai1_out, tai2_out
 STATUS_CODES['ut1tai'] = {0: u'OK'}
+
 
 
 def ut1tt(ut11, ut12, dt):
@@ -17607,12 +19500,24 @@ def ut1tt(ut11, ut12, dt):
     Derived, with permission, from the SOFA library.  See notes at end of file.
   
     """
-    in_shape = numpy.broadcast(ut11, ut12, dt).shape
-    tt1_out = numpy.empty(in_shape, dtype=numpy.double)
-    tt2_out = numpy.empty(in_shape, dtype=numpy.double)
-    c_retval_out = numpy.empty(in_shape, dtype=numpy.intc)
     
-    cdef numpy.broadcast it = numpy.broadcast(ut11, ut12, dt, tt1_out, tt2_out, c_retval_out)
+    #Turn all inputs into arrays
+    ut11_in = numpy.array(ut11, dtype=numpy.double, order="C", copy=False, subok=True)
+    ut12_in = numpy.array(ut12, dtype=numpy.double, order="C", copy=False, subok=True)
+    dt_in = numpy.array(dt, dtype=numpy.double, order="C", copy=False, subok=True)
+    
+    #Create the output array, based on the broadcasted shape, adding the generated dimensions if needed
+    broadcast = numpy.broadcast(numpy.int32(0.0), numpy.int32(0.0), ut11_in, ut12_in, dt_in)
+    tt1_out = numpy.empty(broadcast.shape+(), dtype=numpy.double)
+    tt2_out = numpy.empty(broadcast.shape+(), dtype=numpy.double)
+    c_retval_out = numpy.empty(broadcast.shape+(), dtype=numpy.intc)
+    
+    #Create the iterator, broadcasting on all but the consumed dimensions
+    op_axes = [[-1]*(broadcast.nd-arr.ndim)+range(arr.ndim) for arr in [ut11_in, ut12_in, dt_in]+[tt1_out, tt2_out, c_retval_out]]
+    op_flags = [['readonly']]*3+[['readwrite']]*3
+    it = numpy.nditer([ut11_in, ut12_in, dt_in]+[tt1_out, tt2_out, c_retval_out], op_axes=op_axes, op_flags=op_flags)
+    
+    #Iterate
     cdef double _ut11
     cdef double _ut12
     cdef double _dt
@@ -17620,26 +19525,27 @@ def ut1tt(ut11, ut12, dt):
     cdef double * _tt2
     cdef int _c_retval
     cdef bint stat_ok = True
-    
-    while numpy.PyArray_MultiIter_NOTDONE(it):
-        _ut11 = (<double*>numpy.PyArray_MultiIter_DATA(it, 0))[0]
-        _ut12 = (<double*>numpy.PyArray_MultiIter_DATA(it, 1))[0]
-        _dt = (<double*>numpy.PyArray_MultiIter_DATA(it, 2))[0]
-        _tt1 = (<double *>numpy.PyArray_MultiIter_DATA(it, 3))
-        _tt2 = (<double *>numpy.PyArray_MultiIter_DATA(it, 4))
-        
+    cdef char** dataptrarray = GetDataPtrArray(GetNpyIter(it))
+    cdef IterNextFunc iternext = GetIterNext(GetNpyIter(it), NULL)
+    cdef int status = 1
+    while status:
+        _ut11 = (<double *>(dataptrarray[0]))[0]
+        _ut12 = (<double *>(dataptrarray[1]))[0]
+        _dt = (<double *>(dataptrarray[2]))[0]
+        _tt1 = (<double *>(dataptrarray[3]))
+        _tt2 = (<double *>(dataptrarray[4]))
         _c_retval = eraUt1tt(_ut11, _ut12, _dt, _tt1, _tt2)
-        (<int*>numpy.PyArray_MultiIter_DATA(it, 5))[0] = _c_retval
+        (<int *>(dataptrarray[5]))[0] = _c_retval
         if _c_retval != 0:
             stat_ok = False
-        
-        numpy.PyArray_MultiIter_NEXT(it)
-
+        status = iternext(GetNpyIter(it))
+    
     if not stat_ok:
         check_errwarn(c_retval_out, 'ut1tt')
-
+    
     return tt1_out, tt2_out
 STATUS_CODES['ut1tt'] = {0: u'OK'}
+
 
 
 def ut1utc(ut11, ut12, dut1):
@@ -17713,12 +19619,24 @@ def ut1utc(ut11, ut12, dut1):
     Derived, with permission, from the SOFA library.  See notes at end of file.
   
     """
-    in_shape = numpy.broadcast(ut11, ut12, dut1).shape
-    utc1_out = numpy.empty(in_shape, dtype=numpy.double)
-    utc2_out = numpy.empty(in_shape, dtype=numpy.double)
-    c_retval_out = numpy.empty(in_shape, dtype=numpy.intc)
     
-    cdef numpy.broadcast it = numpy.broadcast(ut11, ut12, dut1, utc1_out, utc2_out, c_retval_out)
+    #Turn all inputs into arrays
+    ut11_in = numpy.array(ut11, dtype=numpy.double, order="C", copy=False, subok=True)
+    ut12_in = numpy.array(ut12, dtype=numpy.double, order="C", copy=False, subok=True)
+    dut1_in = numpy.array(dut1, dtype=numpy.double, order="C", copy=False, subok=True)
+    
+    #Create the output array, based on the broadcasted shape, adding the generated dimensions if needed
+    broadcast = numpy.broadcast(numpy.int32(0.0), numpy.int32(0.0), ut11_in, ut12_in, dut1_in)
+    utc1_out = numpy.empty(broadcast.shape+(), dtype=numpy.double)
+    utc2_out = numpy.empty(broadcast.shape+(), dtype=numpy.double)
+    c_retval_out = numpy.empty(broadcast.shape+(), dtype=numpy.intc)
+    
+    #Create the iterator, broadcasting on all but the consumed dimensions
+    op_axes = [[-1]*(broadcast.nd-arr.ndim)+range(arr.ndim) for arr in [ut11_in, ut12_in, dut1_in]+[utc1_out, utc2_out, c_retval_out]]
+    op_flags = [['readonly']]*3+[['readwrite']]*3
+    it = numpy.nditer([ut11_in, ut12_in, dut1_in]+[utc1_out, utc2_out, c_retval_out], op_axes=op_axes, op_flags=op_flags)
+    
+    #Iterate
     cdef double _ut11
     cdef double _ut12
     cdef double _dut1
@@ -17726,26 +19644,27 @@ def ut1utc(ut11, ut12, dut1):
     cdef double * _utc2
     cdef int _c_retval
     cdef bint stat_ok = True
-    
-    while numpy.PyArray_MultiIter_NOTDONE(it):
-        _ut11 = (<double*>numpy.PyArray_MultiIter_DATA(it, 0))[0]
-        _ut12 = (<double*>numpy.PyArray_MultiIter_DATA(it, 1))[0]
-        _dut1 = (<double*>numpy.PyArray_MultiIter_DATA(it, 2))[0]
-        _utc1 = (<double *>numpy.PyArray_MultiIter_DATA(it, 3))
-        _utc2 = (<double *>numpy.PyArray_MultiIter_DATA(it, 4))
-        
+    cdef char** dataptrarray = GetDataPtrArray(GetNpyIter(it))
+    cdef IterNextFunc iternext = GetIterNext(GetNpyIter(it), NULL)
+    cdef int status = 1
+    while status:
+        _ut11 = (<double *>(dataptrarray[0]))[0]
+        _ut12 = (<double *>(dataptrarray[1]))[0]
+        _dut1 = (<double *>(dataptrarray[2]))[0]
+        _utc1 = (<double *>(dataptrarray[3]))
+        _utc2 = (<double *>(dataptrarray[4]))
         _c_retval = eraUt1utc(_ut11, _ut12, _dut1, _utc1, _utc2)
-        (<int*>numpy.PyArray_MultiIter_DATA(it, 5))[0] = _c_retval
+        (<int *>(dataptrarray[5]))[0] = _c_retval
         if _c_retval != 0:
             stat_ok = False
-        
-        numpy.PyArray_MultiIter_NEXT(it)
-
+        status = iternext(GetNpyIter(it))
+    
     if not stat_ok:
         check_errwarn(c_retval_out, 'ut1utc')
-
+    
     return utc1_out, utc2_out
 STATUS_CODES['ut1utc'] = {0: u'OK', 1: u'dubious year (Note 5)', -1: u'unacceptable date'}
+
 
 
 def utctai(utc1, utc2):
@@ -17816,37 +19735,49 @@ def utctai(utc1, utc2):
     Derived, with permission, from the SOFA library.  See notes at end of file.
   
     """
-    in_shape = numpy.broadcast(utc1, utc2).shape
-    tai1_out = numpy.empty(in_shape, dtype=numpy.double)
-    tai2_out = numpy.empty(in_shape, dtype=numpy.double)
-    c_retval_out = numpy.empty(in_shape, dtype=numpy.intc)
     
-    cdef numpy.broadcast it = numpy.broadcast(utc1, utc2, tai1_out, tai2_out, c_retval_out)
+    #Turn all inputs into arrays
+    utc1_in = numpy.array(utc1, dtype=numpy.double, order="C", copy=False, subok=True)
+    utc2_in = numpy.array(utc2, dtype=numpy.double, order="C", copy=False, subok=True)
+    
+    #Create the output array, based on the broadcasted shape, adding the generated dimensions if needed
+    broadcast = numpy.broadcast(numpy.int32(0.0), numpy.int32(0.0), utc1_in, utc2_in)
+    tai1_out = numpy.empty(broadcast.shape+(), dtype=numpy.double)
+    tai2_out = numpy.empty(broadcast.shape+(), dtype=numpy.double)
+    c_retval_out = numpy.empty(broadcast.shape+(), dtype=numpy.intc)
+    
+    #Create the iterator, broadcasting on all but the consumed dimensions
+    op_axes = [[-1]*(broadcast.nd-arr.ndim)+range(arr.ndim) for arr in [utc1_in, utc2_in]+[tai1_out, tai2_out, c_retval_out]]
+    op_flags = [['readonly']]*2+[['readwrite']]*3
+    it = numpy.nditer([utc1_in, utc2_in]+[tai1_out, tai2_out, c_retval_out], op_axes=op_axes, op_flags=op_flags)
+    
+    #Iterate
     cdef double _utc1
     cdef double _utc2
     cdef double * _tai1
     cdef double * _tai2
     cdef int _c_retval
     cdef bint stat_ok = True
-    
-    while numpy.PyArray_MultiIter_NOTDONE(it):
-        _utc1 = (<double*>numpy.PyArray_MultiIter_DATA(it, 0))[0]
-        _utc2 = (<double*>numpy.PyArray_MultiIter_DATA(it, 1))[0]
-        _tai1 = (<double *>numpy.PyArray_MultiIter_DATA(it, 2))
-        _tai2 = (<double *>numpy.PyArray_MultiIter_DATA(it, 3))
-        
+    cdef char** dataptrarray = GetDataPtrArray(GetNpyIter(it))
+    cdef IterNextFunc iternext = GetIterNext(GetNpyIter(it), NULL)
+    cdef int status = 1
+    while status:
+        _utc1 = (<double *>(dataptrarray[0]))[0]
+        _utc2 = (<double *>(dataptrarray[1]))[0]
+        _tai1 = (<double *>(dataptrarray[2]))
+        _tai2 = (<double *>(dataptrarray[3]))
         _c_retval = eraUtctai(_utc1, _utc2, _tai1, _tai2)
-        (<int*>numpy.PyArray_MultiIter_DATA(it, 4))[0] = _c_retval
+        (<int *>(dataptrarray[4]))[0] = _c_retval
         if _c_retval != 0:
             stat_ok = False
-        
-        numpy.PyArray_MultiIter_NEXT(it)
-
+        status = iternext(GetNpyIter(it))
+    
     if not stat_ok:
         check_errwarn(c_retval_out, 'utctai')
-
+    
     return tai1_out, tai2_out
 STATUS_CODES['utctai'] = {0: u'OK', 1: u'dubious year (Note 3)', -1: u'unacceptable date'}
+
 
 
 def utcut1(utc1, utc2, dut1):
@@ -17921,12 +19852,24 @@ def utcut1(utc1, utc2, dut1):
     Derived, with permission, from the SOFA library.  See notes at end of file.
   
     """
-    in_shape = numpy.broadcast(utc1, utc2, dut1).shape
-    ut11_out = numpy.empty(in_shape, dtype=numpy.double)
-    ut12_out = numpy.empty(in_shape, dtype=numpy.double)
-    c_retval_out = numpy.empty(in_shape, dtype=numpy.intc)
     
-    cdef numpy.broadcast it = numpy.broadcast(utc1, utc2, dut1, ut11_out, ut12_out, c_retval_out)
+    #Turn all inputs into arrays
+    utc1_in = numpy.array(utc1, dtype=numpy.double, order="C", copy=False, subok=True)
+    utc2_in = numpy.array(utc2, dtype=numpy.double, order="C", copy=False, subok=True)
+    dut1_in = numpy.array(dut1, dtype=numpy.double, order="C", copy=False, subok=True)
+    
+    #Create the output array, based on the broadcasted shape, adding the generated dimensions if needed
+    broadcast = numpy.broadcast(numpy.int32(0.0), numpy.int32(0.0), utc1_in, utc2_in, dut1_in)
+    ut11_out = numpy.empty(broadcast.shape+(), dtype=numpy.double)
+    ut12_out = numpy.empty(broadcast.shape+(), dtype=numpy.double)
+    c_retval_out = numpy.empty(broadcast.shape+(), dtype=numpy.intc)
+    
+    #Create the iterator, broadcasting on all but the consumed dimensions
+    op_axes = [[-1]*(broadcast.nd-arr.ndim)+range(arr.ndim) for arr in [utc1_in, utc2_in, dut1_in]+[ut11_out, ut12_out, c_retval_out]]
+    op_flags = [['readonly']]*3+[['readwrite']]*3
+    it = numpy.nditer([utc1_in, utc2_in, dut1_in]+[ut11_out, ut12_out, c_retval_out], op_axes=op_axes, op_flags=op_flags)
+    
+    #Iterate
     cdef double _utc1
     cdef double _utc2
     cdef double _dut1
@@ -17934,24 +19877,25 @@ def utcut1(utc1, utc2, dut1):
     cdef double * _ut12
     cdef int _c_retval
     cdef bint stat_ok = True
-    
-    while numpy.PyArray_MultiIter_NOTDONE(it):
-        _utc1 = (<double*>numpy.PyArray_MultiIter_DATA(it, 0))[0]
-        _utc2 = (<double*>numpy.PyArray_MultiIter_DATA(it, 1))[0]
-        _dut1 = (<double*>numpy.PyArray_MultiIter_DATA(it, 2))[0]
-        _ut11 = (<double *>numpy.PyArray_MultiIter_DATA(it, 3))
-        _ut12 = (<double *>numpy.PyArray_MultiIter_DATA(it, 4))
-        
+    cdef char** dataptrarray = GetDataPtrArray(GetNpyIter(it))
+    cdef IterNextFunc iternext = GetIterNext(GetNpyIter(it), NULL)
+    cdef int status = 1
+    while status:
+        _utc1 = (<double *>(dataptrarray[0]))[0]
+        _utc2 = (<double *>(dataptrarray[1]))[0]
+        _dut1 = (<double *>(dataptrarray[2]))[0]
+        _ut11 = (<double *>(dataptrarray[3]))
+        _ut12 = (<double *>(dataptrarray[4]))
         _c_retval = eraUtcut1(_utc1, _utc2, _dut1, _ut11, _ut12)
-        (<int*>numpy.PyArray_MultiIter_DATA(it, 5))[0] = _c_retval
+        (<int *>(dataptrarray[5]))[0] = _c_retval
         if _c_retval != 0:
             stat_ok = False
-        
-        numpy.PyArray_MultiIter_NEXT(it)
-
+        status = iternext(GetNpyIter(it))
+    
     if not stat_ok:
         check_errwarn(c_retval_out, 'utcut1')
-
+    
     return ut11_out, ut12_out
 STATUS_CODES['utcut1'] = {0: u'OK', 1: u'dubious year (Note 3)', -1: u'unacceptable date'}
+
 
