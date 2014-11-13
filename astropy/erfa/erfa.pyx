@@ -372,9 +372,10 @@ def cal2jd(iy, im, id):
     c_retval_out = numpy.empty(broadcast.shape+(), dtype=numpy.intc)
     
     #Create the iterator, broadcasting on all but the consumed dimensions
-    op_axes = [[-1]*(broadcast.nd-arr.ndim)+range(arr.ndim) for arr in [iy_in, im_in, id_in]+[djm0_out, djm_out, c_retval_out]]
-    op_flags = [['readonly']]*3+[['readwrite']]*3
-    it = numpy.nditer([iy_in, im_in, id_in]+[djm0_out, djm_out, c_retval_out], op_axes=op_axes, op_flags=op_flags)
+    arrs = [iy_in, im_in, id_in, djm0_out, djm_out, c_retval_out]
+    op_axes = [[-1]*(broadcast.nd-arr.ndim) + list(range(arr.ndim)) for arr in arrs]
+    op_flags = [['readonly']]*3 + [['readwrite']]*3
+    it = numpy.nditer(arrs, op_axes=op_axes, op_flags=op_flags)
     
     #Iterate
     cdef int _iy
@@ -453,9 +454,10 @@ def epb(dj1, dj2):
     c_retval_out = numpy.empty(broadcast.shape+(), dtype=numpy.double)
     
     #Create the iterator, broadcasting on all but the consumed dimensions
-    op_axes = [[-1]*(broadcast.nd-arr.ndim)+range(arr.ndim) for arr in [dj1_in, dj2_in]+[c_retval_out]]
-    op_flags = [['readonly']]*2+[['readwrite']]*1
-    it = numpy.nditer([dj1_in, dj2_in]+[c_retval_out], op_axes=op_axes, op_flags=op_flags)
+    arrs = [dj1_in, dj2_in, c_retval_out]
+    op_axes = [[-1]*(broadcast.nd-arr.ndim) + list(range(arr.ndim)) for arr in arrs]
+    op_flags = [['readonly']]*2 + [['readwrite']]*1
+    it = numpy.nditer(arrs, op_axes=op_axes, op_flags=op_flags)
     
     #Iterate
     cdef double _dj1
@@ -520,9 +522,10 @@ def epb2jd(epb):
     djm_out = numpy.empty(broadcast.shape+(), dtype=numpy.double)
     
     #Create the iterator, broadcasting on all but the consumed dimensions
-    op_axes = [[-1]*(broadcast.nd-arr.ndim)+range(arr.ndim) for arr in [epb_in]+[djm0_out, djm_out]]
-    op_flags = [['readonly']]*1+[['readwrite']]*2
-    it = numpy.nditer([epb_in]+[djm0_out, djm_out], op_axes=op_axes, op_flags=op_flags)
+    arrs = [epb_in, djm0_out, djm_out]
+    op_axes = [[-1]*(broadcast.nd-arr.ndim) + list(range(arr.ndim)) for arr in arrs]
+    op_flags = [['readonly']]*1 + [['readwrite']]*2
+    it = numpy.nditer(arrs, op_axes=op_axes, op_flags=op_flags)
     
     #Iterate
     cdef double _epb
@@ -587,9 +590,10 @@ def epj(dj1, dj2):
     c_retval_out = numpy.empty(broadcast.shape+(), dtype=numpy.double)
     
     #Create the iterator, broadcasting on all but the consumed dimensions
-    op_axes = [[-1]*(broadcast.nd-arr.ndim)+range(arr.ndim) for arr in [dj1_in, dj2_in]+[c_retval_out]]
-    op_flags = [['readonly']]*2+[['readwrite']]*1
-    it = numpy.nditer([dj1_in, dj2_in]+[c_retval_out], op_axes=op_axes, op_flags=op_flags)
+    arrs = [dj1_in, dj2_in, c_retval_out]
+    op_axes = [[-1]*(broadcast.nd-arr.ndim) + list(range(arr.ndim)) for arr in arrs]
+    op_flags = [['readonly']]*2 + [['readwrite']]*1
+    it = numpy.nditer(arrs, op_axes=op_axes, op_flags=op_flags)
     
     #Iterate
     cdef double _dj1
@@ -654,9 +658,10 @@ def epj2jd(epj):
     djm_out = numpy.empty(broadcast.shape+(), dtype=numpy.double)
     
     #Create the iterator, broadcasting on all but the consumed dimensions
-    op_axes = [[-1]*(broadcast.nd-arr.ndim)+range(arr.ndim) for arr in [epj_in]+[djm0_out, djm_out]]
-    op_flags = [['readonly']]*1+[['readwrite']]*2
-    it = numpy.nditer([epj_in]+[djm0_out, djm_out], op_axes=op_axes, op_flags=op_flags)
+    arrs = [epj_in, djm0_out, djm_out]
+    op_axes = [[-1]*(broadcast.nd-arr.ndim) + list(range(arr.ndim)) for arr in arrs]
+    op_flags = [['readonly']]*1 + [['readwrite']]*2
+    it = numpy.nditer(arrs, op_axes=op_axes, op_flags=op_flags)
     
     #Iterate
     cdef double _epj
@@ -748,9 +753,10 @@ def jd2cal(dj1, dj2):
     c_retval_out = numpy.empty(broadcast.shape+(), dtype=numpy.intc)
     
     #Create the iterator, broadcasting on all but the consumed dimensions
-    op_axes = [[-1]*(broadcast.nd-arr.ndim)+range(arr.ndim) for arr in [dj1_in, dj2_in]+[iy_out, im_out, id_out, fd_out, c_retval_out]]
-    op_flags = [['readonly']]*2+[['readwrite']]*5
-    it = numpy.nditer([dj1_in, dj2_in]+[iy_out, im_out, id_out, fd_out, c_retval_out], op_axes=op_axes, op_flags=op_flags)
+    arrs = [dj1_in, dj2_in, iy_out, im_out, id_out, fd_out, c_retval_out]
+    op_axes = [[-1]*(broadcast.nd-arr.ndim) + list(range(arr.ndim)) for arr in arrs]
+    op_flags = [['readonly']]*2 + [['readwrite']]*5
+    it = numpy.nditer(arrs, op_axes=op_axes, op_flags=op_flags)
     
     #Iterate
     cdef double _dj1
@@ -862,9 +868,10 @@ def jdcalf(ndp, dj1, dj2):
     c_retval_out = numpy.empty(broadcast.shape+(), dtype=numpy.intc)
     
     #Create the iterator, broadcasting on all but the consumed dimensions
-    op_axes = [[-1]*(broadcast.nd-arr.ndim)+range(arr.ndim) for arr in [ndp_in, dj1_in, dj2_in]+[iymdf_out[...,0], c_retval_out]]
-    op_flags = [['readonly']]*3+[['readwrite']]*2
-    it = numpy.nditer([ndp_in, dj1_in, dj2_in]+[iymdf_out, c_retval_out], op_axes=op_axes, op_flags=op_flags)
+    arrs = [ndp_in, dj1_in, dj2_in, iymdf_out[...,0], c_retval_out]
+    op_axes = [[-1]*(broadcast.nd-arr.ndim) + list(range(arr.ndim)) for arr in arrs]
+    op_flags = [['readonly']]*3 + [['readwrite']]*2
+    it = numpy.nditer(arrs, op_axes=op_axes, op_flags=op_flags)
     
     #Iterate
     cdef int _ndp
@@ -964,9 +971,10 @@ def ab(pnat, v, s, bm1):
     ppr_out = numpy.empty(broadcast.shape+(3,), dtype=numpy.double)
     
     #Create the iterator, broadcasting on all but the consumed dimensions
-    op_axes = [[-1]*(broadcast.nd-arr.ndim)+range(arr.ndim) for arr in [pnat_in[...,0], v_in[...,0], s_in, bm1_in]+[ppr_out[...,0]]]
-    op_flags = [['readonly']]*4+[['readwrite']]*1
-    it = numpy.nditer([pnat_in, v_in, s_in, bm1_in]+[ppr_out], op_axes=op_axes, op_flags=op_flags)
+    arrs = [pnat_in[...,0], v_in[...,0], s_in, bm1_in, ppr_out[...,0]]
+    op_axes = [[-1]*(broadcast.nd-arr.ndim) + list(range(arr.ndim)) for arr in arrs]
+    op_flags = [['readonly']]*4 + [['readwrite']]*1
+    it = numpy.nditer(arrs, op_axes=op_axes, op_flags=op_flags)
     
     #Iterate
     cdef double * _pnat
@@ -1111,9 +1119,10 @@ def apcg(date1, date2, ebpv, ehp):
     astrom_out = numpy.empty(broadcast.shape+(), dtype=dt_eraASTROM)
     
     #Create the iterator, broadcasting on all but the consumed dimensions
-    op_axes = [[-1]*(broadcast.nd-arr.ndim)+range(arr.ndim) for arr in [date1_in, date2_in, ebpv_in[...,0,0], ehp_in[...,0]]+[astrom_out]]
-    op_flags = [['readonly']]*4+[['readwrite']]*1
-    it = numpy.nditer([date1_in, date2_in, ebpv_in, ehp_in]+[astrom_out], op_axes=op_axes, op_flags=op_flags)
+    arrs = [date1_in, date2_in, ebpv_in[...,0,0], ehp_in[...,0], astrom_out]
+    op_axes = [[-1]*(broadcast.nd-arr.ndim) + list(range(arr.ndim)) for arr in arrs]
+    op_flags = [['readonly']]*4 + [['readwrite']]*1
+    it = numpy.nditer(arrs, op_axes=op_axes, op_flags=op_flags)
     
     #Iterate
     cdef double _date1
@@ -1260,9 +1269,10 @@ def apcg13(date1, date2):
     astrom_out = numpy.empty(broadcast.shape+(), dtype=dt_eraASTROM)
     
     #Create the iterator, broadcasting on all but the consumed dimensions
-    op_axes = [[-1]*(broadcast.nd-arr.ndim)+range(arr.ndim) for arr in [date1_in, date2_in]+[astrom_out]]
-    op_flags = [['readonly']]*2+[['readwrite']]*1
-    it = numpy.nditer([date1_in, date2_in]+[astrom_out], op_axes=op_axes, op_flags=op_flags)
+    arrs = [date1_in, date2_in, astrom_out]
+    op_axes = [[-1]*(broadcast.nd-arr.ndim) + list(range(arr.ndim)) for arr in arrs]
+    op_flags = [['readonly']]*2 + [['readwrite']]*1
+    it = numpy.nditer(arrs, op_axes=op_axes, op_flags=op_flags)
     
     #Iterate
     cdef double _date1
@@ -1415,9 +1425,10 @@ def apci(date1, date2, ebpv, ehp, x, y, s):
     astrom_out = numpy.empty(broadcast.shape+(), dtype=dt_eraASTROM)
     
     #Create the iterator, broadcasting on all but the consumed dimensions
-    op_axes = [[-1]*(broadcast.nd-arr.ndim)+range(arr.ndim) for arr in [date1_in, date2_in, ebpv_in[...,0,0], ehp_in[...,0], x_in, y_in, s_in]+[astrom_out]]
-    op_flags = [['readonly']]*7+[['readwrite']]*1
-    it = numpy.nditer([date1_in, date2_in, ebpv_in, ehp_in, x_in, y_in, s_in]+[astrom_out], op_axes=op_axes, op_flags=op_flags)
+    arrs = [date1_in, date2_in, ebpv_in[...,0,0], ehp_in[...,0], x_in, y_in, s_in, astrom_out]
+    op_axes = [[-1]*(broadcast.nd-arr.ndim) + list(range(arr.ndim)) for arr in arrs]
+    op_flags = [['readonly']]*7 + [['readwrite']]*1
+    it = numpy.nditer(arrs, op_axes=op_axes, op_flags=op_flags)
     
     #Iterate
     cdef double _date1
@@ -1576,9 +1587,10 @@ def apci13(date1, date2):
     eo_out = numpy.empty(broadcast.shape+(), dtype=numpy.double)
     
     #Create the iterator, broadcasting on all but the consumed dimensions
-    op_axes = [[-1]*(broadcast.nd-arr.ndim)+range(arr.ndim) for arr in [date1_in, date2_in]+[astrom_out, eo_out]]
-    op_flags = [['readonly']]*2+[['readwrite']]*2
-    it = numpy.nditer([date1_in, date2_in]+[astrom_out, eo_out], op_axes=op_axes, op_flags=op_flags)
+    arrs = [date1_in, date2_in, astrom_out, eo_out]
+    op_axes = [[-1]*(broadcast.nd-arr.ndim) + list(range(arr.ndim)) for arr in arrs]
+    op_flags = [['readonly']]*2 + [['readwrite']]*2
+    it = numpy.nditer(arrs, op_axes=op_axes, op_flags=op_flags)
     
     #Iterate
     cdef double _date1
@@ -1783,9 +1795,10 @@ def apco(date1, date2, ebpv, ehp, x, y, s, theta, elong, phi, hm, xp, yp, sp, re
     numpy.copyto(refb_out, refb_in)
     
     #Create the iterator, broadcasting on all but the consumed dimensions
-    op_axes = [[-1]*(broadcast.nd-arr.ndim)+range(arr.ndim) for arr in [date1_in, date2_in, ebpv_in[...,0,0], ehp_in[...,0], x_in, y_in, s_in, theta_in, elong_in, phi_in, hm_in, xp_in, yp_in, sp_in]+[refa_out, refb_out, astrom_out]]
-    op_flags = [['readonly']]*14+[['readwrite']]*3
-    it = numpy.nditer([date1_in, date2_in, ebpv_in, ehp_in, x_in, y_in, s_in, theta_in, elong_in, phi_in, hm_in, xp_in, yp_in, sp_in]+[refa_out, refb_out, astrom_out], op_axes=op_axes, op_flags=op_flags)
+    arrs = [date1_in, date2_in, ebpv_in[...,0,0], ehp_in[...,0], x_in, y_in, s_in, theta_in, elong_in, phi_in, hm_in, xp_in, yp_in, sp_in, refa_out, refb_out, astrom_out]
+    op_axes = [[-1]*(broadcast.nd-arr.ndim) + list(range(arr.ndim)) for arr in arrs]
+    op_flags = [['readonly']]*14 + [['readwrite']]*3
+    it = numpy.nditer(arrs, op_axes=op_axes, op_flags=op_flags)
     
     #Iterate
     cdef double _date1
@@ -2034,9 +2047,10 @@ def apco13(utc1, utc2, dut1, elong, phi, hm, xp, yp, phpa, tc, rh, wl):
     c_retval_out = numpy.empty(broadcast.shape+(), dtype=numpy.intc)
     
     #Create the iterator, broadcasting on all but the consumed dimensions
-    op_axes = [[-1]*(broadcast.nd-arr.ndim)+range(arr.ndim) for arr in [utc1_in, utc2_in, dut1_in, elong_in, phi_in, hm_in, xp_in, yp_in, phpa_in, tc_in, rh_in, wl_in]+[astrom_out, eo_out, c_retval_out]]
-    op_flags = [['readonly']]*12+[['readwrite']]*3
-    it = numpy.nditer([utc1_in, utc2_in, dut1_in, elong_in, phi_in, hm_in, xp_in, yp_in, phpa_in, tc_in, rh_in, wl_in]+[astrom_out, eo_out, c_retval_out], op_axes=op_axes, op_flags=op_flags)
+    arrs = [utc1_in, utc2_in, dut1_in, elong_in, phi_in, hm_in, xp_in, yp_in, phpa_in, tc_in, rh_in, wl_in, astrom_out, eo_out, c_retval_out]
+    op_axes = [[-1]*(broadcast.nd-arr.ndim) + list(range(arr.ndim)) for arr in arrs]
+    op_flags = [['readonly']]*12 + [['readwrite']]*3
+    it = numpy.nditer(arrs, op_axes=op_axes, op_flags=op_flags)
     
     #Iterate
     cdef double _utc1
@@ -2230,9 +2244,10 @@ def apcs(date1, date2, pv, ebpv, ehp):
     astrom_out = numpy.empty(broadcast.shape+(), dtype=dt_eraASTROM)
     
     #Create the iterator, broadcasting on all but the consumed dimensions
-    op_axes = [[-1]*(broadcast.nd-arr.ndim)+range(arr.ndim) for arr in [date1_in, date2_in, pv_in[...,0,0], ebpv_in[...,0,0], ehp_in[...,0]]+[astrom_out]]
-    op_flags = [['readonly']]*5+[['readwrite']]*1
-    it = numpy.nditer([date1_in, date2_in, pv_in, ebpv_in, ehp_in]+[astrom_out], op_axes=op_axes, op_flags=op_flags)
+    arrs = [date1_in, date2_in, pv_in[...,0,0], ebpv_in[...,0,0], ehp_in[...,0], astrom_out]
+    op_axes = [[-1]*(broadcast.nd-arr.ndim) + list(range(arr.ndim)) for arr in arrs]
+    op_flags = [['readonly']]*5 + [['readwrite']]*1
+    it = numpy.nditer(arrs, op_axes=op_axes, op_flags=op_flags)
     
     #Iterate
     cdef double _date1
@@ -2388,9 +2403,10 @@ def apcs13(date1, date2, pv):
     astrom_out = numpy.empty(broadcast.shape+(), dtype=dt_eraASTROM)
     
     #Create the iterator, broadcasting on all but the consumed dimensions
-    op_axes = [[-1]*(broadcast.nd-arr.ndim)+range(arr.ndim) for arr in [date1_in, date2_in, pv_in[...,0,0]]+[astrom_out]]
-    op_flags = [['readonly']]*3+[['readwrite']]*1
-    it = numpy.nditer([date1_in, date2_in, pv_in]+[astrom_out], op_axes=op_axes, op_flags=op_flags)
+    arrs = [date1_in, date2_in, pv_in[...,0,0], astrom_out]
+    op_axes = [[-1]*(broadcast.nd-arr.ndim) + list(range(arr.ndim)) for arr in arrs]
+    op_flags = [['readonly']]*3 + [['readwrite']]*1
+    it = numpy.nditer(arrs, op_axes=op_axes, op_flags=op_flags)
     
     #Iterate
     cdef double _date1
@@ -2521,9 +2537,10 @@ def aper(theta, astrom):
     numpy.copyto(astrom_out, astrom_in)
     
     #Create the iterator, broadcasting on all but the consumed dimensions
-    op_axes = [[-1]*(broadcast.nd-arr.ndim)+range(arr.ndim) for arr in [theta_in]+[astrom_out]]
-    op_flags = [['readonly']]*1+[['readwrite']]*1
-    it = numpy.nditer([theta_in]+[astrom_out], op_axes=op_axes, op_flags=op_flags)
+    arrs = [theta_in, astrom_out]
+    op_axes = [[-1]*(broadcast.nd-arr.ndim) + list(range(arr.ndim)) for arr in arrs]
+    op_flags = [['readonly']]*1 + [['readwrite']]*1
+    it = numpy.nditer(arrs, op_axes=op_axes, op_flags=op_flags)
     
     #Iterate
     cdef double _theta
@@ -2670,9 +2687,10 @@ def aper13(ut11, ut12, astrom):
     numpy.copyto(astrom_out, astrom_in)
     
     #Create the iterator, broadcasting on all but the consumed dimensions
-    op_axes = [[-1]*(broadcast.nd-arr.ndim)+range(arr.ndim) for arr in [ut11_in, ut12_in]+[astrom_out]]
-    op_flags = [['readonly']]*2+[['readwrite']]*1
-    it = numpy.nditer([ut11_in, ut12_in]+[astrom_out], op_axes=op_axes, op_flags=op_flags)
+    arrs = [ut11_in, ut12_in, astrom_out]
+    op_axes = [[-1]*(broadcast.nd-arr.ndim) + list(range(arr.ndim)) for arr in arrs]
+    op_flags = [['readonly']]*2 + [['readwrite']]*1
+    it = numpy.nditer(arrs, op_axes=op_axes, op_flags=op_flags)
     
     #Iterate
     cdef double _ut11
@@ -2832,9 +2850,10 @@ def apio(sp, theta, elong, phi, hm, xp, yp, refa, refb):
     numpy.copyto(refb_out, refb_in)
     
     #Create the iterator, broadcasting on all but the consumed dimensions
-    op_axes = [[-1]*(broadcast.nd-arr.ndim)+range(arr.ndim) for arr in [sp_in, theta_in, elong_in, phi_in, hm_in, xp_in, yp_in]+[refa_out, refb_out, astrom_out]]
-    op_flags = [['readonly']]*7+[['readwrite']]*3
-    it = numpy.nditer([sp_in, theta_in, elong_in, phi_in, hm_in, xp_in, yp_in]+[refa_out, refb_out, astrom_out], op_axes=op_axes, op_flags=op_flags)
+    arrs = [sp_in, theta_in, elong_in, phi_in, hm_in, xp_in, yp_in, refa_out, refb_out, astrom_out]
+    op_axes = [[-1]*(broadcast.nd-arr.ndim) + list(range(arr.ndim)) for arr in arrs]
+    op_flags = [['readonly']]*7 + [['readwrite']]*3
+    it = numpy.nditer(arrs, op_axes=op_axes, op_flags=op_flags)
     
     #Iterate
     cdef double _sp
@@ -3057,9 +3076,10 @@ def apio13(utc1, utc2, dut1, elong, phi, hm, xp, yp, phpa, tc, rh, wl):
     c_retval_out = numpy.empty(broadcast.shape+(), dtype=numpy.intc)
     
     #Create the iterator, broadcasting on all but the consumed dimensions
-    op_axes = [[-1]*(broadcast.nd-arr.ndim)+range(arr.ndim) for arr in [utc1_in, utc2_in, dut1_in, elong_in, phi_in, hm_in, xp_in, yp_in, phpa_in, tc_in, rh_in, wl_in]+[astrom_out, c_retval_out]]
-    op_flags = [['readonly']]*12+[['readwrite']]*2
-    it = numpy.nditer([utc1_in, utc2_in, dut1_in, elong_in, phi_in, hm_in, xp_in, yp_in, phpa_in, tc_in, rh_in, wl_in]+[astrom_out, c_retval_out], op_axes=op_axes, op_flags=op_flags)
+    arrs = [utc1_in, utc2_in, dut1_in, elong_in, phi_in, hm_in, xp_in, yp_in, phpa_in, tc_in, rh_in, wl_in, astrom_out, c_retval_out]
+    op_axes = [[-1]*(broadcast.nd-arr.ndim) + list(range(arr.ndim)) for arr in arrs]
+    op_flags = [['readonly']]*12 + [['readwrite']]*2
+    it = numpy.nditer(arrs, op_axes=op_axes, op_flags=op_flags)
     
     #Iterate
     cdef double _utc1
@@ -3211,9 +3231,10 @@ def atci13(rc, dc, pr, pd, px, rv, date1, date2):
     eo_out = numpy.empty(broadcast.shape+(), dtype=numpy.double)
     
     #Create the iterator, broadcasting on all but the consumed dimensions
-    op_axes = [[-1]*(broadcast.nd-arr.ndim)+range(arr.ndim) for arr in [rc_in, dc_in, pr_in, pd_in, px_in, rv_in, date1_in, date2_in]+[ri_out, di_out, eo_out]]
-    op_flags = [['readonly']]*8+[['readwrite']]*3
-    it = numpy.nditer([rc_in, dc_in, pr_in, pd_in, px_in, rv_in, date1_in, date2_in]+[ri_out, di_out, eo_out], op_axes=op_axes, op_flags=op_flags)
+    arrs = [rc_in, dc_in, pr_in, pd_in, px_in, rv_in, date1_in, date2_in, ri_out, di_out, eo_out]
+    op_axes = [[-1]*(broadcast.nd-arr.ndim) + list(range(arr.ndim)) for arr in arrs]
+    op_flags = [['readonly']]*8 + [['readwrite']]*3
+    it = numpy.nditer(arrs, op_axes=op_axes, op_flags=op_flags)
     
     #Iterate
     cdef double _rc
@@ -3336,9 +3357,10 @@ def atciq(rc, dc, pr, pd, px, rv, astrom):
     di_out = numpy.empty(broadcast.shape+(), dtype=numpy.double)
     
     #Create the iterator, broadcasting on all but the consumed dimensions
-    op_axes = [[-1]*(broadcast.nd-arr.ndim)+range(arr.ndim) for arr in [rc_in, dc_in, pr_in, pd_in, px_in, rv_in, astrom_in]+[ri_out, di_out]]
-    op_flags = [['readonly']]*7+[['readwrite']]*2
-    it = numpy.nditer([rc_in, dc_in, pr_in, pd_in, px_in, rv_in, astrom_in]+[ri_out, di_out], op_axes=op_axes, op_flags=op_flags)
+    arrs = [rc_in, dc_in, pr_in, pd_in, px_in, rv_in, astrom_in, ri_out, di_out]
+    op_axes = [[-1]*(broadcast.nd-arr.ndim) + list(range(arr.ndim)) for arr in arrs]
+    op_flags = [['readonly']]*7 + [['readwrite']]*2
+    it = numpy.nditer(arrs, op_axes=op_axes, op_flags=op_flags)
     
     #Iterate
     cdef double _rc
@@ -3496,9 +3518,10 @@ def atciqn(rc, dc, pr, pd, px, rv, astrom, n, b):
     di_out = numpy.empty(broadcast.shape+(), dtype=numpy.double)
     
     #Create the iterator, broadcasting on all but the consumed dimensions
-    op_axes = [[-1]*(broadcast.nd-arr.ndim)+range(arr.ndim) for arr in [rc_in, dc_in, pr_in, pd_in, px_in, rv_in, astrom_in, n_in, b_in]+[ri_out, di_out]]
-    op_flags = [['readonly']]*9+[['readwrite']]*2
-    it = numpy.nditer([rc_in, dc_in, pr_in, pd_in, px_in, rv_in, astrom_in, n_in, b_in]+[ri_out, di_out], op_axes=op_axes, op_flags=op_flags)
+    arrs = [rc_in, dc_in, pr_in, pd_in, px_in, rv_in, astrom_in, n_in, b_in, ri_out, di_out]
+    op_axes = [[-1]*(broadcast.nd-arr.ndim) + list(range(arr.ndim)) for arr in arrs]
+    op_flags = [['readonly']]*9 + [['readwrite']]*2
+    it = numpy.nditer(arrs, op_axes=op_axes, op_flags=op_flags)
     
     #Iterate
     cdef double _rc
@@ -3617,9 +3640,10 @@ def atciqz(rc, dc, astrom):
     di_out = numpy.empty(broadcast.shape+(), dtype=numpy.double)
     
     #Create the iterator, broadcasting on all but the consumed dimensions
-    op_axes = [[-1]*(broadcast.nd-arr.ndim)+range(arr.ndim) for arr in [rc_in, dc_in, astrom_in]+[ri_out, di_out]]
-    op_flags = [['readonly']]*3+[['readwrite']]*2
-    it = numpy.nditer([rc_in, dc_in, astrom_in]+[ri_out, di_out], op_axes=op_axes, op_flags=op_flags)
+    arrs = [rc_in, dc_in, astrom_in, ri_out, di_out]
+    op_axes = [[-1]*(broadcast.nd-arr.ndim) + list(range(arr.ndim)) for arr in arrs]
+    op_flags = [['readonly']]*3 + [['readwrite']]*2
+    it = numpy.nditer(arrs, op_axes=op_axes, op_flags=op_flags)
     
     #Iterate
     cdef double _rc
@@ -3829,9 +3853,10 @@ def atco13(rc, dc, pr, pd, px, rv, utc1, utc2, dut1, elong, phi, hm, xp, yp, php
     c_retval_out = numpy.empty(broadcast.shape+(), dtype=numpy.intc)
     
     #Create the iterator, broadcasting on all but the consumed dimensions
-    op_axes = [[-1]*(broadcast.nd-arr.ndim)+range(arr.ndim) for arr in [rc_in, dc_in, pr_in, pd_in, px_in, rv_in, utc1_in, utc2_in, dut1_in, elong_in, phi_in, hm_in, xp_in, yp_in, phpa_in, tc_in, rh_in, wl_in]+[aob_out, zob_out, hob_out, dob_out, rob_out, eo_out, c_retval_out]]
-    op_flags = [['readonly']]*18+[['readwrite']]*7
-    it = numpy.nditer([rc_in, dc_in, pr_in, pd_in, px_in, rv_in, utc1_in, utc2_in, dut1_in, elong_in, phi_in, hm_in, xp_in, yp_in, phpa_in, tc_in, rh_in, wl_in]+[aob_out, zob_out, hob_out, dob_out, rob_out, eo_out, c_retval_out], op_axes=op_axes, op_flags=op_flags)
+    arrs = [rc_in, dc_in, pr_in, pd_in, px_in, rv_in, utc1_in, utc2_in, dut1_in, elong_in, phi_in, hm_in, xp_in, yp_in, phpa_in, tc_in, rh_in, wl_in, aob_out, zob_out, hob_out, dob_out, rob_out, eo_out, c_retval_out]
+    op_axes = [[-1]*(broadcast.nd-arr.ndim) + list(range(arr.ndim)) for arr in arrs]
+    op_flags = [['readonly']]*18 + [['readwrite']]*7
+    it = numpy.nditer(arrs, op_axes=op_axes, op_flags=op_flags)
     
     #Iterate
     cdef double _rc
@@ -3996,9 +4021,10 @@ def atic13(ri, di, date1, date2):
     eo_out = numpy.empty(broadcast.shape+(), dtype=numpy.double)
     
     #Create the iterator, broadcasting on all but the consumed dimensions
-    op_axes = [[-1]*(broadcast.nd-arr.ndim)+range(arr.ndim) for arr in [ri_in, di_in, date1_in, date2_in]+[rc_out, dc_out, eo_out]]
-    op_flags = [['readonly']]*4+[['readwrite']]*3
-    it = numpy.nditer([ri_in, di_in, date1_in, date2_in]+[rc_out, dc_out, eo_out], op_axes=op_axes, op_flags=op_flags)
+    arrs = [ri_in, di_in, date1_in, date2_in, rc_out, dc_out, eo_out]
+    op_axes = [[-1]*(broadcast.nd-arr.ndim) + list(range(arr.ndim)) for arr in arrs]
+    op_flags = [['readonly']]*4 + [['readwrite']]*3
+    it = numpy.nditer(arrs, op_axes=op_axes, op_flags=op_flags)
     
     #Iterate
     cdef double _ri
@@ -4105,9 +4131,10 @@ def aticq(ri, di, astrom):
     dc_out = numpy.empty(broadcast.shape+(), dtype=numpy.double)
     
     #Create the iterator, broadcasting on all but the consumed dimensions
-    op_axes = [[-1]*(broadcast.nd-arr.ndim)+range(arr.ndim) for arr in [ri_in, di_in, astrom_in]+[rc_out, dc_out]]
-    op_flags = [['readonly']]*3+[['readwrite']]*2
-    it = numpy.nditer([ri_in, di_in, astrom_in]+[rc_out, dc_out], op_axes=op_axes, op_flags=op_flags)
+    arrs = [ri_in, di_in, astrom_in, rc_out, dc_out]
+    op_axes = [[-1]*(broadcast.nd-arr.ndim) + list(range(arr.ndim)) for arr in arrs]
+    op_flags = [['readonly']]*3 + [['readwrite']]*2
+    it = numpy.nditer(arrs, op_axes=op_axes, op_flags=op_flags)
     
     #Iterate
     cdef double _ri
@@ -4250,9 +4277,10 @@ def aticqn(ri, di, astrom, n, b):
     dc_out = numpy.empty(broadcast.shape+(), dtype=numpy.double)
     
     #Create the iterator, broadcasting on all but the consumed dimensions
-    op_axes = [[-1]*(broadcast.nd-arr.ndim)+range(arr.ndim) for arr in [ri_in, di_in, astrom_in, n_in, b_in]+[rc_out, dc_out]]
-    op_flags = [['readonly']]*5+[['readwrite']]*2
-    it = numpy.nditer([ri_in, di_in, astrom_in, n_in, b_in]+[rc_out, dc_out], op_axes=op_axes, op_flags=op_flags)
+    arrs = [ri_in, di_in, astrom_in, n_in, b_in, rc_out, dc_out]
+    op_axes = [[-1]*(broadcast.nd-arr.ndim) + list(range(arr.ndim)) for arr in arrs]
+    op_flags = [['readonly']]*5 + [['readwrite']]*2
+    it = numpy.nditer(arrs, op_axes=op_axes, op_flags=op_flags)
     
     #Iterate
     cdef double _ri
@@ -4445,9 +4473,10 @@ def atio13(ri, di, utc1, utc2, dut1, elong, phi, hm, xp, yp, phpa, tc, rh, wl):
     c_retval_out = numpy.empty(broadcast.shape+(), dtype=numpy.intc)
     
     #Create the iterator, broadcasting on all but the consumed dimensions
-    op_axes = [[-1]*(broadcast.nd-arr.ndim)+range(arr.ndim) for arr in [ri_in, di_in, utc1_in, utc2_in, dut1_in, elong_in, phi_in, hm_in, xp_in, yp_in, phpa_in, tc_in, rh_in, wl_in]+[aob_out, zob_out, hob_out, dob_out, rob_out, c_retval_out]]
-    op_flags = [['readonly']]*14+[['readwrite']]*6
-    it = numpy.nditer([ri_in, di_in, utc1_in, utc2_in, dut1_in, elong_in, phi_in, hm_in, xp_in, yp_in, phpa_in, tc_in, rh_in, wl_in]+[aob_out, zob_out, hob_out, dob_out, rob_out, c_retval_out], op_axes=op_axes, op_flags=op_flags)
+    arrs = [ri_in, di_in, utc1_in, utc2_in, dut1_in, elong_in, phi_in, hm_in, xp_in, yp_in, phpa_in, tc_in, rh_in, wl_in, aob_out, zob_out, hob_out, dob_out, rob_out, c_retval_out]
+    op_axes = [[-1]*(broadcast.nd-arr.ndim) + list(range(arr.ndim)) for arr in arrs]
+    op_flags = [['readonly']]*14 + [['readwrite']]*6
+    it = numpy.nditer(arrs, op_axes=op_axes, op_flags=op_flags)
     
     #Iterate
     cdef double _ri
@@ -4626,9 +4655,10 @@ def atioq(ri, di, astrom):
     rob_out = numpy.empty(broadcast.shape+(), dtype=numpy.double)
     
     #Create the iterator, broadcasting on all but the consumed dimensions
-    op_axes = [[-1]*(broadcast.nd-arr.ndim)+range(arr.ndim) for arr in [ri_in, di_in, astrom_in]+[aob_out, zob_out, hob_out, dob_out, rob_out]]
-    op_flags = [['readonly']]*3+[['readwrite']]*5
-    it = numpy.nditer([ri_in, di_in, astrom_in]+[aob_out, zob_out, hob_out, dob_out, rob_out], op_axes=op_axes, op_flags=op_flags)
+    arrs = [ri_in, di_in, astrom_in, aob_out, zob_out, hob_out, dob_out, rob_out]
+    op_axes = [[-1]*(broadcast.nd-arr.ndim) + list(range(arr.ndim)) for arr in arrs]
+    op_flags = [['readonly']]*3 + [['readwrite']]*5
+    it = numpy.nditer(arrs, op_axes=op_axes, op_flags=op_flags)
     
     #Iterate
     cdef double _ri
@@ -4829,9 +4859,10 @@ def atoc13(type, ob1, ob2, utc1, utc2, dut1, elong, phi, hm, xp, yp, phpa, tc, r
     c_retval_out = numpy.empty(broadcast.shape+(), dtype=numpy.intc)
     
     #Create the iterator, broadcasting on all but the consumed dimensions
-    op_axes = [[-1]*(broadcast.nd-arr.ndim)+range(arr.ndim) for arr in [type_in, ob1_in, ob2_in, utc1_in, utc2_in, dut1_in, elong_in, phi_in, hm_in, xp_in, yp_in, phpa_in, tc_in, rh_in, wl_in]+[rc_out, dc_out, c_retval_out]]
-    op_flags = [['readonly']]*15+[['readwrite']]*3
-    it = numpy.nditer([type_in, ob1_in, ob2_in, utc1_in, utc2_in, dut1_in, elong_in, phi_in, hm_in, xp_in, yp_in, phpa_in, tc_in, rh_in, wl_in]+[rc_out, dc_out, c_retval_out], op_axes=op_axes, op_flags=op_flags)
+    arrs = [type_in, ob1_in, ob2_in, utc1_in, utc2_in, dut1_in, elong_in, phi_in, hm_in, xp_in, yp_in, phpa_in, tc_in, rh_in, wl_in, rc_out, dc_out, c_retval_out]
+    op_axes = [[-1]*(broadcast.nd-arr.ndim) + list(range(arr.ndim)) for arr in arrs]
+    op_flags = [['readonly']]*15 + [['readwrite']]*3
+    it = numpy.nditer(arrs, op_axes=op_axes, op_flags=op_flags)
     
     #Iterate
     cdef const char * _type
@@ -5059,9 +5090,10 @@ def atoi13(type, ob1, ob2, utc1, utc2, dut1, elong, phi, hm, xp, yp, phpa, tc, r
     c_retval_out = numpy.empty(broadcast.shape+(), dtype=numpy.intc)
     
     #Create the iterator, broadcasting on all but the consumed dimensions
-    op_axes = [[-1]*(broadcast.nd-arr.ndim)+range(arr.ndim) for arr in [type_in, ob1_in, ob2_in, utc1_in, utc2_in, dut1_in, elong_in, phi_in, hm_in, xp_in, yp_in, phpa_in, tc_in, rh_in, wl_in]+[ri_out, di_out, c_retval_out]]
-    op_flags = [['readonly']]*15+[['readwrite']]*3
-    it = numpy.nditer([type_in, ob1_in, ob2_in, utc1_in, utc2_in, dut1_in, elong_in, phi_in, hm_in, xp_in, yp_in, phpa_in, tc_in, rh_in, wl_in]+[ri_out, di_out, c_retval_out], op_axes=op_axes, op_flags=op_flags)
+    arrs = [type_in, ob1_in, ob2_in, utc1_in, utc2_in, dut1_in, elong_in, phi_in, hm_in, xp_in, yp_in, phpa_in, tc_in, rh_in, wl_in, ri_out, di_out, c_retval_out]
+    op_axes = [[-1]*(broadcast.nd-arr.ndim) + list(range(arr.ndim)) for arr in arrs]
+    op_flags = [['readonly']]*15 + [['readwrite']]*3
+    it = numpy.nditer(arrs, op_axes=op_axes, op_flags=op_flags)
     
     #Iterate
     cdef const char * _type
@@ -5227,9 +5259,10 @@ def atoiq(type, ob1, ob2, astrom):
     di_out = numpy.empty(broadcast.shape+(), dtype=numpy.double)
     
     #Create the iterator, broadcasting on all but the consumed dimensions
-    op_axes = [[-1]*(broadcast.nd-arr.ndim)+range(arr.ndim) for arr in [type_in, ob1_in, ob2_in, astrom_in]+[ri_out, di_out]]
-    op_flags = [['readonly']]*4+[['readwrite']]*2
-    it = numpy.nditer([type_in, ob1_in, ob2_in, astrom_in]+[ri_out, di_out], op_axes=op_axes, op_flags=op_flags)
+    arrs = [type_in, ob1_in, ob2_in, astrom_in, ri_out, di_out]
+    op_axes = [[-1]*(broadcast.nd-arr.ndim) + list(range(arr.ndim)) for arr in arrs]
+    op_flags = [['readonly']]*4 + [['readwrite']]*2
+    it = numpy.nditer(arrs, op_axes=op_axes, op_flags=op_flags)
     
     #Iterate
     cdef const char * _type
@@ -5345,9 +5378,10 @@ def ld(bm, p, q, e, em, dlim):
     p1_out = numpy.empty(broadcast.shape+(3,), dtype=numpy.double)
     
     #Create the iterator, broadcasting on all but the consumed dimensions
-    op_axes = [[-1]*(broadcast.nd-arr.ndim)+range(arr.ndim) for arr in [bm_in, p_in[...,0], q_in[...,0], e_in[...,0], em_in, dlim_in]+[p1_out[...,0]]]
-    op_flags = [['readonly']]*6+[['readwrite']]*1
-    it = numpy.nditer([bm_in, p_in, q_in, e_in, em_in, dlim_in]+[p1_out], op_axes=op_axes, op_flags=op_flags)
+    arrs = [bm_in, p_in[...,0], q_in[...,0], e_in[...,0], em_in, dlim_in, p1_out[...,0]]
+    op_axes = [[-1]*(broadcast.nd-arr.ndim) + list(range(arr.ndim)) for arr in arrs]
+    op_flags = [['readonly']]*6 + [['readwrite']]*1
+    it = numpy.nditer(arrs, op_axes=op_axes, op_flags=op_flags)
     
     #Iterate
     cdef double _bm
@@ -5473,9 +5507,10 @@ def ldn(n, b, ob, sc):
     sn_out = numpy.empty(broadcast.shape+(3,), dtype=numpy.double)
     
     #Create the iterator, broadcasting on all but the consumed dimensions
-    op_axes = [[-1]*(broadcast.nd-arr.ndim)+range(arr.ndim) for arr in [n_in, b_in, ob_in[...,0], sc_in[...,0]]+[sn_out[...,0]]]
-    op_flags = [['readonly']]*4+[['readwrite']]*1
-    it = numpy.nditer([n_in, b_in, ob_in, sc_in]+[sn_out], op_axes=op_axes, op_flags=op_flags)
+    arrs = [n_in, b_in, ob_in[...,0], sc_in[...,0], sn_out[...,0]]
+    op_axes = [[-1]*(broadcast.nd-arr.ndim) + list(range(arr.ndim)) for arr in arrs]
+    op_flags = [['readonly']]*4 + [['readwrite']]*1
+    it = numpy.nditer(arrs, op_axes=op_axes, op_flags=op_flags)
     
     #Iterate
     cdef int _n
@@ -5551,9 +5586,10 @@ def ldsun(p, e, em):
     p1_out = numpy.empty(broadcast.shape+(3,), dtype=numpy.double)
     
     #Create the iterator, broadcasting on all but the consumed dimensions
-    op_axes = [[-1]*(broadcast.nd-arr.ndim)+range(arr.ndim) for arr in [p_in[...,0], e_in[...,0], em_in]+[p1_out[...,0]]]
-    op_flags = [['readonly']]*3+[['readwrite']]*1
-    it = numpy.nditer([p_in, e_in, em_in]+[p1_out], op_axes=op_axes, op_flags=op_flags)
+    arrs = [p_in[...,0], e_in[...,0], em_in, p1_out[...,0]]
+    op_axes = [[-1]*(broadcast.nd-arr.ndim) + list(range(arr.ndim)) for arr in arrs]
+    op_flags = [['readonly']]*3 + [['readwrite']]*1
+    it = numpy.nditer(arrs, op_axes=op_axes, op_flags=op_flags)
     
     #Iterate
     cdef double * _p
@@ -5644,9 +5680,10 @@ def pmpx(rc, dc, pr, pd, px, rv, pmt, pob):
     pco_out = numpy.empty(broadcast.shape+(3,), dtype=numpy.double)
     
     #Create the iterator, broadcasting on all but the consumed dimensions
-    op_axes = [[-1]*(broadcast.nd-arr.ndim)+range(arr.ndim) for arr in [rc_in, dc_in, pr_in, pd_in, px_in, rv_in, pmt_in, pob_in[...,0]]+[pco_out[...,0]]]
-    op_flags = [['readonly']]*8+[['readwrite']]*1
-    it = numpy.nditer([rc_in, dc_in, pr_in, pd_in, px_in, rv_in, pmt_in, pob_in]+[pco_out], op_axes=op_axes, op_flags=op_flags)
+    arrs = [rc_in, dc_in, pr_in, pd_in, px_in, rv_in, pmt_in, pob_in[...,0], pco_out[...,0]]
+    op_axes = [[-1]*(broadcast.nd-arr.ndim) + list(range(arr.ndim)) for arr in arrs]
+    op_flags = [['readonly']]*8 + [['readwrite']]*1
+    it = numpy.nditer(arrs, op_axes=op_axes, op_flags=op_flags)
     
     #Iterate
     cdef double _rc
@@ -5812,9 +5849,10 @@ def pmsafe(ra1, dec1, pmr1, pmd1, px1, rv1, ep1a, ep1b, ep2a, ep2b):
     c_retval_out = numpy.empty(broadcast.shape+(), dtype=numpy.intc)
     
     #Create the iterator, broadcasting on all but the consumed dimensions
-    op_axes = [[-1]*(broadcast.nd-arr.ndim)+range(arr.ndim) for arr in [ra1_in, dec1_in, pmr1_in, pmd1_in, px1_in, rv1_in, ep1a_in, ep1b_in, ep2a_in, ep2b_in]+[ra2_out, dec2_out, pmr2_out, pmd2_out, px2_out, rv2_out, c_retval_out]]
-    op_flags = [['readonly']]*10+[['readwrite']]*7
-    it = numpy.nditer([ra1_in, dec1_in, pmr1_in, pmd1_in, px1_in, rv1_in, ep1a_in, ep1b_in, ep2a_in, ep2b_in]+[ra2_out, dec2_out, pmr2_out, pmd2_out, px2_out, rv2_out, c_retval_out], op_axes=op_axes, op_flags=op_flags)
+    arrs = [ra1_in, dec1_in, pmr1_in, pmd1_in, px1_in, rv1_in, ep1a_in, ep1b_in, ep2a_in, ep2b_in, ra2_out, dec2_out, pmr2_out, pmd2_out, px2_out, rv2_out, c_retval_out]
+    op_axes = [[-1]*(broadcast.nd-arr.ndim) + list(range(arr.ndim)) for arr in arrs]
+    op_flags = [['readonly']]*10 + [['readwrite']]*7
+    it = numpy.nditer(arrs, op_axes=op_axes, op_flags=op_flags)
     
     #Iterate
     cdef double _ra1
@@ -6036,9 +6074,10 @@ def refco(phpa, tc, rh, wl):
     refb_out = numpy.empty(broadcast.shape+(), dtype=numpy.double)
     
     #Create the iterator, broadcasting on all but the consumed dimensions
-    op_axes = [[-1]*(broadcast.nd-arr.ndim)+range(arr.ndim) for arr in [phpa_in, tc_in, rh_in, wl_in]+[refa_out, refb_out]]
-    op_flags = [['readonly']]*4+[['readwrite']]*2
-    it = numpy.nditer([phpa_in, tc_in, rh_in, wl_in]+[refa_out, refb_out], op_axes=op_axes, op_flags=op_flags)
+    arrs = [phpa_in, tc_in, rh_in, wl_in, refa_out, refb_out]
+    op_axes = [[-1]*(broadcast.nd-arr.ndim) + list(range(arr.ndim)) for arr in arrs]
+    op_flags = [['readonly']]*4 + [['readwrite']]*2
+    it = numpy.nditer(arrs, op_axes=op_axes, op_flags=op_flags)
     
     #Iterate
     cdef double _phpa
@@ -6178,9 +6217,10 @@ def epv00(date1, date2):
     c_retval_out = numpy.empty(broadcast.shape+(), dtype=numpy.intc)
     
     #Create the iterator, broadcasting on all but the consumed dimensions
-    op_axes = [[-1]*(broadcast.nd-arr.ndim)+range(arr.ndim) for arr in [date1_in, date2_in]+[pvh_out[...,0,0], pvb_out[...,0,0], c_retval_out]]
-    op_flags = [['readonly']]*2+[['readwrite']]*3
-    it = numpy.nditer([date1_in, date2_in]+[pvh_out, pvb_out, c_retval_out], op_axes=op_axes, op_flags=op_flags)
+    arrs = [date1_in, date2_in, pvh_out[...,0,0], pvb_out[...,0,0], c_retval_out]
+    op_axes = [[-1]*(broadcast.nd-arr.ndim) + list(range(arr.ndim)) for arr in arrs]
+    op_flags = [['readonly']]*2 + [['readwrite']]*3
+    it = numpy.nditer(arrs, op_axes=op_axes, op_flags=op_flags)
     
     #Iterate
     cdef double _date1
@@ -6390,9 +6430,10 @@ def plan94(date1, date2, np):
     c_retval_out = numpy.empty(broadcast.shape+(), dtype=numpy.intc)
     
     #Create the iterator, broadcasting on all but the consumed dimensions
-    op_axes = [[-1]*(broadcast.nd-arr.ndim)+range(arr.ndim) for arr in [date1_in, date2_in, np_in]+[pv_out[...,0,0], c_retval_out]]
-    op_flags = [['readonly']]*3+[['readwrite']]*2
-    it = numpy.nditer([date1_in, date2_in, np_in]+[pv_out, c_retval_out], op_axes=op_axes, op_flags=op_flags)
+    arrs = [date1_in, date2_in, np_in, pv_out[...,0,0], c_retval_out]
+    op_axes = [[-1]*(broadcast.nd-arr.ndim) + list(range(arr.ndim)) for arr in arrs]
+    op_flags = [['readonly']]*3 + [['readwrite']]*2
+    it = numpy.nditer(arrs, op_axes=op_axes, op_flags=op_flags)
     
     #Iterate
     cdef double _date1
@@ -6473,9 +6514,10 @@ def fad03(t):
     c_retval_out = numpy.empty(broadcast.shape+(), dtype=numpy.double)
     
     #Create the iterator, broadcasting on all but the consumed dimensions
-    op_axes = [[-1]*(broadcast.nd-arr.ndim)+range(arr.ndim) for arr in [t_in]+[c_retval_out]]
-    op_flags = [['readonly']]*1+[['readwrite']]*1
-    it = numpy.nditer([t_in]+[c_retval_out], op_axes=op_axes, op_flags=op_flags)
+    arrs = [t_in, c_retval_out]
+    op_axes = [[-1]*(broadcast.nd-arr.ndim) + list(range(arr.ndim)) for arr in arrs]
+    op_flags = [['readonly']]*1 + [['readwrite']]*1
+    it = numpy.nditer(arrs, op_axes=op_axes, op_flags=op_flags)
     
     #Iterate
     cdef double _t
@@ -6545,9 +6587,10 @@ def fae03(t):
     c_retval_out = numpy.empty(broadcast.shape+(), dtype=numpy.double)
     
     #Create the iterator, broadcasting on all but the consumed dimensions
-    op_axes = [[-1]*(broadcast.nd-arr.ndim)+range(arr.ndim) for arr in [t_in]+[c_retval_out]]
-    op_flags = [['readonly']]*1+[['readwrite']]*1
-    it = numpy.nditer([t_in]+[c_retval_out], op_axes=op_axes, op_flags=op_flags)
+    arrs = [t_in, c_retval_out]
+    op_axes = [[-1]*(broadcast.nd-arr.ndim) + list(range(arr.ndim)) for arr in arrs]
+    op_flags = [['readonly']]*1 + [['readwrite']]*1
+    it = numpy.nditer(arrs, op_axes=op_axes, op_flags=op_flags)
     
     #Iterate
     cdef double _t
@@ -6615,9 +6658,10 @@ def faf03(t):
     c_retval_out = numpy.empty(broadcast.shape+(), dtype=numpy.double)
     
     #Create the iterator, broadcasting on all but the consumed dimensions
-    op_axes = [[-1]*(broadcast.nd-arr.ndim)+range(arr.ndim) for arr in [t_in]+[c_retval_out]]
-    op_flags = [['readonly']]*1+[['readwrite']]*1
-    it = numpy.nditer([t_in]+[c_retval_out], op_axes=op_axes, op_flags=op_flags)
+    arrs = [t_in, c_retval_out]
+    op_axes = [[-1]*(broadcast.nd-arr.ndim) + list(range(arr.ndim)) for arr in arrs]
+    op_flags = [['readonly']]*1 + [['readwrite']]*1
+    it = numpy.nditer(arrs, op_axes=op_axes, op_flags=op_flags)
     
     #Iterate
     cdef double _t
@@ -6687,9 +6731,10 @@ def faju03(t):
     c_retval_out = numpy.empty(broadcast.shape+(), dtype=numpy.double)
     
     #Create the iterator, broadcasting on all but the consumed dimensions
-    op_axes = [[-1]*(broadcast.nd-arr.ndim)+range(arr.ndim) for arr in [t_in]+[c_retval_out]]
-    op_flags = [['readonly']]*1+[['readwrite']]*1
-    it = numpy.nditer([t_in]+[c_retval_out], op_axes=op_axes, op_flags=op_flags)
+    arrs = [t_in, c_retval_out]
+    op_axes = [[-1]*(broadcast.nd-arr.ndim) + list(range(arr.ndim)) for arr in arrs]
+    op_flags = [['readonly']]*1 + [['readwrite']]*1
+    it = numpy.nditer(arrs, op_axes=op_axes, op_flags=op_flags)
     
     #Iterate
     cdef double _t
@@ -6756,9 +6801,10 @@ def fal03(t):
     c_retval_out = numpy.empty(broadcast.shape+(), dtype=numpy.double)
     
     #Create the iterator, broadcasting on all but the consumed dimensions
-    op_axes = [[-1]*(broadcast.nd-arr.ndim)+range(arr.ndim) for arr in [t_in]+[c_retval_out]]
-    op_flags = [['readonly']]*1+[['readwrite']]*1
-    it = numpy.nditer([t_in]+[c_retval_out], op_axes=op_axes, op_flags=op_flags)
+    arrs = [t_in, c_retval_out]
+    op_axes = [[-1]*(broadcast.nd-arr.ndim) + list(range(arr.ndim)) for arr in arrs]
+    op_flags = [['readonly']]*1 + [['readwrite']]*1
+    it = numpy.nditer(arrs, op_axes=op_axes, op_flags=op_flags)
     
     #Iterate
     cdef double _t
@@ -6825,9 +6871,10 @@ def falp03(t):
     c_retval_out = numpy.empty(broadcast.shape+(), dtype=numpy.double)
     
     #Create the iterator, broadcasting on all but the consumed dimensions
-    op_axes = [[-1]*(broadcast.nd-arr.ndim)+range(arr.ndim) for arr in [t_in]+[c_retval_out]]
-    op_flags = [['readonly']]*1+[['readwrite']]*1
-    it = numpy.nditer([t_in]+[c_retval_out], op_axes=op_axes, op_flags=op_flags)
+    arrs = [t_in, c_retval_out]
+    op_axes = [[-1]*(broadcast.nd-arr.ndim) + list(range(arr.ndim)) for arr in arrs]
+    op_flags = [['readonly']]*1 + [['readwrite']]*1
+    it = numpy.nditer(arrs, op_axes=op_axes, op_flags=op_flags)
     
     #Iterate
     cdef double _t
@@ -6897,9 +6944,10 @@ def fama03(t):
     c_retval_out = numpy.empty(broadcast.shape+(), dtype=numpy.double)
     
     #Create the iterator, broadcasting on all but the consumed dimensions
-    op_axes = [[-1]*(broadcast.nd-arr.ndim)+range(arr.ndim) for arr in [t_in]+[c_retval_out]]
-    op_flags = [['readonly']]*1+[['readwrite']]*1
-    it = numpy.nditer([t_in]+[c_retval_out], op_axes=op_axes, op_flags=op_flags)
+    arrs = [t_in, c_retval_out]
+    op_axes = [[-1]*(broadcast.nd-arr.ndim) + list(range(arr.ndim)) for arr in arrs]
+    op_flags = [['readonly']]*1 + [['readwrite']]*1
+    it = numpy.nditer(arrs, op_axes=op_axes, op_flags=op_flags)
     
     #Iterate
     cdef double _t
@@ -6969,9 +7017,10 @@ def fame03(t):
     c_retval_out = numpy.empty(broadcast.shape+(), dtype=numpy.double)
     
     #Create the iterator, broadcasting on all but the consumed dimensions
-    op_axes = [[-1]*(broadcast.nd-arr.ndim)+range(arr.ndim) for arr in [t_in]+[c_retval_out]]
-    op_flags = [['readonly']]*1+[['readwrite']]*1
-    it = numpy.nditer([t_in]+[c_retval_out], op_axes=op_axes, op_flags=op_flags)
+    arrs = [t_in, c_retval_out]
+    op_axes = [[-1]*(broadcast.nd-arr.ndim) + list(range(arr.ndim)) for arr in arrs]
+    op_flags = [['readonly']]*1 + [['readwrite']]*1
+    it = numpy.nditer(arrs, op_axes=op_axes, op_flags=op_flags)
     
     #Iterate
     cdef double _t
@@ -7038,9 +7087,10 @@ def fane03(t):
     c_retval_out = numpy.empty(broadcast.shape+(), dtype=numpy.double)
     
     #Create the iterator, broadcasting on all but the consumed dimensions
-    op_axes = [[-1]*(broadcast.nd-arr.ndim)+range(arr.ndim) for arr in [t_in]+[c_retval_out]]
-    op_flags = [['readonly']]*1+[['readwrite']]*1
-    it = numpy.nditer([t_in]+[c_retval_out], op_axes=op_axes, op_flags=op_flags)
+    arrs = [t_in, c_retval_out]
+    op_axes = [[-1]*(broadcast.nd-arr.ndim) + list(range(arr.ndim)) for arr in arrs]
+    op_flags = [['readonly']]*1 + [['readwrite']]*1
+    it = numpy.nditer(arrs, op_axes=op_axes, op_flags=op_flags)
     
     #Iterate
     cdef double _t
@@ -7107,9 +7157,10 @@ def faom03(t):
     c_retval_out = numpy.empty(broadcast.shape+(), dtype=numpy.double)
     
     #Create the iterator, broadcasting on all but the consumed dimensions
-    op_axes = [[-1]*(broadcast.nd-arr.ndim)+range(arr.ndim) for arr in [t_in]+[c_retval_out]]
-    op_flags = [['readonly']]*1+[['readwrite']]*1
-    it = numpy.nditer([t_in]+[c_retval_out], op_axes=op_axes, op_flags=op_flags)
+    arrs = [t_in, c_retval_out]
+    op_axes = [[-1]*(broadcast.nd-arr.ndim) + list(range(arr.ndim)) for arr in arrs]
+    op_flags = [['readonly']]*1 + [['readwrite']]*1
+    it = numpy.nditer(arrs, op_axes=op_axes, op_flags=op_flags)
     
     #Iterate
     cdef double _t
@@ -7180,9 +7231,10 @@ def fapa03(t):
     c_retval_out = numpy.empty(broadcast.shape+(), dtype=numpy.double)
     
     #Create the iterator, broadcasting on all but the consumed dimensions
-    op_axes = [[-1]*(broadcast.nd-arr.ndim)+range(arr.ndim) for arr in [t_in]+[c_retval_out]]
-    op_flags = [['readonly']]*1+[['readwrite']]*1
-    it = numpy.nditer([t_in]+[c_retval_out], op_axes=op_axes, op_flags=op_flags)
+    arrs = [t_in, c_retval_out]
+    op_axes = [[-1]*(broadcast.nd-arr.ndim) + list(range(arr.ndim)) for arr in arrs]
+    op_flags = [['readonly']]*1 + [['readwrite']]*1
+    it = numpy.nditer(arrs, op_axes=op_axes, op_flags=op_flags)
     
     #Iterate
     cdef double _t
@@ -7252,9 +7304,10 @@ def fasa03(t):
     c_retval_out = numpy.empty(broadcast.shape+(), dtype=numpy.double)
     
     #Create the iterator, broadcasting on all but the consumed dimensions
-    op_axes = [[-1]*(broadcast.nd-arr.ndim)+range(arr.ndim) for arr in [t_in]+[c_retval_out]]
-    op_flags = [['readonly']]*1+[['readwrite']]*1
-    it = numpy.nditer([t_in]+[c_retval_out], op_axes=op_axes, op_flags=op_flags)
+    arrs = [t_in, c_retval_out]
+    op_axes = [[-1]*(broadcast.nd-arr.ndim) + list(range(arr.ndim)) for arr in arrs]
+    op_flags = [['readonly']]*1 + [['readwrite']]*1
+    it = numpy.nditer(arrs, op_axes=op_axes, op_flags=op_flags)
     
     #Iterate
     cdef double _t
@@ -7321,9 +7374,10 @@ def faur03(t):
     c_retval_out = numpy.empty(broadcast.shape+(), dtype=numpy.double)
     
     #Create the iterator, broadcasting on all but the consumed dimensions
-    op_axes = [[-1]*(broadcast.nd-arr.ndim)+range(arr.ndim) for arr in [t_in]+[c_retval_out]]
-    op_flags = [['readonly']]*1+[['readwrite']]*1
-    it = numpy.nditer([t_in]+[c_retval_out], op_axes=op_axes, op_flags=op_flags)
+    arrs = [t_in, c_retval_out]
+    op_axes = [[-1]*(broadcast.nd-arr.ndim) + list(range(arr.ndim)) for arr in arrs]
+    op_flags = [['readonly']]*1 + [['readwrite']]*1
+    it = numpy.nditer(arrs, op_axes=op_axes, op_flags=op_flags)
     
     #Iterate
     cdef double _t
@@ -7393,9 +7447,10 @@ def fave03(t):
     c_retval_out = numpy.empty(broadcast.shape+(), dtype=numpy.double)
     
     #Create the iterator, broadcasting on all but the consumed dimensions
-    op_axes = [[-1]*(broadcast.nd-arr.ndim)+range(arr.ndim) for arr in [t_in]+[c_retval_out]]
-    op_flags = [['readonly']]*1+[['readwrite']]*1
-    it = numpy.nditer([t_in]+[c_retval_out], op_axes=op_axes, op_flags=op_flags)
+    arrs = [t_in, c_retval_out]
+    op_axes = [[-1]*(broadcast.nd-arr.ndim) + list(range(arr.ndim)) for arr in arrs]
+    op_flags = [['readonly']]*1 + [['readwrite']]*1
+    it = numpy.nditer(arrs, op_axes=op_axes, op_flags=op_flags)
     
     #Iterate
     cdef double _t
@@ -7473,9 +7528,10 @@ def bi00():
     dra_out = numpy.empty(broadcast.shape+(), dtype=numpy.double)
     
     #Create the iterator, broadcasting on all but the consumed dimensions
-    op_axes = [[-1]*(broadcast.nd-arr.ndim)+range(arr.ndim) for arr in []+[dpsibi_out, depsbi_out, dra_out]]
-    op_flags = [['readonly']]*0+[['readwrite']]*3
-    it = numpy.nditer([]+[dpsibi_out, depsbi_out, dra_out], op_axes=op_axes, op_flags=op_flags)
+    arrs = [dpsibi_out, depsbi_out, dra_out]
+    op_axes = [[-1]*(broadcast.nd-arr.ndim) + list(range(arr.ndim)) for arr in arrs]
+    op_flags = [['readonly']]*0 + [['readwrite']]*3
+    it = numpy.nditer(arrs, op_axes=op_axes, op_flags=op_flags)
     
     #Iterate
     cdef double * _dpsibi
@@ -7585,9 +7641,10 @@ def bp00(date1, date2):
     rbp_out = numpy.empty(broadcast.shape+(3, 3), dtype=numpy.double)
     
     #Create the iterator, broadcasting on all but the consumed dimensions
-    op_axes = [[-1]*(broadcast.nd-arr.ndim)+range(arr.ndim) for arr in [date1_in, date2_in]+[rb_out[...,0,0], rp_out[...,0,0], rbp_out[...,0,0]]]
-    op_flags = [['readonly']]*2+[['readwrite']]*3
-    it = numpy.nditer([date1_in, date2_in]+[rb_out, rp_out, rbp_out], op_axes=op_axes, op_flags=op_flags)
+    arrs = [date1_in, date2_in, rb_out[...,0,0], rp_out[...,0,0], rbp_out[...,0,0]]
+    op_axes = [[-1]*(broadcast.nd-arr.ndim) + list(range(arr.ndim)) for arr in arrs]
+    op_flags = [['readonly']]*2 + [['readwrite']]*3
+    it = numpy.nditer(arrs, op_axes=op_axes, op_flags=op_flags)
     
     #Iterate
     cdef double _date1
@@ -7695,9 +7752,10 @@ def bp06(date1, date2):
     rbp_out = numpy.empty(broadcast.shape+(3, 3), dtype=numpy.double)
     
     #Create the iterator, broadcasting on all but the consumed dimensions
-    op_axes = [[-1]*(broadcast.nd-arr.ndim)+range(arr.ndim) for arr in [date1_in, date2_in]+[rb_out[...,0,0], rp_out[...,0,0], rbp_out[...,0,0]]]
-    op_flags = [['readonly']]*2+[['readwrite']]*3
-    it = numpy.nditer([date1_in, date2_in]+[rb_out, rp_out, rbp_out], op_axes=op_axes, op_flags=op_flags)
+    arrs = [date1_in, date2_in, rb_out[...,0,0], rp_out[...,0,0], rbp_out[...,0,0]]
+    op_axes = [[-1]*(broadcast.nd-arr.ndim) + list(range(arr.ndim)) for arr in arrs]
+    op_flags = [['readonly']]*2 + [['readwrite']]*3
+    it = numpy.nditer(arrs, op_axes=op_axes, op_flags=op_flags)
     
     #Iterate
     cdef double _date1
@@ -7774,9 +7832,10 @@ def bpn2xy(rbpn):
     y_out = numpy.empty(broadcast.shape+(), dtype=numpy.double)
     
     #Create the iterator, broadcasting on all but the consumed dimensions
-    op_axes = [[-1]*(broadcast.nd-arr.ndim)+range(arr.ndim) for arr in [rbpn_in[...,0,0]]+[x_out, y_out]]
-    op_flags = [['readonly']]*1+[['readwrite']]*2
-    it = numpy.nditer([rbpn_in]+[x_out, y_out], op_axes=op_axes, op_flags=op_flags)
+    arrs = [rbpn_in[...,0,0], x_out, y_out]
+    op_axes = [[-1]*(broadcast.nd-arr.ndim) + list(range(arr.ndim)) for arr in arrs]
+    op_flags = [['readonly']]*1 + [['readwrite']]*2
+    it = numpy.nditer(arrs, op_axes=op_axes, op_flags=op_flags)
     
     #Iterate
     cdef double * _rbpn
@@ -7883,9 +7942,10 @@ def c2i00a(date1, date2):
     rc2i_out = numpy.empty(broadcast.shape+(3, 3), dtype=numpy.double)
     
     #Create the iterator, broadcasting on all but the consumed dimensions
-    op_axes = [[-1]*(broadcast.nd-arr.ndim)+range(arr.ndim) for arr in [date1_in, date2_in]+[rc2i_out[...,0,0]]]
-    op_flags = [['readonly']]*2+[['readwrite']]*1
-    it = numpy.nditer([date1_in, date2_in]+[rc2i_out], op_axes=op_axes, op_flags=op_flags)
+    arrs = [date1_in, date2_in, rc2i_out[...,0,0]]
+    op_axes = [[-1]*(broadcast.nd-arr.ndim) + list(range(arr.ndim)) for arr in arrs]
+    op_flags = [['readonly']]*2 + [['readwrite']]*1
+    it = numpy.nditer(arrs, op_axes=op_axes, op_flags=op_flags)
     
     #Iterate
     cdef double _date1
@@ -7992,9 +8052,10 @@ def c2i00b(date1, date2):
     rc2i_out = numpy.empty(broadcast.shape+(3, 3), dtype=numpy.double)
     
     #Create the iterator, broadcasting on all but the consumed dimensions
-    op_axes = [[-1]*(broadcast.nd-arr.ndim)+range(arr.ndim) for arr in [date1_in, date2_in]+[rc2i_out[...,0,0]]]
-    op_flags = [['readonly']]*2+[['readwrite']]*1
-    it = numpy.nditer([date1_in, date2_in]+[rc2i_out], op_axes=op_axes, op_flags=op_flags)
+    arrs = [date1_in, date2_in, rc2i_out[...,0,0]]
+    op_axes = [[-1]*(broadcast.nd-arr.ndim) + list(range(arr.ndim)) for arr in arrs]
+    op_flags = [['readonly']]*2 + [['readwrite']]*1
+    it = numpy.nditer(arrs, op_axes=op_axes, op_flags=op_flags)
     
     #Iterate
     cdef double _date1
@@ -8092,9 +8153,10 @@ def c2i06a(date1, date2):
     rc2i_out = numpy.empty(broadcast.shape+(3, 3), dtype=numpy.double)
     
     #Create the iterator, broadcasting on all but the consumed dimensions
-    op_axes = [[-1]*(broadcast.nd-arr.ndim)+range(arr.ndim) for arr in [date1_in, date2_in]+[rc2i_out[...,0,0]]]
-    op_flags = [['readonly']]*2+[['readwrite']]*1
-    it = numpy.nditer([date1_in, date2_in]+[rc2i_out], op_axes=op_axes, op_flags=op_flags)
+    arrs = [date1_in, date2_in, rc2i_out[...,0,0]]
+    op_axes = [[-1]*(broadcast.nd-arr.ndim) + list(range(arr.ndim)) for arr in arrs]
+    op_flags = [['readonly']]*2 + [['readwrite']]*1
+    it = numpy.nditer(arrs, op_axes=op_axes, op_flags=op_flags)
     
     #Iterate
     cdef double _date1
@@ -8204,9 +8266,10 @@ def c2ibpn(date1, date2, rbpn):
     rc2i_out = numpy.empty(broadcast.shape+(3, 3), dtype=numpy.double)
     
     #Create the iterator, broadcasting on all but the consumed dimensions
-    op_axes = [[-1]*(broadcast.nd-arr.ndim)+range(arr.ndim) for arr in [date1_in, date2_in, rbpn_in[...,0,0]]+[rc2i_out[...,0,0]]]
-    op_flags = [['readonly']]*3+[['readwrite']]*1
-    it = numpy.nditer([date1_in, date2_in, rbpn_in]+[rc2i_out], op_axes=op_axes, op_flags=op_flags)
+    arrs = [date1_in, date2_in, rbpn_in[...,0,0], rc2i_out[...,0,0]]
+    op_axes = [[-1]*(broadcast.nd-arr.ndim) + list(range(arr.ndim)) for arr in arrs]
+    op_flags = [['readonly']]*3 + [['readwrite']]*1
+    it = numpy.nditer(arrs, op_axes=op_axes, op_flags=op_flags)
     
     #Iterate
     cdef double _date1
@@ -8313,9 +8376,10 @@ def c2ixy(date1, date2, x, y):
     rc2i_out = numpy.empty(broadcast.shape+(3, 3), dtype=numpy.double)
     
     #Create the iterator, broadcasting on all but the consumed dimensions
-    op_axes = [[-1]*(broadcast.nd-arr.ndim)+range(arr.ndim) for arr in [date1_in, date2_in, x_in, y_in]+[rc2i_out[...,0,0]]]
-    op_flags = [['readonly']]*4+[['readwrite']]*1
-    it = numpy.nditer([date1_in, date2_in, x_in, y_in]+[rc2i_out], op_axes=op_axes, op_flags=op_flags)
+    arrs = [date1_in, date2_in, x_in, y_in, rc2i_out[...,0,0]]
+    op_axes = [[-1]*(broadcast.nd-arr.ndim) + list(range(arr.ndim)) for arr in arrs]
+    op_flags = [['readonly']]*4 + [['readwrite']]*1
+    it = numpy.nditer(arrs, op_axes=op_axes, op_flags=op_flags)
     
     #Iterate
     cdef double _date1
@@ -8406,9 +8470,10 @@ def c2ixys(x, y, s):
     rc2i_out = numpy.empty(broadcast.shape+(3, 3), dtype=numpy.double)
     
     #Create the iterator, broadcasting on all but the consumed dimensions
-    op_axes = [[-1]*(broadcast.nd-arr.ndim)+range(arr.ndim) for arr in [x_in, y_in, s_in]+[rc2i_out[...,0,0]]]
-    op_flags = [['readonly']]*3+[['readwrite']]*1
-    it = numpy.nditer([x_in, y_in, s_in]+[rc2i_out], op_axes=op_axes, op_flags=op_flags)
+    arrs = [x_in, y_in, s_in, rc2i_out[...,0,0]]
+    op_axes = [[-1]*(broadcast.nd-arr.ndim) + list(range(arr.ndim)) for arr in arrs]
+    op_flags = [['readonly']]*3 + [['readwrite']]*1
+    it = numpy.nditer(arrs, op_axes=op_axes, op_flags=op_flags)
     
     #Iterate
     cdef double _x
@@ -8526,9 +8591,10 @@ def c2t00a(tta, ttb, uta, utb, xp, yp):
     rc2t_out = numpy.empty(broadcast.shape+(3, 3), dtype=numpy.double)
     
     #Create the iterator, broadcasting on all but the consumed dimensions
-    op_axes = [[-1]*(broadcast.nd-arr.ndim)+range(arr.ndim) for arr in [tta_in, ttb_in, uta_in, utb_in, xp_in, yp_in]+[rc2t_out[...,0,0]]]
-    op_flags = [['readonly']]*6+[['readwrite']]*1
-    it = numpy.nditer([tta_in, ttb_in, uta_in, utb_in, xp_in, yp_in]+[rc2t_out], op_axes=op_axes, op_flags=op_flags)
+    arrs = [tta_in, ttb_in, uta_in, utb_in, xp_in, yp_in, rc2t_out[...,0,0]]
+    op_axes = [[-1]*(broadcast.nd-arr.ndim) + list(range(arr.ndim)) for arr in arrs]
+    op_flags = [['readonly']]*6 + [['readwrite']]*1
+    it = numpy.nditer(arrs, op_axes=op_axes, op_flags=op_flags)
     
     #Iterate
     cdef double _tta
@@ -8651,9 +8717,10 @@ def c2t00b(tta, ttb, uta, utb, xp, yp):
     rc2t_out = numpy.empty(broadcast.shape+(3, 3), dtype=numpy.double)
     
     #Create the iterator, broadcasting on all but the consumed dimensions
-    op_axes = [[-1]*(broadcast.nd-arr.ndim)+range(arr.ndim) for arr in [tta_in, ttb_in, uta_in, utb_in, xp_in, yp_in]+[rc2t_out[...,0,0]]]
-    op_flags = [['readonly']]*6+[['readwrite']]*1
-    it = numpy.nditer([tta_in, ttb_in, uta_in, utb_in, xp_in, yp_in]+[rc2t_out], op_axes=op_axes, op_flags=op_flags)
+    arrs = [tta_in, ttb_in, uta_in, utb_in, xp_in, yp_in, rc2t_out[...,0,0]]
+    op_axes = [[-1]*(broadcast.nd-arr.ndim) + list(range(arr.ndim)) for arr in arrs]
+    op_flags = [['readonly']]*6 + [['readwrite']]*1
+    it = numpy.nditer(arrs, op_axes=op_axes, op_flags=op_flags)
     
     #Iterate
     cdef double _tta
@@ -8775,9 +8842,10 @@ def c2t06a(tta, ttb, uta, utb, xp, yp):
     rc2t_out = numpy.empty(broadcast.shape+(3, 3), dtype=numpy.double)
     
     #Create the iterator, broadcasting on all but the consumed dimensions
-    op_axes = [[-1]*(broadcast.nd-arr.ndim)+range(arr.ndim) for arr in [tta_in, ttb_in, uta_in, utb_in, xp_in, yp_in]+[rc2t_out[...,0,0]]]
-    op_flags = [['readonly']]*6+[['readwrite']]*1
-    it = numpy.nditer([tta_in, ttb_in, uta_in, utb_in, xp_in, yp_in]+[rc2t_out], op_axes=op_axes, op_flags=op_flags)
+    arrs = [tta_in, ttb_in, uta_in, utb_in, xp_in, yp_in, rc2t_out[...,0,0]]
+    op_axes = [[-1]*(broadcast.nd-arr.ndim) + list(range(arr.ndim)) for arr in arrs]
+    op_flags = [['readonly']]*6 + [['readwrite']]*1
+    it = numpy.nditer(arrs, op_axes=op_axes, op_flags=op_flags)
     
     #Iterate
     cdef double _tta
@@ -8876,9 +8944,10 @@ def c2tcio(rc2i, era, rpom):
     rc2t_out = numpy.empty(broadcast.shape+(3, 3), dtype=numpy.double)
     
     #Create the iterator, broadcasting on all but the consumed dimensions
-    op_axes = [[-1]*(broadcast.nd-arr.ndim)+range(arr.ndim) for arr in [rc2i_in[...,0,0], era_in, rpom_in[...,0,0]]+[rc2t_out[...,0,0]]]
-    op_flags = [['readonly']]*3+[['readwrite']]*1
-    it = numpy.nditer([rc2i_in, era_in, rpom_in]+[rc2t_out], op_axes=op_axes, op_flags=op_flags)
+    arrs = [rc2i_in[...,0,0], era_in, rpom_in[...,0,0], rc2t_out[...,0,0]]
+    op_axes = [[-1]*(broadcast.nd-arr.ndim) + list(range(arr.ndim)) for arr in arrs]
+    op_flags = [['readonly']]*3 + [['readwrite']]*1
+    it = numpy.nditer(arrs, op_axes=op_axes, op_flags=op_flags)
     
     #Iterate
     cdef double * _rc2i
@@ -8971,9 +9040,10 @@ def c2teqx(rbpn, gst, rpom):
     rc2t_out = numpy.empty(broadcast.shape+(3, 3), dtype=numpy.double)
     
     #Create the iterator, broadcasting on all but the consumed dimensions
-    op_axes = [[-1]*(broadcast.nd-arr.ndim)+range(arr.ndim) for arr in [rbpn_in[...,0,0], gst_in, rpom_in[...,0,0]]+[rc2t_out[...,0,0]]]
-    op_flags = [['readonly']]*3+[['readwrite']]*1
-    it = numpy.nditer([rbpn_in, gst_in, rpom_in]+[rc2t_out], op_axes=op_axes, op_flags=op_flags)
+    arrs = [rbpn_in[...,0,0], gst_in, rpom_in[...,0,0], rc2t_out[...,0,0]]
+    op_axes = [[-1]*(broadcast.nd-arr.ndim) + list(range(arr.ndim)) for arr in arrs]
+    op_flags = [['readonly']]*3 + [['readwrite']]*1
+    it = numpy.nditer(arrs, op_axes=op_axes, op_flags=op_flags)
     
     #Iterate
     cdef double * _rbpn
@@ -9101,9 +9171,10 @@ def c2tpe(tta, ttb, uta, utb, dpsi, deps, xp, yp):
     rc2t_out = numpy.empty(broadcast.shape+(3, 3), dtype=numpy.double)
     
     #Create the iterator, broadcasting on all but the consumed dimensions
-    op_axes = [[-1]*(broadcast.nd-arr.ndim)+range(arr.ndim) for arr in [tta_in, ttb_in, uta_in, utb_in, dpsi_in, deps_in, xp_in, yp_in]+[rc2t_out[...,0,0]]]
-    op_flags = [['readonly']]*8+[['readwrite']]*1
-    it = numpy.nditer([tta_in, ttb_in, uta_in, utb_in, dpsi_in, deps_in, xp_in, yp_in]+[rc2t_out], op_axes=op_axes, op_flags=op_flags)
+    arrs = [tta_in, ttb_in, uta_in, utb_in, dpsi_in, deps_in, xp_in, yp_in, rc2t_out[...,0,0]]
+    op_axes = [[-1]*(broadcast.nd-arr.ndim) + list(range(arr.ndim)) for arr in arrs]
+    op_flags = [['readonly']]*8 + [['readwrite']]*1
+    it = numpy.nditer(arrs, op_axes=op_axes, op_flags=op_flags)
     
     #Iterate
     cdef double _tta
@@ -9237,9 +9308,10 @@ def c2txy(tta, ttb, uta, utb, x, y, xp, yp):
     rc2t_out = numpy.empty(broadcast.shape+(3, 3), dtype=numpy.double)
     
     #Create the iterator, broadcasting on all but the consumed dimensions
-    op_axes = [[-1]*(broadcast.nd-arr.ndim)+range(arr.ndim) for arr in [tta_in, ttb_in, uta_in, utb_in, x_in, y_in, xp_in, yp_in]+[rc2t_out[...,0,0]]]
-    op_flags = [['readonly']]*8+[['readwrite']]*1
-    it = numpy.nditer([tta_in, ttb_in, uta_in, utb_in, x_in, y_in, xp_in, yp_in]+[rc2t_out], op_axes=op_axes, op_flags=op_flags)
+    arrs = [tta_in, ttb_in, uta_in, utb_in, x_in, y_in, xp_in, yp_in, rc2t_out[...,0,0]]
+    op_axes = [[-1]*(broadcast.nd-arr.ndim) + list(range(arr.ndim)) for arr in arrs]
+    op_flags = [['readonly']]*8 + [['readwrite']]*1
+    it = numpy.nditer(arrs, op_axes=op_axes, op_flags=op_flags)
     
     #Iterate
     cdef double _tta
@@ -9344,9 +9416,10 @@ def eo06a(date1, date2):
     c_retval_out = numpy.empty(broadcast.shape+(), dtype=numpy.double)
     
     #Create the iterator, broadcasting on all but the consumed dimensions
-    op_axes = [[-1]*(broadcast.nd-arr.ndim)+range(arr.ndim) for arr in [date1_in, date2_in]+[c_retval_out]]
-    op_flags = [['readonly']]*2+[['readwrite']]*1
-    it = numpy.nditer([date1_in, date2_in]+[c_retval_out], op_axes=op_axes, op_flags=op_flags)
+    arrs = [date1_in, date2_in, c_retval_out]
+    op_axes = [[-1]*(broadcast.nd-arr.ndim) + list(range(arr.ndim)) for arr in arrs]
+    op_flags = [['readonly']]*2 + [['readwrite']]*1
+    it = numpy.nditer(arrs, op_axes=op_axes, op_flags=op_flags)
     
     #Iterate
     cdef double _date1
@@ -9418,9 +9491,10 @@ def eors(rnpb, s):
     c_retval_out = numpy.empty(broadcast.shape+(), dtype=numpy.double)
     
     #Create the iterator, broadcasting on all but the consumed dimensions
-    op_axes = [[-1]*(broadcast.nd-arr.ndim)+range(arr.ndim) for arr in [rnpb_in[...,0,0], s_in]+[c_retval_out]]
-    op_flags = [['readonly']]*2+[['readwrite']]*1
-    it = numpy.nditer([rnpb_in, s_in]+[c_retval_out], op_axes=op_axes, op_flags=op_flags)
+    arrs = [rnpb_in[...,0,0], s_in, c_retval_out]
+    op_axes = [[-1]*(broadcast.nd-arr.ndim) + list(range(arr.ndim)) for arr in arrs]
+    op_flags = [['readonly']]*2 + [['readwrite']]*1
+    it = numpy.nditer(arrs, op_axes=op_axes, op_flags=op_flags)
     
     #Iterate
     cdef double * _rnpb
@@ -9525,9 +9599,10 @@ def fw2m(gamb, phib, psi, eps):
     r_out = numpy.empty(broadcast.shape+(3, 3), dtype=numpy.double)
     
     #Create the iterator, broadcasting on all but the consumed dimensions
-    op_axes = [[-1]*(broadcast.nd-arr.ndim)+range(arr.ndim) for arr in [gamb_in, phib_in, psi_in, eps_in]+[r_out[...,0,0]]]
-    op_flags = [['readonly']]*4+[['readwrite']]*1
-    it = numpy.nditer([gamb_in, phib_in, psi_in, eps_in]+[r_out], op_axes=op_axes, op_flags=op_flags)
+    arrs = [gamb_in, phib_in, psi_in, eps_in, r_out[...,0,0]]
+    op_axes = [[-1]*(broadcast.nd-arr.ndim) + list(range(arr.ndim)) for arr in arrs]
+    op_flags = [['readonly']]*4 + [['readwrite']]*1
+    it = numpy.nditer(arrs, op_axes=op_axes, op_flags=op_flags)
     
     #Iterate
     cdef double _gamb
@@ -9622,9 +9697,10 @@ def fw2xy(gamb, phib, psi, eps):
     y_out = numpy.empty(broadcast.shape+(), dtype=numpy.double)
     
     #Create the iterator, broadcasting on all but the consumed dimensions
-    op_axes = [[-1]*(broadcast.nd-arr.ndim)+range(arr.ndim) for arr in [gamb_in, phib_in, psi_in, eps_in]+[x_out, y_out]]
-    op_flags = [['readonly']]*4+[['readwrite']]*2
-    it = numpy.nditer([gamb_in, phib_in, psi_in, eps_in]+[x_out, y_out], op_axes=op_axes, op_flags=op_flags)
+    arrs = [gamb_in, phib_in, psi_in, eps_in, x_out, y_out]
+    op_axes = [[-1]*(broadcast.nd-arr.ndim) + list(range(arr.ndim)) for arr in arrs]
+    op_flags = [['readonly']]*4 + [['readwrite']]*2
+    it = numpy.nditer(arrs, op_axes=op_axes, op_flags=op_flags)
     
     #Iterate
     cdef double _gamb
@@ -9721,9 +9797,10 @@ def num00a(date1, date2):
     rmatn_out = numpy.empty(broadcast.shape+(3, 3), dtype=numpy.double)
     
     #Create the iterator, broadcasting on all but the consumed dimensions
-    op_axes = [[-1]*(broadcast.nd-arr.ndim)+range(arr.ndim) for arr in [date1_in, date2_in]+[rmatn_out[...,0,0]]]
-    op_flags = [['readonly']]*2+[['readwrite']]*1
-    it = numpy.nditer([date1_in, date2_in]+[rmatn_out], op_axes=op_axes, op_flags=op_flags)
+    arrs = [date1_in, date2_in, rmatn_out[...,0,0]]
+    op_axes = [[-1]*(broadcast.nd-arr.ndim) + list(range(arr.ndim)) for arr in arrs]
+    op_flags = [['readonly']]*2 + [['readwrite']]*1
+    it = numpy.nditer(arrs, op_axes=op_axes, op_flags=op_flags)
     
     #Iterate
     cdef double _date1
@@ -9814,9 +9891,10 @@ def num00b(date1, date2):
     rmatn_out = numpy.empty(broadcast.shape+(3, 3), dtype=numpy.double)
     
     #Create the iterator, broadcasting on all but the consumed dimensions
-    op_axes = [[-1]*(broadcast.nd-arr.ndim)+range(arr.ndim) for arr in [date1_in, date2_in]+[rmatn_out[...,0,0]]]
-    op_flags = [['readonly']]*2+[['readwrite']]*1
-    it = numpy.nditer([date1_in, date2_in]+[rmatn_out], op_axes=op_axes, op_flags=op_flags)
+    arrs = [date1_in, date2_in, rmatn_out[...,0,0]]
+    op_axes = [[-1]*(broadcast.nd-arr.ndim) + list(range(arr.ndim)) for arr in arrs]
+    op_flags = [['readonly']]*2 + [['readwrite']]*1
+    it = numpy.nditer(arrs, op_axes=op_axes, op_flags=op_flags)
     
     #Iterate
     cdef double _date1
@@ -9906,9 +9984,10 @@ def num06a(date1, date2):
     rmatn_out = numpy.empty(broadcast.shape+(3, 3), dtype=numpy.double)
     
     #Create the iterator, broadcasting on all but the consumed dimensions
-    op_axes = [[-1]*(broadcast.nd-arr.ndim)+range(arr.ndim) for arr in [date1_in, date2_in]+[rmatn_out[...,0,0]]]
-    op_flags = [['readonly']]*2+[['readwrite']]*1
-    it = numpy.nditer([date1_in, date2_in]+[rmatn_out], op_axes=op_axes, op_flags=op_flags)
+    arrs = [date1_in, date2_in, rmatn_out[...,0,0]]
+    op_axes = [[-1]*(broadcast.nd-arr.ndim) + list(range(arr.ndim)) for arr in arrs]
+    op_flags = [['readonly']]*2 + [['readwrite']]*1
+    it = numpy.nditer(arrs, op_axes=op_axes, op_flags=op_flags)
     
     #Iterate
     cdef double _date1
@@ -9989,9 +10068,10 @@ def numat(epsa, dpsi, deps):
     rmatn_out = numpy.empty(broadcast.shape+(3, 3), dtype=numpy.double)
     
     #Create the iterator, broadcasting on all but the consumed dimensions
-    op_axes = [[-1]*(broadcast.nd-arr.ndim)+range(arr.ndim) for arr in [epsa_in, dpsi_in, deps_in]+[rmatn_out[...,0,0]]]
-    op_flags = [['readonly']]*3+[['readwrite']]*1
-    it = numpy.nditer([epsa_in, dpsi_in, deps_in]+[rmatn_out], op_axes=op_axes, op_flags=op_flags)
+    arrs = [epsa_in, dpsi_in, deps_in, rmatn_out[...,0,0]]
+    op_axes = [[-1]*(broadcast.nd-arr.ndim) + list(range(arr.ndim)) for arr in arrs]
+    op_flags = [['readonly']]*3 + [['readwrite']]*1
+    it = numpy.nditer(arrs, op_axes=op_axes, op_flags=op_flags)
     
     #Iterate
     cdef double _epsa
@@ -10181,9 +10261,10 @@ def nut00a(date1, date2):
     deps_out = numpy.empty(broadcast.shape+(), dtype=numpy.double)
     
     #Create the iterator, broadcasting on all but the consumed dimensions
-    op_axes = [[-1]*(broadcast.nd-arr.ndim)+range(arr.ndim) for arr in [date1_in, date2_in]+[dpsi_out, deps_out]]
-    op_flags = [['readonly']]*2+[['readwrite']]*2
-    it = numpy.nditer([date1_in, date2_in]+[dpsi_out, deps_out], op_axes=op_axes, op_flags=op_flags)
+    arrs = [date1_in, date2_in, dpsi_out, deps_out]
+    op_axes = [[-1]*(broadcast.nd-arr.ndim) + list(range(arr.ndim)) for arr in arrs]
+    op_flags = [['readonly']]*2 + [['readwrite']]*2
+    it = numpy.nditer(arrs, op_axes=op_axes, op_flags=op_flags)
     
     #Iterate
     cdef double _date1
@@ -10341,9 +10422,10 @@ def nut00b(date1, date2):
     deps_out = numpy.empty(broadcast.shape+(), dtype=numpy.double)
     
     #Create the iterator, broadcasting on all but the consumed dimensions
-    op_axes = [[-1]*(broadcast.nd-arr.ndim)+range(arr.ndim) for arr in [date1_in, date2_in]+[dpsi_out, deps_out]]
-    op_flags = [['readonly']]*2+[['readwrite']]*2
-    it = numpy.nditer([date1_in, date2_in]+[dpsi_out, deps_out], op_axes=op_axes, op_flags=op_flags)
+    arrs = [date1_in, date2_in, dpsi_out, deps_out]
+    op_axes = [[-1]*(broadcast.nd-arr.ndim) + list(range(arr.ndim)) for arr in arrs]
+    op_flags = [['readonly']]*2 + [['readwrite']]*2
+    it = numpy.nditer(arrs, op_axes=op_axes, op_flags=op_flags)
     
     #Iterate
     cdef double _date1
@@ -10460,9 +10542,10 @@ def nut06a(date1, date2):
     deps_out = numpy.empty(broadcast.shape+(), dtype=numpy.double)
     
     #Create the iterator, broadcasting on all but the consumed dimensions
-    op_axes = [[-1]*(broadcast.nd-arr.ndim)+range(arr.ndim) for arr in [date1_in, date2_in]+[dpsi_out, deps_out]]
-    op_flags = [['readonly']]*2+[['readwrite']]*2
-    it = numpy.nditer([date1_in, date2_in]+[dpsi_out, deps_out], op_axes=op_axes, op_flags=op_flags)
+    arrs = [date1_in, date2_in, dpsi_out, deps_out]
+    op_axes = [[-1]*(broadcast.nd-arr.ndim) + list(range(arr.ndim)) for arr in arrs]
+    op_flags = [['readonly']]*2 + [['readwrite']]*2
+    it = numpy.nditer(arrs, op_axes=op_axes, op_flags=op_flags)
     
     #Iterate
     cdef double _date1
@@ -10552,9 +10635,10 @@ def nut80(date1, date2):
     deps_out = numpy.empty(broadcast.shape+(), dtype=numpy.double)
     
     #Create the iterator, broadcasting on all but the consumed dimensions
-    op_axes = [[-1]*(broadcast.nd-arr.ndim)+range(arr.ndim) for arr in [date1_in, date2_in]+[dpsi_out, deps_out]]
-    op_flags = [['readonly']]*2+[['readwrite']]*2
-    it = numpy.nditer([date1_in, date2_in]+[dpsi_out, deps_out], op_axes=op_axes, op_flags=op_flags)
+    arrs = [date1_in, date2_in, dpsi_out, deps_out]
+    op_axes = [[-1]*(broadcast.nd-arr.ndim) + list(range(arr.ndim)) for arr in arrs]
+    op_flags = [['readonly']]*2 + [['readwrite']]*2
+    it = numpy.nditer(arrs, op_axes=op_axes, op_flags=op_flags)
     
     #Iterate
     cdef double _date1
@@ -10640,9 +10724,10 @@ def nutm80(date1, date2):
     rmatn_out = numpy.empty(broadcast.shape+(3, 3), dtype=numpy.double)
     
     #Create the iterator, broadcasting on all but the consumed dimensions
-    op_axes = [[-1]*(broadcast.nd-arr.ndim)+range(arr.ndim) for arr in [date1_in, date2_in]+[rmatn_out[...,0,0]]]
-    op_flags = [['readonly']]*2+[['readwrite']]*1
-    it = numpy.nditer([date1_in, date2_in]+[rmatn_out], op_axes=op_axes, op_flags=op_flags)
+    arrs = [date1_in, date2_in, rmatn_out[...,0,0]]
+    op_axes = [[-1]*(broadcast.nd-arr.ndim) + list(range(arr.ndim)) for arr in arrs]
+    op_flags = [['readonly']]*2 + [['readwrite']]*1
+    it = numpy.nditer(arrs, op_axes=op_axes, op_flags=op_flags)
     
     #Iterate
     cdef double _date1
@@ -10723,9 +10808,10 @@ def obl06(date1, date2):
     c_retval_out = numpy.empty(broadcast.shape+(), dtype=numpy.double)
     
     #Create the iterator, broadcasting on all but the consumed dimensions
-    op_axes = [[-1]*(broadcast.nd-arr.ndim)+range(arr.ndim) for arr in [date1_in, date2_in]+[c_retval_out]]
-    op_flags = [['readonly']]*2+[['readwrite']]*1
-    it = numpy.nditer([date1_in, date2_in]+[c_retval_out], op_axes=op_axes, op_flags=op_flags)
+    arrs = [date1_in, date2_in, c_retval_out]
+    op_axes = [[-1]*(broadcast.nd-arr.ndim) + list(range(arr.ndim)) for arr in arrs]
+    op_flags = [['readonly']]*2 + [['readwrite']]*1
+    it = numpy.nditer(arrs, op_axes=op_axes, op_flags=op_flags)
     
     #Iterate
     cdef double _date1
@@ -10808,9 +10894,10 @@ def obl80(date1, date2):
     c_retval_out = numpy.empty(broadcast.shape+(), dtype=numpy.double)
     
     #Create the iterator, broadcasting on all but the consumed dimensions
-    op_axes = [[-1]*(broadcast.nd-arr.ndim)+range(arr.ndim) for arr in [date1_in, date2_in]+[c_retval_out]]
-    op_flags = [['readonly']]*2+[['readwrite']]*1
-    it = numpy.nditer([date1_in, date2_in]+[c_retval_out], op_axes=op_axes, op_flags=op_flags)
+    arrs = [date1_in, date2_in, c_retval_out]
+    op_axes = [[-1]*(broadcast.nd-arr.ndim) + list(range(arr.ndim)) for arr in arrs]
+    op_flags = [['readonly']]*2 + [['readwrite']]*1
+    it = numpy.nditer(arrs, op_axes=op_axes, op_flags=op_flags)
     
     #Iterate
     cdef double _date1
@@ -10979,9 +11066,10 @@ def p06e(date1, date2):
     psi_out = numpy.empty(broadcast.shape+(), dtype=numpy.double)
     
     #Create the iterator, broadcasting on all but the consumed dimensions
-    op_axes = [[-1]*(broadcast.nd-arr.ndim)+range(arr.ndim) for arr in [date1_in, date2_in]+[eps0_out, psia_out, oma_out, bpa_out, bqa_out, pia_out, bpia_out, epsa_out, chia_out, za_out, zetaa_out, thetaa_out, pa_out, gam_out, phi_out, psi_out]]
-    op_flags = [['readonly']]*2+[['readwrite']]*16
-    it = numpy.nditer([date1_in, date2_in]+[eps0_out, psia_out, oma_out, bpa_out, bqa_out, pia_out, bpia_out, epsa_out, chia_out, za_out, zetaa_out, thetaa_out, pa_out, gam_out, phi_out, psi_out], op_axes=op_axes, op_flags=op_flags)
+    arrs = [date1_in, date2_in, eps0_out, psia_out, oma_out, bpa_out, bqa_out, pia_out, bpia_out, epsa_out, chia_out, za_out, zetaa_out, thetaa_out, pa_out, gam_out, phi_out, psi_out]
+    op_axes = [[-1]*(broadcast.nd-arr.ndim) + list(range(arr.ndim)) for arr in arrs]
+    op_flags = [['readonly']]*2 + [['readwrite']]*16
+    it = numpy.nditer(arrs, op_axes=op_axes, op_flags=op_flags)
     
     #Iterate
     cdef double _date1
@@ -11114,9 +11202,10 @@ def pb06(date1, date2):
     btheta_out = numpy.empty(broadcast.shape+(), dtype=numpy.double)
     
     #Create the iterator, broadcasting on all but the consumed dimensions
-    op_axes = [[-1]*(broadcast.nd-arr.ndim)+range(arr.ndim) for arr in [date1_in, date2_in]+[bzeta_out, bz_out, btheta_out]]
-    op_flags = [['readonly']]*2+[['readwrite']]*3
-    it = numpy.nditer([date1_in, date2_in]+[bzeta_out, bz_out, btheta_out], op_axes=op_axes, op_flags=op_flags)
+    arrs = [date1_in, date2_in, bzeta_out, bz_out, btheta_out]
+    op_axes = [[-1]*(broadcast.nd-arr.ndim) + list(range(arr.ndim)) for arr in arrs]
+    op_flags = [['readonly']]*2 + [['readwrite']]*3
+    it = numpy.nditer(arrs, op_axes=op_axes, op_flags=op_flags)
     
     #Iterate
     cdef double _date1
@@ -11234,9 +11323,10 @@ def pfw06(date1, date2):
     epsa_out = numpy.empty(broadcast.shape+(), dtype=numpy.double)
     
     #Create the iterator, broadcasting on all but the consumed dimensions
-    op_axes = [[-1]*(broadcast.nd-arr.ndim)+range(arr.ndim) for arr in [date1_in, date2_in]+[gamb_out, phib_out, psib_out, epsa_out]]
-    op_flags = [['readonly']]*2+[['readwrite']]*4
-    it = numpy.nditer([date1_in, date2_in]+[gamb_out, phib_out, psib_out, epsa_out], op_axes=op_axes, op_flags=op_flags)
+    arrs = [date1_in, date2_in, gamb_out, phib_out, psib_out, epsa_out]
+    op_axes = [[-1]*(broadcast.nd-arr.ndim) + list(range(arr.ndim)) for arr in arrs]
+    op_flags = [['readonly']]*2 + [['readwrite']]*4
+    it = numpy.nditer(arrs, op_axes=op_axes, op_flags=op_flags)
     
     #Iterate
     cdef double _date1
@@ -11331,9 +11421,10 @@ def pmat00(date1, date2):
     rbp_out = numpy.empty(broadcast.shape+(3, 3), dtype=numpy.double)
     
     #Create the iterator, broadcasting on all but the consumed dimensions
-    op_axes = [[-1]*(broadcast.nd-arr.ndim)+range(arr.ndim) for arr in [date1_in, date2_in]+[rbp_out[...,0,0]]]
-    op_flags = [['readonly']]*2+[['readwrite']]*1
-    it = numpy.nditer([date1_in, date2_in]+[rbp_out], op_axes=op_axes, op_flags=op_flags)
+    arrs = [date1_in, date2_in, rbp_out[...,0,0]]
+    op_axes = [[-1]*(broadcast.nd-arr.ndim) + list(range(arr.ndim)) for arr in arrs]
+    op_flags = [['readonly']]*2 + [['readwrite']]*1
+    it = numpy.nditer(arrs, op_axes=op_axes, op_flags=op_flags)
     
     #Iterate
     cdef double _date1
@@ -11423,9 +11514,10 @@ def pmat06(date1, date2):
     rbp_out = numpy.empty(broadcast.shape+(3, 3), dtype=numpy.double)
     
     #Create the iterator, broadcasting on all but the consumed dimensions
-    op_axes = [[-1]*(broadcast.nd-arr.ndim)+range(arr.ndim) for arr in [date1_in, date2_in]+[rbp_out[...,0,0]]]
-    op_flags = [['readonly']]*2+[['readwrite']]*1
-    it = numpy.nditer([date1_in, date2_in]+[rbp_out], op_axes=op_axes, op_flags=op_flags)
+    arrs = [date1_in, date2_in, rbp_out[...,0,0]]
+    op_axes = [[-1]*(broadcast.nd-arr.ndim) + list(range(arr.ndim)) for arr in arrs]
+    op_flags = [['readonly']]*2 + [['readwrite']]*1
+    it = numpy.nditer(arrs, op_axes=op_axes, op_flags=op_flags)
     
     #Iterate
     cdef double _date1
@@ -11530,9 +11622,10 @@ def pmat76(date1, date2):
     rmatp_out = numpy.empty(broadcast.shape+(3, 3), dtype=numpy.double)
     
     #Create the iterator, broadcasting on all but the consumed dimensions
-    op_axes = [[-1]*(broadcast.nd-arr.ndim)+range(arr.ndim) for arr in [date1_in, date2_in]+[rmatp_out[...,0,0]]]
-    op_flags = [['readonly']]*2+[['readwrite']]*1
-    it = numpy.nditer([date1_in, date2_in]+[rmatp_out], op_axes=op_axes, op_flags=op_flags)
+    arrs = [date1_in, date2_in, rmatp_out[...,0,0]]
+    op_axes = [[-1]*(broadcast.nd-arr.ndim) + list(range(arr.ndim)) for arr in arrs]
+    op_flags = [['readonly']]*2 + [['readwrite']]*1
+    it = numpy.nditer(arrs, op_axes=op_axes, op_flags=op_flags)
     
     #Iterate
     cdef double _date1
@@ -11670,9 +11763,10 @@ def pn00(date1, date2, dpsi, deps):
     rbpn_out = numpy.empty(broadcast.shape+(3, 3), dtype=numpy.double)
     
     #Create the iterator, broadcasting on all but the consumed dimensions
-    op_axes = [[-1]*(broadcast.nd-arr.ndim)+range(arr.ndim) for arr in [date1_in, date2_in, dpsi_in, deps_in]+[epsa_out, rb_out[...,0,0], rp_out[...,0,0], rbp_out[...,0,0], rn_out[...,0,0], rbpn_out[...,0,0]]]
-    op_flags = [['readonly']]*4+[['readwrite']]*6
-    it = numpy.nditer([date1_in, date2_in, dpsi_in, deps_in]+[epsa_out, rb_out, rp_out, rbp_out, rn_out, rbpn_out], op_axes=op_axes, op_flags=op_flags)
+    arrs = [date1_in, date2_in, dpsi_in, deps_in, epsa_out, rb_out[...,0,0], rp_out[...,0,0], rbp_out[...,0,0], rn_out[...,0,0], rbpn_out[...,0,0]]
+    op_axes = [[-1]*(broadcast.nd-arr.ndim) + list(range(arr.ndim)) for arr in arrs]
+    op_flags = [['readonly']]*4 + [['readwrite']]*6
+    it = numpy.nditer(arrs, op_axes=op_axes, op_flags=op_flags)
     
     #Iterate
     cdef double _date1
@@ -11824,9 +11918,10 @@ def pn00a(date1, date2):
     rbpn_out = numpy.empty(broadcast.shape+(3, 3), dtype=numpy.double)
     
     #Create the iterator, broadcasting on all but the consumed dimensions
-    op_axes = [[-1]*(broadcast.nd-arr.ndim)+range(arr.ndim) for arr in [date1_in, date2_in]+[dpsi_out, deps_out, epsa_out, rb_out[...,0,0], rp_out[...,0,0], rbp_out[...,0,0], rn_out[...,0,0], rbpn_out[...,0,0]]]
-    op_flags = [['readonly']]*2+[['readwrite']]*8
-    it = numpy.nditer([date1_in, date2_in]+[dpsi_out, deps_out, epsa_out, rb_out, rp_out, rbp_out, rn_out, rbpn_out], op_axes=op_axes, op_flags=op_flags)
+    arrs = [date1_in, date2_in, dpsi_out, deps_out, epsa_out, rb_out[...,0,0], rp_out[...,0,0], rbp_out[...,0,0], rn_out[...,0,0], rbpn_out[...,0,0]]
+    op_axes = [[-1]*(broadcast.nd-arr.ndim) + list(range(arr.ndim)) for arr in arrs]
+    op_flags = [['readonly']]*2 + [['readwrite']]*8
+    it = numpy.nditer(arrs, op_axes=op_axes, op_flags=op_flags)
     
     #Iterate
     cdef double _date1
@@ -11978,9 +12073,10 @@ def pn00b(date1, date2):
     rbpn_out = numpy.empty(broadcast.shape+(3, 3), dtype=numpy.double)
     
     #Create the iterator, broadcasting on all but the consumed dimensions
-    op_axes = [[-1]*(broadcast.nd-arr.ndim)+range(arr.ndim) for arr in [date1_in, date2_in]+[dpsi_out, deps_out, epsa_out, rb_out[...,0,0], rp_out[...,0,0], rbp_out[...,0,0], rn_out[...,0,0], rbpn_out[...,0,0]]]
-    op_flags = [['readonly']]*2+[['readwrite']]*8
-    it = numpy.nditer([date1_in, date2_in]+[dpsi_out, deps_out, epsa_out, rb_out, rp_out, rbp_out, rn_out, rbpn_out], op_axes=op_axes, op_flags=op_flags)
+    arrs = [date1_in, date2_in, dpsi_out, deps_out, epsa_out, rb_out[...,0,0], rp_out[...,0,0], rbp_out[...,0,0], rn_out[...,0,0], rbpn_out[...,0,0]]
+    op_axes = [[-1]*(broadcast.nd-arr.ndim) + list(range(arr.ndim)) for arr in arrs]
+    op_flags = [['readonly']]*2 + [['readwrite']]*8
+    it = numpy.nditer(arrs, op_axes=op_axes, op_flags=op_flags)
     
     #Iterate
     cdef double _date1
@@ -12130,9 +12226,10 @@ def pn06(date1, date2, dpsi, deps):
     rbpn_out = numpy.empty(broadcast.shape+(3, 3), dtype=numpy.double)
     
     #Create the iterator, broadcasting on all but the consumed dimensions
-    op_axes = [[-1]*(broadcast.nd-arr.ndim)+range(arr.ndim) for arr in [date1_in, date2_in, dpsi_in, deps_in]+[epsa_out, rb_out[...,0,0], rp_out[...,0,0], rbp_out[...,0,0], rn_out[...,0,0], rbpn_out[...,0,0]]]
-    op_flags = [['readonly']]*4+[['readwrite']]*6
-    it = numpy.nditer([date1_in, date2_in, dpsi_in, deps_in]+[epsa_out, rb_out, rp_out, rbp_out, rn_out, rbpn_out], op_axes=op_axes, op_flags=op_flags)
+    arrs = [date1_in, date2_in, dpsi_in, deps_in, epsa_out, rb_out[...,0,0], rp_out[...,0,0], rbp_out[...,0,0], rn_out[...,0,0], rbpn_out[...,0,0]]
+    op_axes = [[-1]*(broadcast.nd-arr.ndim) + list(range(arr.ndim)) for arr in arrs]
+    op_flags = [['readonly']]*4 + [['readwrite']]*6
+    it = numpy.nditer(arrs, op_axes=op_axes, op_flags=op_flags)
     
     #Iterate
     cdef double _date1
@@ -12274,9 +12371,10 @@ def pn06a(date1, date2):
     rbpn_out = numpy.empty(broadcast.shape+(3, 3), dtype=numpy.double)
     
     #Create the iterator, broadcasting on all but the consumed dimensions
-    op_axes = [[-1]*(broadcast.nd-arr.ndim)+range(arr.ndim) for arr in [date1_in, date2_in]+[dpsi_out, deps_out, epsa_out, rb_out[...,0,0], rp_out[...,0,0], rbp_out[...,0,0], rn_out[...,0,0], rbpn_out[...,0,0]]]
-    op_flags = [['readonly']]*2+[['readwrite']]*8
-    it = numpy.nditer([date1_in, date2_in]+[dpsi_out, deps_out, epsa_out, rb_out, rp_out, rbp_out, rn_out, rbpn_out], op_axes=op_axes, op_flags=op_flags)
+    arrs = [date1_in, date2_in, dpsi_out, deps_out, epsa_out, rb_out[...,0,0], rp_out[...,0,0], rbp_out[...,0,0], rn_out[...,0,0], rbpn_out[...,0,0]]
+    op_axes = [[-1]*(broadcast.nd-arr.ndim) + list(range(arr.ndim)) for arr in arrs]
+    op_flags = [['readonly']]*2 + [['readwrite']]*8
+    it = numpy.nditer(arrs, op_axes=op_axes, op_flags=op_flags)
     
     #Iterate
     cdef double _date1
@@ -12382,9 +12480,10 @@ def pnm00a(date1, date2):
     rbpn_out = numpy.empty(broadcast.shape+(3, 3), dtype=numpy.double)
     
     #Create the iterator, broadcasting on all but the consumed dimensions
-    op_axes = [[-1]*(broadcast.nd-arr.ndim)+range(arr.ndim) for arr in [date1_in, date2_in]+[rbpn_out[...,0,0]]]
-    op_flags = [['readonly']]*2+[['readwrite']]*1
-    it = numpy.nditer([date1_in, date2_in]+[rbpn_out], op_axes=op_axes, op_flags=op_flags)
+    arrs = [date1_in, date2_in, rbpn_out[...,0,0]]
+    op_axes = [[-1]*(broadcast.nd-arr.ndim) + list(range(arr.ndim)) for arr in arrs]
+    op_flags = [['readonly']]*2 + [['readwrite']]*1
+    it = numpy.nditer(arrs, op_axes=op_axes, op_flags=op_flags)
     
     #Iterate
     cdef double _date1
@@ -12476,9 +12575,10 @@ def pnm00b(date1, date2):
     rbpn_out = numpy.empty(broadcast.shape+(3, 3), dtype=numpy.double)
     
     #Create the iterator, broadcasting on all but the consumed dimensions
-    op_axes = [[-1]*(broadcast.nd-arr.ndim)+range(arr.ndim) for arr in [date1_in, date2_in]+[rbpn_out[...,0,0]]]
-    op_flags = [['readonly']]*2+[['readwrite']]*1
-    it = numpy.nditer([date1_in, date2_in]+[rbpn_out], op_axes=op_axes, op_flags=op_flags)
+    arrs = [date1_in, date2_in, rbpn_out[...,0,0]]
+    op_axes = [[-1]*(broadcast.nd-arr.ndim) + list(range(arr.ndim)) for arr in arrs]
+    op_flags = [['readonly']]*2 + [['readwrite']]*1
+    it = numpy.nditer(arrs, op_axes=op_axes, op_flags=op_flags)
     
     #Iterate
     cdef double _date1
@@ -12567,9 +12667,10 @@ def pnm06a(date1, date2):
     rnpb_out = numpy.empty(broadcast.shape+(3, 3), dtype=numpy.double)
     
     #Create the iterator, broadcasting on all but the consumed dimensions
-    op_axes = [[-1]*(broadcast.nd-arr.ndim)+range(arr.ndim) for arr in [date1_in, date2_in]+[rnpb_out[...,0,0]]]
-    op_flags = [['readonly']]*2+[['readwrite']]*1
-    it = numpy.nditer([date1_in, date2_in]+[rnpb_out], op_axes=op_axes, op_flags=op_flags)
+    arrs = [date1_in, date2_in, rnpb_out[...,0,0]]
+    op_axes = [[-1]*(broadcast.nd-arr.ndim) + list(range(arr.ndim)) for arr in arrs]
+    op_flags = [['readonly']]*2 + [['readwrite']]*1
+    it = numpy.nditer(arrs, op_axes=op_axes, op_flags=op_flags)
     
     #Iterate
     cdef double _date1
@@ -12660,9 +12761,10 @@ def pnm80(date1, date2):
     rmatpn_out = numpy.empty(broadcast.shape+(3, 3), dtype=numpy.double)
     
     #Create the iterator, broadcasting on all but the consumed dimensions
-    op_axes = [[-1]*(broadcast.nd-arr.ndim)+range(arr.ndim) for arr in [date1_in, date2_in]+[rmatpn_out[...,0,0]]]
-    op_flags = [['readonly']]*2+[['readwrite']]*1
-    it = numpy.nditer([date1_in, date2_in]+[rmatpn_out], op_axes=op_axes, op_flags=op_flags)
+    arrs = [date1_in, date2_in, rmatpn_out[...,0,0]]
+    op_axes = [[-1]*(broadcast.nd-arr.ndim) + list(range(arr.ndim)) for arr in arrs]
+    op_flags = [['readonly']]*2 + [['readwrite']]*1
+    it = numpy.nditer(arrs, op_axes=op_axes, op_flags=op_flags)
     
     #Iterate
     cdef double _date1
@@ -12748,9 +12850,10 @@ def pom00(xp, yp, sp):
     rpom_out = numpy.empty(broadcast.shape+(3, 3), dtype=numpy.double)
     
     #Create the iterator, broadcasting on all but the consumed dimensions
-    op_axes = [[-1]*(broadcast.nd-arr.ndim)+range(arr.ndim) for arr in [xp_in, yp_in, sp_in]+[rpom_out[...,0,0]]]
-    op_flags = [['readonly']]*3+[['readwrite']]*1
-    it = numpy.nditer([xp_in, yp_in, sp_in]+[rpom_out], op_axes=op_axes, op_flags=op_flags)
+    arrs = [xp_in, yp_in, sp_in, rpom_out[...,0,0]]
+    op_axes = [[-1]*(broadcast.nd-arr.ndim) + list(range(arr.ndim)) for arr in arrs]
+    op_flags = [['readonly']]*3 + [['readwrite']]*1
+    it = numpy.nditer(arrs, op_axes=op_axes, op_flags=op_flags)
     
     #Iterate
     cdef double _xp
@@ -12858,9 +12961,10 @@ def pr00(date1, date2):
     depspr_out = numpy.empty(broadcast.shape+(), dtype=numpy.double)
     
     #Create the iterator, broadcasting on all but the consumed dimensions
-    op_axes = [[-1]*(broadcast.nd-arr.ndim)+range(arr.ndim) for arr in [date1_in, date2_in]+[dpsipr_out, depspr_out]]
-    op_flags = [['readonly']]*2+[['readwrite']]*2
-    it = numpy.nditer([date1_in, date2_in]+[dpsipr_out, depspr_out], op_axes=op_axes, op_flags=op_flags)
+    arrs = [date1_in, date2_in, dpsipr_out, depspr_out]
+    op_axes = [[-1]*(broadcast.nd-arr.ndim) + list(range(arr.ndim)) for arr in arrs]
+    op_flags = [['readonly']]*2 + [['readwrite']]*2
+    it = numpy.nditer(arrs, op_axes=op_axes, op_flags=op_flags)
     
     #Iterate
     cdef double _date1
@@ -12970,9 +13074,10 @@ def prec76(date01, date02, date11, date12):
     theta_out = numpy.empty(broadcast.shape+(), dtype=numpy.double)
     
     #Create the iterator, broadcasting on all but the consumed dimensions
-    op_axes = [[-1]*(broadcast.nd-arr.ndim)+range(arr.ndim) for arr in [date01_in, date02_in, date11_in, date12_in]+[zeta_out, z_out, theta_out]]
-    op_flags = [['readonly']]*4+[['readwrite']]*3
-    it = numpy.nditer([date01_in, date02_in, date11_in, date12_in]+[zeta_out, z_out, theta_out], op_axes=op_axes, op_flags=op_flags)
+    arrs = [date01_in, date02_in, date11_in, date12_in, zeta_out, z_out, theta_out]
+    op_axes = [[-1]*(broadcast.nd-arr.ndim) + list(range(arr.ndim)) for arr in arrs]
+    op_flags = [['readonly']]*4 + [['readwrite']]*3
+    it = numpy.nditer(arrs, op_axes=op_axes, op_flags=op_flags)
     
     #Iterate
     cdef double _date01
@@ -13097,9 +13202,10 @@ def s00(date1, date2, x, y):
     c_retval_out = numpy.empty(broadcast.shape+(), dtype=numpy.double)
     
     #Create the iterator, broadcasting on all but the consumed dimensions
-    op_axes = [[-1]*(broadcast.nd-arr.ndim)+range(arr.ndim) for arr in [date1_in, date2_in, x_in, y_in]+[c_retval_out]]
-    op_flags = [['readonly']]*4+[['readwrite']]*1
-    it = numpy.nditer([date1_in, date2_in, x_in, y_in]+[c_retval_out], op_axes=op_axes, op_flags=op_flags)
+    arrs = [date1_in, date2_in, x_in, y_in, c_retval_out]
+    op_axes = [[-1]*(broadcast.nd-arr.ndim) + list(range(arr.ndim)) for arr in arrs]
+    op_flags = [['readonly']]*4 + [['readwrite']]*1
+    it = numpy.nditer(arrs, op_axes=op_axes, op_flags=op_flags)
     
     #Iterate
     cdef double _date1
@@ -13211,9 +13317,10 @@ def s00a(date1, date2):
     c_retval_out = numpy.empty(broadcast.shape+(), dtype=numpy.double)
     
     #Create the iterator, broadcasting on all but the consumed dimensions
-    op_axes = [[-1]*(broadcast.nd-arr.ndim)+range(arr.ndim) for arr in [date1_in, date2_in]+[c_retval_out]]
-    op_flags = [['readonly']]*2+[['readwrite']]*1
-    it = numpy.nditer([date1_in, date2_in]+[c_retval_out], op_axes=op_axes, op_flags=op_flags)
+    arrs = [date1_in, date2_in, c_retval_out]
+    op_axes = [[-1]*(broadcast.nd-arr.ndim) + list(range(arr.ndim)) for arr in arrs]
+    op_flags = [['readonly']]*2 + [['readwrite']]*1
+    it = numpy.nditer(arrs, op_axes=op_axes, op_flags=op_flags)
     
     #Iterate
     cdef double _date1
@@ -13321,9 +13428,10 @@ def s00b(date1, date2):
     c_retval_out = numpy.empty(broadcast.shape+(), dtype=numpy.double)
     
     #Create the iterator, broadcasting on all but the consumed dimensions
-    op_axes = [[-1]*(broadcast.nd-arr.ndim)+range(arr.ndim) for arr in [date1_in, date2_in]+[c_retval_out]]
-    op_flags = [['readonly']]*2+[['readwrite']]*1
-    it = numpy.nditer([date1_in, date2_in]+[c_retval_out], op_axes=op_axes, op_flags=op_flags)
+    arrs = [date1_in, date2_in, c_retval_out]
+    op_axes = [[-1]*(broadcast.nd-arr.ndim) + list(range(arr.ndim)) for arr in arrs]
+    op_flags = [['readonly']]*2 + [['readwrite']]*1
+    it = numpy.nditer(arrs, op_axes=op_axes, op_flags=op_flags)
     
     #Iterate
     cdef double _date1
@@ -13437,9 +13545,10 @@ def s06(date1, date2, x, y):
     c_retval_out = numpy.empty(broadcast.shape+(), dtype=numpy.double)
     
     #Create the iterator, broadcasting on all but the consumed dimensions
-    op_axes = [[-1]*(broadcast.nd-arr.ndim)+range(arr.ndim) for arr in [date1_in, date2_in, x_in, y_in]+[c_retval_out]]
-    op_flags = [['readonly']]*4+[['readwrite']]*1
-    it = numpy.nditer([date1_in, date2_in, x_in, y_in]+[c_retval_out], op_axes=op_axes, op_flags=op_flags)
+    arrs = [date1_in, date2_in, x_in, y_in, c_retval_out]
+    op_axes = [[-1]*(broadcast.nd-arr.ndim) + list(range(arr.ndim)) for arr in arrs]
+    op_flags = [['readonly']]*4 + [['readwrite']]*1
+    it = numpy.nditer(arrs, op_axes=op_axes, op_flags=op_flags)
     
     #Iterate
     cdef double _date1
@@ -13553,9 +13662,10 @@ def s06a(date1, date2):
     c_retval_out = numpy.empty(broadcast.shape+(), dtype=numpy.double)
     
     #Create the iterator, broadcasting on all but the consumed dimensions
-    op_axes = [[-1]*(broadcast.nd-arr.ndim)+range(arr.ndim) for arr in [date1_in, date2_in]+[c_retval_out]]
-    op_flags = [['readonly']]*2+[['readwrite']]*1
-    it = numpy.nditer([date1_in, date2_in]+[c_retval_out], op_axes=op_axes, op_flags=op_flags)
+    arrs = [date1_in, date2_in, c_retval_out]
+    op_axes = [[-1]*(broadcast.nd-arr.ndim) + list(range(arr.ndim)) for arr in arrs]
+    op_flags = [['readonly']]*2 + [['readwrite']]*1
+    it = numpy.nditer(arrs, op_axes=op_axes, op_flags=op_flags)
     
     #Iterate
     cdef double _date1
@@ -13641,9 +13751,10 @@ def sp00(date1, date2):
     c_retval_out = numpy.empty(broadcast.shape+(), dtype=numpy.double)
     
     #Create the iterator, broadcasting on all but the consumed dimensions
-    op_axes = [[-1]*(broadcast.nd-arr.ndim)+range(arr.ndim) for arr in [date1_in, date2_in]+[c_retval_out]]
-    op_flags = [['readonly']]*2+[['readwrite']]*1
-    it = numpy.nditer([date1_in, date2_in]+[c_retval_out], op_axes=op_axes, op_flags=op_flags)
+    arrs = [date1_in, date2_in, c_retval_out]
+    op_axes = [[-1]*(broadcast.nd-arr.ndim) + list(range(arr.ndim)) for arr in arrs]
+    op_flags = [['readonly']]*2 + [['readwrite']]*1
+    it = numpy.nditer(arrs, op_axes=op_axes, op_flags=op_flags)
     
     #Iterate
     cdef double _date1
@@ -13768,9 +13879,10 @@ def xy06(date1, date2):
     y_out = numpy.empty(broadcast.shape+(), dtype=numpy.double)
     
     #Create the iterator, broadcasting on all but the consumed dimensions
-    op_axes = [[-1]*(broadcast.nd-arr.ndim)+range(arr.ndim) for arr in [date1_in, date2_in]+[x_out, y_out]]
-    op_flags = [['readonly']]*2+[['readwrite']]*2
-    it = numpy.nditer([date1_in, date2_in]+[x_out, y_out], op_axes=op_axes, op_flags=op_flags)
+    arrs = [date1_in, date2_in, x_out, y_out]
+    op_axes = [[-1]*(broadcast.nd-arr.ndim) + list(range(arr.ndim)) for arr in arrs]
+    op_flags = [['readonly']]*2 + [['readwrite']]*2
+    it = numpy.nditer(arrs, op_axes=op_axes, op_flags=op_flags)
     
     #Iterate
     cdef double _date1
@@ -13871,9 +13983,10 @@ def xys00a(date1, date2):
     s_out = numpy.empty(broadcast.shape+(), dtype=numpy.double)
     
     #Create the iterator, broadcasting on all but the consumed dimensions
-    op_axes = [[-1]*(broadcast.nd-arr.ndim)+range(arr.ndim) for arr in [date1_in, date2_in]+[x_out, y_out, s_out]]
-    op_flags = [['readonly']]*2+[['readwrite']]*3
-    it = numpy.nditer([date1_in, date2_in]+[x_out, y_out, s_out], op_axes=op_axes, op_flags=op_flags)
+    arrs = [date1_in, date2_in, x_out, y_out, s_out]
+    op_axes = [[-1]*(broadcast.nd-arr.ndim) + list(range(arr.ndim)) for arr in arrs]
+    op_flags = [['readonly']]*2 + [['readwrite']]*3
+    it = numpy.nditer(arrs, op_axes=op_axes, op_flags=op_flags)
     
     #Iterate
     cdef double _date1
@@ -13976,9 +14089,10 @@ def xys00b(date1, date2):
     s_out = numpy.empty(broadcast.shape+(), dtype=numpy.double)
     
     #Create the iterator, broadcasting on all but the consumed dimensions
-    op_axes = [[-1]*(broadcast.nd-arr.ndim)+range(arr.ndim) for arr in [date1_in, date2_in]+[x_out, y_out, s_out]]
-    op_flags = [['readonly']]*2+[['readwrite']]*3
-    it = numpy.nditer([date1_in, date2_in]+[x_out, y_out, s_out], op_axes=op_axes, op_flags=op_flags)
+    arrs = [date1_in, date2_in, x_out, y_out, s_out]
+    op_axes = [[-1]*(broadcast.nd-arr.ndim) + list(range(arr.ndim)) for arr in arrs]
+    op_flags = [['readonly']]*2 + [['readwrite']]*3
+    it = numpy.nditer(arrs, op_axes=op_axes, op_flags=op_flags)
     
     #Iterate
     cdef double _date1
@@ -14081,9 +14195,10 @@ def xys06a(date1, date2):
     s_out = numpy.empty(broadcast.shape+(), dtype=numpy.double)
     
     #Create the iterator, broadcasting on all but the consumed dimensions
-    op_axes = [[-1]*(broadcast.nd-arr.ndim)+range(arr.ndim) for arr in [date1_in, date2_in]+[x_out, y_out, s_out]]
-    op_flags = [['readonly']]*2+[['readwrite']]*3
-    it = numpy.nditer([date1_in, date2_in]+[x_out, y_out, s_out], op_axes=op_axes, op_flags=op_flags)
+    arrs = [date1_in, date2_in, x_out, y_out, s_out]
+    op_axes = [[-1]*(broadcast.nd-arr.ndim) + list(range(arr.ndim)) for arr in arrs]
+    op_flags = [['readonly']]*2 + [['readwrite']]*3
+    it = numpy.nditer(arrs, op_axes=op_axes, op_flags=op_flags)
     
     #Iterate
     cdef double _date1
@@ -14188,9 +14303,10 @@ def ee00(date1, date2, epsa, dpsi):
     c_retval_out = numpy.empty(broadcast.shape+(), dtype=numpy.double)
     
     #Create the iterator, broadcasting on all but the consumed dimensions
-    op_axes = [[-1]*(broadcast.nd-arr.ndim)+range(arr.ndim) for arr in [date1_in, date2_in, epsa_in, dpsi_in]+[c_retval_out]]
-    op_flags = [['readonly']]*4+[['readwrite']]*1
-    it = numpy.nditer([date1_in, date2_in, epsa_in, dpsi_in]+[c_retval_out], op_axes=op_axes, op_flags=op_flags)
+    arrs = [date1_in, date2_in, epsa_in, dpsi_in, c_retval_out]
+    op_axes = [[-1]*(broadcast.nd-arr.ndim) + list(range(arr.ndim)) for arr in arrs]
+    op_flags = [['readonly']]*4 + [['readwrite']]*1
+    it = numpy.nditer(arrs, op_axes=op_axes, op_flags=op_flags)
     
     #Iterate
     cdef double _date1
@@ -14291,9 +14407,10 @@ def ee00a(date1, date2):
     c_retval_out = numpy.empty(broadcast.shape+(), dtype=numpy.double)
     
     #Create the iterator, broadcasting on all but the consumed dimensions
-    op_axes = [[-1]*(broadcast.nd-arr.ndim)+range(arr.ndim) for arr in [date1_in, date2_in]+[c_retval_out]]
-    op_flags = [['readonly']]*2+[['readwrite']]*1
-    it = numpy.nditer([date1_in, date2_in]+[c_retval_out], op_axes=op_axes, op_flags=op_flags)
+    arrs = [date1_in, date2_in, c_retval_out]
+    op_axes = [[-1]*(broadcast.nd-arr.ndim) + list(range(arr.ndim)) for arr in arrs]
+    op_flags = [['readonly']]*2 + [['readwrite']]*1
+    it = numpy.nditer(arrs, op_axes=op_axes, op_flags=op_flags)
     
     #Iterate
     cdef double _date1
@@ -14396,9 +14513,10 @@ def ee00b(date1, date2):
     c_retval_out = numpy.empty(broadcast.shape+(), dtype=numpy.double)
     
     #Create the iterator, broadcasting on all but the consumed dimensions
-    op_axes = [[-1]*(broadcast.nd-arr.ndim)+range(arr.ndim) for arr in [date1_in, date2_in]+[c_retval_out]]
-    op_flags = [['readonly']]*2+[['readwrite']]*1
-    it = numpy.nditer([date1_in, date2_in]+[c_retval_out], op_axes=op_axes, op_flags=op_flags)
+    arrs = [date1_in, date2_in, c_retval_out]
+    op_axes = [[-1]*(broadcast.nd-arr.ndim) + list(range(arr.ndim)) for arr in arrs]
+    op_flags = [['readonly']]*2 + [['readwrite']]*1
+    it = numpy.nditer(arrs, op_axes=op_axes, op_flags=op_flags)
     
     #Iterate
     cdef double _date1
@@ -14487,9 +14605,10 @@ def ee06a(date1, date2):
     c_retval_out = numpy.empty(broadcast.shape+(), dtype=numpy.double)
     
     #Create the iterator, broadcasting on all but the consumed dimensions
-    op_axes = [[-1]*(broadcast.nd-arr.ndim)+range(arr.ndim) for arr in [date1_in, date2_in]+[c_retval_out]]
-    op_flags = [['readonly']]*2+[['readwrite']]*1
-    it = numpy.nditer([date1_in, date2_in]+[c_retval_out], op_axes=op_axes, op_flags=op_flags)
+    arrs = [date1_in, date2_in, c_retval_out]
+    op_axes = [[-1]*(broadcast.nd-arr.ndim) + list(range(arr.ndim)) for arr in arrs]
+    op_flags = [['readonly']]*2 + [['readwrite']]*1
+    it = numpy.nditer(arrs, op_axes=op_axes, op_flags=op_flags)
     
     #Iterate
     cdef double _date1
@@ -14619,9 +14738,10 @@ def eect00(date1, date2):
     c_retval_out = numpy.empty(broadcast.shape+(), dtype=numpy.double)
     
     #Create the iterator, broadcasting on all but the consumed dimensions
-    op_axes = [[-1]*(broadcast.nd-arr.ndim)+range(arr.ndim) for arr in [date1_in, date2_in]+[c_retval_out]]
-    op_flags = [['readonly']]*2+[['readwrite']]*1
-    it = numpy.nditer([date1_in, date2_in]+[c_retval_out], op_axes=op_axes, op_flags=op_flags)
+    arrs = [date1_in, date2_in, c_retval_out]
+    op_axes = [[-1]*(broadcast.nd-arr.ndim) + list(range(arr.ndim)) for arr in arrs]
+    op_flags = [['readonly']]*2 + [['readwrite']]*1
+    it = numpy.nditer(arrs, op_axes=op_axes, op_flags=op_flags)
     
     #Iterate
     cdef double _date1
@@ -14711,9 +14831,10 @@ def eqeq94(date1, date2):
     c_retval_out = numpy.empty(broadcast.shape+(), dtype=numpy.double)
     
     #Create the iterator, broadcasting on all but the consumed dimensions
-    op_axes = [[-1]*(broadcast.nd-arr.ndim)+range(arr.ndim) for arr in [date1_in, date2_in]+[c_retval_out]]
-    op_flags = [['readonly']]*2+[['readwrite']]*1
-    it = numpy.nditer([date1_in, date2_in]+[c_retval_out], op_axes=op_axes, op_flags=op_flags)
+    arrs = [date1_in, date2_in, c_retval_out]
+    op_axes = [[-1]*(broadcast.nd-arr.ndim) + list(range(arr.ndim)) for arr in arrs]
+    op_flags = [['readonly']]*2 + [['readwrite']]*1
+    it = numpy.nditer(arrs, op_axes=op_axes, op_flags=op_flags)
     
     #Iterate
     cdef double _date1
@@ -14806,9 +14927,10 @@ def era00(dj1, dj2):
     c_retval_out = numpy.empty(broadcast.shape+(), dtype=numpy.double)
     
     #Create the iterator, broadcasting on all but the consumed dimensions
-    op_axes = [[-1]*(broadcast.nd-arr.ndim)+range(arr.ndim) for arr in [dj1_in, dj2_in]+[c_retval_out]]
-    op_flags = [['readonly']]*2+[['readwrite']]*1
-    it = numpy.nditer([dj1_in, dj2_in]+[c_retval_out], op_axes=op_axes, op_flags=op_flags)
+    arrs = [dj1_in, dj2_in, c_retval_out]
+    op_axes = [[-1]*(broadcast.nd-arr.ndim) + list(range(arr.ndim)) for arr in arrs]
+    op_flags = [['readonly']]*2 + [['readwrite']]*1
+    it = numpy.nditer(arrs, op_axes=op_axes, op_flags=op_flags)
     
     #Iterate
     cdef double _dj1
@@ -14917,9 +15039,10 @@ def gmst00(uta, utb, tta, ttb):
     c_retval_out = numpy.empty(broadcast.shape+(), dtype=numpy.double)
     
     #Create the iterator, broadcasting on all but the consumed dimensions
-    op_axes = [[-1]*(broadcast.nd-arr.ndim)+range(arr.ndim) for arr in [uta_in, utb_in, tta_in, ttb_in]+[c_retval_out]]
-    op_flags = [['readonly']]*4+[['readwrite']]*1
-    it = numpy.nditer([uta_in, utb_in, tta_in, ttb_in]+[c_retval_out], op_axes=op_axes, op_flags=op_flags)
+    arrs = [uta_in, utb_in, tta_in, ttb_in, c_retval_out]
+    op_axes = [[-1]*(broadcast.nd-arr.ndim) + list(range(arr.ndim)) for arr in arrs]
+    op_flags = [['readonly']]*4 + [['readwrite']]*1
+    it = numpy.nditer(arrs, op_axes=op_axes, op_flags=op_flags)
     
     #Iterate
     cdef double _uta
@@ -15022,9 +15145,10 @@ def gmst06(uta, utb, tta, ttb):
     c_retval_out = numpy.empty(broadcast.shape+(), dtype=numpy.double)
     
     #Create the iterator, broadcasting on all but the consumed dimensions
-    op_axes = [[-1]*(broadcast.nd-arr.ndim)+range(arr.ndim) for arr in [uta_in, utb_in, tta_in, ttb_in]+[c_retval_out]]
-    op_flags = [['readonly']]*4+[['readwrite']]*1
-    it = numpy.nditer([uta_in, utb_in, tta_in, ttb_in]+[c_retval_out], op_axes=op_axes, op_flags=op_flags)
+    arrs = [uta_in, utb_in, tta_in, ttb_in, c_retval_out]
+    op_axes = [[-1]*(broadcast.nd-arr.ndim) + list(range(arr.ndim)) for arr in arrs]
+    op_flags = [['readonly']]*4 + [['readwrite']]*1
+    it = numpy.nditer(arrs, op_axes=op_axes, op_flags=op_flags)
     
     #Iterate
     cdef double _uta
@@ -15127,9 +15251,10 @@ def gmst82(dj1, dj2):
     c_retval_out = numpy.empty(broadcast.shape+(), dtype=numpy.double)
     
     #Create the iterator, broadcasting on all but the consumed dimensions
-    op_axes = [[-1]*(broadcast.nd-arr.ndim)+range(arr.ndim) for arr in [dj1_in, dj2_in]+[c_retval_out]]
-    op_flags = [['readonly']]*2+[['readwrite']]*1
-    it = numpy.nditer([dj1_in, dj2_in]+[c_retval_out], op_axes=op_axes, op_flags=op_flags)
+    arrs = [dj1_in, dj2_in, c_retval_out]
+    op_axes = [[-1]*(broadcast.nd-arr.ndim) + list(range(arr.ndim)) for arr in arrs]
+    op_flags = [['readonly']]*2 + [['readwrite']]*1
+    it = numpy.nditer(arrs, op_axes=op_axes, op_flags=op_flags)
     
     #Iterate
     cdef double _dj1
@@ -15239,9 +15364,10 @@ def gst00a(uta, utb, tta, ttb):
     c_retval_out = numpy.empty(broadcast.shape+(), dtype=numpy.double)
     
     #Create the iterator, broadcasting on all but the consumed dimensions
-    op_axes = [[-1]*(broadcast.nd-arr.ndim)+range(arr.ndim) for arr in [uta_in, utb_in, tta_in, ttb_in]+[c_retval_out]]
-    op_flags = [['readonly']]*4+[['readwrite']]*1
-    it = numpy.nditer([uta_in, utb_in, tta_in, ttb_in]+[c_retval_out], op_axes=op_axes, op_flags=op_flags)
+    arrs = [uta_in, utb_in, tta_in, ttb_in, c_retval_out]
+    op_axes = [[-1]*(broadcast.nd-arr.ndim) + list(range(arr.ndim)) for arr in arrs]
+    op_flags = [['readonly']]*4 + [['readwrite']]*1
+    it = numpy.nditer(arrs, op_axes=op_axes, op_flags=op_flags)
     
     #Iterate
     cdef double _uta
@@ -15361,9 +15487,10 @@ def gst00b(uta, utb):
     c_retval_out = numpy.empty(broadcast.shape+(), dtype=numpy.double)
     
     #Create the iterator, broadcasting on all but the consumed dimensions
-    op_axes = [[-1]*(broadcast.nd-arr.ndim)+range(arr.ndim) for arr in [uta_in, utb_in]+[c_retval_out]]
-    op_flags = [['readonly']]*2+[['readwrite']]*1
-    it = numpy.nditer([uta_in, utb_in]+[c_retval_out], op_axes=op_axes, op_flags=op_flags)
+    arrs = [uta_in, utb_in, c_retval_out]
+    op_axes = [[-1]*(broadcast.nd-arr.ndim) + list(range(arr.ndim)) for arr in arrs]
+    op_flags = [['readonly']]*2 + [['readwrite']]*1
+    it = numpy.nditer(arrs, op_axes=op_axes, op_flags=op_flags)
     
     #Iterate
     cdef double _uta
@@ -15468,9 +15595,10 @@ def gst06(uta, utb, tta, ttb, rnpb):
     c_retval_out = numpy.empty(broadcast.shape+(), dtype=numpy.double)
     
     #Create the iterator, broadcasting on all but the consumed dimensions
-    op_axes = [[-1]*(broadcast.nd-arr.ndim)+range(arr.ndim) for arr in [uta_in, utb_in, tta_in, ttb_in, rnpb_in[...,0,0]]+[c_retval_out]]
-    op_flags = [['readonly']]*5+[['readwrite']]*1
-    it = numpy.nditer([uta_in, utb_in, tta_in, ttb_in, rnpb_in]+[c_retval_out], op_axes=op_axes, op_flags=op_flags)
+    arrs = [uta_in, utb_in, tta_in, ttb_in, rnpb_in[...,0,0], c_retval_out]
+    op_axes = [[-1]*(broadcast.nd-arr.ndim) + list(range(arr.ndim)) for arr in arrs]
+    op_flags = [['readonly']]*5 + [['readwrite']]*1
+    it = numpy.nditer(arrs, op_axes=op_axes, op_flags=op_flags)
     
     #Iterate
     cdef double _uta
@@ -15577,9 +15705,10 @@ def gst06a(uta, utb, tta, ttb):
     c_retval_out = numpy.empty(broadcast.shape+(), dtype=numpy.double)
     
     #Create the iterator, broadcasting on all but the consumed dimensions
-    op_axes = [[-1]*(broadcast.nd-arr.ndim)+range(arr.ndim) for arr in [uta_in, utb_in, tta_in, ttb_in]+[c_retval_out]]
-    op_flags = [['readonly']]*4+[['readwrite']]*1
-    it = numpy.nditer([uta_in, utb_in, tta_in, ttb_in]+[c_retval_out], op_axes=op_axes, op_flags=op_flags)
+    arrs = [uta_in, utb_in, tta_in, ttb_in, c_retval_out]
+    op_axes = [[-1]*(broadcast.nd-arr.ndim) + list(range(arr.ndim)) for arr in arrs]
+    op_flags = [['readonly']]*4 + [['readwrite']]*1
+    it = numpy.nditer(arrs, op_axes=op_axes, op_flags=op_flags)
     
     #Iterate
     cdef double _uta
@@ -15684,9 +15813,10 @@ def gst94(uta, utb):
     c_retval_out = numpy.empty(broadcast.shape+(), dtype=numpy.double)
     
     #Create the iterator, broadcasting on all but the consumed dimensions
-    op_axes = [[-1]*(broadcast.nd-arr.ndim)+range(arr.ndim) for arr in [uta_in, utb_in]+[c_retval_out]]
-    op_flags = [['readonly']]*2+[['readwrite']]*1
-    it = numpy.nditer([uta_in, utb_in]+[c_retval_out], op_axes=op_axes, op_flags=op_flags)
+    arrs = [uta_in, utb_in, c_retval_out]
+    op_axes = [[-1]*(broadcast.nd-arr.ndim) + list(range(arr.ndim)) for arr in arrs]
+    op_flags = [['readonly']]*2 + [['readwrite']]*1
+    it = numpy.nditer(arrs, op_axes=op_axes, op_flags=op_flags)
     
     #Iterate
     cdef double _uta
@@ -15840,9 +15970,10 @@ def pmsafe(ra1, dec1, pmr1, pmd1, px1, rv1, ep1a, ep1b, ep2a, ep2b):
     c_retval_out = numpy.empty(broadcast.shape+(), dtype=numpy.intc)
     
     #Create the iterator, broadcasting on all but the consumed dimensions
-    op_axes = [[-1]*(broadcast.nd-arr.ndim)+range(arr.ndim) for arr in [ra1_in, dec1_in, pmr1_in, pmd1_in, px1_in, rv1_in, ep1a_in, ep1b_in, ep2a_in, ep2b_in]+[ra2_out, dec2_out, pmr2_out, pmd2_out, px2_out, rv2_out, c_retval_out]]
-    op_flags = [['readonly']]*10+[['readwrite']]*7
-    it = numpy.nditer([ra1_in, dec1_in, pmr1_in, pmd1_in, px1_in, rv1_in, ep1a_in, ep1b_in, ep2a_in, ep2b_in]+[ra2_out, dec2_out, pmr2_out, pmd2_out, px2_out, rv2_out, c_retval_out], op_axes=op_axes, op_flags=op_flags)
+    arrs = [ra1_in, dec1_in, pmr1_in, pmd1_in, px1_in, rv1_in, ep1a_in, ep1b_in, ep2a_in, ep2b_in, ra2_out, dec2_out, pmr2_out, pmd2_out, px2_out, rv2_out, c_retval_out]
+    op_axes = [[-1]*(broadcast.nd-arr.ndim) + list(range(arr.ndim)) for arr in arrs]
+    op_flags = [['readonly']]*10 + [['readwrite']]*7
+    it = numpy.nditer(arrs, op_axes=op_axes, op_flags=op_flags)
     
     #Iterate
     cdef double _ra1
@@ -16014,9 +16145,10 @@ def pvstar(pv):
     c_retval_out = numpy.empty(broadcast.shape+(), dtype=numpy.intc)
     
     #Create the iterator, broadcasting on all but the consumed dimensions
-    op_axes = [[-1]*(broadcast.nd-arr.ndim)+range(arr.ndim) for arr in [pv_in[...,0,0]]+[ra_out, dec_out, pmr_out, pmd_out, px_out, rv_out, c_retval_out]]
-    op_flags = [['readonly']]*1+[['readwrite']]*7
-    it = numpy.nditer([pv_in]+[ra_out, dec_out, pmr_out, pmd_out, px_out, rv_out, c_retval_out], op_axes=op_axes, op_flags=op_flags)
+    arrs = [pv_in[...,0,0], ra_out, dec_out, pmr_out, pmd_out, px_out, rv_out, c_retval_out]
+    op_axes = [[-1]*(broadcast.nd-arr.ndim) + list(range(arr.ndim)) for arr in arrs]
+    op_flags = [['readonly']]*1 + [['readwrite']]*7
+    it = numpy.nditer(arrs, op_axes=op_axes, op_flags=op_flags)
     
     #Iterate
     cdef double * _pv
@@ -16189,9 +16321,10 @@ def starpv(ra, dec, pmr, pmd, px, rv):
     c_retval_out = numpy.empty(broadcast.shape+(), dtype=numpy.intc)
     
     #Create the iterator, broadcasting on all but the consumed dimensions
-    op_axes = [[-1]*(broadcast.nd-arr.ndim)+range(arr.ndim) for arr in [ra_in, dec_in, pmr_in, pmd_in, px_in, rv_in]+[pv_out[...,0,0], c_retval_out]]
-    op_flags = [['readonly']]*6+[['readwrite']]*2
-    it = numpy.nditer([ra_in, dec_in, pmr_in, pmd_in, px_in, rv_in]+[pv_out, c_retval_out], op_axes=op_axes, op_flags=op_flags)
+    arrs = [ra_in, dec_in, pmr_in, pmd_in, px_in, rv_in, pv_out[...,0,0], c_retval_out]
+    op_axes = [[-1]*(broadcast.nd-arr.ndim) + list(range(arr.ndim)) for arr in arrs]
+    op_flags = [['readonly']]*6 + [['readwrite']]*2
+    it = numpy.nditer(arrs, op_axes=op_axes, op_flags=op_flags)
     
     #Iterate
     cdef double _ra
@@ -16307,9 +16440,10 @@ def fk52h(r5, d5, dr5, dd5, px5, rv5):
     rvh_out = numpy.empty(broadcast.shape+(), dtype=numpy.double)
     
     #Create the iterator, broadcasting on all but the consumed dimensions
-    op_axes = [[-1]*(broadcast.nd-arr.ndim)+range(arr.ndim) for arr in [r5_in, d5_in, dr5_in, dd5_in, px5_in, rv5_in]+[rh_out, dh_out, drh_out, ddh_out, pxh_out, rvh_out]]
-    op_flags = [['readonly']]*6+[['readwrite']]*6
-    it = numpy.nditer([r5_in, d5_in, dr5_in, dd5_in, px5_in, rv5_in]+[rh_out, dh_out, drh_out, ddh_out, pxh_out, rvh_out], op_axes=op_axes, op_flags=op_flags)
+    arrs = [r5_in, d5_in, dr5_in, dd5_in, px5_in, rv5_in, rh_out, dh_out, drh_out, ddh_out, pxh_out, rvh_out]
+    op_axes = [[-1]*(broadcast.nd-arr.ndim) + list(range(arr.ndim)) for arr in arrs]
+    op_flags = [['readonly']]*6 + [['readwrite']]*6
+    it = numpy.nditer(arrs, op_axes=op_axes, op_flags=op_flags)
     
     #Iterate
     cdef double _r5
@@ -16401,9 +16535,10 @@ def fk5hip():
     s5h_out = numpy.empty(broadcast.shape+(3,), dtype=numpy.double)
     
     #Create the iterator, broadcasting on all but the consumed dimensions
-    op_axes = [[-1]*(broadcast.nd-arr.ndim)+range(arr.ndim) for arr in []+[r5h_out[...,0,0], s5h_out[...,0]]]
-    op_flags = [['readonly']]*0+[['readwrite']]*2
-    it = numpy.nditer([]+[r5h_out, s5h_out], op_axes=op_axes, op_flags=op_flags)
+    arrs = [r5h_out[...,0,0], s5h_out[...,0]]
+    op_axes = [[-1]*(broadcast.nd-arr.ndim) + list(range(arr.ndim)) for arr in arrs]
+    op_flags = [['readonly']]*0 + [['readwrite']]*2
+    it = numpy.nditer(arrs, op_axes=op_axes, op_flags=op_flags)
     
     #Iterate
     cdef double * _r5h
@@ -16511,9 +16646,10 @@ def fk5hz(r5, d5, date1, date2):
     dh_out = numpy.empty(broadcast.shape+(), dtype=numpy.double)
     
     #Create the iterator, broadcasting on all but the consumed dimensions
-    op_axes = [[-1]*(broadcast.nd-arr.ndim)+range(arr.ndim) for arr in [r5_in, d5_in, date1_in, date2_in]+[rh_out, dh_out]]
-    op_flags = [['readonly']]*4+[['readwrite']]*2
-    it = numpy.nditer([r5_in, d5_in, date1_in, date2_in]+[rh_out, dh_out], op_axes=op_axes, op_flags=op_flags)
+    arrs = [r5_in, d5_in, date1_in, date2_in, rh_out, dh_out]
+    op_axes = [[-1]*(broadcast.nd-arr.ndim) + list(range(arr.ndim)) for arr in arrs]
+    op_flags = [['readonly']]*4 + [['readwrite']]*2
+    it = numpy.nditer(arrs, op_axes=op_axes, op_flags=op_flags)
     
     #Iterate
     cdef double _r5
@@ -16619,9 +16755,10 @@ def h2fk5(rh, dh, drh, ddh, pxh, rvh):
     rv5_out = numpy.empty(broadcast.shape+(), dtype=numpy.double)
     
     #Create the iterator, broadcasting on all but the consumed dimensions
-    op_axes = [[-1]*(broadcast.nd-arr.ndim)+range(arr.ndim) for arr in [rh_in, dh_in, drh_in, ddh_in, pxh_in, rvh_in]+[r5_out, d5_out, dr5_out, dd5_out, px5_out, rv5_out]]
-    op_flags = [['readonly']]*6+[['readwrite']]*6
-    it = numpy.nditer([rh_in, dh_in, drh_in, ddh_in, pxh_in, rvh_in]+[r5_out, d5_out, dr5_out, dd5_out, px5_out, rv5_out], op_axes=op_axes, op_flags=op_flags)
+    arrs = [rh_in, dh_in, drh_in, ddh_in, pxh_in, rvh_in, r5_out, d5_out, dr5_out, dd5_out, px5_out, rv5_out]
+    op_axes = [[-1]*(broadcast.nd-arr.ndim) + list(range(arr.ndim)) for arr in arrs]
+    op_flags = [['readonly']]*6 + [['readwrite']]*6
+    it = numpy.nditer(arrs, op_axes=op_axes, op_flags=op_flags)
     
     #Iterate
     cdef double _rh
@@ -16756,9 +16893,10 @@ def hfk5z(rh, dh, date1, date2):
     dd5_out = numpy.empty(broadcast.shape+(), dtype=numpy.double)
     
     #Create the iterator, broadcasting on all but the consumed dimensions
-    op_axes = [[-1]*(broadcast.nd-arr.ndim)+range(arr.ndim) for arr in [rh_in, dh_in, date1_in, date2_in]+[r5_out, d5_out, dr5_out, dd5_out]]
-    op_flags = [['readonly']]*4+[['readwrite']]*4
-    it = numpy.nditer([rh_in, dh_in, date1_in, date2_in]+[r5_out, d5_out, dr5_out, dd5_out], op_axes=op_axes, op_flags=op_flags)
+    arrs = [rh_in, dh_in, date1_in, date2_in, r5_out, d5_out, dr5_out, dd5_out]
+    op_axes = [[-1]*(broadcast.nd-arr.ndim) + list(range(arr.ndim)) for arr in arrs]
+    op_flags = [['readonly']]*4 + [['readwrite']]*4
+    it = numpy.nditer(arrs, op_axes=op_axes, op_flags=op_flags)
     
     #Iterate
     cdef double _rh
@@ -16923,9 +17061,10 @@ def starpm(ra1, dec1, pmr1, pmd1, px1, rv1, ep1a, ep1b, ep2a, ep2b):
     c_retval_out = numpy.empty(broadcast.shape+(), dtype=numpy.intc)
     
     #Create the iterator, broadcasting on all but the consumed dimensions
-    op_axes = [[-1]*(broadcast.nd-arr.ndim)+range(arr.ndim) for arr in [ra1_in, dec1_in, pmr1_in, pmd1_in, px1_in, rv1_in, ep1a_in, ep1b_in, ep2a_in, ep2b_in]+[ra2_out, dec2_out, pmr2_out, pmd2_out, px2_out, rv2_out, c_retval_out]]
-    op_flags = [['readonly']]*10+[['readwrite']]*7
-    it = numpy.nditer([ra1_in, dec1_in, pmr1_in, pmd1_in, px1_in, rv1_in, ep1a_in, ep1b_in, ep2a_in, ep2b_in]+[ra2_out, dec2_out, pmr2_out, pmd2_out, px2_out, rv2_out, c_retval_out], op_axes=op_axes, op_flags=op_flags)
+    arrs = [ra1_in, dec1_in, pmr1_in, pmd1_in, px1_in, rv1_in, ep1a_in, ep1b_in, ep2a_in, ep2b_in, ra2_out, dec2_out, pmr2_out, pmd2_out, px2_out, rv2_out, c_retval_out]
+    op_axes = [[-1]*(broadcast.nd-arr.ndim) + list(range(arr.ndim)) for arr in arrs]
+    op_flags = [['readonly']]*10 + [['readwrite']]*7
+    it = numpy.nditer(arrs, op_axes=op_axes, op_flags=op_flags)
     
     #Iterate
     cdef double _ra1
@@ -17056,9 +17195,10 @@ def eform(n):
     c_retval_out = numpy.empty(broadcast.shape+(), dtype=numpy.intc)
     
     #Create the iterator, broadcasting on all but the consumed dimensions
-    op_axes = [[-1]*(broadcast.nd-arr.ndim)+range(arr.ndim) for arr in [n_in]+[a_out, f_out, c_retval_out]]
-    op_flags = [['readonly']]*1+[['readwrite']]*3
-    it = numpy.nditer([n_in]+[a_out, f_out, c_retval_out], op_axes=op_axes, op_flags=op_flags)
+    arrs = [n_in, a_out, f_out, c_retval_out]
+    op_axes = [[-1]*(broadcast.nd-arr.ndim) + list(range(arr.ndim)) for arr in arrs]
+    op_flags = [['readonly']]*1 + [['readwrite']]*3
+    it = numpy.nditer(arrs, op_axes=op_axes, op_flags=op_flags)
     
     #Iterate
     cdef int _n
@@ -17160,9 +17300,10 @@ def gc2gd(n, xyz):
     c_retval_out = numpy.empty(broadcast.shape+(), dtype=numpy.intc)
     
     #Create the iterator, broadcasting on all but the consumed dimensions
-    op_axes = [[-1]*(broadcast.nd-arr.ndim)+range(arr.ndim) for arr in [n_in, xyz_in[...,0]]+[elong_out, phi_out, height_out, c_retval_out]]
-    op_flags = [['readonly']]*2+[['readwrite']]*4
-    it = numpy.nditer([n_in, xyz_in]+[elong_out, phi_out, height_out, c_retval_out], op_axes=op_axes, op_flags=op_flags)
+    arrs = [n_in, xyz_in[...,0], elong_out, phi_out, height_out, c_retval_out]
+    op_axes = [[-1]*(broadcast.nd-arr.ndim) + list(range(arr.ndim)) for arr in arrs]
+    op_flags = [['readonly']]*2 + [['readwrite']]*4
+    it = numpy.nditer(arrs, op_axes=op_axes, op_flags=op_flags)
     
     #Iterate
     cdef int _n
@@ -17274,9 +17415,10 @@ def gc2gde(a, f, xyz):
     c_retval_out = numpy.empty(broadcast.shape+(), dtype=numpy.intc)
     
     #Create the iterator, broadcasting on all but the consumed dimensions
-    op_axes = [[-1]*(broadcast.nd-arr.ndim)+range(arr.ndim) for arr in [a_in, f_in, xyz_in[...,0]]+[elong_out, phi_out, height_out, c_retval_out]]
-    op_flags = [['readonly']]*3+[['readwrite']]*4
-    it = numpy.nditer([a_in, f_in, xyz_in]+[elong_out, phi_out, height_out, c_retval_out], op_axes=op_axes, op_flags=op_flags)
+    arrs = [a_in, f_in, xyz_in[...,0], elong_out, phi_out, height_out, c_retval_out]
+    op_axes = [[-1]*(broadcast.nd-arr.ndim) + list(range(arr.ndim)) for arr in arrs]
+    op_flags = [['readonly']]*3 + [['readwrite']]*4
+    it = numpy.nditer(arrs, op_axes=op_axes, op_flags=op_flags)
     
     #Iterate
     cdef double _a
@@ -17387,9 +17529,10 @@ def gd2gc(n, elong, phi, height):
     c_retval_out = numpy.empty(broadcast.shape+(), dtype=numpy.intc)
     
     #Create the iterator, broadcasting on all but the consumed dimensions
-    op_axes = [[-1]*(broadcast.nd-arr.ndim)+range(arr.ndim) for arr in [n_in, elong_in, phi_in, height_in]+[xyz_out[...,0], c_retval_out]]
-    op_flags = [['readonly']]*4+[['readwrite']]*2
-    it = numpy.nditer([n_in, elong_in, phi_in, height_in]+[xyz_out, c_retval_out], op_axes=op_axes, op_flags=op_flags)
+    arrs = [n_in, elong_in, phi_in, height_in, xyz_out[...,0], c_retval_out]
+    op_axes = [[-1]*(broadcast.nd-arr.ndim) + list(range(arr.ndim)) for arr in arrs]
+    op_flags = [['readonly']]*4 + [['readwrite']]*2
+    it = numpy.nditer(arrs, op_axes=op_axes, op_flags=op_flags)
     
     #Iterate
     cdef int _n
@@ -17500,9 +17643,10 @@ def gd2gce(a, f, elong, phi, height):
     c_retval_out = numpy.empty(broadcast.shape+(), dtype=numpy.intc)
     
     #Create the iterator, broadcasting on all but the consumed dimensions
-    op_axes = [[-1]*(broadcast.nd-arr.ndim)+range(arr.ndim) for arr in [a_in, f_in, elong_in, phi_in, height_in]+[xyz_out[...,0], c_retval_out]]
-    op_flags = [['readonly']]*5+[['readwrite']]*2
-    it = numpy.nditer([a_in, f_in, elong_in, phi_in, height_in]+[xyz_out, c_retval_out], op_axes=op_axes, op_flags=op_flags)
+    arrs = [a_in, f_in, elong_in, phi_in, height_in, xyz_out[...,0], c_retval_out]
+    op_axes = [[-1]*(broadcast.nd-arr.ndim) + list(range(arr.ndim)) for arr in arrs]
+    op_flags = [['readonly']]*5 + [['readwrite']]*2
+    it = numpy.nditer(arrs, op_axes=op_axes, op_flags=op_flags)
     
     #Iterate
     cdef double _a
@@ -17621,9 +17765,10 @@ def pvtob(elong, phi, hm, xp, yp, sp, theta):
     pv_out = numpy.empty(broadcast.shape+(2, 3), dtype=numpy.double)
     
     #Create the iterator, broadcasting on all but the consumed dimensions
-    op_axes = [[-1]*(broadcast.nd-arr.ndim)+range(arr.ndim) for arr in [elong_in, phi_in, hm_in, xp_in, yp_in, sp_in, theta_in]+[pv_out[...,0,0]]]
-    op_flags = [['readonly']]*7+[['readwrite']]*1
-    it = numpy.nditer([elong_in, phi_in, hm_in, xp_in, yp_in, sp_in, theta_in]+[pv_out], op_axes=op_axes, op_flags=op_flags)
+    arrs = [elong_in, phi_in, hm_in, xp_in, yp_in, sp_in, theta_in, pv_out[...,0,0]]
+    op_axes = [[-1]*(broadcast.nd-arr.ndim) + list(range(arr.ndim)) for arr in arrs]
+    op_flags = [['readonly']]*7 + [['readwrite']]*1
+    it = numpy.nditer(arrs, op_axes=op_axes, op_flags=op_flags)
     
     #Iterate
     cdef double _elong
@@ -17747,9 +17892,10 @@ def d2dtf(scale, ndp, d1, d2):
     c_retval_out = numpy.empty(broadcast.shape+(), dtype=numpy.intc)
     
     #Create the iterator, broadcasting on all but the consumed dimensions
-    op_axes = [[-1]*(broadcast.nd-arr.ndim)+range(arr.ndim) for arr in [scale_in, ndp_in, d1_in, d2_in]+[iy_out, im_out, id_out, ihmsf_out[...,0], c_retval_out]]
-    op_flags = [['readonly']]*4+[['readwrite']]*5
-    it = numpy.nditer([scale_in, ndp_in, d1_in, d2_in]+[iy_out, im_out, id_out, ihmsf_out, c_retval_out], op_axes=op_axes, op_flags=op_flags)
+    arrs = [scale_in, ndp_in, d1_in, d2_in, iy_out, im_out, id_out, ihmsf_out[...,0], c_retval_out]
+    op_axes = [[-1]*(broadcast.nd-arr.ndim) + list(range(arr.ndim)) for arr in arrs]
+    op_flags = [['readonly']]*4 + [['readwrite']]*5
+    it = numpy.nditer(arrs, op_axes=op_axes, op_flags=op_flags)
     
     #Iterate
     cdef const char * _scale
@@ -17926,9 +18072,10 @@ def dat(iy, im, id, fd):
     c_retval_out = numpy.empty(broadcast.shape+(), dtype=numpy.intc)
     
     #Create the iterator, broadcasting on all but the consumed dimensions
-    op_axes = [[-1]*(broadcast.nd-arr.ndim)+range(arr.ndim) for arr in [iy_in, im_in, id_in, fd_in]+[deltat_out, c_retval_out]]
-    op_flags = [['readonly']]*4+[['readwrite']]*2
-    it = numpy.nditer([iy_in, im_in, id_in, fd_in]+[deltat_out, c_retval_out], op_axes=op_axes, op_flags=op_flags)
+    arrs = [iy_in, im_in, id_in, fd_in, deltat_out, c_retval_out]
+    op_axes = [[-1]*(broadcast.nd-arr.ndim) + list(range(arr.ndim)) for arr in arrs]
+    op_flags = [['readonly']]*4 + [['readwrite']]*2
+    it = numpy.nditer(arrs, op_axes=op_axes, op_flags=op_flags)
     
     #Iterate
     cdef int _iy
@@ -18141,9 +18288,10 @@ def dtdb(date1, date2, ut, elong, u, v):
     c_retval_out = numpy.empty(broadcast.shape+(), dtype=numpy.double)
     
     #Create the iterator, broadcasting on all but the consumed dimensions
-    op_axes = [[-1]*(broadcast.nd-arr.ndim)+range(arr.ndim) for arr in [date1_in, date2_in, ut_in, elong_in, u_in, v_in]+[c_retval_out]]
-    op_flags = [['readonly']]*6+[['readwrite']]*1
-    it = numpy.nditer([date1_in, date2_in, ut_in, elong_in, u_in, v_in]+[c_retval_out], op_axes=op_axes, op_flags=op_flags)
+    arrs = [date1_in, date2_in, ut_in, elong_in, u_in, v_in, c_retval_out]
+    op_axes = [[-1]*(broadcast.nd-arr.ndim) + list(range(arr.ndim)) for arr in arrs]
+    op_flags = [['readonly']]*6 + [['readwrite']]*1
+    it = numpy.nditer(arrs, op_axes=op_axes, op_flags=op_flags)
     
     #Iterate
     cdef double _date1
@@ -18270,9 +18418,10 @@ def dtf2d(scale, iy, im, id, ihr, imn, sec):
     c_retval_out = numpy.empty(broadcast.shape+(), dtype=numpy.intc)
     
     #Create the iterator, broadcasting on all but the consumed dimensions
-    op_axes = [[-1]*(broadcast.nd-arr.ndim)+range(arr.ndim) for arr in [scale_in, iy_in, im_in, id_in, ihr_in, imn_in, sec_in]+[d1_out, d2_out, c_retval_out]]
-    op_flags = [['readonly']]*7+[['readwrite']]*3
-    it = numpy.nditer([scale_in, iy_in, im_in, id_in, ihr_in, imn_in, sec_in]+[d1_out, d2_out, c_retval_out], op_axes=op_axes, op_flags=op_flags)
+    arrs = [scale_in, iy_in, im_in, id_in, ihr_in, imn_in, sec_in, d1_out, d2_out, c_retval_out]
+    op_axes = [[-1]*(broadcast.nd-arr.ndim) + list(range(arr.ndim)) for arr in arrs]
+    op_flags = [['readonly']]*7 + [['readwrite']]*3
+    it = numpy.nditer(arrs, op_axes=op_axes, op_flags=op_flags)
     
     #Iterate
     cdef const char * _scale
@@ -18368,9 +18517,10 @@ def taitt(tai1, tai2):
     c_retval_out = numpy.empty(broadcast.shape+(), dtype=numpy.intc)
     
     #Create the iterator, broadcasting on all but the consumed dimensions
-    op_axes = [[-1]*(broadcast.nd-arr.ndim)+range(arr.ndim) for arr in [tai1_in, tai2_in]+[tt1_out, tt2_out, c_retval_out]]
-    op_flags = [['readonly']]*2+[['readwrite']]*3
-    it = numpy.nditer([tai1_in, tai2_in]+[tt1_out, tt2_out, c_retval_out], op_axes=op_axes, op_flags=op_flags)
+    arrs = [tai1_in, tai2_in, tt1_out, tt2_out, c_retval_out]
+    op_axes = [[-1]*(broadcast.nd-arr.ndim) + list(range(arr.ndim)) for arr in arrs]
+    op_flags = [['readonly']]*2 + [['readwrite']]*3
+    it = numpy.nditer(arrs, op_axes=op_axes, op_flags=op_flags)
     
     #Iterate
     cdef double _tai1
@@ -18458,9 +18608,10 @@ def taiut1(tai1, tai2, dta):
     c_retval_out = numpy.empty(broadcast.shape+(), dtype=numpy.intc)
     
     #Create the iterator, broadcasting on all but the consumed dimensions
-    op_axes = [[-1]*(broadcast.nd-arr.ndim)+range(arr.ndim) for arr in [tai1_in, tai2_in, dta_in]+[ut11_out, ut12_out, c_retval_out]]
-    op_flags = [['readonly']]*3+[['readwrite']]*3
-    it = numpy.nditer([tai1_in, tai2_in, dta_in]+[ut11_out, ut12_out, c_retval_out], op_axes=op_axes, op_flags=op_flags)
+    arrs = [tai1_in, tai2_in, dta_in, ut11_out, ut12_out, c_retval_out]
+    op_axes = [[-1]*(broadcast.nd-arr.ndim) + list(range(arr.ndim)) for arr in arrs]
+    op_flags = [['readonly']]*3 + [['readwrite']]*3
+    it = numpy.nditer(arrs, op_axes=op_axes, op_flags=op_flags)
     
     #Iterate
     cdef double _tai1
@@ -18571,9 +18722,10 @@ def taiutc(tai1, tai2):
     c_retval_out = numpy.empty(broadcast.shape+(), dtype=numpy.intc)
     
     #Create the iterator, broadcasting on all but the consumed dimensions
-    op_axes = [[-1]*(broadcast.nd-arr.ndim)+range(arr.ndim) for arr in [tai1_in, tai2_in]+[utc1_out, utc2_out, c_retval_out]]
-    op_flags = [['readonly']]*2+[['readwrite']]*3
-    it = numpy.nditer([tai1_in, tai2_in]+[utc1_out, utc2_out, c_retval_out], op_axes=op_axes, op_flags=op_flags)
+    arrs = [tai1_in, tai2_in, utc1_out, utc2_out, c_retval_out]
+    op_axes = [[-1]*(broadcast.nd-arr.ndim) + list(range(arr.ndim)) for arr in arrs]
+    op_flags = [['readonly']]*2 + [['readwrite']]*3
+    it = numpy.nditer(arrs, op_axes=op_axes, op_flags=op_flags)
     
     #Iterate
     cdef double _tai1
@@ -18673,9 +18825,10 @@ def tcbtdb(tcb1, tcb2):
     c_retval_out = numpy.empty(broadcast.shape+(), dtype=numpy.intc)
     
     #Create the iterator, broadcasting on all but the consumed dimensions
-    op_axes = [[-1]*(broadcast.nd-arr.ndim)+range(arr.ndim) for arr in [tcb1_in, tcb2_in]+[tdb1_out, tdb2_out, c_retval_out]]
-    op_flags = [['readonly']]*2+[['readwrite']]*3
-    it = numpy.nditer([tcb1_in, tcb2_in]+[tdb1_out, tdb2_out, c_retval_out], op_axes=op_axes, op_flags=op_flags)
+    arrs = [tcb1_in, tcb2_in, tdb1_out, tdb2_out, c_retval_out]
+    op_axes = [[-1]*(broadcast.nd-arr.ndim) + list(range(arr.ndim)) for arr in arrs]
+    op_flags = [['readonly']]*2 + [['readwrite']]*3
+    it = numpy.nditer(arrs, op_axes=op_axes, op_flags=op_flags)
     
     #Iterate
     cdef double _tcb1
@@ -18760,9 +18913,10 @@ def tcgtt(tcg1, tcg2):
     c_retval_out = numpy.empty(broadcast.shape+(), dtype=numpy.intc)
     
     #Create the iterator, broadcasting on all but the consumed dimensions
-    op_axes = [[-1]*(broadcast.nd-arr.ndim)+range(arr.ndim) for arr in [tcg1_in, tcg2_in]+[tt1_out, tt2_out, c_retval_out]]
-    op_flags = [['readonly']]*2+[['readwrite']]*3
-    it = numpy.nditer([tcg1_in, tcg2_in]+[tt1_out, tt2_out, c_retval_out], op_axes=op_axes, op_flags=op_flags)
+    arrs = [tcg1_in, tcg2_in, tt1_out, tt2_out, c_retval_out]
+    op_axes = [[-1]*(broadcast.nd-arr.ndim) + list(range(arr.ndim)) for arr in arrs]
+    op_flags = [['readonly']]*2 + [['readwrite']]*3
+    it = numpy.nditer(arrs, op_axes=op_axes, op_flags=op_flags)
     
     #Iterate
     cdef double _tcg1
@@ -18862,9 +19016,10 @@ def tdbtcb(tdb1, tdb2):
     c_retval_out = numpy.empty(broadcast.shape+(), dtype=numpy.intc)
     
     #Create the iterator, broadcasting on all but the consumed dimensions
-    op_axes = [[-1]*(broadcast.nd-arr.ndim)+range(arr.ndim) for arr in [tdb1_in, tdb2_in]+[tcb1_out, tcb2_out, c_retval_out]]
-    op_flags = [['readonly']]*2+[['readwrite']]*3
-    it = numpy.nditer([tdb1_in, tdb2_in]+[tcb1_out, tcb2_out, c_retval_out], op_axes=op_axes, op_flags=op_flags)
+    arrs = [tdb1_in, tdb2_in, tcb1_out, tcb2_out, c_retval_out]
+    op_axes = [[-1]*(broadcast.nd-arr.ndim) + list(range(arr.ndim)) for arr in arrs]
+    op_flags = [['readonly']]*2 + [['readwrite']]*3
+    it = numpy.nditer(arrs, op_axes=op_axes, op_flags=op_flags)
     
     #Iterate
     cdef double _tdb1
@@ -18962,9 +19117,10 @@ def tdbtt(tdb1, tdb2, dtr):
     c_retval_out = numpy.empty(broadcast.shape+(), dtype=numpy.intc)
     
     #Create the iterator, broadcasting on all but the consumed dimensions
-    op_axes = [[-1]*(broadcast.nd-arr.ndim)+range(arr.ndim) for arr in [tdb1_in, tdb2_in, dtr_in]+[tt1_out, tt2_out, c_retval_out]]
-    op_flags = [['readonly']]*3+[['readwrite']]*3
-    it = numpy.nditer([tdb1_in, tdb2_in, dtr_in]+[tt1_out, tt2_out, c_retval_out], op_axes=op_axes, op_flags=op_flags)
+    arrs = [tdb1_in, tdb2_in, dtr_in, tt1_out, tt2_out, c_retval_out]
+    op_axes = [[-1]*(broadcast.nd-arr.ndim) + list(range(arr.ndim)) for arr in arrs]
+    op_flags = [['readonly']]*3 + [['readwrite']]*3
+    it = numpy.nditer(arrs, op_axes=op_axes, op_flags=op_flags)
     
     #Iterate
     cdef double _tdb1
@@ -19052,9 +19208,10 @@ def tttai(tt1, tt2):
     c_retval_out = numpy.empty(broadcast.shape+(), dtype=numpy.intc)
     
     #Create the iterator, broadcasting on all but the consumed dimensions
-    op_axes = [[-1]*(broadcast.nd-arr.ndim)+range(arr.ndim) for arr in [tt1_in, tt2_in]+[tai1_out, tai2_out, c_retval_out]]
-    op_flags = [['readonly']]*2+[['readwrite']]*3
-    it = numpy.nditer([tt1_in, tt2_in]+[tai1_out, tai2_out, c_retval_out], op_axes=op_axes, op_flags=op_flags)
+    arrs = [tt1_in, tt2_in, tai1_out, tai2_out, c_retval_out]
+    op_axes = [[-1]*(broadcast.nd-arr.ndim) + list(range(arr.ndim)) for arr in arrs]
+    op_flags = [['readonly']]*2 + [['readwrite']]*3
+    it = numpy.nditer(arrs, op_axes=op_axes, op_flags=op_flags)
     
     #Iterate
     cdef double _tt1
@@ -19139,9 +19296,10 @@ def tttcg(tt1, tt2):
     c_retval_out = numpy.empty(broadcast.shape+(), dtype=numpy.intc)
     
     #Create the iterator, broadcasting on all but the consumed dimensions
-    op_axes = [[-1]*(broadcast.nd-arr.ndim)+range(arr.ndim) for arr in [tt1_in, tt2_in]+[tcg1_out, tcg2_out, c_retval_out]]
-    op_flags = [['readonly']]*2+[['readwrite']]*3
-    it = numpy.nditer([tt1_in, tt2_in]+[tcg1_out, tcg2_out, c_retval_out], op_axes=op_axes, op_flags=op_flags)
+    arrs = [tt1_in, tt2_in, tcg1_out, tcg2_out, c_retval_out]
+    op_axes = [[-1]*(broadcast.nd-arr.ndim) + list(range(arr.ndim)) for arr in arrs]
+    op_flags = [['readonly']]*2 + [['readwrite']]*3
+    it = numpy.nditer(arrs, op_axes=op_axes, op_flags=op_flags)
     
     #Iterate
     cdef double _tt1
@@ -19239,9 +19397,10 @@ def tttdb(tt1, tt2, dtr):
     c_retval_out = numpy.empty(broadcast.shape+(), dtype=numpy.intc)
     
     #Create the iterator, broadcasting on all but the consumed dimensions
-    op_axes = [[-1]*(broadcast.nd-arr.ndim)+range(arr.ndim) for arr in [tt1_in, tt2_in, dtr_in]+[tdb1_out, tdb2_out, c_retval_out]]
-    op_flags = [['readonly']]*3+[['readwrite']]*3
-    it = numpy.nditer([tt1_in, tt2_in, dtr_in]+[tdb1_out, tdb2_out, c_retval_out], op_axes=op_axes, op_flags=op_flags)
+    arrs = [tt1_in, tt2_in, dtr_in, tdb1_out, tdb2_out, c_retval_out]
+    op_axes = [[-1]*(broadcast.nd-arr.ndim) + list(range(arr.ndim)) for arr in arrs]
+    op_flags = [['readonly']]*3 + [['readwrite']]*3
+    it = numpy.nditer(arrs, op_axes=op_axes, op_flags=op_flags)
     
     #Iterate
     cdef double _tt1
@@ -19330,9 +19489,10 @@ def ttut1(tt1, tt2, dt):
     c_retval_out = numpy.empty(broadcast.shape+(), dtype=numpy.intc)
     
     #Create the iterator, broadcasting on all but the consumed dimensions
-    op_axes = [[-1]*(broadcast.nd-arr.ndim)+range(arr.ndim) for arr in [tt1_in, tt2_in, dt_in]+[ut11_out, ut12_out, c_retval_out]]
-    op_flags = [['readonly']]*3+[['readwrite']]*3
-    it = numpy.nditer([tt1_in, tt2_in, dt_in]+[ut11_out, ut12_out, c_retval_out], op_axes=op_axes, op_flags=op_flags)
+    arrs = [tt1_in, tt2_in, dt_in, ut11_out, ut12_out, c_retval_out]
+    op_axes = [[-1]*(broadcast.nd-arr.ndim) + list(range(arr.ndim)) for arr in arrs]
+    op_flags = [['readonly']]*3 + [['readwrite']]*3
+    it = numpy.nditer(arrs, op_axes=op_axes, op_flags=op_flags)
     
     #Iterate
     cdef double _tt1
@@ -19422,9 +19582,10 @@ def ut1tai(ut11, ut12, dta):
     c_retval_out = numpy.empty(broadcast.shape+(), dtype=numpy.intc)
     
     #Create the iterator, broadcasting on all but the consumed dimensions
-    op_axes = [[-1]*(broadcast.nd-arr.ndim)+range(arr.ndim) for arr in [ut11_in, ut12_in, dta_in]+[tai1_out, tai2_out, c_retval_out]]
-    op_flags = [['readonly']]*3+[['readwrite']]*3
-    it = numpy.nditer([ut11_in, ut12_in, dta_in]+[tai1_out, tai2_out, c_retval_out], op_axes=op_axes, op_flags=op_flags)
+    arrs = [ut11_in, ut12_in, dta_in, tai1_out, tai2_out, c_retval_out]
+    op_axes = [[-1]*(broadcast.nd-arr.ndim) + list(range(arr.ndim)) for arr in arrs]
+    op_flags = [['readonly']]*3 + [['readwrite']]*3
+    it = numpy.nditer(arrs, op_axes=op_axes, op_flags=op_flags)
     
     #Iterate
     cdef double _ut11
@@ -19513,9 +19674,10 @@ def ut1tt(ut11, ut12, dt):
     c_retval_out = numpy.empty(broadcast.shape+(), dtype=numpy.intc)
     
     #Create the iterator, broadcasting on all but the consumed dimensions
-    op_axes = [[-1]*(broadcast.nd-arr.ndim)+range(arr.ndim) for arr in [ut11_in, ut12_in, dt_in]+[tt1_out, tt2_out, c_retval_out]]
-    op_flags = [['readonly']]*3+[['readwrite']]*3
-    it = numpy.nditer([ut11_in, ut12_in, dt_in]+[tt1_out, tt2_out, c_retval_out], op_axes=op_axes, op_flags=op_flags)
+    arrs = [ut11_in, ut12_in, dt_in, tt1_out, tt2_out, c_retval_out]
+    op_axes = [[-1]*(broadcast.nd-arr.ndim) + list(range(arr.ndim)) for arr in arrs]
+    op_flags = [['readonly']]*3 + [['readwrite']]*3
+    it = numpy.nditer(arrs, op_axes=op_axes, op_flags=op_flags)
     
     #Iterate
     cdef double _ut11
@@ -19632,9 +19794,10 @@ def ut1utc(ut11, ut12, dut1):
     c_retval_out = numpy.empty(broadcast.shape+(), dtype=numpy.intc)
     
     #Create the iterator, broadcasting on all but the consumed dimensions
-    op_axes = [[-1]*(broadcast.nd-arr.ndim)+range(arr.ndim) for arr in [ut11_in, ut12_in, dut1_in]+[utc1_out, utc2_out, c_retval_out]]
-    op_flags = [['readonly']]*3+[['readwrite']]*3
-    it = numpy.nditer([ut11_in, ut12_in, dut1_in]+[utc1_out, utc2_out, c_retval_out], op_axes=op_axes, op_flags=op_flags)
+    arrs = [ut11_in, ut12_in, dut1_in, utc1_out, utc2_out, c_retval_out]
+    op_axes = [[-1]*(broadcast.nd-arr.ndim) + list(range(arr.ndim)) for arr in arrs]
+    op_flags = [['readonly']]*3 + [['readwrite']]*3
+    it = numpy.nditer(arrs, op_axes=op_axes, op_flags=op_flags)
     
     #Iterate
     cdef double _ut11
@@ -19747,9 +19910,10 @@ def utctai(utc1, utc2):
     c_retval_out = numpy.empty(broadcast.shape+(), dtype=numpy.intc)
     
     #Create the iterator, broadcasting on all but the consumed dimensions
-    op_axes = [[-1]*(broadcast.nd-arr.ndim)+range(arr.ndim) for arr in [utc1_in, utc2_in]+[tai1_out, tai2_out, c_retval_out]]
-    op_flags = [['readonly']]*2+[['readwrite']]*3
-    it = numpy.nditer([utc1_in, utc2_in]+[tai1_out, tai2_out, c_retval_out], op_axes=op_axes, op_flags=op_flags)
+    arrs = [utc1_in, utc2_in, tai1_out, tai2_out, c_retval_out]
+    op_axes = [[-1]*(broadcast.nd-arr.ndim) + list(range(arr.ndim)) for arr in arrs]
+    op_flags = [['readonly']]*2 + [['readwrite']]*3
+    it = numpy.nditer(arrs, op_axes=op_axes, op_flags=op_flags)
     
     #Iterate
     cdef double _utc1
@@ -19865,9 +20029,10 @@ def utcut1(utc1, utc2, dut1):
     c_retval_out = numpy.empty(broadcast.shape+(), dtype=numpy.intc)
     
     #Create the iterator, broadcasting on all but the consumed dimensions
-    op_axes = [[-1]*(broadcast.nd-arr.ndim)+range(arr.ndim) for arr in [utc1_in, utc2_in, dut1_in]+[ut11_out, ut12_out, c_retval_out]]
-    op_flags = [['readonly']]*3+[['readwrite']]*3
-    it = numpy.nditer([utc1_in, utc2_in, dut1_in]+[ut11_out, ut12_out, c_retval_out], op_axes=op_axes, op_flags=op_flags)
+    arrs = [utc1_in, utc2_in, dut1_in, ut11_out, ut12_out, c_retval_out]
+    op_axes = [[-1]*(broadcast.nd-arr.ndim) + list(range(arr.ndim)) for arr in arrs]
+    op_flags = [['readonly']]*3 + [['readwrite']]*3
+    it = numpy.nditer(arrs, op_axes=op_axes, op_flags=op_flags)
     
     #Iterate
     cdef double _utc1
