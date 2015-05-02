@@ -15,6 +15,7 @@ from ... import units as u
 from ...time import Time
 from ...utils import iers
 from ...utils.exceptions import AstropyWarning
+from ..representation import CartesianRepresentation
 
 # The UTC time scale is not properly defined prior to 1960, so Time('B1950',
 # scale='utc') will emit a warning. Instead, we use Time('B1950', scale='tai')
@@ -78,3 +79,29 @@ def get_dut1utc(time):
         msg = e.args[0] + ' Assuming UT1-UTC=0 for coordinate transformations.' + _IERS_HINT
         warnings.warn(msg, AstropyWarning)
         return np.zeros(time.shape)
+
+
+def cartrepr_from_matmul(pmat, coo, transpose=False):
+    """
+    Takes a coordinate ``coo`` (which needs to have ``cartesian`` attribute) and
+    multiple it by the given rotation matrix, and yield a new
+    CartesianRepresentation.
+    """
+    # cast to a regular array because np.matrix and np.array behave in subtly
+    # different ways, and everything below assumes array
+    if hasattr(pmat, 'A'):
+        pmat = pmat.A
+
+    if pmat.shape[-2:] != (3, 3):
+        raise ValueError("tried to do matrix multiplication with an array that "
+                         "doesn't end in 3x3")
+    xyz = coo.cartesian.xyz.T
+    # these expression are the same as iterating over the first dimension of
+    # pmat and xyz and doing matrix multiplication on each in turn.  resulting
+    # dimension is <coo shape> x 3
+    pmat = pmat.reshape(pmat.size//9, 3, 3)
+    if transpose:
+        pmat = pmat.transpose(0, 2, 1)
+    newxyz = np.sum(pmat * xyz.reshape(xyz.size//3, 1, 3), axis=-1)
+
+    return CartesianRepresentation(newxyz.T)

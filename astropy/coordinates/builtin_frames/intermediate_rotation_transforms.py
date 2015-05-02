@@ -12,13 +12,12 @@ import numpy as np
 
 from ..baseframe import frame_transform_graph
 from ..transformations import FunctionTransform
-from ..representation import CartesianRepresentation
 from ... import _erfa as erfa
 
 from .gcrs import GCRS
 from .cirs import CIRS
 from .itrs import ITRS
-from .utils import get_polar_motion
+from .utils import get_polar_motion, cartrepr_from_matmul
 
 # first define helper functions
 def gcrs_to_itrs_mat(time):
@@ -48,22 +47,6 @@ def cirs_to_itrs_mat(time):
     #c2tcio expects a GCRS->CIRS matrix, but we just set that to an I-matrix
     #because we're already in CIRS
     return erfa.c2tcio(np.eye(3), era, pmmat)
-
-
-def cartrepr_from_matmul(pmat, coo, transpose=False):
-    if pmat.shape[-2:] != (3, 3):
-        raise ValueError("tried to do matrix multiplication with an array that "
-                         "doesn't end in 3x3")
-    xyz = coo.cartesian.xyz.T
-    # these expression are the same as iterating over the first dimension of
-    # pmat and xyz and doing matrix multiplication on each in turn.  resulting
-    # dimension is <coo shape> x 3
-    pmat = pmat.reshape(pmat.size//9, 3, 3)
-    if transpose:
-        pmat = pmat.transpose(0, 2, 1)
-    newxyz = np.sum(pmat * xyz.reshape(xyz.size//3, 1, 3), axis=-1)
-
-    return CartesianRepresentation(newxyz.T)
 
 
 # now the actual transforms
