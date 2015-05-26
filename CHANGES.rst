@@ -38,6 +38,9 @@ New Features
 
   - Added ``Supergalactic`` frame to support de Vaucouleurs supergalactic
     coordinates. [#3892]
+  - `SphericalRepresentation` now has a `._unitrep` class attribute to specify 
+    an equivalent UnitSphericalRepresentation. This allows subclasses of 
+    representations to pair up correctly.
 
   - Added ecliptic coordinates, including ``GeocentricTrueEcliptic``,
     ``BarycentricTrueEcliptic``, and ``HeliocentricTrueEcliptic``. [#3749]
