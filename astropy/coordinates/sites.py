@@ -1,10 +1,10 @@
 # Licensed under a 3-clause BSD style license - see LICENSE.rst
 """
 Observatories accessible by the `sites` module originate from the IRAF
-Observatory Database, and are stored in ``astroplan/data/observatories.json``.
+Observatory Database, and are stored in ``data/observatories.json``.
 Longitudes are listed with positive to the West.
 
-Additions and corrections to the observatory list can be submitted via Pull
+Additions or corrections to the observatory list can be submitted via Pull
 Request to the [astropy GitHub repository](https://github.com/astropy/astropy),
 updating the ``observatories.json`` file.
 
@@ -27,7 +27,8 @@ _site_names = []
 
 def _load_sites():
     """
-    Load observatory database from astroplan/data/observatories.json
+    Load observatory database from data/observatories.json and parse them into
+    a dictionary in memory.
     """
     global _site_db, _site_names
     _site_db = dict()
@@ -65,7 +66,7 @@ def get_site(site_name):
         close_names = get_close_matches(site_name, _site_db.keys())
         close_names = sorted(close_names, key=lambda x: len(x))
         if len(close_names) > 0:
-            errmsg = ("Site not in database. Use `astroplan.get_site_names()` "
+            errmsg = ("Site not in database. Use ``get_site_names()`` "
                       "to see available sites. Did you mean: '{}'?".format(
                       "', '".join(close_names)))
         else:
@@ -76,7 +77,8 @@ def get_site(site_name):
 
 def get_site_names(full_list=True):
     """
-    Get list of names of observatories for use with `~astroplan.core.get_site`.
+    Get list of names of observatories for use with
+    `~astropy.coordinates.get_site`.
 
     Parameters
     ----------
