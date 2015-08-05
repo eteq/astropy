@@ -57,6 +57,11 @@ def get_site(site_name):
     -------
     `~astropy.coordinates.EarthLocation`
         The location of the observatory.
+
+    See Also
+    --------
+    get_site_names : the list of sites that this function can access
+    add_site : adds a new site to the list
     """
     if _site_db is None:
         _load_sites()
@@ -88,7 +93,15 @@ def get_site_names(full_list=True):
 
     Returns
     -------
-    List of observatory names (strings)
+    names : list of str
+        List of valid observatory names
+
+    See Also
+    --------
+    get_site : gets the `~astropy.coordinates.EarthLocation` for one of the
+               sites this returns.
+    get_site_names : the list of sites names that this function can access
+
     """
     if _site_db is None:
         _load_sites()
@@ -109,6 +122,13 @@ def add_site(site_name, location):
 
     location : `~astropy.coordinates.EarthLocation`
         Location of the observatory
+
+    See Also
+    --------
+    get_site : gets the `~astropy.coordinates.EarthLocation` for one of the
+               sites this returns.
+    get_site_names : the list of site names that this function will add to
+
     """
     if _site_db is None:
         _load_sites()
