@@ -1,21 +1,23 @@
 # Licensed under a 3-clause BSD style license - see LICENSE.rst
 """
 Observatories accessible by the `sites` module originate from the IRAF
-Observatory Database, and are stored in astroplan/data/observatories.json.
+Observatory Database, and are stored in ``astroplan/data/observatories.json``.
 Longitudes are listed with positive to the West.
 
 Additions and corrections to the observatory list can be submitted via Pull
-Request to the [astroplan GitHub repository](https://github.com/astroplanners/astroplan).
+Request to the [astropy GitHub repository](https://github.com/astropy/astropy),
+updating the ``observatories.json`` file.
 
 """
 
 from __future__ import (absolute_import, division, print_function,
                         unicode_literals)
 
-from astropy.utils.data import get_pkg_data_contents
-from difflib import get_close_matches
 import json
-from astropy.coordinates import EarthLocation
+from difflib import get_close_matches
+
+from ..utils.data import get_pkg_data_contents
+from .earth import EarthLocation
 
 __all__ = ['get_site', 'get_site_names', 'add_site']
 
