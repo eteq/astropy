@@ -26,6 +26,7 @@ __all__ = ['get_site', 'get_site_names', 'add_site', 'remove_site']
 _site_db = None
 _site_names = []
 
+
 def _load_sites():
     """
     Load observatory database from data/observatories.json and parse them into
@@ -41,6 +42,7 @@ def _load_sites():
         _site_names.append(db[site]['name'])
         for alias in db[site]['aliases']:
             _site_db[alias.lower()] = location
+
 
 def get_site(site_name):
     """
@@ -82,6 +84,7 @@ def get_site(site_name):
 
     return _site_db[site_name.lower()]
 
+
 def get_site_names(show_aliases=True):
     """
     Get list of names of observatories for use with
@@ -113,6 +116,7 @@ def get_site_names(show_aliases=True):
         return sorted(_site_db.keys())
     else:
         return sorted(_site_names)
+
 
 def add_site(site_names, location):
     """
@@ -153,6 +157,7 @@ def add_site(site_names, location):
         else:
             raise KeyError('The site "{0}" already exists at (longitude,latitude,'
                            'elevation)={1}'.format(name, _site_db[name.lower()].to_geodetic()))
+
 
 def remove_site(site_name):
     """
