@@ -210,12 +210,12 @@ class VOUnit(generic.Generic):
                         fex += '+'
                     fex += ex
                     parts.append(fex)
-                s += ' '.join(parts)
+                s += '.'.join(parts)
 
             pairs = list(zip(unit.bases, unit.powers))
             pairs.sort(key=lambda x: x[1], reverse=True)
 
-            s += cls._format_unit_list(pairs)
+            s += cls._format_unit_list(pairs, joiner='.')
         elif isinstance(unit, core.NamedUnit):
             s = cls._get_unit_name(unit)
 

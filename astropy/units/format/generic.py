@@ -482,7 +482,7 @@ class Generic(Base):
         return unit.get_format_name('generic')
 
     @classmethod
-    def _format_unit_list(cls, units):
+    def _format_unit_list(cls, units, joiner=' '):
         out = []
         units.sort(key=lambda x: cls._get_unit_name(x[0]).lower())
 
@@ -497,7 +497,7 @@ class Generic(Base):
                 else:
                     out.append('{0}{1}'.format(
                         cls._get_unit_name(base), power))
-        return ' '.join(out)
+        return joiner.join(out)
 
     @classmethod
     def to_string(cls, unit):
