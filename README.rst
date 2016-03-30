@@ -35,6 +35,8 @@ Project Status
 .. image:: https://travis-ci.org/astropy/astropy.svg
     :target: https://travis-ci.org/astropy/astropy
 
+|
+
 .. image:: https://coveralls.io/repos/astropy/astropy/badge.svg
     :target: https://coveralls.io/r/astropy/astropy
 
