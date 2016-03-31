@@ -894,6 +894,12 @@ class Table(object):
             that if a column with this name already exists, this option will be
             ignored. Defaults to "idx".
 
+        Returns
+        -------
+        html : IPython.display.HTML
+            An object that the Jupyter notebook will render as HTML with all the
+            necessary content to show the notebook.
+
         Notes
         -----
         Currently, unlike `show_in_browser` (with ``jsviewer=True``), this
@@ -921,6 +927,41 @@ class Table(object):
 
         html += jsv.ipynb(tableid, css=css)
         return HTML(html)
+
+    def preview_in_notebook(self, rows_to_preview=5, **kwargs):
+        """Render a small portion of the table in HTML and show it in the
+        IPython notebook.
+
+        This is distinct from `show_in_notebook` mainly in that it loads only a
+        subset of the table into the browser.  This prevents large tables from
+        overwhelming the notebook while still providing a preview of the table.
+
+        Parameters
+        ----------
+        rows_to_preview : int or array
+            If an int, the top ``rows_to_preview`` rows will be shown.  If an
+            array, this will be used to index into the table the rows to be
+            shown.
+
+        Returns
+        -------
+        html : IPython.display.HTML
+            An object that the Jupyter notebook will render as HTML with all the
+            necessary content to show the preview.
+        """
+        try:
+            ints_to_preview = int(rows_to_preview)
+        except TypeError:
+            ints_to_preview = None
+        if ints_to_preview is not None:
+            tabidx = slice(None, ints_to_preview)
+        else:
+            tabidx = rows_to_preview
+
+        prevtab = self[tabidx]
+        html = prevtab.show_in_notebook()
+        html.data = re.sub(r'length=' + str(len(prevtab)), 'length='+str(len(self)), html.data)
+        return html
 
     def show_in_browser(self, max_lines=5000, jsviewer=False,
                         browser='default', jskwargs={'use_local_files': True},
