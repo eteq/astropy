@@ -157,3 +157,29 @@ def test_show_in_notebook():
     assert '<thead><tr><th>realidx</th><th>a</th><th>b</th></tr></thead>' in htmlstr_windx_named
 
     assert '<thead><tr><th>a</th><th>b</th></tr></thead>' in htmlstr_woindx
+
+
+@pytest.mark.skipif('not HAS_IPYTHON')
+def test_preview_in_notebook():
+    t = Table()
+    t['a'] = [1, 2, 3, 4, 5]
+    t['b'] = ['b', 'c', 'a', 'd', 'e']
+
+    htmlstr_wint = t.preview_in_notebook(2).data
+
+    htmlstr_warr = t.preview_in_notebook(t['a'] == 4).data
+
+    # this one ensures keywords get passed through
+    htmlstr_woindx = t.preview_in_notebook(2, show_row_index=False).data
+
+    assert (textwrap.dedent("""
+    <thead><tr><th>idx</th><th>a</th><th>b</th></tr></thead>
+    <tr><td>0</td><td>1</td><td>b</td></tr>
+    <tr><td>1</td><td>2</td><td>c</td></tr>
+    """).strip() in htmlstr_wint)
+    assert '<tr><td>2</td><td>3</td><td>a</td></tr>' not in htmlstr_wint
+
+    assert '<tr><td>3</td><td>4</td><td>d</td></tr>' in htmlstr_warr
+    assert '<tr><td>0</td><td>1</td><td>b</td></tr>' not in htmlstr_warr
+
+    assert '<thead><tr><th>a</th><th>b</th></tr></thead>' in htmlstr_woindx
