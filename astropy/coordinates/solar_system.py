@@ -78,11 +78,17 @@ One can check which bodies are covered by a given ephemeris using::
 class solar_system_ephemeris(ScienceState):
     """Default ephemerides for calculating positions of Solar-System bodies.
 
-    This can be a URL to a JPL ephemerides, or one of the following::
+    This can be one of the following::
 
     - 'approximate': polynomial approximations to the orbital elements.
     - 'de430' or 'de432s': short-cuts for recent JPL dynamical models.
     - 'jpl': Alias for the default JPL ephemeris (currently, 'de430').
+    - A URL as a string: The url to a ephemeris in SPK .bst format.
+    - A function: will be called as ``f(body, time)``, where `body` is whatever
+      is requested in E.g. `get_body` (typically a string) and `time` is an
+      `~astropy.time.Time` object.  Must return an astropy representation object
+      (i.e., a ``~astropy.coordinates.representation.BaseRepresentation``
+      subclass) which is in barycentric (ICRS-aligned) coordinates.
     - `None`: Ensure an Exception is raised without an explicit ephemeris.
 
     The default is 'approximate', which uses the ``epv00`` and ``plan94``
@@ -126,14 +132,13 @@ class solar_system_ephemeris(ScienceState):
 
     @classproperty
     def bodies(cls):
-        if cls._value is None:
+        if cls._value is None or callable(cls._value):
             return None
         if cls._value.lower() == 'approximate':
             return (('earth', 'sun') +
                     tuple(PLAN94_BODY_NAME_TO_PLANET_INDEX.keys()))
         else:
             return tuple(BODY_NAME_TO_KERNEL_SPEC.keys())
-
 
 
 def _get_kernel(value):
@@ -199,9 +204,9 @@ def get_body_barycentric(body, time, ephemeris=None):
     else:
         kernel = _get_kernel(ephemeris)
 
-    jd1, jd2 = get_jd12(time, 'tdb')
     if kernel is None:
         body = body.lower()
+        jd1, jd2 = get_jd12(time, 'tdb')
         earth_pv_helio, earth_pv_bary = erfa.epv00(jd1, jd2)
         if body == 'earth':
             cartesian_position_body = earth_pv_bary[..., 0, :]
@@ -224,18 +229,23 @@ def get_body_barycentric(body, time, ephemeris=None):
             np.rollaxis(cartesian_position_body, -1, 0), u.au)
 
     else:
-        if isinstance(body, six.string_types):
-            # Look up kernel chain for JPL ephemeris, based on name
-            try:
-                kernel_spec = BODY_NAME_TO_KERNEL_SPEC[body.lower()]
-            except KeyError:
-                raise KeyError("{0}'s position cannot be calculated with "
-                               "the {1} ephemeris.".format(body, ephemeris))
-        # otherwise, assume the user knows what their doing and intentionally
-        # passed in a kernel chain
+        if callable(kernel):
+            return kernel(body, time).to_cartesian()
+        else:
+            # assume it's a JPL kernel
+            if isinstance(body, six.string_types):
+                # Look up kernel chain for JPL ephemeris, based on name
+                try:
+                    kernel_spec = BODY_NAME_TO_KERNEL_SPEC[body.lower()]
+                except KeyError:
+                    raise KeyError("{0}'s position cannot be calculated with "
+                                   "the {1} ephemeris.".format(body, ephemeris))
+            # otherwise, assume the user knows what their doing and intentionally
+            # passed in a kernel chain
 
-        cartesian_position_body = sum([kernel[pair].compute(jd1, jd2)
-                                       for pair in kernel_spec])
+            jd1, jd2 = get_jd12(time, 'tdb')
+            cartesian_position_body = sum([kernel[pair].compute(jd1, jd2)
+                                           for pair in kernel_spec])
 
         barycen_to_body_vector = u.Quantity(cartesian_position_body, unit=u.km)
 
