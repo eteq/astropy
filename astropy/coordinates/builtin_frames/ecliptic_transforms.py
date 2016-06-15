@@ -34,12 +34,12 @@ def _ecliptic_rotation_matrix(equinox):
     into a new array.
     """
     try:
-        rmat = np.array([rotation_matrix(this_obl, 'x') for this_obl in obl])
+        rmat = np.array([rotation_matrix(this_obl, 'x') for this_obl in obl.ravel()]).reshape(obl.shape + (3, 3))
         if NUMPY_LT_1_10:
             result = np.einsum('...ij,...jk->...ik', rmat, rnpb)
         else:
             result = np.matmul(rmat, rnpb)
-    except:
+    except TypeError:
         # must be a scalar obliquity
         result = np.asarray(np.dot(rotation_matrix(obl, 'x'), rnpb))
     return result

@@ -29,17 +29,18 @@ def test_regression_5085():
     At root was the transformation of Ecliptic coordinates with
     non-scalar times.
     """
-    times = Time(["2015-08-28 03:30", "2015-09-05 10:30", "2015-09-15 18:35"])
-    latitudes = Latitude([3.9807075, -5.00733806, 1.69539491]*u.deg)
-    longitudes = Longitude([311.79678613,  72.86626741, 199.58698226]*u.deg)
-    distances = u.Quantity([0.00243266, 0.0025424, 0.00271296]*u.au)
+    times = Time(np.array(["2015-08-28 03:30", "2015-09-05 10:30",
+                           "2015-09-15 18:35", "2015-09-15 18:35"]*2).reshape(2, 4))
+    latitudes = Latitude([3.9807075, -5.00733806, 1.69539491, 1.69539491]*2*u.deg).reshape(2, 4)
+    longitudes = Longitude([311.79678613, 72.86626741, 199.58698226, 199.58698226]*2*u.deg).reshape(2, 4)
+    distances = u.Quantity([0.00243266, 0.0025424, 0.00271296, 0.00271296]*2*u.au).reshape(2, 4)
     coo = GeocentricTrueEcliptic(lat=latitudes,
                                  lon=longitudes,
                                  distance=distances, equinox=times)
     # expected result
-    ras = Longitude([310.50095387, 314.67109863, 319.56507471]*u.deg)
-    decs = Latitude([-18.25190707, -17.1556641, -15.71616651]*u.deg)
-    distances = u.Quantity([1.78309902, 1.710874, 1.61326648]*u.au)
+    ras = Longitude([310.50095387, 314.67109863, 319.56507471, 319.56507471]*2*u.deg).reshape(2, 4)
+    decs = Latitude([-18.25190707, -17.1556641, -15.71616651, -15.71616651]*2*u.deg).reshape(2, 4)
+    distances = u.Quantity([1.78309902, 1.710874, 1.61326648, 1.61326648]*2*u.au).reshape(2, 4)
     expected_result = GCRS(ra=ras, dec=decs,
                            distance=distances, obstime="J2000").cartesian.xyz
     actual_result = coo.transform_to(GCRS(obstime="J2000")).cartesian.xyz
