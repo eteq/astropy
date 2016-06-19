@@ -121,6 +121,8 @@ def icrs_to_gcrs(icrs_coo, gcrs_frame):
     # first set up the astrometry context for ICRS<->GCRS
     pv = np.array([gcrs_frame.obsgeoloc.value,
                    gcrs_frame.obsgeovel.value])
+    if len(pv.shape) > 2:
+        pv = pv.transpose(list(range(len(pv.shape))[2:])+[0,1])
 
     jd1, jd2 = get_jd12(gcrs_frame.obstime, 'tdb')
     astrom = erfa.apcs13(jd1, jd2, pv)
@@ -167,6 +169,9 @@ def gcrs_to_icrs(gcrs_coo, icrs_frame):
     # coordinate direction
     pv = np.array([gcrs_coo.obsgeoloc.value,
                    gcrs_coo.obsgeovel.value])
+    if len(pv.shape) > 2:
+        pv = pv.transpose(list(range(len(pv.shape))[2:])+[0,1])
+
     jd1, jd2 = get_jd12(gcrs_coo.obstime, 'tdb')
     astrom = erfa.apcs13(jd1, jd2, pv)
 
@@ -200,7 +205,9 @@ def gcrs_to_icrs(gcrs_coo, icrs_frame):
 
 @frame_transform_graph.transform(FunctionTransform, GCRS, GCRS)
 def gcrs_to_gcrs(from_coo, to_frame):
-    if (np.all(from_coo.obstime == to_frame.obstime)
+    if (from_coo.obstime.shape == to_frame.obstime.shape
+        and np.all(from_coo.obstime == to_frame.obstime)
+        and from_coo.obsgeoloc.shape == to_frame.obsgeoloc.shape
         and np.all(from_coo.obsgeoloc == to_frame.obsgeoloc)):
         return to_frame.realize_frame(from_coo.data)
     else:

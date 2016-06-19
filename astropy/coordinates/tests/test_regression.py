@@ -229,7 +229,14 @@ def test_regression_4996():
 
 
 def test_regression_4926():
-    times = Time('2010-01-1') + np.arange(20)*u.day
+    times = Time('2010-01-1') + np.arange(4)*u.day
     green = get_builtin_sites()['greenwich']
 
-    get_moon(times, green)
+    gcs = get_moon(times, green)
+    aas = gcs.transform_to(AltAz(location=green, obstime=times))
+
+    scalar_gcs = [get_moon(time, green) for time in times]
+    scalar_aas = [gc.transform_to(AltAz(location=green, obstime=time))
+                  for gc, time in zip(gcs, times)]
+
+    assert_quantity_allclose(aas.alt, [aa.alt for aa in scalar_aas])
