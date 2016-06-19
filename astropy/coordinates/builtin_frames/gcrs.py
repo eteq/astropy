@@ -70,8 +70,8 @@ class GCRS(BaseCoordinateFrame):
     default_representation = SphericalRepresentation
 
     obstime = TimeFrameAttribute(default=DEFAULT_OBSTIME)
-    obsgeoloc = QuantityFrameAttribute(default=0, unit=u.m, shape=(3,))
-    obsgeovel = QuantityFrameAttribute(default=0, unit=u.m/u.s, shape=(3,))
+    obsgeoloc = QuantityFrameAttribute(default=0, unit=u.m, shape=(3, Ellipsis))
+    obsgeovel = QuantityFrameAttribute(default=0, unit=u.m/u.s, shape=(3, Ellipsis))
 
 # The "self-transform" is defined in icrs_cirs_transformations.py, because in
 # the current implementation it goes through ICRS (like CIRS)

@@ -320,8 +320,12 @@ class QuantityFrameAttribute(FrameAttribute):
         ValueError
             If the input is not valid for this attribute.
         """
-        if np.all(value == 0) and self.unit is not None and self.unit is not None:
-            return u.Quantity(np.zeros(self.shape), self.unit), True
+        if np.all(value == 0) and self.unit is not None:
+            if self.shape is not None and Ellipsis in self.shape:
+                zerosshape = [e for e in self.shape if e is not Ellipsis]
+            else:
+                zerosshape = self.shape
+            return u.Quantity(np.zeros(zerosshape), self.unit), True
         else:
             converted = True
             if not (hasattr(value, 'unit') ):
@@ -329,7 +333,18 @@ class QuantityFrameAttribute(FrameAttribute):
                                 'something that does not have a unit.')
             oldvalue = value
             value = u.Quantity(oldvalue, copy=False).to(self.unit)
-            if self.shape is not None and value.shape != self.shape:
+
+            shapeok = False
+            if self.shape is None:
+                shapeok = True
+            else:
+                if value.shape == self.shape:
+                    shapeok = True
+                elif self.shape[0] == Ellipsis:
+                    shapeok = value.shape[-(len(self.shape)-1):] == self.shape[1:]
+                elif self.shape[-1] == Ellipsis:
+                    shapeok = self.shape[:-1] == value.shape[:(len(self.shape)-1)]
+            if not shapeok:
                 raise ValueError('The provided value has shape "{0}", but '
                                  'should have shape "{1}"'.format(value.shape,
                                                                   self.shape))
