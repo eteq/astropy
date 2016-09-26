@@ -140,7 +140,8 @@ def _get_out_class(tables):
 
 def join(left, right, keys=None, join_type='inner',
          uniq_col_name='{col_name}_{table_name}',
-         table_names=['1', '2'], metadata_conflicts='warn'):
+         table_names=['1', '2'], metadata_conflicts='warn',
+         return_sorted=True):
     """
     Perform a join of the left table with the right table on specified keys.
 
@@ -166,6 +167,12 @@ def join(left, right, keys=None, join_type='inner',
             * ``'silent'``: silently pick the last conflicting meta-data value
             * ``'warn'``: pick the last conflicting meta-data value, but emit a warning (default)
             * ``'error'``: raise an exception.
+    return_sorted : bool
+        If True, the resulting table will be resorted to match the chosen
+        ``keys``.  If False, the resulting table will be in the order of
+        ``left`` (or ``right`` if ``join_type`` is "right").  Note that
+        this defaults to True because it is necessary for the join, so it
+        requires an additional operation to "unsort".
 
     Returns
     -------
@@ -188,6 +195,12 @@ def join(left, right, keys=None, join_type='inner',
     # these methods for custom merge behavior.
     _merge_col_meta(out, [left, right], col_name_map, metadata_conflicts=metadata_conflicts)
     _merge_table_meta(out, [left, right], metadata_conflicts=metadata_conflicts)
+
+    if not return_sorted:
+        if join_type == 'outer':
+            raise ValueError('return_sorted cannot be False if join_type is '
+                             'outer')
+        raise NotImplementedError
 
     return out
 
