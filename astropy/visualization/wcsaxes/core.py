@@ -1,18 +1,20 @@
 # Licensed under a 3-clause BSD style license - see LICENSE.rst
 
+from __future__ import print_function, division, absolute_import
+
+import numpy as np
+
 from matplotlib.axes import Axes, subplot_class_factory
 from matplotlib.transforms import Affine2D, Bbox, Transform
 
-from astropy.wcs import WCS
-from astropy.wcs.utils import wcs_to_celestial_frame
-from astropy.extern import six
+from ...wcs import WCS
+from ...wcs.utils import wcs_to_celestial_frame
 
 from .transforms import (WCSPixel2WorldTransform, WCSWorld2PixelTransform,
                          CoordinateTransform)
 from .coordinates_map import CoordinatesMap
 from .utils import get_coord_meta
 from .frame import EllipticalFrame, RectangularFrame
-import numpy as np
 
 __all__ = ['WCSAxes', 'WCSAxesSubplot']
 

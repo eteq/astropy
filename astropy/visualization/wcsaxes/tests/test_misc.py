@@ -1,11 +1,13 @@
-from __future__ import print_function
+# Licensed under a 3-clause BSD style license - see LICENSE.rst
+
+from __future__ import print_function, division, absolute_import
 
 import numpy as np
 import matplotlib.pyplot as plt
 
-from astropy.wcs import WCS
-from astropy.io import fits
-from astropy.tests.helper import catch_warnings, pytest
+from ....wcs import WCS
+from ....io import fits
+from ....tests.helper import catch_warnings, pytest
 
 from ..core import WCSAxes
 from ..utils import get_coord_meta

@@ -5,10 +5,10 @@ import numpy as np
 import matplotlib.pyplot as plt
 from matplotlib.patches import Circle, Rectangle
 
-from astropy import units as u
-from astropy.io import fits
-from astropy.tests.helper import pytest, remote_data
-from astropy.wcs import WCS
+from .... import units as u
+from ....io import fits
+from ....tests.helper import pytest, remote_data
+from ....wcs import WCS
 
 from ..rc_utils import rc_context
 
