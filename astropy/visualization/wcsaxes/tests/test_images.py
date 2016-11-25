@@ -15,7 +15,7 @@ from ..rc_utils import rc_context
 from ..patches import SphericalCircle
 from .. import WCSAxes
 from . import datasets
-from . import baseline_dir
+from ....tests.image_tests import IMAGE_REFERENCE_DIR
 
 
 class BaseImageTests(object):
@@ -44,7 +44,7 @@ class BaseImageTests(object):
 class TestBasic(BaseImageTests):
 
     @remote_data
-    @pytest.mark.mpl_image_compare(baseline_dir=baseline_dir, filename='image_plot.png', tolerance=1.5)
+    @pytest.mark.mpl_image_compare(baseline_dir=IMAGE_REFERENCE_DIR, filename='image_plot.png', tolerance=1.5)
     def test_image_plot(self):
         # Test for plotting image and also setting values of ticks
         fig = plt.figure(figsize=(6, 6))
@@ -56,7 +56,7 @@ class TestBasic(BaseImageTests):
 
     @remote_data
     @remote_data
-    @pytest.mark.mpl_image_compare(baseline_dir=baseline_dir, filename='contour_overlay.png', tolerance=1.5)
+    @pytest.mark.mpl_image_compare(baseline_dir=IMAGE_REFERENCE_DIR, filename='contour_overlay.png', tolerance=1.5)
     def test_contour_overlay(self):
         # Test for overlaying contours on images
         hdu_msx = datasets.fetch_msx_hdu()
@@ -80,7 +80,7 @@ class TestBasic(BaseImageTests):
         return fig
 
     @remote_data
-    @pytest.mark.mpl_image_compare(baseline_dir=baseline_dir, filename='overlay_features_image.png', tolerance=1.5)
+    @pytest.mark.mpl_image_compare(baseline_dir=IMAGE_REFERENCE_DIR, filename='overlay_features_image.png', tolerance=1.5)
     def test_overlay_features_image(self):
 
         # Test for overlaying grid, changing format of ticks, setting spacing
@@ -117,7 +117,7 @@ class TestBasic(BaseImageTests):
         return fig
 
     @remote_data
-    @pytest.mark.mpl_image_compare(baseline_dir=baseline_dir, filename='curvlinear_grid_patches_image.png', tolerance=1.5)
+    @pytest.mark.mpl_image_compare(baseline_dir=IMAGE_REFERENCE_DIR, filename='curvlinear_grid_patches_image.png', tolerance=1.5)
     def test_curvilinear_grid_patches_image(self):
 
         # Overlay curvilinear grid and patches on image
@@ -149,7 +149,7 @@ class TestBasic(BaseImageTests):
         return fig
 
     @remote_data
-    @pytest.mark.mpl_image_compare(baseline_dir=baseline_dir, filename='cube_slice_image.png', tolerance=1.5)
+    @pytest.mark.mpl_image_compare(baseline_dir=IMAGE_REFERENCE_DIR, filename='cube_slice_image.png', tolerance=1.5)
     def test_cube_slice_image(self):
 
         # Test for cube slicing
@@ -175,7 +175,7 @@ class TestBasic(BaseImageTests):
         return fig
 
     @remote_data
-    @pytest.mark.mpl_image_compare(baseline_dir=baseline_dir, filename='cube_slice_image_lonlat.png', tolerance=1.5)
+    @pytest.mark.mpl_image_compare(baseline_dir=IMAGE_REFERENCE_DIR, filename='cube_slice_image_lonlat.png', tolerance=1.5)
     def test_cube_slice_image_lonlat(self):
 
         # Test for cube slicing. Here we test with longitude and latitude since
@@ -195,7 +195,7 @@ class TestBasic(BaseImageTests):
         return fig
 
     @remote_data
-    @pytest.mark.mpl_image_compare(baseline_dir=baseline_dir, filename='changed_axis_units.png', tolerance=1.5)
+    @pytest.mark.mpl_image_compare(baseline_dir=IMAGE_REFERENCE_DIR, filename='changed_axis_units.png', tolerance=1.5)
     def test_changed_axis_units(self):
         # Test to see if changing the units of axis works
         fig = plt.figure()
@@ -213,7 +213,7 @@ class TestBasic(BaseImageTests):
         return fig
 
     @remote_data
-    @pytest.mark.mpl_image_compare(baseline_dir=baseline_dir, filename='minor_ticks_image.png', tolerance=1.5)
+    @pytest.mark.mpl_image_compare(baseline_dir=IMAGE_REFERENCE_DIR, filename='minor_ticks_image.png', tolerance=1.5)
     def test_minor_ticks(self):
         # Test for drawing minor ticks
         fig = plt.figure()
@@ -232,7 +232,7 @@ class TestBasic(BaseImageTests):
         return fig
 
     @remote_data
-    @pytest.mark.mpl_image_compare(baseline_dir=baseline_dir, filename='ticks_labels.png', tolerance=1.5)
+    @pytest.mark.mpl_image_compare(baseline_dir=IMAGE_REFERENCE_DIR, filename='ticks_labels.png', tolerance=1.5)
     def test_ticks_labels(self):
         fig = plt.figure(figsize=(6, 6))
         ax = WCSAxes(fig, [0.1, 0.1, 0.7, 0.7], wcs=None)
@@ -260,7 +260,7 @@ class TestBasic(BaseImageTests):
         return fig
 
     @remote_data
-    @pytest.mark.mpl_image_compare(baseline_dir=baseline_dir, filename='rcparams.png', tolerance=1.5)
+    @pytest.mark.mpl_image_compare(baseline_dir=IMAGE_REFERENCE_DIR, filename='rcparams.png', tolerance=1.5)
     def test_rcparams(self):
         # Test default style (matplotlib.rcParams) for ticks and gridlines
         with rc_context({
@@ -282,7 +282,7 @@ class TestBasic(BaseImageTests):
             return fig
 
     @remote_data
-    @pytest.mark.mpl_image_compare(baseline_dir=baseline_dir, filename='tick_angles.png', tolerance=1.5)
+    @pytest.mark.mpl_image_compare(baseline_dir=IMAGE_REFERENCE_DIR, filename='tick_angles.png', tolerance=1.5)
     def test_tick_angles(self):
         # Test that tick marks point in the correct direction, even when the
         # axes limits extend only over a few FITS pixels. Addresses #45, #46.
@@ -303,7 +303,7 @@ class TestBasic(BaseImageTests):
         return fig
 
     @remote_data
-    @pytest.mark.mpl_image_compare(baseline_dir=baseline_dir, filename='tick_angles_non_square_axes.png', tolerance=1.5)
+    @pytest.mark.mpl_image_compare(baseline_dir=IMAGE_REFERENCE_DIR, filename='tick_angles_non_square_axes.png', tolerance=1.5)
     def test_tick_angles_non_square_axes(self):
         # Test that tick marks point in the correct direction, even when the
         # axes limits extend only over a few FITS pixels, and the axes are
@@ -325,7 +325,7 @@ class TestBasic(BaseImageTests):
         return fig
 
     @remote_data
-    @pytest.mark.mpl_image_compare(baseline_dir=baseline_dir, filename='set_coord_type.png', tolerance=1.5)
+    @pytest.mark.mpl_image_compare(baseline_dir=IMAGE_REFERENCE_DIR, filename='set_coord_type.png', tolerance=1.5)
     def test_set_coord_type(self):
         # Test for setting coord_type
         fig = plt.figure(figsize=(3, 3))
@@ -343,7 +343,7 @@ class TestBasic(BaseImageTests):
         return fig
 
     @remote_data
-    @pytest.mark.mpl_image_compare(baseline_dir=baseline_dir, filename='test_ticks_regression_1.png', tolerance=1.5)
+    @pytest.mark.mpl_image_compare(baseline_dir=IMAGE_REFERENCE_DIR, filename='test_ticks_regression_1.png', tolerance=1.5)
     def test_ticks_regression(self):
         # Regression test for a bug that caused ticks aligned exactly with a
         # sampled frame point to not appear. This also checks that tick labels
@@ -366,7 +366,7 @@ class TestBasic(BaseImageTests):
         return fig
 
     @remote_data
-    @pytest.mark.mpl_image_compare(baseline_dir=baseline_dir, filename='test_axislabels_regression.png', savefig_kwargs={'bbox_inches': 'tight'}, tolerance=1.5)
+    @pytest.mark.mpl_image_compare(baseline_dir=IMAGE_REFERENCE_DIR, filename='test_axislabels_regression.png', savefig_kwargs={'bbox_inches': 'tight'}, tolerance=1.5)
     def test_axislabels_regression(self):
         # Regression test for a bug that meant that if tick labels were made
         # invisible with ``set_visible(False)``, they were still added to the
@@ -381,7 +381,7 @@ class TestBasic(BaseImageTests):
         return fig
 
     @remote_data
-    @pytest.mark.mpl_image_compare(baseline_dir=baseline_dir, savefig_kwargs={'bbox_inches': 'tight'},
+    @pytest.mark.mpl_image_compare(baseline_dir=IMAGE_REFERENCE_DIR, savefig_kwargs={'bbox_inches': 'tight'},
                                    tolerance=1.5)
     def test_noncelestial_angular(self, tmpdir):
         # Regression test for a bug that meant that when passing a WCS that had
@@ -417,7 +417,7 @@ class TestBasic(BaseImageTests):
         return fig
 
     @remote_data
-    @pytest.mark.mpl_image_compare(baseline_dir=baseline_dir, savefig_kwargs={'bbox_inches': 'tight'},
+    @pytest.mark.mpl_image_compare(baseline_dir=IMAGE_REFERENCE_DIR, savefig_kwargs={'bbox_inches': 'tight'},
                                    tolerance=1.5)
     def test_patches_distortion(self, tmpdir):
 
