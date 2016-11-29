@@ -248,7 +248,6 @@ class WCSAxes(Axes):
                     self.coords[coord_index].set_ticklabel_position('')
                     self.coords[coord_index].set_ticks_position('')
 
-
     def draw(self, renderer, inframe=False):
 
         # In Axes.draw, the following code can result in the xlim and ylim
@@ -314,7 +313,9 @@ class WCSAxes(Axes):
             if coord_meta is None:
                 coord_meta = get_coord_meta(frame)
             transform = self._get_transform_no_transdata(frame)
-            coords = CoordinatesMap(self, transform=transform, coord_meta=coord_meta, frame_class=self.frame_class)
+            coords = CoordinatesMap(self, transform=transform,
+                                    coord_meta=coord_meta,
+                                    frame_class=self.frame_class)
 
         self._all_coords.append(coords)
 
@@ -376,14 +377,14 @@ class WCSAxes(Axes):
 
             if coord_in == coord_out:
 
-                return (WCSPixel2WorldTransform(self.wcs, slice=self.slices)
-                        + WCSWorld2PixelTransform(frame))
+                return (WCSPixel2WorldTransform(self.wcs, slice=self.slices) +
+                        WCSWorld2PixelTransform(frame))
 
             else:
 
-                return (WCSPixel2WorldTransform(self.wcs, slice=self.slices)
-                        + CoordinateTransform(self.wcs, frame)
-                        + WCSWorld2PixelTransform(frame))
+                return (WCSPixel2WorldTransform(self.wcs, slice=self.slices) +
+                        CoordinateTransform(self.wcs, frame) +
+                        WCSWorld2PixelTransform(frame))
 
         elif frame == 'pixel':
 
