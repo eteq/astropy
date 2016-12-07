@@ -98,6 +98,9 @@ rst_epilog += """
 .. _`astropy-dev mailing list`: http://groups.google.com/group/astropy-dev
 """.format(astropy)
 
+# Any warning categories to be supressed can be added here
+suppress_warnings.append('image.nonlocal_uri')
+
 # -- Project information ------------------------------------------------------
 
 project = u'Astropy'
