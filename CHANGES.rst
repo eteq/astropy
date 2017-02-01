@@ -216,6 +216,10 @@ Bug Fixes
   - Ensured that ``position_angle`` and ``separation`` give correct answers for
     frames with different equinox (see #5722). [#5762]
 
+  - Ensure that frame attributes set on ``SkyCoord`` are properly validated,
+    and that any ndarray-like operation (like slicing) will also be done on
+    those. [#5751]
+
 - ``astropy.cosmology``
 
 - ``astropy.io.ascii``
@@ -307,6 +311,10 @@ Other Changes and Additions
 - The deprecation of the ``clobber`` argument (originally deprecated in 1.3.0)
   in the ``io.fits`` write functions was changed to a "pending" deprecation
   (without displaying warnings) for now. [#5761]
+
+- In the process of fixing frame attributes on ``SkyCoord``, caching of the
+  all possible frame attributes was implemented (following #5703). This greatly
+  speeds up many ``SkyCoord`` operations. [#5751]
 
 1.3 (2016-12-22)
 ----------------
