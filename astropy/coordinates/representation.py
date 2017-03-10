@@ -39,9 +39,7 @@ REPRESENTATION_CLASSES = {}
 def _array2string(values, prefix=''):
     # Mimic numpy >=1.12 array2string, in which structured arrays are
     # typeset taking into account all printoptions.
-    # TODO: in final numpy 1.12, the scalar case should work as well;
-    # see https://github.com/numpy/numpy/issues/8172
-    if NUMPY_LT_1_12:
+    if NUMPY_LT_1_12:  # pragma: no cover
         # Mimic StructureFormat from numpy >=1.12 assuming float-only data.
         from numpy.core.arrayprint import FloatFormat
         opts = np.get_printoptions()
@@ -85,8 +83,14 @@ class RepresentationBase(ShapedLikeNDArray):
         # make argument a list, so we can pop them off.
         args = list(args)
         components = self.components
-        attrs = [args.pop(0) if args else kwargs.pop(component)
-                 for component in components]
+        attrs = []
+        for component in components:
+            try:
+                attrs.append(args.pop(0) if args else kwargs.pop(component))
+            except KeyError:
+                raise TypeError('__init__() missing 1 required positional '
+                                'argument: {0!r}'.format(component))
+
         copy = args.pop(0) if args else kwargs.pop('copy', True)
 
         if args:
@@ -216,7 +220,7 @@ class RepresentationBase(ShapedLikeNDArray):
     def __truediv__(self, other):
         return self._scale_operation(operator.truediv, other)
 
-    def __div__(self, other):
+    def __div__(self, other):  # pragma: py2
         return self._scale_operation(operator.truediv, other)
 
     def __neg__(self):
@@ -652,7 +656,7 @@ class CartesianRepresentation(BaseRepresentation):
         x = self._x
         y = cls(self._y, x.unit, copy=False)
         z = cls(self._z, x.unit, copy=False)
-        if NUMPY_LT_1_8:
+        if NUMPY_LT_1_8:  # pragma: no cover
             # numpy 1.7 has problems concatenating broadcasted arrays.
             x, y, z =  [(c.copy() if 0 in c.strides else c) for c in (x, y, z)]
 
@@ -1909,11 +1913,11 @@ class RadialDifferential(BaseSphericalDifferential):
     @classmethod
     def from_representation(cls, representation, base=None):
         if isinstance(representation, SphericalDifferential):
-            return cls(representation.d_lon, representation.d_lat)
+            return cls(representation.d_distance)
         elif isinstance(representation, PhysicsSphericalDifferential):
-            return cls(representation.d_phi, -representation.d_theta)
+            return cls(representation.d_r)
         else:
-            return super(UnitSphericalDifferential,
+            return super(RadialDifferential,
                          cls).from_representation(representation, base)
 
     def _combine_operation(self, op, other, reverse=False):
