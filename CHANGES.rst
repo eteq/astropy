@@ -13,7 +13,10 @@ New Features
 - ``astropy.coordinates``
 
   - Frame attributes set on ``SkyCoord`` are now always validated, and any
-    ndarray-like operation (like slicing) will also be done on those. [#5751]
+    ndarray-like operation (like slicing) will also be done on those. [#575
+
+  - Caching of  all possible frame attributes was implemented. This greatly
+    speeds up many ``SkyCoord`` operations. [#5703, #5751]
 
 
 - ``astropy.cosmology``
@@ -311,10 +314,6 @@ Other Changes and Additions
 - The deprecation of the ``clobber`` argument (originally deprecated in 1.3.0)
   in the ``io.fits`` write functions was changed to a "pending" deprecation
   (without displaying warnings) for now. [#5761]
-
-- In the process of fixing frame attributes on ``SkyCoord``, caching of the
-  all possible frame attributes was implemented (following #5703). This greatly
-  speeds up many ``SkyCoord`` operations. [#5751]
 
 1.3 (2016-12-22)
 ----------------
