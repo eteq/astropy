@@ -1349,7 +1349,8 @@ def test_set_attribute_exceptions():
 def test_extra_attributes():
     """Ensure any extra attributes are dealt with correctly.
 
-    Regression test against #5743.
+    More detailed regression test from #5743 (basic regression test in
+    test_regression.py).
     """
     obstime_string = ['2017-01-01T00:00','2017-01-01T00:10']
     obstime = Time(obstime_string)
@@ -1376,3 +1377,20 @@ def test_extra_attributes():
     # Finally, check that we can delete such attributes.
     del sc3.obstime
     assert sc3.obstime is None
+
+
+def test_transformless_frame():
+    """
+    Checks the behavior of SkyCoord's with a frame that isn't in the transform
+    graph
+    """
+    class TestFrame(BaseCoordinateFrame):
+        fattr = FrameAttribute()
+        default_representation = SphericalRepresentation
+
+    tf = TestFrame(1*u.deg, 2*u.deg, fattr='sillywalks')
+    sc = SkyCoord(tf)
+    assert tf.fattr == sc.fattr
+
+    sc2 = SkyCoord(3*u.deg, 4*u.deg, fattr='sillywalks2', frame=TestFrame)
+    assert sc2.frame.fattr == sc2.fattr
