@@ -12,6 +12,10 @@ New Features
 
 - ``astropy.coordinates``
 
+  - Frame attributes set on ``SkyCoord`` are now always validated, and any
+    ndarray-like operation (like slicing) will also be done on those. [#5751]
+
+
 - ``astropy.cosmology``
 
 - ``astropy.io.ascii``
@@ -215,10 +219,6 @@ Bug Fixes
 
   - Ensured that ``position_angle`` and ``separation`` give correct answers for
     frames with different equinox (see #5722). [#5762]
-
-  - Ensure that frame attributes set on ``SkyCoord`` are properly validated,
-    and that any ndarray-like operation (like slicing) will also be done on
-    those. [#5751]
 
 - ``astropy.cosmology``
 
