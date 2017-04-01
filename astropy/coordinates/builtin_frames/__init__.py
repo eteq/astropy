@@ -35,6 +35,7 @@ from .gcrs import GCRS, PrecessedGeocentric
 from .cirs import CIRS
 from .itrs import ITRS
 from .hcrs import HCRS
+from .lsr import LSR
 from .ecliptic import GeocentricTrueEcliptic, BarycentricTrueEcliptic, HeliocentricTrueEcliptic
 from .skyoffset import SkyOffsetFrame
 # need to import transformations so that they get registered in the graph
@@ -49,7 +50,7 @@ from . import ecliptic_transforms
 
 # we define an __all__ because otherwise the transformation modules get included
 __all__ = ['ICRS', 'FK5', 'FK4', 'FK4NoETerms', 'Galactic', 'Galactocentric',
-           'Supergalactic', 'AltAz', 'GCRS', 'CIRS', 'ITRS', 'HCRS',
+           'Supergalactic', 'AltAz', 'GCRS', 'CIRS', 'ITRS', 'HCRS', 'LSR',
            'PrecessedGeocentric', 'GeocentricTrueEcliptic',
            'BarycentricTrueEcliptic', 'HeliocentricTrueEcliptic',
            'SkyOffsetFrame']

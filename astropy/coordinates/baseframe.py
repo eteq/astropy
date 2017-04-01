@@ -607,6 +607,8 @@ class BaseCoordinateFrame(ShapedLikeNDArray):
         if 'representation' in kwargs:
             self.representation = kwargs.pop('representation')
 
+
+
         # if not set below, this is a frame with no data
         representation_data = None
 
@@ -664,6 +666,9 @@ class BaseCoordinateFrame(ShapedLikeNDArray):
                 setattr(self, '_' + fnm, fdefault)
                 self._attr_names_with_defaults.append(fnm)
 
+        # TODO: rename d_representation?
+        self.differential = kwargs.pop('differential', None)
+
         if kwargs:
             raise TypeError(
                 'Coordinate frame got unexpected keywords: {0}'.format(
@@ -672,6 +677,11 @@ class BaseCoordinateFrame(ShapedLikeNDArray):
         # We do ``is None`` because self._data might evaluate to false for
         # empty arrays or data == 0
         if self._data is None:
+
+            if self.differential is not None:
+                raise ValueError("Differential representation passed to coordinate "
+                                 "frame but no data specified.") # TODO: sucks, fix this
+
             # No data: we still need to check that any non-scalar attributes
             # have consistent shapes. Collect them for all attributes with
             # size > 1 (which should be array-like and thus have a shape).
@@ -985,7 +995,20 @@ class BaseCoordinateFrame(ShapedLikeNDArray):
                 return new_frame.realize_frame(self.data)
             msg = 'Cannot transform from {0} to {1}'
             raise ConvertError(msg.format(self.__class__, new_frame.__class__))
-        return trans(self, new_frame)
+
+        res = trans(self, new_frame)
+
+        # HACK: need to check if new_frame has an obstime
+        dt = 1 * u.s
+
+        # TODO: need to copy the frame and change obstime
+        new_frame2 = new_frame.__class__(representation=new_frame.data,
+                                         obstime=new_frame.obstime + dt) # TODO: figure out how to make this easier
+        dx = res.cartesian - trans(self, new_frame2).cartesian
+        new_differential = (self.differential.to_cartesian(self.data) +
+                            CartesianRepresentation(dx.xyz / dt))
+
+        return res.__class__(res, differential=new_differential) # TODO: figure out how to make this easier
 
     def is_transformable_to(self, new_frame):
         """
