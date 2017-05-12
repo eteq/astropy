@@ -1003,13 +1003,18 @@ class BaseCoordinateFrame(ShapedLikeNDArray):
 
         # TODO: need to copy the frame and change obstime
         newfattrs = new_frame.get_frame_attr_names().copy()
-        newfattrs['obstime'] = new_frame.obstime + dt
+        if 'obstime' in newfattrs:
+            newfattrs['obstime'] = new_frame.obstime + dt
         new_frame2 = new_frame.__class__(**newfattrs) # TODO: figure out how to make this more robust
         dx = res.cartesian - trans(self, new_frame2).cartesian
-        new_differential = (self.differential.to_cartesian(self.data) +
-                            CartesianRepresentation(dx.xyz / dt))
+        if self.differential is None:
+            new_differential = None
+        else:
+            new_differential = (self.differential.to_cartesian(self.data) +
+                                CartesianRepresentation(dx.xyz / dt))
 
-        return res.__class__(res, differential=new_differential) # TODO: figure out how to make this easier
+        res.differential = new_differential
+        return res# TODO: figure out how to make this easier
 
     def is_transformable_to(self, new_frame):
         """
