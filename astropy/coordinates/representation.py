@@ -67,7 +67,8 @@ def _array2string(values, prefix=''):
 
 def _combine_xyz(x, y, z, xyz_axis=0):
     """
-    Combine the 3 input arrays, ``x``, ``y``, ``z``.
+    Combine the 3 input arrays, ``x``, ``y``, ``z`` into a single array that's
+    3 x N x ... (or N x 3 x ... or the like depending on ``xyz_axis``)
     """
 
     # Add new axis in x, y, z so one can concatenate them around it.
