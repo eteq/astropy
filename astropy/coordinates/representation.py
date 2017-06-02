@@ -1560,7 +1560,9 @@ class MetaBaseDifferential(abc.ABCMeta):
 
 @six.add_metaclass(MetaBaseDifferential)
 class BaseDifferential(RepresentationBase):
-    """Differentials from points on a base representation.
+    """A base class representing differentials of representations.  I.e.,
+    differences of points in a particular representation (numerical realizations
+    of derivatives).
 
     Parameters
     ----------
