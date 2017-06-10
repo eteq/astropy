@@ -26,10 +26,11 @@ from .. import units as u
 from ..utils import (OrderedDescriptorContainer, ShapedLikeNDArray,
                      check_broadcast)
 from .transformations import TransformGraph
-from .representation import (BaseRepresentation, CartesianRepresentation,
+from .representation import (BaseRepresentation, BaseDifferential,
+                             CartesianRepresentation,
                              SphericalRepresentation,
                              UnitSphericalRepresentation,
-                             REPRESENTATION_CLASSES)
+                             REPRESENTATION_CLASSES, DIFFERENTIAL_CLASSES)
 
 # Import all FrameAttributes so we don't break backwards-compatibility
 # (some users rely on them being here, although that is not
@@ -61,6 +62,22 @@ def _get_repr_cls(value):
                 value, list(REPRESENTATION_CLASSES)))
     return value
 
+def _get_diff_cls(value):
+    """
+    Return a valid differential class from ``value`` or raise exception.
+    """
+
+    if value in DIFFERENTIAL_CLASSES:
+        value = DIFFERENTIAL_CLASSES[value]
+    try:
+        # value might not be a class, so use try
+        assert issubclass(value, BaseDifferential)
+    except (TypeError, AssertionError):
+        raise ValueError(
+            'Differential is {0!r} but must be a BaseDifferential class '
+            'or one of the string aliases {1}'.format(
+                value, list(DIFFERENTIAL_CLASSES)))
+    return value
 
 # Need to subclass ABCMeta as well, so that this meta class can be combined
 # with ShapedLikeNDArray below (which is an ABC); without it, one gets
@@ -74,6 +91,13 @@ class FrameMeta(OrderedDescriptorContainer, abc.ABCMeta):
         else:
             default_repr = None
             found_default_repr = False
+
+        if 'default_differential' in members:
+            default_diff = members.pop('default_differential')
+            found_default_diff = True
+        else:
+            default_diff = None
+            found_default_diff = False
 
         if 'frame_specific_representation_info' in members:
             repr_info = members.pop('frame_specific_representation_info')
@@ -92,12 +116,17 @@ class FrameMeta(OrderedDescriptorContainer, abc.ABCMeta):
             if not found_default_repr and '_default_representation' in m:
                 default_repr = m['_default_representation']
                 found_default_repr = True
+
+            if not found_default_diff and '_default_differential' in m:
+                default_diff = m['_default_differential']
+                found_default_diff = True
+
             if (not found_repr_info and
                     '_frame_specific_representation_info' in m):
                 repr_info = m['_frame_specific_representation_info']
                 found_repr_info = True
 
-            if found_default_repr and found_repr_info:
+            if found_default_repr and found_default_diff and found_repr_info:
                 break
         else:
             raise ValueError(
@@ -110,6 +139,8 @@ class FrameMeta(OrderedDescriptorContainer, abc.ABCMeta):
         # accidental cross-talk between classes
         mcls.readonly_prop_factory(members, 'default_representation',
                                    default_repr)
+        mcls.readonly_prop_factory(members, 'default_differential',
+                                   default_diff)
         mcls.readonly_prop_factory(members,
                                    'frame_specific_representation_info',
                                    copy.deepcopy(repr_info))
@@ -190,7 +221,9 @@ class BaseCoordinateFrame(ShapedLikeNDArray):
     """
 
     default_representation = None
-    # specifies special names/units for representation attributes
+    default_differential = None
+
+    # specifies special names/units for representation and differential attributes
     frame_specific_representation_info = {}
 
     _inherit_descriptors_ = (FrameAttribute,)
@@ -389,24 +422,29 @@ class BaseCoordinateFrame(ShapedLikeNDArray):
         # moved into the representation_info property at that time.
 
         repr_attrs = {}
-        for repr_cls in REPRESENTATION_CLASSES.values():
-            repr_attrs[repr_cls] = {'names': [], 'units': []}
-            for c in repr_cls.attr_classes.keys():
-                repr_attrs[repr_cls]['names'].append(c)
-                rec_unit = repr_cls.recommended_units.get(c, None)
-                repr_attrs[repr_cls]['units'].append(rec_unit)
+        for repr_diff_cls in (list(REPRESENTATION_CLASSES.values())):
+        # for repr_diff_cls in (list(REPRESENTATION_CLASSES.values()) +
+        #                       list(DIFFERENTIAL_CLASSES.values())):
+            repr_attrs[repr_diff_cls] = {'names': [], 'units': []}
+            for c in repr_diff_cls.attr_classes.keys():
+                repr_attrs[repr_diff_cls]['names'].append(c)
+                rec_unit = repr_diff_cls.recommended_units.get(c, None)
+                repr_attrs[repr_diff_cls]['units'].append(rec_unit)
 
-        for repr_cls, mappings in cls._frame_specific_representation_info.items():
-            # keys may be a class object or a name
-            repr_cls = _get_repr_cls(repr_cls)
+        for repr_diff_cls, mappings in cls._frame_specific_representation_info.items():
+
+            if isinstance(repr_diff_cls, six.string_types):
+                # TODO: this provides a layer of backwards compatibility in case
+                #   the key is a string, but now we want explicit classes
+                repr_diff_cls = _get_repr_cls(repr_diff_cls)
 
             # take the 'names' and 'units' tuples from repr_attrs,
             # and then use the RepresentationMapping objects
             # to update as needed for this frame.
-            nms = repr_attrs[repr_cls]['names']
-            uns = repr_attrs[repr_cls]['units']
+            nms = repr_attrs[repr_diff_cls]['names']
+            uns = repr_attrs[repr_diff_cls]['units']
             comptomap = dict([(m.reprname, m) for m in mappings])
-            for i, c in enumerate(repr_cls.attr_classes.keys()):
+            for i, c in enumerate(repr_diff_cls.attr_classes.keys()):
                 if c in comptomap:
                     mapp = comptomap[c]
                     nms[i] = mapp.framename
@@ -417,8 +455,8 @@ class BaseCoordinateFrame(ShapedLikeNDArray):
                         uns[i] = mapp.defaultunit
                         # else we just leave it as recommended_units says above
             # Convert to tuples so that this can't mess with frame internals
-            repr_attrs[repr_cls]['names'] = tuple(nms)
-            repr_attrs[repr_cls]['units'] = tuple(uns)
+            repr_attrs[repr_diff_cls]['names'] = tuple(nms)
+            repr_attrs[repr_diff_cls]['units'] = tuple(uns)
 
         return repr_attrs
 
@@ -433,7 +471,7 @@ class BaseCoordinateFrame(ShapedLikeNDArray):
     @property
     def representation_component_names(self):
         out = OrderedDict()
-        if self.representation is None:
+        if self._representation is None:
             return out
         data_names = self.representation.attr_classes.keys()
         repr_names = self.representation_info[self.representation]['names']
@@ -444,9 +482,40 @@ class BaseCoordinateFrame(ShapedLikeNDArray):
     @property
     def representation_component_units(self):
         out = OrderedDict()
-        if self.representation is None:
+        if self._representation is None:
             return out
         repr_attrs = self.representation_info[self.representation]
+        repr_names = repr_attrs['names']
+        repr_units = repr_attrs['units']
+        for repr_name, repr_unit in zip(repr_names, repr_units):
+            if repr_unit:
+                out[repr_name] = repr_unit
+        return out
+
+    @property
+    def differential_component_names(self):
+        out = OrderedDict()
+        if self.representation is None or not self._data.differentials:
+            return out
+
+        diff = self._data.differentials[0]
+
+        # TODO: do we want a .differential attribute?
+        data_names = diff.attr_classes.keys()
+        repr_names = self.representation_info[diff.__class__]['names']
+        for repr_name, data_name in zip(repr_names, data_names):
+            out[repr_name] = data_name
+        return out
+
+    @property
+    def differential_component_units(self):
+        out = OrderedDict()
+        if self.representation is None or not self._data.differentials:
+            return out
+
+        diff = self._data.differentials[0]
+
+        repr_attrs = self.representation_info[diff.__class__]
         repr_names = repr_attrs['names']
         repr_units = repr_attrs['units']
         for repr_name, repr_unit in zip(repr_names, repr_units):
@@ -889,9 +958,11 @@ class BaseCoordinateFrame(ShapedLikeNDArray):
         #
         # Prevent infinite recursion here.
         if (attr == '_representation' or
-                attr not in self.representation_component_names):
+                (attr not in self.representation_component_names and
+                 attr not in self.differential_component_names)):
             raise AttributeError("'{0}' object has no attribute '{1}'"
                                  .format(self.__class__.__name__, attr))
+
         elif self._data is None:
             # The second clause of the ``or`` above means that
             # ``attr in self.representation_component_names``, otherwise we
@@ -912,6 +983,7 @@ class BaseCoordinateFrame(ShapedLikeNDArray):
         if hasattr(self, 'representation_info'):
             for representation_attr in self.representation_info.values():
                 repr_attr_names.update(representation_attr['names'])
+
         if attr in repr_attr_names:
             raise AttributeError(
                 'Cannot set any frame attribute {0}'.format(attr))
