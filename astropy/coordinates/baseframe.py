@@ -240,10 +240,18 @@ class BaseCoordinateFrame(ShapedLikeNDArray):
         self._attr_names_with_defaults = []
 
         if 'representation' in kwargs:
-            self.representation = kwargs.pop('representation')
+            # TODO: in the future, we may want to raise a deprecation warning
+            if 'representation_cls' in kwargs: # don't specify both
+                raise ValueError('Duplicate arguments passed for representation '
+                                 'class: both \'representation\' and '
+                                 '\'representation_cls\' were passed.')
+            self.representation_cls = kwargs.pop('representation')
 
-        if 'differential' in kwargs:
-            self.differential = kwargs.pop('differential')
+        elif 'representation_cls' in kwargs:
+            self.representation_cls = kwargs.pop('representation_cls')
+
+        if 'differential_cls' in kwargs:
+            self.differential_cls = kwargs.pop('differential_cls')
 
         # if not set below, this is a frame with no data
         representation_data = None
@@ -295,19 +303,19 @@ class BaseCoordinateFrame(ShapedLikeNDArray):
                     diff_kwargs[nmrep] = kwargs.pop(nmkw)
 
             if diff_kwargs:
-                if ((issubclass(self.differential, BaseSphericalDifferential) or
-                     issubclass(self.differential, BaseSphericalCosLatDifferential)) and
-                        hasattr(self.differential, '_unit_differential') and
+                if ((issubclass(self.differential_cls, BaseSphericalDifferential) or
+                     issubclass(self.differential_cls, BaseSphericalCosLatDifferential)) and
+                        hasattr(self.differential_cls, '_unit_differential') and
                         'd_distance' not in diff_kwargs):
-                    differential = self.differential._unit_differential
+                    differential = self.differential_cls._unit_differential
 
-                elif ((issubclass(self.differential, BaseSphericalDifferential) or
-                       issubclass(self.differential, BaseSphericalCosLatDifferential)) and
+                elif ((issubclass(self.differential_cls, BaseSphericalDifferential) or
+                       issubclass(self.differential_cls, BaseSphericalCosLatDifferential)) and
                         len(diff_kwargs) == 1 and 'd_distance' in diff_kwargs):
                     differential = RadialDifferential
 
                 else:
-                    differential = self.differential
+                    differential = self.differential_cls
                 differential_data = differential(copy=copy, **diff_kwargs)
 
         if len(args) > 0:
@@ -441,7 +449,7 @@ class BaseCoordinateFrame(ShapedLikeNDArray):
                            for name in cls.frame_attributes)
 
     @property
-    def representation(self):
+    def representation_cls(self):
         """
         The representation of the data in this frame, as a class that is
         subclassed from `~astropy.coordinates.BaseRepresentation`.  Can
@@ -451,12 +459,27 @@ class BaseCoordinateFrame(ShapedLikeNDArray):
             self._representation = self.default_representation
         return self._representation
 
-    @representation.setter
-    def representation(self, value):
+    @representation_cls.setter
+    def representation_cls(self, value):
         self._representation = _get_repr_cls(value)
 
     @property
-    def differential(self):
+    def representation(self):
+        """
+        The representation of the data in this frame, as a class that is
+        subclassed from `~astropy.coordinates.BaseRepresentation`.  Can
+        also be *set* using the string name of the representation.
+        """
+        # TODO: in the future, we may want to raise a deprecation warning here
+        return self.representation_cls
+
+    @representation.setter
+    def representation(self, value):
+        # TODO: in the future, we may want to raise a deprecation warning here
+        self.representation_cls = value
+
+    @property
+    def differential_cls(self):
         """
         The differential representation of the velocity data in this frame, as a
         class that is subclassed from `~astropy.coordinates.BaseDifferential`.
@@ -466,8 +489,8 @@ class BaseCoordinateFrame(ShapedLikeNDArray):
             self._differential = self.default_differential
         return self._differential
 
-    @differential.setter
-    def differential(self, value):
+    @differential_cls.setter
+    def differential_cls(self, value):
         self._differential = _get_diff_cls(value)
 
     @classmethod
@@ -549,11 +572,11 @@ class BaseCoordinateFrame(ShapedLikeNDArray):
     @property
     def differential_component_names(self):
         out = OrderedDict()
-        if self.differential is None:
+        if self.differential_cls is None:
             return out
 
-        data_names = self.differential.attr_classes.keys()
-        repr_names = self.representation_info[self.differential]['names']
+        data_names = self.differential_cls.attr_classes.keys()
+        repr_names = self.representation_info[self.differential_cls]['names']
         for repr_name, data_name in zip(repr_names, data_names):
             out[repr_name] = data_name
         return out
@@ -561,10 +584,10 @@ class BaseCoordinateFrame(ShapedLikeNDArray):
     @property
     def differential_component_units(self):
         out = OrderedDict()
-        if self.differential is None:
+        if self.differential_cls is None:
             return out
 
-        repr_attrs = self.representation_info[self.differential]
+        repr_attrs = self.representation_info[self.differential_cls]
         repr_names = repr_attrs['names']
         repr_units = repr_attrs['units']
         for repr_name, repr_unit in zip(repr_names, repr_units):
