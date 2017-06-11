@@ -1856,6 +1856,8 @@ class BaseDifferential(BaseRepresentationOrDifferential):
     those, and a default ``__init__`` for initialization.
     """
 
+    recommended_units = {}  # subclasses can override
+
     @classmethod
     def _check_base(cls, base):
         if not isinstance(base, cls.base_representation):
