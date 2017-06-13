@@ -209,7 +209,7 @@ Reference/API
 
 .. automodapi:: astropy.units.deprecated
 
-.. automodapi:: astropy.units.required_by_vounit
+.. automodapi:: astropy.units.prefixed_vounits
 
 Acknowledgments
 ===============

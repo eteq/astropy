@@ -4,7 +4,7 @@
 This package defines SI prefix ed units that are required by the VOUnit standard
 but that are rarely used in practice.  E.g. ``Unit('msolMass')`` will yield
 milli-solar mass, but are in a separate module so they must be accessed as
-``astropy.units.required_by_vounit.msolMass`` instead of ``astropy.units.msolMass``.
+``astropy.units.prefixed_vounits.msolMass`` instead of ``astropy.units.msolMass``.
 
 These units are in a separate modeule from `astropy.units.deprecated` because
 they need to be enabled by default for `astropy.units` to be able to compliantly

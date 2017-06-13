@@ -234,7 +234,7 @@ API Changes
 
   - ``solLum``,``solMass``, and ``solRad`` no longer have  their prefixed units
     included in the standard units.  If needed, they can still be found in
-    ``units.required_by_vounit``, and are enabled by default. [#5661]
+    ``units.prefixed_vounits``, and are enabled by default. [#5661]
 
 - ``astropy.utils``
 

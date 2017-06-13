@@ -8,7 +8,7 @@ because they are required for VOUnit support but are not in common use."""
 from __future__ import (absolute_import, unicode_literals, division,
                         print_function)
 
-from .. import deprecated, required_by_vounit
+from .. import deprecated, prefixed_vounits
 from ... import units as u
 from ...tests.helper import pytest  # TODO: Stop using bundled pytest
 
@@ -39,7 +39,7 @@ def test_emu():
                         getattr(u, namewoprefix))
 
 
-def test_required_by_vounit():
+def test_prefixed_vounits():
     # The tests below could be replicated with all the various prefixes, but it
     # seems unnecessary because they all come as a set.  So we only use nano for
     # the purposes of this test.
@@ -50,13 +50,13 @@ def test_required_by_vounit():
         u.nsolRad
         u.nsolLum
 
-    # but they should be enabled by default via required_by_vounit, to allow
+    # but they should be enabled by default via prefixed_vounits, to allow
     # the Unit constructor to accept them
-    assert u.Unit('nsolMass') == required_by_vounit.nsolMass
-    assert u.Unit('nsolRad') == required_by_vounit.nsolRad
-    assert u.Unit('nsolLum') == required_by_vounit.nsolLum
+    assert u.Unit('nsolMass') == prefixed_vounits.nsolMass
+    assert u.Unit('nsolRad') == prefixed_vounits.nsolRad
+    assert u.Unit('nsolLum') == prefixed_vounits.nsolLum
 
     # but because they are prefixes, they shouldn't be in find_equivalent_units
-    assert required_by_vounit.nsolMass not in u.solMass.find_equivalent_units()
-    assert required_by_vounit.nsolRad not in u.solRad.find_equivalent_units()
-    assert required_by_vounit.nsolLum not in u.solLum.find_equivalent_units()
+    assert prefixed_vounits.nsolMass not in u.solMass.find_equivalent_units()
+    assert prefixed_vounits.nsolRad not in u.solRad.find_equivalent_units()
+    assert prefixed_vounits.nsolLum not in u.solLum.find_equivalent_units()

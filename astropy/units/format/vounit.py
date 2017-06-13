@@ -32,7 +32,7 @@ class VOUnit(generic.Generic):
     @staticmethod
     def _generate_unit_names():
         from ... import units as u
-        from ...units import required_by_vounit as uvo
+        from ...units import prefixed_vounits as uvo
 
         names = {}
         deprecated_names = set()
