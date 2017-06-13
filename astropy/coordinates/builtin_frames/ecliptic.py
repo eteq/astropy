@@ -3,7 +3,7 @@
 from __future__ import (absolute_import, unicode_literals, division,
                         print_function)
 
-from ..representation import SphericalRepresentation
+from ..representation import SphericalRepresentation, SphericalCosLatDifferential
 from ..baseframe import BaseCoordinateFrame
 from ..frame_attributes import TimeFrameAttribute
 from .utils import EQUINOX_J2000
@@ -54,6 +54,7 @@ class GeocentricTrueEcliptic(BaseCoordinateFrame):
         Can only be passed in as a keyword argument.
     """
     default_representation = SphericalRepresentation
+    default_differential = SphericalCosLatDifferential
 
     equinox = TimeFrameAttribute(default=EQUINOX_J2000)
 
@@ -96,6 +97,7 @@ class BarycentricTrueEcliptic(BaseCoordinateFrame):
         Can only be passed in as a keyword argument.
     """
     default_representation = SphericalRepresentation
+    default_differential = SphericalCosLatDifferential
 
     equinox = TimeFrameAttribute(default=EQUINOX_J2000)
 
@@ -138,5 +140,6 @@ class HeliocentricTrueEcliptic(BaseCoordinateFrame):
         Can only be passed in as a keyword argument.
     """
     default_representation = SphericalRepresentation
+    default_differential = SphericalCosLatDifferential
 
     equinox = TimeFrameAttribute(default=EQUINOX_J2000)
