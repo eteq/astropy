@@ -1073,3 +1073,15 @@ def test_combine_xyz():
     assert np.all(xyz[...,0] == x)
     assert np.all(xyz[...,1] == y)
     assert np.all(xyz[...,2] == z)
+
+def test_differential_cartesian():
+    # check that to_cartesian/from_cartesian makes sense for differentials
+    cr = CartesianRepresentation([1,2,3]*u.kpc)
+    cd = CartesianDifferential([.1,.2,.3]*u.km/u.s)
+    sd = SphericalDifferential.from_cartesian(cd, base=cr)
+    cd2 = sd.to_cartesian(base=cr.represent_as(SphericalRepresentation))
+
+    assert isinstance(sd, SphericalDifferential)
+    assert isinstance(cd2, CartesianDifferential)
+
+    assert_allclose_quantity(cd.d_xyz, cd2.d_xyz)

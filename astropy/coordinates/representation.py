@@ -1598,9 +1598,10 @@ class BaseDifferential(BaseRepresentationOrDifferential):
              the components is multiplied by its unit vectors and scale factors.
         """
         base_e, base_sf = self._get_base_vectors(base)
-        return functools.reduce(
+        cartrepr = functools.reduce(
             operator.add, (getattr(self, d_c) * base_sf[c] * base_e[c]
                            for d_c, c in zip(self.components, base.components)))
+        return CartesianDifferential(d_xyz=cartrepr.xyz)
 
     @classmethod
     def from_cartesian(cls, other, base):
