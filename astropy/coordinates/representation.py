@@ -977,7 +977,7 @@ class CartesianRepresentation(BaseRepresentation):
     def _to_cartesian_helper(self):
         return self
 
-    def transform(self, matrix):
+    def transform(self, matrix, apply_to_diffs=False):
         """
         Transform the cartesian coordinates using a 3x3 matrix.
 
@@ -987,6 +987,10 @@ class CartesianRepresentation(BaseRepresentation):
         ----------
         matrix : `~numpy.ndarray`
             A 3x3 transformation matrix, such as a rotation matrix.
+        apply_to_diffs : bool (optional)
+            Apply the transformation to any differentials associated with this
+            representation.
+
 
         Examples
         --------
@@ -1012,7 +1016,6 @@ class CartesianRepresentation(BaseRepresentation):
                        [ 1.23205081, 1.59807621],
                        [ 3.        , 4.        ]] pc>
         """
-        self._raise_if_has_differentials('transform')
 
         # Avoid doing gratuitous np.array for things that look like arrays.
         try:
@@ -1040,8 +1043,19 @@ class CartesianRepresentation(BaseRepresentation):
             # remaining dimensions.
             newxyz = np.einsum('...ij,j...->i...', matrix, oldxyz.value)
 
+        # Handle differentials attached to this representation
+        diffs = self.differentials
+        if diffs and apply_to_diffs:
+            # We might be being too generous here - we could enforce that this
+            # only works when the differentials are CartesianDifferential's,
+            # and then this wouldn't require as much gymnastics
+            diff_reps = [d.represent_as(CartesianRepresentation, self).transform(matrix)
+                         for d in self.differentials]
+            diffs = [r.represent_as(CartesianDifferential).represent_as(d.__class__, self)
+                     for r,d in zip(diff_reps, self.differentials)]
+
         newxyz = u.Quantity(newxyz, oldxyz.unit, copy=False)
-        return self.__class__(*newxyz, copy=False)
+        return self.__class__(*newxyz, copy=False, differentials=diffs)
 
     def _combine_operation(self, op, other, reverse=False):
         self._raise_if_has_differentials(op.__name__)
