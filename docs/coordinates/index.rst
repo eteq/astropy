@@ -305,6 +305,7 @@ listed below.
    angles
    skycoord
    transforming
+   velocities
    solarsystem
    formatting
    matchsep
