@@ -12,8 +12,8 @@ from .. import transformations as t
 from ..builtin_frames import ICRS, FK5, FK4, FK4NoETerms, Galactic
 from .. import representation as r
 from ..baseframe import frame_transform_graph
-from ...tests.helper import assert_quantity_allclose as assert_allclose
-from ...tests.helper import quantity_allclose
+from ...tests.helper import (assert_quantity_allclose as assert_allclose,
+                             quantity_allclose, catch_warnings)
 from ...time import Time
 
 
@@ -23,6 +23,10 @@ class TCoo1(ICRS):
 
 
 class TCoo2(ICRS):
+    pass
+
+
+class TCoo3(ICRS):
     pass
 
 
@@ -301,3 +305,17 @@ def test_affine_transform_fail(transfunc):
         c2 = c.transform_to(TCoo2)
 
     trans.unregister(frame_transform_graph)
+
+def test_function_transform_with_differentials():
+
+    tfun = lambda c, f: f.__class__(ra=c.ra, dec=c.dec)
+    ftrans = t.FunctionTransform(tfun, TCoo3, TCoo2,
+                                 register_graph=frame_transform_graph)
+
+    t3 = TCoo3(ra=1*u.deg, dec=2*u.deg,
+               pm_ra=1*u.marcsec/u.yr, pm_dec=1*u.marcsec/u.yr,)
+
+    with catch_warnings() as w:
+        t2 = t3.transform_to(TCoo2)
+        assert len(w) == 1
+        assert 'they have been dropped' in str(w[0].message)
