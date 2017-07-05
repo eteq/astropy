@@ -1,0 +1,628 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <head>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    
+    <title>astropy.io.ascii.ipac &#8212; Astropy v3.0.dev19489</title>
+    
+    <link rel="stylesheet" href="../../../../_static/bootstrap-astropy.css" type="text/css" />
+    <link rel="stylesheet" href="../../../../_static/pygments.css" type="text/css" />
+    <link rel="stylesheet" href="../../../../_static/gallery.css" type="text/css" />
+    
+    <script type="text/javascript">
+      var DOCUMENTATION_OPTIONS = {
+        URL_ROOT:    '../../../../',
+        VERSION:     '3.0.dev19489',
+        COLLAPSE_INDEX: false,
+        FILE_SUFFIX: '.html',
+        HAS_SOURCE:  true,
+        SOURCELINK_SUFFIX: '.txt'
+      };
+    </script>
+    <script type="text/javascript" src="../../../../_static/jquery.js"></script>
+    <script type="text/javascript" src="../../../../_static/underscore.js"></script>
+    <script type="text/javascript" src="../../../../_static/doctools.js"></script>
+    <script type="text/javascript" src="../../../../_static/sidebar.js"></script>
+    <link rel="shortcut icon" href="../../../../_static/astropy_logo.ico"/>
+    <link rel="index" title="Index" href="../../../../genindex.html" />
+    <link rel="search" title="Search" href="../../../../search.html" />
+<link href='https://fonts.googleapis.com/css?family=Source+Sans+Pro:200,600' rel='stylesheet' type='text/css'/>
+<script type="text/javascript" src="../../../../_static/copybutton.js"></script>
+
+
+  </head>
+  <body role="document">
+<div class="topbar">
+  <a class="brand" title="Documentation Home" href="../../../../index.html"><span id="logotext1">astro</span><span id="logotext2">py</span><span id="logotext3">:docs</span></a>
+  <ul>
+    <li><a class="homelink" title="Astropy Homepage" href="http://www.astropy.org"></a></li>
+    <li><a title="General Index" href="../../../../genindex.html">Index</a></li>
+    <li><a title="Module Index" href="../../../../py-modindex.html">Modules</a></li>
+    <li>
+      
+      
+<form action="../../../../search.html" method="get">
+  <input type="text" name="q" placeholder="Search" />
+  <input type="hidden" name="check_keywords" value="yes" />
+  <input type="hidden" name="area" value="default" />
+</form>
+      
+    </li>
+  </ul>
+</div>
+
+<div class="related">
+    <h3>Navigation</h3>
+    <ul>
+      <li>
+	<a href="../../../../index.html">Astropy v3.0.dev19489</a>
+	 &#187;
+      </li>
+      <li><a href="../../../index.html" >Module code</a> &#187;</li>
+      <li><a href="../../../astropy.html" accesskey="U">astropy</a> &#187;</li>
+      
+       
+    </ul>
+</div>
+  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          <div class="body" role="main">
+            
+  <h1>Source code for astropy.io.ascii.ipac</h1><div class="highlight"><pre>
+<span></span><span class="c1"># Licensed under a 3-clause BSD style license - see LICENSE.rst</span>
+<span class="sd">&quot;&quot;&quot;An extensible ASCII table reader and writer.</span>
+
+<span class="sd">ipac.py:</span>
+<span class="sd">  Classes to read IPAC table format</span>
+
+<span class="sd">:Copyright: Smithsonian Astrophysical Observatory (2011)</span>
+<span class="sd">:Author: Tom Aldcroft (aldcroft@head.cfa.harvard.edu)</span>
+<span class="sd">&quot;&quot;&quot;</span>
+
+<span class="kn">from</span> <span class="nn">__future__</span> <span class="k">import</span> <span class="n">absolute_import</span><span class="p">,</span> <span class="n">division</span><span class="p">,</span> <span class="n">print_function</span>
+
+<span class="kn">import</span> <span class="nn">re</span>
+<span class="kn">from</span> <span class="nn">collections</span> <span class="k">import</span> <span class="n">defaultdict</span><span class="p">,</span> <span class="n">OrderedDict</span>
+<span class="kn">from</span> <span class="nn">textwrap</span> <span class="k">import</span> <span class="n">wrap</span>
+<span class="kn">from</span> <span class="nn">warnings</span> <span class="k">import</span> <span class="n">warn</span>
+
+<span class="kn">from</span> <span class="nn">...extern</span> <span class="k">import</span> <span class="n">six</span>
+<span class="kn">from</span> <span class="nn">...extern.six.moves</span> <span class="k">import</span> <span class="nb">zip</span>
+
+<span class="kn">from</span> <span class="nn">.</span> <span class="k">import</span> <span class="n">core</span>
+<span class="kn">from</span> <span class="nn">.</span> <span class="k">import</span> <span class="n">fixedwidth</span>
+<span class="kn">from</span> <span class="nn">.</span> <span class="k">import</span> <span class="n">basic</span>
+<span class="kn">from</span> <span class="nn">...utils.exceptions</span> <span class="k">import</span> <span class="n">AstropyUserWarning</span>
+<span class="kn">from</span> <span class="nn">...table.pprint</span> <span class="k">import</span> <span class="n">_format_funcs</span><span class="p">,</span> <span class="n">get_auto_format_func</span>
+
+
+<span class="k">class</span> <span class="nc">IpacFormatErrorDBMS</span><span class="p">(</span><span class="ne">Exception</span><span class="p">):</span>
+    <span class="k">def</span> <span class="nf">__str__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="s1">&#39;</span><span class="si">{0}</span><span class="se">\n</span><span class="s1">See </span><span class="si">{1}</span><span class="s1">&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span>
+            <span class="nb">super</span><span class="p">(</span><span class="ne">Exception</span><span class="p">,</span> <span class="bp">self</span><span class="p">)</span><span class="o">.</span><span class="n">__str__</span><span class="p">(),</span>
+            <span class="s1">&#39;http://irsa.ipac.caltech.edu/applications/DDGEN/Doc/DBMSrestriction.html&#39;</span><span class="p">)</span>
+
+
+<span class="k">class</span> <span class="nc">IpacFormatError</span><span class="p">(</span><span class="ne">Exception</span><span class="p">):</span>
+    <span class="k">def</span> <span class="nf">__str__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="s1">&#39;</span><span class="si">{0}</span><span class="se">\n</span><span class="s1">See </span><span class="si">{1}</span><span class="s1">&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span>
+            <span class="nb">super</span><span class="p">(</span><span class="ne">Exception</span><span class="p">,</span> <span class="bp">self</span><span class="p">)</span><span class="o">.</span><span class="n">__str__</span><span class="p">(),</span>
+            <span class="s1">&#39;http://irsa.ipac.caltech.edu/applications/DDGEN/Doc/ipac_tbl.html&#39;</span><span class="p">)</span>
+
+
+<span class="k">class</span> <span class="nc">IpacHeaderSplitter</span><span class="p">(</span><span class="n">core</span><span class="o">.</span><span class="n">BaseSplitter</span><span class="p">):</span>
+    <span class="sd">&#39;&#39;&#39;Splitter for Ipac Headers.</span>
+
+<span class="sd">    This splitter is similar its parent when reading, but supports a</span>
+<span class="sd">    fixed width format (as required for Ipac table headers) for writing.</span>
+<span class="sd">    &#39;&#39;&#39;</span>
+    <span class="n">process_line</span> <span class="o">=</span> <span class="kc">None</span>
+    <span class="n">process_val</span> <span class="o">=</span> <span class="kc">None</span>
+    <span class="n">delimiter</span> <span class="o">=</span> <span class="s1">&#39;|&#39;</span>
+    <span class="n">delimiter_pad</span> <span class="o">=</span> <span class="s1">&#39;&#39;</span>
+    <span class="n">skipinitialspace</span> <span class="o">=</span> <span class="kc">False</span>
+    <span class="n">comment</span> <span class="o">=</span> <span class="s1">r&#39;\s*</span><span class="se">\\</span><span class="s1">&#39;</span>
+    <span class="n">write_comment</span> <span class="o">=</span> <span class="s1">r&#39;</span><span class="se">\\</span><span class="s1">&#39;</span>
+    <span class="n">col_starts</span> <span class="o">=</span> <span class="kc">None</span>
+    <span class="n">col_ends</span> <span class="o">=</span> <span class="kc">None</span>
+
+    <span class="k">def</span> <span class="nf">join</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">vals</span><span class="p">,</span> <span class="n">widths</span><span class="p">):</span>
+        <span class="n">pad</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">delimiter_pad</span> <span class="ow">or</span> <span class="s1">&#39;&#39;</span>
+        <span class="n">delimiter</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">delimiter</span> <span class="ow">or</span> <span class="s1">&#39;&#39;</span>
+        <span class="n">padded_delim</span> <span class="o">=</span> <span class="n">pad</span> <span class="o">+</span> <span class="n">delimiter</span> <span class="o">+</span> <span class="n">pad</span>
+        <span class="n">bookend_left</span> <span class="o">=</span> <span class="n">delimiter</span> <span class="o">+</span> <span class="n">pad</span>
+        <span class="n">bookend_right</span> <span class="o">=</span> <span class="n">pad</span> <span class="o">+</span> <span class="n">delimiter</span>
+
+        <span class="n">vals</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39; &#39;</span> <span class="o">*</span> <span class="p">(</span><span class="n">width</span> <span class="o">-</span> <span class="nb">len</span><span class="p">(</span><span class="n">val</span><span class="p">))</span> <span class="o">+</span> <span class="n">val</span> <span class="k">for</span> <span class="n">val</span><span class="p">,</span> <span class="n">width</span> <span class="ow">in</span> <span class="nb">zip</span><span class="p">(</span><span class="n">vals</span><span class="p">,</span> <span class="n">widths</span><span class="p">)]</span>
+        <span class="k">return</span> <span class="n">bookend_left</span> <span class="o">+</span> <span class="n">padded_delim</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">vals</span><span class="p">)</span> <span class="o">+</span> <span class="n">bookend_right</span>
+
+
+<span class="k">class</span> <span class="nc">IpacHeader</span><span class="p">(</span><span class="n">fixedwidth</span><span class="o">.</span><span class="n">FixedWidthHeader</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;IPAC table header&quot;&quot;&quot;</span>
+    <span class="n">splitter_class</span> <span class="o">=</span> <span class="n">IpacHeaderSplitter</span>
+
+    <span class="c1"># Defined ordered list of possible types.  Ordering is needed to</span>
+    <span class="c1"># distinguish between &quot;d&quot; (double) and &quot;da&quot; (date) as defined by</span>
+    <span class="c1"># the IPAC standard for abbreviations.  This gets used in get_col_type().</span>
+    <span class="n">col_type_list</span> <span class="o">=</span> <span class="p">((</span><span class="s1">&#39;integer&#39;</span><span class="p">,</span> <span class="n">core</span><span class="o">.</span><span class="n">IntType</span><span class="p">),</span>
+                     <span class="p">(</span><span class="s1">&#39;long&#39;</span><span class="p">,</span> <span class="n">core</span><span class="o">.</span><span class="n">IntType</span><span class="p">),</span>
+                     <span class="p">(</span><span class="s1">&#39;double&#39;</span><span class="p">,</span> <span class="n">core</span><span class="o">.</span><span class="n">FloatType</span><span class="p">),</span>
+                     <span class="p">(</span><span class="s1">&#39;float&#39;</span><span class="p">,</span> <span class="n">core</span><span class="o">.</span><span class="n">FloatType</span><span class="p">),</span>
+                     <span class="p">(</span><span class="s1">&#39;real&#39;</span><span class="p">,</span> <span class="n">core</span><span class="o">.</span><span class="n">FloatType</span><span class="p">),</span>
+                     <span class="p">(</span><span class="s1">&#39;char&#39;</span><span class="p">,</span> <span class="n">core</span><span class="o">.</span><span class="n">StrType</span><span class="p">),</span>
+                     <span class="p">(</span><span class="s1">&#39;date&#39;</span><span class="p">,</span> <span class="n">core</span><span class="o">.</span><span class="n">StrType</span><span class="p">))</span>
+    <span class="n">definition</span> <span class="o">=</span> <span class="s1">&#39;ignore&#39;</span>
+    <span class="n">start_line</span> <span class="o">=</span> <span class="kc">None</span>
+
+    <span class="k">def</span> <span class="nf">process_lines</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">lines</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Generator to yield IPAC header lines, i.e. those starting and ending with</span>
+<span class="sd">        delimiter character (with trailing whitespace stripped)&quot;&quot;&quot;</span>
+        <span class="n">delim</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">splitter</span><span class="o">.</span><span class="n">delimiter</span>
+        <span class="k">for</span> <span class="n">line</span> <span class="ow">in</span> <span class="n">lines</span><span class="p">:</span>
+            <span class="n">line</span> <span class="o">=</span> <span class="n">line</span><span class="o">.</span><span class="n">rstrip</span><span class="p">()</span>
+            <span class="k">if</span> <span class="n">line</span><span class="o">.</span><span class="n">startswith</span><span class="p">(</span><span class="n">delim</span><span class="p">)</span> <span class="ow">and</span> <span class="n">line</span><span class="o">.</span><span class="n">endswith</span><span class="p">(</span><span class="n">delim</span><span class="p">):</span>
+                <span class="k">yield</span> <span class="n">line</span><span class="o">.</span><span class="n">strip</span><span class="p">(</span><span class="n">delim</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">update_meta</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">lines</span><span class="p">,</span> <span class="n">meta</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Extract table-level comments and keywords for IPAC table.  See:</span>
+<span class="sd">        http://irsa.ipac.caltech.edu/applications/DDGEN/Doc/ipac_tbl.html#kw</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">def</span> <span class="nf">process_keyword_value</span><span class="p">(</span><span class="n">val</span><span class="p">):</span>
+            <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">            Take a string value and convert to float, int or str, and strip quotes</span>
+<span class="sd">            as needed.</span>
+<span class="sd">            &quot;&quot;&quot;</span>
+            <span class="n">val</span> <span class="o">=</span> <span class="n">val</span><span class="o">.</span><span class="n">strip</span><span class="p">()</span>
+            <span class="k">try</span><span class="p">:</span>
+                <span class="n">val</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="n">val</span><span class="p">)</span>
+            <span class="k">except</span> <span class="ne">Exception</span><span class="p">:</span>
+                <span class="k">try</span><span class="p">:</span>
+                    <span class="n">val</span> <span class="o">=</span> <span class="nb">float</span><span class="p">(</span><span class="n">val</span><span class="p">)</span>
+                <span class="k">except</span> <span class="ne">Exception</span><span class="p">:</span>
+                    <span class="c1"># Strip leading/trailing quote.  The spec says that a matched pair</span>
+                    <span class="c1"># of quotes is required, but this code will allow a non-quoted value.</span>
+                    <span class="k">for</span> <span class="n">quote</span> <span class="ow">in</span> <span class="p">(</span><span class="s1">&#39;&quot;&#39;</span><span class="p">,</span> <span class="s2">&quot;&#39;&quot;</span><span class="p">):</span>
+                        <span class="k">if</span> <span class="n">val</span><span class="o">.</span><span class="n">startswith</span><span class="p">(</span><span class="n">quote</span><span class="p">)</span> <span class="ow">and</span> <span class="n">val</span><span class="o">.</span><span class="n">endswith</span><span class="p">(</span><span class="n">quote</span><span class="p">):</span>
+                            <span class="n">val</span> <span class="o">=</span> <span class="n">val</span><span class="p">[</span><span class="mi">1</span><span class="p">:</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span>
+                            <span class="k">break</span>
+            <span class="k">return</span> <span class="n">val</span>
+
+        <span class="n">table_meta</span> <span class="o">=</span> <span class="n">meta</span><span class="p">[</span><span class="s1">&#39;table&#39;</span><span class="p">]</span>
+        <span class="n">table_meta</span><span class="p">[</span><span class="s1">&#39;comments&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="n">table_meta</span><span class="p">[</span><span class="s1">&#39;keywords&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">OrderedDict</span><span class="p">()</span>
+        <span class="n">keywords</span> <span class="o">=</span> <span class="n">table_meta</span><span class="p">[</span><span class="s1">&#39;keywords&#39;</span><span class="p">]</span>
+
+        <span class="n">re_keyword</span> <span class="o">=</span> <span class="n">re</span><span class="o">.</span><span class="n">compile</span><span class="p">(</span><span class="s1">r&#39;</span><span class="se">\\</span><span class="s1">&#39;</span>
+                                <span class="s1">r&#39;(?P&lt;name&gt; \w+)&#39;</span>
+                                <span class="s1">r&#39;\s* = (?P&lt;value&gt; .+) $&#39;</span><span class="p">,</span>
+                                <span class="n">re</span><span class="o">.</span><span class="n">VERBOSE</span><span class="p">)</span>
+        <span class="k">for</span> <span class="n">line</span> <span class="ow">in</span> <span class="n">lines</span><span class="p">:</span>
+            <span class="c1"># Keywords and comments start with &quot;\&quot;.  Once the first non-slash</span>
+            <span class="c1"># line is seen then bail out.</span>
+            <span class="k">if</span> <span class="ow">not</span> <span class="n">line</span><span class="o">.</span><span class="n">startswith</span><span class="p">(</span><span class="s1">&#39;</span><span class="se">\\</span><span class="s1">&#39;</span><span class="p">):</span>
+                <span class="k">break</span>
+
+            <span class="n">m</span> <span class="o">=</span> <span class="n">re_keyword</span><span class="o">.</span><span class="n">match</span><span class="p">(</span><span class="n">line</span><span class="p">)</span>
+            <span class="k">if</span> <span class="n">m</span><span class="p">:</span>
+                <span class="n">name</span> <span class="o">=</span> <span class="n">m</span><span class="o">.</span><span class="n">group</span><span class="p">(</span><span class="s1">&#39;name&#39;</span><span class="p">)</span>
+                <span class="n">val</span> <span class="o">=</span> <span class="n">process_keyword_value</span><span class="p">(</span><span class="n">m</span><span class="o">.</span><span class="n">group</span><span class="p">(</span><span class="s1">&#39;value&#39;</span><span class="p">))</span>
+
+                <span class="c1"># IPAC allows for continuation keywords, e.g.</span>
+                <span class="c1"># \SQL     = &#39;WHERE &#39;</span>
+                <span class="c1"># \SQL     = &#39;SELECT (25 column names follow in next row.)&#39;</span>
+                <span class="k">if</span> <span class="n">name</span> <span class="ow">in</span> <span class="n">keywords</span> <span class="ow">and</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">val</span><span class="p">,</span> <span class="n">six</span><span class="o">.</span><span class="n">string_types</span><span class="p">):</span>
+                    <span class="n">prev_val</span> <span class="o">=</span> <span class="n">keywords</span><span class="p">[</span><span class="n">name</span><span class="p">][</span><span class="s1">&#39;value&#39;</span><span class="p">]</span>
+                    <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">prev_val</span><span class="p">,</span> <span class="n">six</span><span class="o">.</span><span class="n">string_types</span><span class="p">):</span>
+                        <span class="n">val</span> <span class="o">=</span> <span class="n">prev_val</span> <span class="o">+</span> <span class="n">val</span>
+
+                <span class="n">keywords</span><span class="p">[</span><span class="n">name</span><span class="p">]</span> <span class="o">=</span> <span class="p">{</span><span class="s1">&#39;value&#39;</span><span class="p">:</span> <span class="n">val</span><span class="p">}</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="c1"># Comment is required to start with &quot;\ &quot;</span>
+                <span class="k">if</span> <span class="n">line</span><span class="o">.</span><span class="n">startswith</span><span class="p">(</span><span class="s1">&#39;</span><span class="se">\\</span><span class="s1"> &#39;</span><span class="p">):</span>
+                    <span class="n">val</span> <span class="o">=</span> <span class="n">line</span><span class="p">[</span><span class="mi">2</span><span class="p">:]</span><span class="o">.</span><span class="n">strip</span><span class="p">()</span>
+                    <span class="k">if</span> <span class="n">val</span><span class="p">:</span>
+                        <span class="n">table_meta</span><span class="p">[</span><span class="s1">&#39;comments&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">val</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">get_col_type</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">col</span><span class="p">):</span>
+        <span class="k">for</span> <span class="p">(</span><span class="n">col_type_key</span><span class="p">,</span> <span class="n">col_type</span><span class="p">)</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">col_type_list</span><span class="p">:</span>
+            <span class="k">if</span> <span class="n">col_type_key</span><span class="o">.</span><span class="n">startswith</span><span class="p">(</span><span class="n">col</span><span class="o">.</span><span class="n">raw_type</span><span class="o">.</span><span class="n">lower</span><span class="p">()):</span>
+                <span class="k">return</span> <span class="n">col_type</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s1">&#39;Unknown data type &quot;&quot;</span><span class="si">{}</span><span class="s1">&quot;&quot; for column &quot;</span><span class="si">{}</span><span class="s1">&quot;&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span>
+                <span class="n">col</span><span class="o">.</span><span class="n">raw_type</span><span class="p">,</span> <span class="n">col</span><span class="o">.</span><span class="n">name</span><span class="p">))</span>
+
+    <span class="k">def</span> <span class="nf">get_cols</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">lines</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Initialize the header Column objects from the table ``lines``.</span>
+
+<span class="sd">        Based on the previously set Header attributes find or create the column names.</span>
+<span class="sd">        Sets ``self.cols`` with the list of Columns.</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        lines : list</span>
+<span class="sd">            List of table lines</span>
+
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">header_lines</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">process_lines</span><span class="p">(</span><span class="n">lines</span><span class="p">)</span>  <span class="c1"># generator returning valid header lines</span>
+        <span class="n">header_vals</span> <span class="o">=</span> <span class="p">[</span><span class="n">vals</span> <span class="k">for</span> <span class="n">vals</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">splitter</span><span class="p">(</span><span class="n">header_lines</span><span class="p">)]</span>
+        <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">header_vals</span><span class="p">)</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s1">&#39;At least one header line beginning and ending with &#39;</span>
+                             <span class="s1">&#39;delimiter required&#39;</span><span class="p">)</span>
+        <span class="k">elif</span> <span class="nb">len</span><span class="p">(</span><span class="n">header_vals</span><span class="p">)</span> <span class="o">&gt;</span> <span class="mi">4</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s1">&#39;More than four header lines were found&#39;</span><span class="p">)</span>
+
+        <span class="c1"># Generate column definitions</span>
+        <span class="n">cols</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="n">start</span> <span class="o">=</span> <span class="mi">1</span>
+        <span class="k">for</span> <span class="n">i</span><span class="p">,</span> <span class="n">name</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="n">header_vals</span><span class="p">[</span><span class="mi">0</span><span class="p">]):</span>
+            <span class="n">col</span> <span class="o">=</span> <span class="n">core</span><span class="o">.</span><span class="n">Column</span><span class="p">(</span><span class="n">name</span><span class="o">=</span><span class="n">name</span><span class="o">.</span><span class="n">strip</span><span class="p">(</span><span class="s1">&#39; -&#39;</span><span class="p">))</span>
+            <span class="n">col</span><span class="o">.</span><span class="n">start</span> <span class="o">=</span> <span class="n">start</span>
+            <span class="n">col</span><span class="o">.</span><span class="n">end</span> <span class="o">=</span> <span class="n">start</span> <span class="o">+</span> <span class="nb">len</span><span class="p">(</span><span class="n">name</span><span class="p">)</span>
+            <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">header_vals</span><span class="p">)</span> <span class="o">&gt;</span> <span class="mi">1</span><span class="p">:</span>
+                <span class="n">col</span><span class="o">.</span><span class="n">raw_type</span> <span class="o">=</span> <span class="n">header_vals</span><span class="p">[</span><span class="mi">1</span><span class="p">][</span><span class="n">i</span><span class="p">]</span><span class="o">.</span><span class="n">strip</span><span class="p">(</span><span class="s1">&#39; -&#39;</span><span class="p">)</span>
+                <span class="n">col</span><span class="o">.</span><span class="n">type</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">get_col_type</span><span class="p">(</span><span class="n">col</span><span class="p">)</span>
+            <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">header_vals</span><span class="p">)</span> <span class="o">&gt;</span> <span class="mi">2</span><span class="p">:</span>
+                <span class="n">col</span><span class="o">.</span><span class="n">unit</span> <span class="o">=</span> <span class="n">header_vals</span><span class="p">[</span><span class="mi">2</span><span class="p">][</span><span class="n">i</span><span class="p">]</span><span class="o">.</span><span class="n">strip</span><span class="p">()</span> <span class="ow">or</span> <span class="kc">None</span>  <span class="c1"># Can&#39;t strip dashes here</span>
+            <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">header_vals</span><span class="p">)</span> <span class="o">&gt;</span> <span class="mi">3</span><span class="p">:</span>
+                <span class="c1"># The IPAC null value corresponds to the io.ascii bad_value.</span>
+                <span class="c1"># In this case there isn&#39;t a fill_value defined, so just put</span>
+                <span class="c1"># in the minimal entry that is sure to convert properly to the</span>
+                <span class="c1"># required type.</span>
+                <span class="c1">#</span>
+                <span class="c1"># Strip spaces but not dashes (not allowed in NULL row per</span>
+                <span class="c1"># https://github.com/astropy/astropy/issues/361)</span>
+                <span class="n">null</span> <span class="o">=</span> <span class="n">header_vals</span><span class="p">[</span><span class="mi">3</span><span class="p">][</span><span class="n">i</span><span class="p">]</span><span class="o">.</span><span class="n">strip</span><span class="p">()</span>
+                <span class="n">fillval</span> <span class="o">=</span> <span class="s1">&#39;&#39;</span> <span class="k">if</span> <span class="nb">issubclass</span><span class="p">(</span><span class="n">col</span><span class="o">.</span><span class="n">type</span><span class="p">,</span> <span class="n">core</span><span class="o">.</span><span class="n">StrType</span><span class="p">)</span> <span class="k">else</span> <span class="s1">&#39;0&#39;</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">fill_values</span><span class="o">.</span><span class="n">append</span><span class="p">((</span><span class="n">null</span><span class="p">,</span> <span class="n">fillval</span><span class="p">,</span> <span class="n">col</span><span class="o">.</span><span class="n">name</span><span class="p">))</span>
+            <span class="n">start</span> <span class="o">=</span> <span class="n">col</span><span class="o">.</span><span class="n">end</span> <span class="o">+</span> <span class="mi">1</span>
+            <span class="n">cols</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">col</span><span class="p">)</span>
+
+            <span class="c1"># Correct column start/end based on definition</span>
+            <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">ipac_definition</span> <span class="o">==</span> <span class="s1">&#39;right&#39;</span><span class="p">:</span>
+                <span class="n">col</span><span class="o">.</span><span class="n">start</span> <span class="o">-=</span> <span class="mi">1</span>
+            <span class="k">elif</span> <span class="bp">self</span><span class="o">.</span><span class="n">ipac_definition</span> <span class="o">==</span> <span class="s1">&#39;left&#39;</span><span class="p">:</span>
+                <span class="n">col</span><span class="o">.</span><span class="n">end</span> <span class="o">+=</span> <span class="mi">1</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">names</span> <span class="o">=</span> <span class="p">[</span><span class="n">x</span><span class="o">.</span><span class="n">name</span> <span class="k">for</span> <span class="n">x</span> <span class="ow">in</span> <span class="n">cols</span><span class="p">]</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">cols</span> <span class="o">=</span> <span class="n">cols</span>
+
+    <span class="k">def</span> <span class="nf">str_vals</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">DBMS</span><span class="p">:</span>
+            <span class="n">IpacFormatE</span> <span class="o">=</span> <span class="n">IpacFormatErrorDBMS</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">IpacFormatE</span> <span class="o">=</span> <span class="n">IpacFormatError</span>
+
+        <span class="n">namelist</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">colnames</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">DBMS</span><span class="p">:</span>
+            <span class="n">countnamelist</span> <span class="o">=</span> <span class="n">defaultdict</span><span class="p">(</span><span class="nb">int</span><span class="p">)</span>
+            <span class="k">for</span> <span class="n">name</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">colnames</span><span class="p">:</span>
+                <span class="n">countnamelist</span><span class="p">[</span><span class="n">name</span><span class="o">.</span><span class="n">lower</span><span class="p">()]</span> <span class="o">+=</span> <span class="mi">1</span>
+            <span class="n">doublenames</span> <span class="o">=</span> <span class="p">[</span><span class="n">x</span> <span class="k">for</span> <span class="n">x</span> <span class="ow">in</span> <span class="n">countnamelist</span> <span class="k">if</span> <span class="n">countnamelist</span><span class="p">[</span><span class="n">x</span><span class="p">]</span> <span class="o">&gt;</span> <span class="mi">1</span><span class="p">]</span>
+            <span class="k">if</span> <span class="n">doublenames</span> <span class="o">!=</span> <span class="p">[]:</span>
+                <span class="k">raise</span> <span class="n">IpacFormatE</span><span class="p">(</span><span class="s1">&#39;IPAC DBMS tables are not case sensitive. &#39;</span>
+                                  <span class="s1">&#39;This causes duplicate column names: </span><span class="si">{0}</span><span class="s1">&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">doublenames</span><span class="p">))</span>
+
+        <span class="k">for</span> <span class="n">name</span> <span class="ow">in</span> <span class="n">namelist</span><span class="p">:</span>
+            <span class="n">m</span> <span class="o">=</span> <span class="n">re</span><span class="o">.</span><span class="n">match</span><span class="p">(</span><span class="s1">r&#39;\w+&#39;</span><span class="p">,</span> <span class="n">name</span><span class="p">)</span>
+            <span class="k">if</span> <span class="n">m</span><span class="o">.</span><span class="n">end</span><span class="p">()</span> <span class="o">!=</span> <span class="nb">len</span><span class="p">(</span><span class="n">name</span><span class="p">):</span>
+                <span class="k">raise</span> <span class="n">IpacFormatE</span><span class="p">(</span><span class="s1">&#39;</span><span class="si">{0}</span><span class="s1"> - Only alphanumeric characters and _ &#39;</span>
+                                  <span class="s1">&#39;are allowed in column names.&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">name</span><span class="p">))</span>
+            <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">DBMS</span> <span class="ow">and</span> <span class="ow">not</span><span class="p">(</span><span class="n">name</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">isalpha</span><span class="p">()</span> <span class="ow">or</span> <span class="p">(</span><span class="n">name</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">==</span> <span class="s1">&#39;_&#39;</span><span class="p">)):</span>
+                <span class="k">raise</span> <span class="n">IpacFormatE</span><span class="p">(</span><span class="s1">&#39;Column name cannot start with numbers: </span><span class="si">{}</span><span class="s1">&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">name</span><span class="p">))</span>
+            <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">DBMS</span><span class="p">:</span>
+                <span class="k">if</span> <span class="n">name</span> <span class="ow">in</span> <span class="p">[</span><span class="s1">&#39;x&#39;</span><span class="p">,</span> <span class="s1">&#39;y&#39;</span><span class="p">,</span> <span class="s1">&#39;z&#39;</span><span class="p">,</span> <span class="s1">&#39;X&#39;</span><span class="p">,</span> <span class="s1">&#39;Y&#39;</span><span class="p">,</span> <span class="s1">&#39;Z&#39;</span><span class="p">]:</span>
+                    <span class="k">raise</span> <span class="n">IpacFormatE</span><span class="p">(</span><span class="s1">&#39;</span><span class="si">{0}</span><span class="s1"> - x, y, z, X, Y, Z are reserved names and &#39;</span>
+                                      <span class="s1">&#39;cannot be used as column names.&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">name</span><span class="p">))</span>
+                <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">name</span><span class="p">)</span> <span class="o">&gt;</span> <span class="mi">16</span><span class="p">:</span>
+                    <span class="k">raise</span> <span class="n">IpacFormatE</span><span class="p">(</span>
+                        <span class="s1">&#39;</span><span class="si">{0}</span><span class="s1"> - Maximum length for column name is 16 characters&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">name</span><span class="p">))</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">name</span><span class="p">)</span> <span class="o">&gt;</span> <span class="mi">40</span><span class="p">:</span>
+                    <span class="k">raise</span> <span class="n">IpacFormatE</span><span class="p">(</span>
+                        <span class="s1">&#39;</span><span class="si">{0}</span><span class="s1"> - Maximum length for column name is 40 characters.&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">name</span><span class="p">))</span>
+
+        <span class="n">dtypelist</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="n">unitlist</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="n">nullist</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="k">for</span> <span class="n">col</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">cols</span><span class="p">:</span>
+            <span class="n">col_dtype</span> <span class="o">=</span> <span class="n">col</span><span class="o">.</span><span class="n">info</span><span class="o">.</span><span class="n">dtype</span>
+            <span class="n">col_unit</span> <span class="o">=</span> <span class="n">col</span><span class="o">.</span><span class="n">info</span><span class="o">.</span><span class="n">unit</span>
+            <span class="n">col_format</span> <span class="o">=</span> <span class="n">col</span><span class="o">.</span><span class="n">info</span><span class="o">.</span><span class="n">format</span>
+
+            <span class="k">if</span> <span class="n">col_dtype</span><span class="o">.</span><span class="n">kind</span> <span class="ow">in</span> <span class="p">[</span><span class="s1">&#39;i&#39;</span><span class="p">,</span> <span class="s1">&#39;u&#39;</span><span class="p">]:</span>
+                <span class="n">dtypelist</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="s1">&#39;long&#39;</span><span class="p">)</span>
+            <span class="k">elif</span> <span class="n">col_dtype</span><span class="o">.</span><span class="n">kind</span> <span class="o">==</span> <span class="s1">&#39;f&#39;</span><span class="p">:</span>
+                <span class="n">dtypelist</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="s1">&#39;double&#39;</span><span class="p">)</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="n">dtypelist</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="s1">&#39;char&#39;</span><span class="p">)</span>
+
+            <span class="k">if</span> <span class="n">col_unit</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+                <span class="n">unitlist</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="s1">&#39;&#39;</span><span class="p">)</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="n">unitlist</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="nb">str</span><span class="p">(</span><span class="n">col</span><span class="o">.</span><span class="n">info</span><span class="o">.</span><span class="n">unit</span><span class="p">))</span>
+            <span class="c1"># This may be incompatible with mixin columns</span>
+            <span class="n">null</span> <span class="o">=</span> <span class="n">col</span><span class="o">.</span><span class="n">fill_values</span><span class="p">[</span><span class="n">core</span><span class="o">.</span><span class="n">masked</span><span class="p">]</span>
+            <span class="k">try</span><span class="p">:</span>
+                <span class="n">format_key</span> <span class="o">=</span> <span class="p">(</span><span class="n">col_format</span><span class="p">,</span> <span class="n">col</span><span class="o">.</span><span class="n">info</span><span class="o">.</span><span class="n">name</span><span class="p">)</span>
+                <span class="n">auto_format_func</span> <span class="o">=</span> <span class="n">get_auto_format_func</span><span class="p">(</span><span class="nb">id</span><span class="p">(</span><span class="n">col</span><span class="p">))</span>
+                <span class="n">format_func</span> <span class="o">=</span> <span class="n">_format_funcs</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">format_key</span><span class="p">,</span> <span class="n">auto_format_func</span><span class="p">)</span>
+                <span class="n">nullist</span><span class="o">.</span><span class="n">append</span><span class="p">((</span><span class="n">format_func</span><span class="p">(</span><span class="n">col_format</span><span class="p">,</span> <span class="n">null</span><span class="p">))</span><span class="o">.</span><span class="n">strip</span><span class="p">())</span>
+            <span class="k">except</span> <span class="ne">Exception</span><span class="p">:</span>
+                <span class="c1"># It is possible that null and the column values have different</span>
+                <span class="c1"># data types (e.g. number and null = &#39;null&#39; (i.e. a string).</span>
+                <span class="c1"># This could cause all kinds of exceptions, so a catch all</span>
+                <span class="c1"># block is needed here</span>
+                <span class="n">nullist</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="nb">str</span><span class="p">(</span><span class="n">null</span><span class="p">)</span><span class="o">.</span><span class="n">strip</span><span class="p">())</span>
+
+        <span class="k">return</span> <span class="p">[</span><span class="n">namelist</span><span class="p">,</span> <span class="n">dtypelist</span><span class="p">,</span> <span class="n">unitlist</span><span class="p">,</span> <span class="n">nullist</span><span class="p">]</span>
+
+    <span class="k">def</span> <span class="nf">write</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">lines</span><span class="p">,</span> <span class="n">widths</span><span class="p">):</span>
+        <span class="sd">&#39;&#39;&#39;Write header.</span>
+
+<span class="sd">        The width of each column is determined in Ipac.write. Writing the header</span>
+<span class="sd">        must be delayed until that time.</span>
+<span class="sd">        This function is called from there, once the width information is</span>
+<span class="sd">        available.&#39;&#39;&#39;</span>
+
+        <span class="k">for</span> <span class="n">vals</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">str_vals</span><span class="p">():</span>
+            <span class="n">lines</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">splitter</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">vals</span><span class="p">,</span> <span class="n">widths</span><span class="p">))</span>
+        <span class="k">return</span> <span class="n">lines</span>
+
+
+<span class="k">class</span> <span class="nc">IpacDataSplitter</span><span class="p">(</span><span class="n">fixedwidth</span><span class="o">.</span><span class="n">FixedWidthSplitter</span><span class="p">):</span>
+    <span class="n">delimiter</span> <span class="o">=</span> <span class="s1">&#39; &#39;</span>
+    <span class="n">delimiter_pad</span> <span class="o">=</span> <span class="s1">&#39;&#39;</span>
+    <span class="n">bookend</span> <span class="o">=</span> <span class="kc">True</span>
+
+
+<span class="k">class</span> <span class="nc">IpacData</span><span class="p">(</span><span class="n">fixedwidth</span><span class="o">.</span><span class="n">FixedWidthData</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;IPAC table data reader&quot;&quot;&quot;</span>
+    <span class="n">comment</span> <span class="o">=</span> <span class="s1">r&#39;[|</span><span class="se">\\</span><span class="s1">]&#39;</span>
+    <span class="n">start_line</span> <span class="o">=</span> <span class="mi">0</span>
+    <span class="n">splitter_class</span> <span class="o">=</span> <span class="n">IpacDataSplitter</span>
+    <span class="n">fill_values</span> <span class="o">=</span> <span class="p">[(</span><span class="n">core</span><span class="o">.</span><span class="n">masked</span><span class="p">,</span> <span class="s1">&#39;null&#39;</span><span class="p">)]</span>
+
+    <span class="k">def</span> <span class="nf">write</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">lines</span><span class="p">,</span> <span class="n">widths</span><span class="p">,</span> <span class="n">vals_list</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot; IPAC writer, modified from FixedWidth writer &quot;&quot;&quot;</span>
+        <span class="k">for</span> <span class="n">vals</span> <span class="ow">in</span> <span class="n">vals_list</span><span class="p">:</span>
+            <span class="n">lines</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">splitter</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">vals</span><span class="p">,</span> <span class="n">widths</span><span class="p">))</span>
+        <span class="k">return</span> <span class="n">lines</span>
+
+
+<div class="viewcode-block" id="Ipac"><a class="viewcode-back" href="../../../../api/astropy.io.ascii.Ipac.html#astropy.io.ascii.Ipac">[docs]</a><span class="k">class</span> <span class="nc">Ipac</span><span class="p">(</span><span class="n">basic</span><span class="o">.</span><span class="n">Basic</span><span class="p">):</span>
+    <span class="sd">r&quot;&quot;&quot;Read or write an IPAC format table.  See</span>
+<span class="sd">    http://irsa.ipac.caltech.edu/applications/DDGEN/Doc/ipac_tbl.html::</span>
+
+<span class="sd">      \\name=value</span>
+<span class="sd">      \\ Comment</span>
+<span class="sd">      |  column1 |   column2 | column3 | column4  |    column5    |</span>
+<span class="sd">      |  double  |   double  |   int   |   double |     char      |</span>
+<span class="sd">      |  unit    |   unit    |   unit  |    unit  |     unit      |</span>
+<span class="sd">      |  null    |   null    |   null  |    null  |     null      |</span>
+<span class="sd">       2.0978     29.09056    73765     2.06000    B8IVpMnHg</span>
+
+<span class="sd">    Or::</span>
+
+<span class="sd">      |-----ra---|----dec---|---sao---|------v---|----sptype--------|</span>
+<span class="sd">        2.09708   29.09056     73765   2.06000    B8IVpMnHg</span>
+
+<span class="sd">    The comments and keywords defined in the header are available via the output</span>
+<span class="sd">    table ``meta`` attribute::</span>
+
+<span class="sd">      &gt;&gt;&gt; import os</span>
+<span class="sd">      &gt;&gt;&gt; from astropy.io import ascii</span>
+<span class="sd">      &gt;&gt;&gt; filename = os.path.join(ascii.__path__[0], &#39;tests/t/ipac.dat&#39;)</span>
+<span class="sd">      &gt;&gt;&gt; data = ascii.read(filename)</span>
+<span class="sd">      &gt;&gt;&gt; print(data.meta[&#39;comments&#39;])</span>
+<span class="sd">      [&#39;This is an example of a valid comment&#39;]</span>
+<span class="sd">      &gt;&gt;&gt; for name, keyword in data.meta[&#39;keywords&#39;].items():</span>
+<span class="sd">      ...     print(name, keyword[&#39;value&#39;])</span>
+<span class="sd">      ...</span>
+<span class="sd">      intval 1</span>
+<span class="sd">      floatval 2300.0</span>
+<span class="sd">      date Wed Sp 20 09:48:36 1995</span>
+<span class="sd">      key_continue IPAC keywords can continue across lines</span>
+
+<span class="sd">    Note that there are different conventions for characters occuring below the</span>
+<span class="sd">    position of the ``|`` symbol in IPAC tables. By default, any character</span>
+<span class="sd">    below a ``|`` will be ignored (since this is the current standard),</span>
+<span class="sd">    but if you need to read files that assume characters below the ``|``</span>
+<span class="sd">    symbols belong to the column before or after the ``|``, you can specify</span>
+<span class="sd">    ``definition=&#39;left&#39;`` or ``definition=&#39;right&#39;`` respectively when reading</span>
+<span class="sd">    the table (the default is ``definition=&#39;ignore&#39;``). The following examples</span>
+<span class="sd">    demonstrate the different conventions:</span>
+
+<span class="sd">    * ``definition=&#39;ignore&#39;``::</span>
+
+<span class="sd">        |   ra  |  dec  |</span>
+<span class="sd">        | float | float |</span>
+<span class="sd">          1.2345  6.7890</span>
+
+<span class="sd">    * ``definition=&#39;left&#39;``::</span>
+
+<span class="sd">        |   ra  |  dec  |</span>
+<span class="sd">        | float | float |</span>
+<span class="sd">           1.2345  6.7890</span>
+
+<span class="sd">    * ``definition=&#39;right&#39;``::</span>
+
+<span class="sd">        |   ra  |  dec  |</span>
+<span class="sd">        | float | float |</span>
+<span class="sd">        1.2345  6.7890</span>
+
+<span class="sd">    IPAC tables can specify a null value in the header that is shown in place</span>
+<span class="sd">    of missing or bad data. On writing, this value defaults to ``null``.</span>
+<span class="sd">    To specify a different null value, use the ``fill_values`` option to</span>
+<span class="sd">    replace masked values with a string or number of your choice as</span>
+<span class="sd">    described in :ref:`io_ascii_write_parameters`::</span>
+
+<span class="sd">        &gt;&gt;&gt; from astropy.io.ascii import masked</span>
+<span class="sd">        &gt;&gt;&gt; fill = [(masked, &#39;N/A&#39;, &#39;ra&#39;), (masked, -999, &#39;sptype&#39;)]</span>
+<span class="sd">        &gt;&gt;&gt; ascii.write(data, format=&#39;ipac&#39;, fill_values=fill)</span>
+<span class="sd">        \ This is an example of a valid comment</span>
+<span class="sd">        ...</span>
+<span class="sd">        |          ra|         dec|      sai|          v2|            sptype|</span>
+<span class="sd">        |      double|      double|     long|      double|              char|</span>
+<span class="sd">        |        unit|        unit|     unit|        unit|              ergs|</span>
+<span class="sd">        |         N/A|        null|     null|        null|              -999|</span>
+<span class="sd">                  N/A     29.09056      null         2.06               -999</span>
+<span class="sd">         2345678901.0 3456789012.0 456789012 4567890123.0 567890123456789012</span>
+
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    definition : str, optional</span>
+<span class="sd">        Specify the convention for characters in the data table that occur</span>
+<span class="sd">        directly below the pipe (``|``) symbol in the header column definition:</span>
+
+<span class="sd">          * &#39;ignore&#39; - Any character beneath a pipe symbol is ignored (default)</span>
+<span class="sd">          * &#39;right&#39; - Character is associated with the column to the right</span>
+<span class="sd">          * &#39;left&#39; - Character is associated with the column to the left</span>
+
+<span class="sd">    DBMS : bool, optional</span>
+<span class="sd">        If true, this verifies that written tables adhere (semantically)</span>
+<span class="sd">        to the `IPAC/DBMS &lt;http://irsa.ipac.caltech.edu/applications/DDGEN/Doc/DBMSrestriction.html&gt;`_</span>
+<span class="sd">        definition of IPAC tables. If &#39;False&#39; it only checks for the (less strict)</span>
+<span class="sd">        `IPAC &lt;http://irsa.ipac.caltech.edu/applications/DDGEN/Doc/ipac_tbl.html&gt;`_</span>
+<span class="sd">        definition.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">_format_name</span> <span class="o">=</span> <span class="s1">&#39;ipac&#39;</span>
+    <span class="n">_io_registry_format_aliases</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;ipac&#39;</span><span class="p">]</span>
+    <span class="n">_io_registry_can_write</span> <span class="o">=</span> <span class="kc">True</span>
+    <span class="n">_description</span> <span class="o">=</span> <span class="s1">&#39;IPAC format table&#39;</span>
+
+    <span class="n">data_class</span> <span class="o">=</span> <span class="n">IpacData</span>
+    <span class="n">header_class</span> <span class="o">=</span> <span class="n">IpacHeader</span>
+
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">definition</span><span class="o">=</span><span class="s1">&#39;ignore&#39;</span><span class="p">,</span> <span class="n">DBMS</span><span class="o">=</span><span class="kc">False</span><span class="p">):</span>
+        <span class="nb">super</span><span class="p">(</span><span class="n">Ipac</span><span class="p">,</span> <span class="bp">self</span><span class="p">)</span><span class="o">.</span><span class="n">__init__</span><span class="p">()</span>
+        <span class="c1"># Usually the header is not defined in __init__, but here it need a keyword</span>
+        <span class="k">if</span> <span class="n">definition</span> <span class="ow">in</span> <span class="p">[</span><span class="s1">&#39;ignore&#39;</span><span class="p">,</span> <span class="s1">&#39;left&#39;</span><span class="p">,</span> <span class="s1">&#39;right&#39;</span><span class="p">]:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">header</span><span class="o">.</span><span class="n">ipac_definition</span> <span class="o">=</span> <span class="n">definition</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;definition should be one of ignore/left/right&quot;</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">header</span><span class="o">.</span><span class="n">DBMS</span> <span class="o">=</span> <span class="n">DBMS</span>
+
+<div class="viewcode-block" id="Ipac.write"><a class="viewcode-back" href="../../../../api/astropy.io.ascii.Ipac.html#astropy.io.ascii.Ipac.write">[docs]</a>    <span class="k">def</span> <span class="nf">write</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">table</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Write ``table`` as list of strings.</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        table : `~astropy.table.Table`</span>
+<span class="sd">            Input table data</span>
+
+<span class="sd">        Returns</span>
+<span class="sd">        -------</span>
+<span class="sd">        lines : list</span>
+<span class="sd">            List of strings corresponding to ASCII table</span>
+
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="c1"># Set a default null value for all columns by adding at the end, which</span>
+        <span class="c1"># is the position with the lowest priority.</span>
+        <span class="c1"># We have to do it this late, because the fill_value</span>
+        <span class="c1"># defined in the class can be overwritten by ui.write</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">fill_values</span><span class="o">.</span><span class="n">append</span><span class="p">((</span><span class="n">core</span><span class="o">.</span><span class="n">masked</span><span class="p">,</span> <span class="s1">&#39;null&#39;</span><span class="p">))</span>
+
+        <span class="c1"># Check column names before altering</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">header</span><span class="o">.</span><span class="n">cols</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="n">six</span><span class="o">.</span><span class="n">itervalues</span><span class="p">(</span><span class="n">table</span><span class="o">.</span><span class="n">columns</span><span class="p">))</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">header</span><span class="o">.</span><span class="n">check_column_names</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">names</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">strict_names</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">guessing</span><span class="p">)</span>
+
+        <span class="n">core</span><span class="o">.</span><span class="n">_apply_include_exclude_names</span><span class="p">(</span><span class="n">table</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">names</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">include_names</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">exclude_names</span><span class="p">)</span>
+
+        <span class="c1"># Now use altered columns</span>
+        <span class="n">new_cols</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="n">six</span><span class="o">.</span><span class="n">itervalues</span><span class="p">(</span><span class="n">table</span><span class="o">.</span><span class="n">columns</span><span class="p">))</span>
+        <span class="c1"># link information about the columns to the writer object (i.e. self)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">header</span><span class="o">.</span><span class="n">cols</span> <span class="o">=</span> <span class="n">new_cols</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">cols</span> <span class="o">=</span> <span class="n">new_cols</span>
+
+        <span class="c1"># Write header and data to lines list</span>
+        <span class="n">lines</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="c1"># Write meta information</span>
+        <span class="k">if</span> <span class="s1">&#39;comments&#39;</span> <span class="ow">in</span> <span class="n">table</span><span class="o">.</span><span class="n">meta</span><span class="p">:</span>
+            <span class="k">for</span> <span class="n">comment</span> <span class="ow">in</span> <span class="n">table</span><span class="o">.</span><span class="n">meta</span><span class="p">[</span><span class="s1">&#39;comments&#39;</span><span class="p">]:</span>
+                <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="nb">str</span><span class="p">(</span><span class="n">comment</span><span class="p">))</span> <span class="o">&gt;</span> <span class="mi">78</span><span class="p">:</span>
+                    <span class="n">warn</span><span class="p">(</span><span class="s1">&#39;Comment string &gt; 78 characters was automatically wrapped.&#39;</span><span class="p">,</span>
+                         <span class="n">AstropyUserWarning</span><span class="p">)</span>
+                <span class="k">for</span> <span class="n">line</span> <span class="ow">in</span> <span class="n">wrap</span><span class="p">(</span><span class="nb">str</span><span class="p">(</span><span class="n">comment</span><span class="p">),</span> <span class="mi">80</span><span class="p">,</span> <span class="n">initial_indent</span><span class="o">=</span><span class="s1">&#39;</span><span class="se">\\</span><span class="s1"> &#39;</span><span class="p">,</span> <span class="n">subsequent_indent</span><span class="o">=</span><span class="s1">&#39;</span><span class="se">\\</span><span class="s1"> &#39;</span><span class="p">):</span>
+                    <span class="n">lines</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">line</span><span class="p">)</span>
+        <span class="k">if</span> <span class="s1">&#39;keywords&#39;</span> <span class="ow">in</span> <span class="n">table</span><span class="o">.</span><span class="n">meta</span><span class="p">:</span>
+            <span class="n">keydict</span> <span class="o">=</span> <span class="n">table</span><span class="o">.</span><span class="n">meta</span><span class="p">[</span><span class="s1">&#39;keywords&#39;</span><span class="p">]</span>
+            <span class="k">for</span> <span class="n">keyword</span> <span class="ow">in</span> <span class="n">keydict</span><span class="p">:</span>
+                <span class="k">try</span><span class="p">:</span>
+                    <span class="n">val</span> <span class="o">=</span> <span class="n">keydict</span><span class="p">[</span><span class="n">keyword</span><span class="p">][</span><span class="s1">&#39;value&#39;</span><span class="p">]</span>
+                    <span class="n">lines</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="s1">&#39;</span><span class="se">\\</span><span class="si">{0}</span><span class="s1">=</span><span class="si">{1!r}</span><span class="s1">&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">keyword</span><span class="o">.</span><span class="n">strip</span><span class="p">(),</span> <span class="n">val</span><span class="p">))</span>
+                    <span class="c1"># meta is not standardized: Catch some common Errors.</span>
+                <span class="k">except</span> <span class="ne">TypeError</span><span class="p">:</span>
+                    <span class="n">warn</span><span class="p">(</span><span class="s2">&quot;Table metadata keyword </span><span class="si">{0}</span><span class="s2"> has been skipped.  &quot;</span>
+                         <span class="s2">&quot;IPAC metadata must be in the form {{&#39;keywords&#39;:&quot;</span>
+                         <span class="s2">&quot;{{&#39;keyword&#39;: {{&#39;value&#39;: value}} }}&quot;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">keyword</span><span class="p">),</span>
+                         <span class="n">AstropyUserWarning</span><span class="p">)</span>
+        <span class="n">ignored_keys</span> <span class="o">=</span> <span class="p">[</span><span class="n">key</span> <span class="k">for</span> <span class="n">key</span> <span class="ow">in</span> <span class="n">table</span><span class="o">.</span><span class="n">meta</span> <span class="k">if</span> <span class="n">key</span> <span class="ow">not</span> <span class="ow">in</span> <span class="p">(</span><span class="s1">&#39;keywords&#39;</span><span class="p">,</span> <span class="s1">&#39;comments&#39;</span><span class="p">)]</span>
+        <span class="k">if</span> <span class="nb">any</span><span class="p">(</span><span class="n">ignored_keys</span><span class="p">):</span>
+            <span class="n">warn</span><span class="p">(</span><span class="s2">&quot;Table metadata keyword(s) </span><span class="si">{0}</span><span class="s2"> were not written.  &quot;</span>
+                 <span class="s2">&quot;IPAC metadata must be in the form {{&#39;keywords&#39;:&quot;</span>
+                 <span class="s2">&quot;{{&#39;keyword&#39;: {{&#39;value&#39;: value}} }}&quot;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">ignored_keys</span><span class="p">),</span>
+                 <span class="n">AstropyUserWarning</span>
+                <span class="p">)</span>
+
+        <span class="c1"># Usually, this is done in data.write, but since the header is written</span>
+        <span class="c1"># first, we need that here.</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">_set_fill_values</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">cols</span><span class="p">)</span>
+
+        <span class="c1"># get header and data as strings to find width of each column</span>
+        <span class="k">for</span> <span class="n">i</span><span class="p">,</span> <span class="n">col</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="n">table</span><span class="o">.</span><span class="n">columns</span><span class="o">.</span><span class="n">values</span><span class="p">()):</span>
+            <span class="n">col</span><span class="o">.</span><span class="n">headwidth</span> <span class="o">=</span> <span class="nb">max</span><span class="p">([</span><span class="nb">len</span><span class="p">(</span><span class="n">vals</span><span class="p">[</span><span class="n">i</span><span class="p">])</span> <span class="k">for</span> <span class="n">vals</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">header</span><span class="o">.</span><span class="n">str_vals</span><span class="p">()])</span>
+        <span class="c1"># keep data_str_vals because they take some time to make</span>
+        <span class="n">data_str_vals</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="n">col_str_iters</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">str_vals</span><span class="p">()</span>
+        <span class="k">for</span> <span class="n">vals</span> <span class="ow">in</span> <span class="nb">zip</span><span class="p">(</span><span class="o">*</span><span class="n">col_str_iters</span><span class="p">):</span>
+            <span class="n">data_str_vals</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">vals</span><span class="p">)</span>
+
+        <span class="k">for</span> <span class="n">i</span><span class="p">,</span> <span class="n">col</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="n">table</span><span class="o">.</span><span class="n">columns</span><span class="o">.</span><span class="n">values</span><span class="p">()):</span>
+            <span class="c1"># FIXME: In Python 3.4, use max([], default=0).</span>
+            <span class="c1"># See: https://docs.python.org/3/library/functions.html#max</span>
+            <span class="k">if</span> <span class="n">data_str_vals</span><span class="p">:</span>
+                <span class="n">col</span><span class="o">.</span><span class="n">width</span> <span class="o">=</span> <span class="nb">max</span><span class="p">([</span><span class="nb">len</span><span class="p">(</span><span class="n">vals</span><span class="p">[</span><span class="n">i</span><span class="p">])</span> <span class="k">for</span> <span class="n">vals</span> <span class="ow">in</span> <span class="n">data_str_vals</span><span class="p">])</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="n">col</span><span class="o">.</span><span class="n">width</span> <span class="o">=</span> <span class="mi">0</span>
+
+        <span class="n">widths</span> <span class="o">=</span> <span class="p">[</span><span class="nb">max</span><span class="p">(</span><span class="n">col</span><span class="o">.</span><span class="n">width</span><span class="p">,</span> <span class="n">col</span><span class="o">.</span><span class="n">headwidth</span><span class="p">)</span> <span class="k">for</span> <span class="n">col</span> <span class="ow">in</span> <span class="n">table</span><span class="o">.</span><span class="n">columns</span><span class="o">.</span><span class="n">values</span><span class="p">()]</span>
+        <span class="c1"># then write table</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">header</span><span class="o">.</span><span class="n">write</span><span class="p">(</span><span class="n">lines</span><span class="p">,</span> <span class="n">widths</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">write</span><span class="p">(</span><span class="n">lines</span><span class="p">,</span> <span class="n">widths</span><span class="p">,</span> <span class="n">data_str_vals</span><span class="p">)</span>
+
+        <span class="k">return</span> <span class="n">lines</span></div></div>
+</pre></div>
+
+          </div>
+        </div>
+      </div>
+      <div class="sphinxsidebar" role="navigation" aria-label="main navigation">
+        <div class="sphinxsidebarwrapper"><h3>Page Contents</h3>
+
+
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+<footer class="footer">
+  <p class="pull-right"> &nbsp;
+    <a href="#">Back to Top</a></p>
+  <p>
+    &copy; Copyright 2011-2016, The Astropy Developers.<br/>
+    Created using <a href="http://sphinx.pocoo.org/">Sphinx</a> 1.5.6. &nbsp;
+    Last built 05 Jul 2017. <br/>
+  </p>
+</footer>
+  </body>
+</html>

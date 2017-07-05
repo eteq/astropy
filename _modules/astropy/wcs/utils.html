@@ -1,0 +1,608 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <head>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    
+    <title>astropy.wcs.utils &#8212; Astropy v3.0.dev19489</title>
+    
+    <link rel="stylesheet" href="../../../_static/bootstrap-astropy.css" type="text/css" />
+    <link rel="stylesheet" href="../../../_static/pygments.css" type="text/css" />
+    <link rel="stylesheet" href="../../../_static/gallery.css" type="text/css" />
+    
+    <script type="text/javascript">
+      var DOCUMENTATION_OPTIONS = {
+        URL_ROOT:    '../../../',
+        VERSION:     '3.0.dev19489',
+        COLLAPSE_INDEX: false,
+        FILE_SUFFIX: '.html',
+        HAS_SOURCE:  true,
+        SOURCELINK_SUFFIX: '.txt'
+      };
+    </script>
+    <script type="text/javascript" src="../../../_static/jquery.js"></script>
+    <script type="text/javascript" src="../../../_static/underscore.js"></script>
+    <script type="text/javascript" src="../../../_static/doctools.js"></script>
+    <script type="text/javascript" src="../../../_static/sidebar.js"></script>
+    <link rel="shortcut icon" href="../../../_static/astropy_logo.ico"/>
+    <link rel="index" title="Index" href="../../../genindex.html" />
+    <link rel="search" title="Search" href="../../../search.html" />
+<link href='https://fonts.googleapis.com/css?family=Source+Sans+Pro:200,600' rel='stylesheet' type='text/css'/>
+<script type="text/javascript" src="../../../_static/copybutton.js"></script>
+
+
+  </head>
+  <body role="document">
+<div class="topbar">
+  <a class="brand" title="Documentation Home" href="../../../index.html"><span id="logotext1">astro</span><span id="logotext2">py</span><span id="logotext3">:docs</span></a>
+  <ul>
+    <li><a class="homelink" title="Astropy Homepage" href="http://www.astropy.org"></a></li>
+    <li><a title="General Index" href="../../../genindex.html">Index</a></li>
+    <li><a title="Module Index" href="../../../py-modindex.html">Modules</a></li>
+    <li>
+      
+      
+<form action="../../../search.html" method="get">
+  <input type="text" name="q" placeholder="Search" />
+  <input type="hidden" name="check_keywords" value="yes" />
+  <input type="hidden" name="area" value="default" />
+</form>
+      
+    </li>
+  </ul>
+</div>
+
+<div class="related">
+    <h3>Navigation</h3>
+    <ul>
+      <li>
+	<a href="../../../index.html">Astropy v3.0.dev19489</a>
+	 &#187;
+      </li>
+      <li><a href="../../index.html" >Module code</a> &#187;</li>
+      <li><a href="../../astropy.html" >astropy</a> &#187;</li>
+      <li><a href="../wcs.html" accesskey="U">astropy.wcs</a> &#187;</li>
+      
+       
+    </ul>
+</div>
+  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          <div class="body" role="main">
+            
+  <h1>Source code for astropy.wcs.utils</h1><div class="highlight"><pre>
+<span></span><span class="c1"># Licensed under a 3-clause BSD style license - see LICENSE.rst</span>
+<span class="kn">from</span> <span class="nn">__future__</span> <span class="k">import</span> <span class="n">absolute_import</span><span class="p">,</span> <span class="n">division</span><span class="p">,</span> <span class="n">print_function</span><span class="p">,</span> <span class="n">unicode_literals</span>
+
+<span class="kn">import</span> <span class="nn">numpy</span> <span class="k">as</span> <span class="nn">np</span>
+<span class="kn">from</span> <span class="nn">..</span> <span class="k">import</span> <span class="n">units</span> <span class="k">as</span> <span class="n">u</span>
+<span class="kn">from</span> <span class="nn">..extern.six.moves</span> <span class="k">import</span> <span class="nb">range</span>
+
+<span class="n">__doctest_skip__</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;wcs_to_celestial_frame&#39;</span><span class="p">]</span>
+
+<span class="n">__all__</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;add_stokes_axis_to_wcs&#39;</span><span class="p">,</span>
+           <span class="s1">&#39;custom_frame_mappings&#39;</span><span class="p">,</span>
+           <span class="s1">&#39;wcs_to_celestial_frame&#39;</span><span class="p">,</span> <span class="s1">&#39;proj_plane_pixel_scales&#39;</span><span class="p">,</span>
+           <span class="s1">&#39;proj_plane_pixel_area&#39;</span><span class="p">,</span> <span class="s1">&#39;is_proj_plane_distorted&#39;</span><span class="p">,</span>
+           <span class="s1">&#39;non_celestial_pixel_scales&#39;</span><span class="p">,</span> <span class="s1">&#39;skycoord_to_pixel&#39;</span><span class="p">,</span>
+           <span class="s1">&#39;pixel_to_skycoord&#39;</span><span class="p">]</span>
+
+
+<div class="viewcode-block" id="add_stokes_axis_to_wcs"><a class="viewcode-back" href="../../../api/astropy.wcs.utils.add_stokes_axis_to_wcs.html#astropy.wcs.utils.add_stokes_axis_to_wcs">[docs]</a><span class="k">def</span> <span class="nf">add_stokes_axis_to_wcs</span><span class="p">(</span><span class="n">wcs</span><span class="p">,</span> <span class="n">add_before_ind</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Add a new Stokes axis that is uncorrelated with any other axes.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    wcs : `~astropy.wcs.WCS`</span>
+<span class="sd">        The WCS to add to</span>
+<span class="sd">    add_before_ind : int</span>
+<span class="sd">        Index of the WCS to insert the new Stokes axis in front of.</span>
+<span class="sd">        To add at the end, do add_before_ind = wcs.wcs.naxis</span>
+<span class="sd">        The beginning is at position 0.</span>
+
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+<span class="sd">    A new `~astropy.wcs.WCS` instance with an additional axis</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="n">inds</span> <span class="o">=</span> <span class="p">[</span><span class="n">i</span> <span class="o">+</span> <span class="mi">1</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">wcs</span><span class="o">.</span><span class="n">wcs</span><span class="o">.</span><span class="n">naxis</span><span class="p">)]</span>
+    <span class="n">inds</span><span class="o">.</span><span class="n">insert</span><span class="p">(</span><span class="n">add_before_ind</span><span class="p">,</span> <span class="mi">0</span><span class="p">)</span>
+    <span class="n">newwcs</span> <span class="o">=</span> <span class="n">wcs</span><span class="o">.</span><span class="n">sub</span><span class="p">(</span><span class="n">inds</span><span class="p">)</span>
+    <span class="n">newwcs</span><span class="o">.</span><span class="n">wcs</span><span class="o">.</span><span class="n">ctype</span><span class="p">[</span><span class="n">add_before_ind</span><span class="p">]</span> <span class="o">=</span> <span class="s1">&#39;STOKES&#39;</span>
+    <span class="n">newwcs</span><span class="o">.</span><span class="n">wcs</span><span class="o">.</span><span class="n">cname</span><span class="p">[</span><span class="n">add_before_ind</span><span class="p">]</span> <span class="o">=</span> <span class="s1">&#39;STOKES&#39;</span>
+    <span class="k">return</span> <span class="n">newwcs</span></div>
+
+
+<span class="k">def</span> <span class="nf">_wcs_to_celestial_frame_builtin</span><span class="p">(</span><span class="n">wcs</span><span class="p">):</span>
+
+    <span class="kn">from</span> <span class="nn">..coordinates</span> <span class="k">import</span> <span class="n">FK4</span><span class="p">,</span> <span class="n">FK4NoETerms</span><span class="p">,</span> <span class="n">FK5</span><span class="p">,</span> <span class="n">ICRS</span><span class="p">,</span> <span class="n">Galactic</span>
+    <span class="kn">from</span> <span class="nn">..time</span> <span class="k">import</span> <span class="n">Time</span>
+    <span class="kn">from</span> <span class="nn">.</span> <span class="k">import</span> <span class="n">WCSSUB_CELESTIAL</span>
+
+    <span class="c1"># Keep only the celestial part of the axes</span>
+    <span class="n">wcs</span> <span class="o">=</span> <span class="n">wcs</span><span class="o">.</span><span class="n">sub</span><span class="p">([</span><span class="n">WCSSUB_CELESTIAL</span><span class="p">])</span>
+
+    <span class="k">if</span> <span class="n">wcs</span><span class="o">.</span><span class="n">wcs</span><span class="o">.</span><span class="n">lng</span> <span class="o">==</span> <span class="o">-</span><span class="mi">1</span> <span class="ow">or</span> <span class="n">wcs</span><span class="o">.</span><span class="n">wcs</span><span class="o">.</span><span class="n">lat</span> <span class="o">==</span> <span class="o">-</span><span class="mi">1</span><span class="p">:</span>
+        <span class="k">return</span> <span class="kc">None</span>
+
+    <span class="n">radesys</span> <span class="o">=</span> <span class="n">wcs</span><span class="o">.</span><span class="n">wcs</span><span class="o">.</span><span class="n">radesys</span>
+
+    <span class="k">if</span> <span class="n">np</span><span class="o">.</span><span class="n">isnan</span><span class="p">(</span><span class="n">wcs</span><span class="o">.</span><span class="n">wcs</span><span class="o">.</span><span class="n">equinox</span><span class="p">):</span>
+        <span class="n">equinox</span> <span class="o">=</span> <span class="kc">None</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="n">equinox</span> <span class="o">=</span> <span class="n">wcs</span><span class="o">.</span><span class="n">wcs</span><span class="o">.</span><span class="n">equinox</span>
+
+    <span class="n">xcoord</span> <span class="o">=</span> <span class="n">wcs</span><span class="o">.</span><span class="n">wcs</span><span class="o">.</span><span class="n">ctype</span><span class="p">[</span><span class="mi">0</span><span class="p">][:</span><span class="mi">4</span><span class="p">]</span>
+    <span class="n">ycoord</span> <span class="o">=</span> <span class="n">wcs</span><span class="o">.</span><span class="n">wcs</span><span class="o">.</span><span class="n">ctype</span><span class="p">[</span><span class="mi">1</span><span class="p">][:</span><span class="mi">4</span><span class="p">]</span>
+
+    <span class="c1"># Apply logic from FITS standard to determine the default radesys</span>
+    <span class="k">if</span> <span class="n">radesys</span> <span class="o">==</span> <span class="s1">&#39;&#39;</span> <span class="ow">and</span> <span class="n">xcoord</span> <span class="o">==</span> <span class="s1">&#39;RA--&#39;</span> <span class="ow">and</span> <span class="n">ycoord</span> <span class="o">==</span> <span class="s1">&#39;DEC-&#39;</span><span class="p">:</span>
+        <span class="k">if</span> <span class="n">equinox</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">radesys</span> <span class="o">=</span> <span class="s2">&quot;ICRS&quot;</span>
+        <span class="k">elif</span> <span class="n">equinox</span> <span class="o">&lt;</span> <span class="mf">1984.</span><span class="p">:</span>
+            <span class="n">radesys</span> <span class="o">=</span> <span class="s2">&quot;FK4&quot;</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">radesys</span> <span class="o">=</span> <span class="s2">&quot;FK5&quot;</span>
+
+    <span class="k">if</span> <span class="n">radesys</span> <span class="o">==</span> <span class="s1">&#39;FK4&#39;</span><span class="p">:</span>
+        <span class="k">if</span> <span class="n">equinox</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">equinox</span> <span class="o">=</span> <span class="n">Time</span><span class="p">(</span><span class="n">equinox</span><span class="p">,</span> <span class="nb">format</span><span class="o">=</span><span class="s1">&#39;byear&#39;</span><span class="p">)</span>
+        <span class="n">frame</span> <span class="o">=</span> <span class="n">FK4</span><span class="p">(</span><span class="n">equinox</span><span class="o">=</span><span class="n">equinox</span><span class="p">)</span>
+    <span class="k">elif</span> <span class="n">radesys</span> <span class="o">==</span> <span class="s1">&#39;FK4-NO-E&#39;</span><span class="p">:</span>
+        <span class="k">if</span> <span class="n">equinox</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">equinox</span> <span class="o">=</span> <span class="n">Time</span><span class="p">(</span><span class="n">equinox</span><span class="p">,</span> <span class="nb">format</span><span class="o">=</span><span class="s1">&#39;byear&#39;</span><span class="p">)</span>
+        <span class="n">frame</span> <span class="o">=</span> <span class="n">FK4NoETerms</span><span class="p">(</span><span class="n">equinox</span><span class="o">=</span><span class="n">equinox</span><span class="p">)</span>
+    <span class="k">elif</span> <span class="n">radesys</span> <span class="o">==</span> <span class="s1">&#39;FK5&#39;</span><span class="p">:</span>
+        <span class="k">if</span> <span class="n">equinox</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">equinox</span> <span class="o">=</span> <span class="n">Time</span><span class="p">(</span><span class="n">equinox</span><span class="p">,</span> <span class="nb">format</span><span class="o">=</span><span class="s1">&#39;jyear&#39;</span><span class="p">)</span>
+        <span class="n">frame</span> <span class="o">=</span> <span class="n">FK5</span><span class="p">(</span><span class="n">equinox</span><span class="o">=</span><span class="n">equinox</span><span class="p">)</span>
+    <span class="k">elif</span> <span class="n">radesys</span> <span class="o">==</span> <span class="s1">&#39;ICRS&#39;</span><span class="p">:</span>
+        <span class="n">frame</span> <span class="o">=</span> <span class="n">ICRS</span><span class="p">()</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="k">if</span> <span class="n">xcoord</span> <span class="o">==</span> <span class="s1">&#39;GLON&#39;</span> <span class="ow">and</span> <span class="n">ycoord</span> <span class="o">==</span> <span class="s1">&#39;GLAT&#39;</span><span class="p">:</span>
+            <span class="n">frame</span> <span class="o">=</span> <span class="n">Galactic</span><span class="p">()</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">frame</span> <span class="o">=</span> <span class="kc">None</span>
+
+    <span class="k">return</span> <span class="n">frame</span>
+
+
+<span class="n">WCS_FRAME_MAPPINGS</span> <span class="o">=</span> <span class="p">[[</span><span class="n">_wcs_to_celestial_frame_builtin</span><span class="p">]]</span>
+
+
+<div class="viewcode-block" id="custom_frame_mappings"><a class="viewcode-back" href="../../../api/astropy.wcs.utils.custom_frame_mappings.html#astropy.wcs.utils.custom_frame_mappings">[docs]</a><span class="k">class</span> <span class="nc">custom_frame_mappings</span><span class="p">(</span><span class="nb">object</span><span class="p">):</span>
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">mappings</span><span class="o">=</span><span class="p">[]):</span>
+        <span class="k">if</span> <span class="nb">hasattr</span><span class="p">(</span><span class="n">mappings</span><span class="p">,</span> <span class="s1">&#39;__call__&#39;</span><span class="p">):</span>
+            <span class="n">mappings</span> <span class="o">=</span> <span class="p">[</span><span class="n">mappings</span><span class="p">]</span>
+        <span class="n">WCS_FRAME_MAPPINGS</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">mappings</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">__enter__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">pass</span>
+
+    <span class="k">def</span> <span class="nf">__exit__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="nb">type</span><span class="p">,</span> <span class="n">value</span><span class="p">,</span> <span class="n">tb</span><span class="p">):</span>
+        <span class="n">WCS_FRAME_MAPPINGS</span><span class="o">.</span><span class="n">pop</span><span class="p">()</span></div>
+
+
+<div class="viewcode-block" id="wcs_to_celestial_frame"><a class="viewcode-back" href="../../../api/astropy.wcs.utils.wcs_to_celestial_frame.html#astropy.wcs.utils.wcs_to_celestial_frame">[docs]</a><span class="k">def</span> <span class="nf">wcs_to_celestial_frame</span><span class="p">(</span><span class="n">wcs</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    For a given WCS, return the coordinate frame that matches the celestial</span>
+<span class="sd">    component of the WCS.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    wcs : :class:`~astropy.wcs.WCS` instance</span>
+<span class="sd">        The WCS to find the frame for</span>
+
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+<span class="sd">    frame : :class:`~astropy.coordinates.baseframe.BaseCoordinateFrame` subclass instance</span>
+<span class="sd">        An instance of a :class:`~astropy.coordinates.baseframe.BaseCoordinateFrame`</span>
+<span class="sd">        subclass instance that best matches the specified WCS.</span>
+
+<span class="sd">    Notes</span>
+<span class="sd">    -----</span>
+
+<span class="sd">    To extend this function to frames not defined in astropy.coordinates, you</span>
+<span class="sd">    can write your own function which should take a :class:`~astropy.wcs.WCS`</span>
+<span class="sd">    instance and should return either an instance of a frame, or `None` if no</span>
+<span class="sd">    matching frame was found. You can register this function temporarily with::</span>
+
+<span class="sd">        &gt;&gt;&gt; from astropy.wcs.utils import wcs_to_celestial_frame, custom_frame_mappings</span>
+<span class="sd">        &gt;&gt;&gt; with custom_frame_mappings(my_function):</span>
+<span class="sd">        ...     wcs_to_celestial_frame(...)</span>
+
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">for</span> <span class="n">mapping_set</span> <span class="ow">in</span> <span class="n">WCS_FRAME_MAPPINGS</span><span class="p">:</span>
+        <span class="k">for</span> <span class="n">func</span> <span class="ow">in</span> <span class="n">mapping_set</span><span class="p">:</span>
+            <span class="n">frame</span> <span class="o">=</span> <span class="n">func</span><span class="p">(</span><span class="n">wcs</span><span class="p">)</span>
+            <span class="k">if</span> <span class="n">frame</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+                <span class="k">return</span> <span class="n">frame</span>
+    <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;Could not determine celestial frame corresponding to &quot;</span>
+                     <span class="s2">&quot;the specified WCS object&quot;</span><span class="p">)</span></div>
+
+
+<div class="viewcode-block" id="proj_plane_pixel_scales"><a class="viewcode-back" href="../../../api/astropy.wcs.utils.proj_plane_pixel_scales.html#astropy.wcs.utils.proj_plane_pixel_scales">[docs]</a><span class="k">def</span> <span class="nf">proj_plane_pixel_scales</span><span class="p">(</span><span class="n">wcs</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    For a WCS returns pixel scales along each axis of the image pixel at</span>
+<span class="sd">    the ``CRPIX`` location once it is projected onto the</span>
+<span class="sd">    &quot;plane of intermediate world coordinates&quot; as defined in</span>
+<span class="sd">    `Greisen &amp; Calabretta 2002, A&amp;A, 395, 1061 &lt;http://adsabs.harvard.edu/abs/2002A%26A...395.1061G&gt;`_.</span>
+
+<span class="sd">    .. note::</span>
+<span class="sd">        This function is concerned **only** about the transformation</span>
+<span class="sd">        &quot;image plane&quot;-&gt;&quot;projection plane&quot; and **not** about the</span>
+<span class="sd">        transformation &quot;celestial sphere&quot;-&gt;&quot;projection plane&quot;-&gt;&quot;image plane&quot;.</span>
+<span class="sd">        Therefore, this function ignores distortions arising due to</span>
+<span class="sd">        non-linear nature of most projections.</span>
+
+<span class="sd">    .. note::</span>
+<span class="sd">        In order to compute the scales corresponding to celestial axes only,</span>
+<span class="sd">        make sure that the input `~astropy.wcs.WCS` object contains</span>
+<span class="sd">        celestial axes only, e.g., by passing in the</span>
+<span class="sd">        `~astropy.wcs.WCS.celestial` WCS object.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    wcs : `~astropy.wcs.WCS`</span>
+<span class="sd">        A world coordinate system object.</span>
+
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+<span class="sd">    scale : `~numpy.ndarray`</span>
+<span class="sd">        A vector (`~numpy.ndarray`) of projection plane increments</span>
+<span class="sd">        corresponding to each pixel side (axis). The units of the returned</span>
+<span class="sd">        results are the same as the units of `~astropy.wcs.Wcsprm.cdelt`,</span>
+<span class="sd">        `~astropy.wcs.Wcsprm.crval`, and `~astropy.wcs.Wcsprm.cd` for</span>
+<span class="sd">        the celestial WCS and can be obtained by inquiring the value</span>
+<span class="sd">        of `~astropy.wcs.Wcsprm.cunit` property of the input</span>
+<span class="sd">        `~astropy.wcs.WCS` WCS object.</span>
+
+<span class="sd">    See Also</span>
+<span class="sd">    --------</span>
+<span class="sd">    astropy.wcs.utils.proj_plane_pixel_area</span>
+
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">return</span> <span class="n">np</span><span class="o">.</span><span class="n">sqrt</span><span class="p">((</span><span class="n">wcs</span><span class="o">.</span><span class="n">pixel_scale_matrix</span><span class="o">**</span><span class="mi">2</span><span class="p">)</span><span class="o">.</span><span class="n">sum</span><span class="p">(</span><span class="n">axis</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="n">np</span><span class="o">.</span><span class="n">float</span><span class="p">))</span></div>
+
+
+<div class="viewcode-block" id="proj_plane_pixel_area"><a class="viewcode-back" href="../../../api/astropy.wcs.utils.proj_plane_pixel_area.html#astropy.wcs.utils.proj_plane_pixel_area">[docs]</a><span class="k">def</span> <span class="nf">proj_plane_pixel_area</span><span class="p">(</span><span class="n">wcs</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    For a **celestial** WCS (see `astropy.wcs.WCS.celestial`) returns pixel</span>
+<span class="sd">    area of the image pixel at the ``CRPIX`` location once it is projected</span>
+<span class="sd">    onto the &quot;plane of intermediate world coordinates&quot; as defined in</span>
+<span class="sd">    `Greisen &amp; Calabretta 2002, A&amp;A, 395, 1061 &lt;http://adsabs.harvard.edu/abs/2002A%26A...395.1061G&gt;`_.</span>
+
+<span class="sd">    .. note::</span>
+<span class="sd">        This function is concerned **only** about the transformation</span>
+<span class="sd">        &quot;image plane&quot;-&gt;&quot;projection plane&quot; and **not** about the</span>
+<span class="sd">        transformation &quot;celestial sphere&quot;-&gt;&quot;projection plane&quot;-&gt;&quot;image plane&quot;.</span>
+<span class="sd">        Therefore, this function ignores distortions arising due to</span>
+<span class="sd">        non-linear nature of most projections.</span>
+
+<span class="sd">    .. note::</span>
+<span class="sd">        In order to compute the area of pixels corresponding to celestial</span>
+<span class="sd">        axes only, this function uses the `~astropy.wcs.WCS.celestial` WCS</span>
+<span class="sd">        object of the input ``wcs``.  This is different from the</span>
+<span class="sd">        `~astropy.wcs.utils.proj_plane_pixel_scales` function</span>
+<span class="sd">        that computes the scales for the axes of the input WCS itself.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    wcs : `~astropy.wcs.WCS`</span>
+<span class="sd">        A world coordinate system object.</span>
+
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+<span class="sd">    area : float</span>
+<span class="sd">        Area (in the projection plane) of the pixel at ``CRPIX`` location.</span>
+<span class="sd">        The units of the returned result are the same as the units of</span>
+<span class="sd">        the `~astropy.wcs.Wcsprm.cdelt`, `~astropy.wcs.Wcsprm.crval`,</span>
+<span class="sd">        and `~astropy.wcs.Wcsprm.cd` for the celestial WCS and can be</span>
+<span class="sd">        obtained by inquiring the value of `~astropy.wcs.Wcsprm.cunit`</span>
+<span class="sd">        property of the `~astropy.wcs.WCS.celestial` WCS object.</span>
+
+<span class="sd">    Raises</span>
+<span class="sd">    ------</span>
+<span class="sd">    ValueError</span>
+<span class="sd">        Pixel area is defined only for 2D pixels. Most likely the</span>
+<span class="sd">        `~astropy.wcs.Wcsprm.cd` matrix of the `~astropy.wcs.WCS.celestial`</span>
+<span class="sd">        WCS is not a square matrix of second order.</span>
+
+<span class="sd">    Notes</span>
+<span class="sd">    -----</span>
+
+<span class="sd">    Depending on the application, square root of the pixel area can be used to</span>
+<span class="sd">    represent a single pixel scale of an equivalent square pixel</span>
+<span class="sd">    whose area is equal to the area of a generally non-square pixel.</span>
+
+<span class="sd">    See Also</span>
+<span class="sd">    --------</span>
+<span class="sd">    astropy.wcs.utils.proj_plane_pixel_scales</span>
+
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">psm</span> <span class="o">=</span> <span class="n">wcs</span><span class="o">.</span><span class="n">celestial</span><span class="o">.</span><span class="n">pixel_scale_matrix</span>
+    <span class="k">if</span> <span class="n">psm</span><span class="o">.</span><span class="n">shape</span> <span class="o">!=</span> <span class="p">(</span><span class="mi">2</span><span class="p">,</span> <span class="mi">2</span><span class="p">):</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;Pixel area is defined only for 2D pixels.&quot;</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">np</span><span class="o">.</span><span class="n">abs</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">linalg</span><span class="o">.</span><span class="n">det</span><span class="p">(</span><span class="n">psm</span><span class="p">))</span></div>
+
+
+<div class="viewcode-block" id="is_proj_plane_distorted"><a class="viewcode-back" href="../../../api/astropy.wcs.utils.is_proj_plane_distorted.html#astropy.wcs.utils.is_proj_plane_distorted">[docs]</a><span class="k">def</span> <span class="nf">is_proj_plane_distorted</span><span class="p">(</span><span class="n">wcs</span><span class="p">,</span> <span class="n">maxerr</span><span class="o">=</span><span class="mf">1.0e-5</span><span class="p">):</span>
+    <span class="sd">r&quot;&quot;&quot;</span>
+<span class="sd">    For a WCS returns `False` if square image (detector) pixels stay square</span>
+<span class="sd">    when projected onto the &quot;plane of intermediate world coordinates&quot;</span>
+<span class="sd">    as defined in</span>
+<span class="sd">    `Greisen &amp; Calabretta 2002, A&amp;A, 395, 1061 &lt;http://adsabs.harvard.edu/abs/2002A%26A...395.1061G&gt;`_.</span>
+<span class="sd">    It will return `True` if transformation from image (detector) coordinates</span>
+<span class="sd">    to the focal plane coordinates is non-orthogonal or if WCS contains</span>
+<span class="sd">    non-linear (e.g., SIP) distortions.</span>
+
+<span class="sd">    .. note::</span>
+<span class="sd">        Since this function is concerned **only** about the transformation</span>
+<span class="sd">        &quot;image plane&quot;-&gt;&quot;focal plane&quot; and **not** about the transformation</span>
+<span class="sd">        &quot;celestial sphere&quot;-&gt;&quot;focal plane&quot;-&gt;&quot;image plane&quot;,</span>
+<span class="sd">        this function ignores distortions arising due to non-linear nature</span>
+<span class="sd">        of most projections.</span>
+
+<span class="sd">    Let&#39;s denote by *C* either the original or the reconstructed</span>
+<span class="sd">    (from ``PC`` and ``CDELT``) CD matrix. `is_proj_plane_distorted`</span>
+<span class="sd">    verifies that the transformation from image (detector) coordinates</span>
+<span class="sd">    to the focal plane coordinates is orthogonal using the following</span>
+<span class="sd">    check:</span>
+
+<span class="sd">    .. math::</span>
+<span class="sd">        \left \| \frac{C \cdot C^{\mathrm{T}}}</span>
+<span class="sd">        {| det(C)|} - I \right \|_{\mathrm{max}} &lt; \epsilon .</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    wcs : `~astropy.wcs.WCS`</span>
+<span class="sd">        World coordinate system object</span>
+
+<span class="sd">    maxerr : float, optional</span>
+<span class="sd">        Accuracy to which the CD matrix, **normalized** such</span>
+<span class="sd">        that :math:`|det(CD)|=1`, should be close to being an</span>
+<span class="sd">        orthogonal matrix as described in the above equation</span>
+<span class="sd">        (see :math:`\epsilon`).</span>
+
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+<span class="sd">    distorted : bool</span>
+<span class="sd">        Returns `True` if focal (projection) plane is distorted and `False`</span>
+<span class="sd">        otherwise.</span>
+
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">cwcs</span> <span class="o">=</span> <span class="n">wcs</span><span class="o">.</span><span class="n">celestial</span>
+    <span class="k">return</span> <span class="p">(</span><span class="ow">not</span> <span class="n">_is_cd_orthogonal</span><span class="p">(</span><span class="n">cwcs</span><span class="o">.</span><span class="n">pixel_scale_matrix</span><span class="p">,</span> <span class="n">maxerr</span><span class="p">)</span> <span class="ow">or</span>
+            <span class="n">_has_distortion</span><span class="p">(</span><span class="n">cwcs</span><span class="p">))</span></div>
+
+
+<span class="k">def</span> <span class="nf">_is_cd_orthogonal</span><span class="p">(</span><span class="n">cd</span><span class="p">,</span> <span class="n">maxerr</span><span class="p">):</span>
+    <span class="n">shape</span> <span class="o">=</span> <span class="n">cd</span><span class="o">.</span><span class="n">shape</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">shape</span><span class="p">)</span> <span class="o">==</span> <span class="mi">2</span> <span class="ow">and</span> <span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">==</span> <span class="n">shape</span><span class="p">[</span><span class="mi">1</span><span class="p">]):</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;CD (or PC) matrix must be a 2D square matrix.&quot;</span><span class="p">)</span>
+
+    <span class="n">pixarea</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">abs</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">linalg</span><span class="o">.</span><span class="n">det</span><span class="p">(</span><span class="n">cd</span><span class="p">))</span>
+    <span class="k">if</span> <span class="p">(</span><span class="n">pixarea</span> <span class="o">==</span> <span class="mf">0.0</span><span class="p">):</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;CD (or PC) matrix is singular.&quot;</span><span class="p">)</span>
+
+    <span class="c1"># NOTE: Technically, below we should use np.dot(cd, np.conjugate(cd.T))</span>
+    <span class="c1"># However, I am not aware of complex CD/PC matrices...</span>
+    <span class="n">I</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">dot</span><span class="p">(</span><span class="n">cd</span><span class="p">,</span> <span class="n">cd</span><span class="o">.</span><span class="n">T</span><span class="p">)</span> <span class="o">/</span> <span class="n">pixarea</span>
+    <span class="n">cd_unitary_err</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">amax</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">abs</span><span class="p">(</span><span class="n">I</span> <span class="o">-</span> <span class="n">np</span><span class="o">.</span><span class="n">eye</span><span class="p">(</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">])))</span>
+
+    <span class="k">return</span> <span class="p">(</span><span class="n">cd_unitary_err</span> <span class="o">&lt;</span> <span class="n">maxerr</span><span class="p">)</span>
+
+
+<div class="viewcode-block" id="non_celestial_pixel_scales"><a class="viewcode-back" href="../../../api/astropy.wcs.utils.non_celestial_pixel_scales.html#astropy.wcs.utils.non_celestial_pixel_scales">[docs]</a><span class="k">def</span> <span class="nf">non_celestial_pixel_scales</span><span class="p">(</span><span class="n">inwcs</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Calculate the pixel scale along each axis of a non-celestial WCS,</span>
+<span class="sd">    for example one with mixed spectral and spatial axes.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    inwcs : `~astropy.wcs.WCS`</span>
+<span class="sd">        The world coordinate system object.</span>
+
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+<span class="sd">    scale : `numpy.ndarray`</span>
+<span class="sd">        The pixel scale along each axis.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="k">if</span> <span class="n">inwcs</span><span class="o">.</span><span class="n">is_celestial</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;WCS is celestial, use celestial_pixel_scales instead&quot;</span><span class="p">)</span>
+
+    <span class="n">pccd</span> <span class="o">=</span> <span class="n">inwcs</span><span class="o">.</span><span class="n">pixel_scale_matrix</span>
+
+    <span class="k">if</span> <span class="n">np</span><span class="o">.</span><span class="n">allclose</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">extract</span><span class="p">(</span><span class="mi">1</span><span class="o">-</span><span class="n">np</span><span class="o">.</span><span class="n">eye</span><span class="p">(</span><span class="o">*</span><span class="n">pccd</span><span class="o">.</span><span class="n">shape</span><span class="p">),</span> <span class="n">pccd</span><span class="p">),</span> <span class="mi">0</span><span class="p">):</span>
+        <span class="k">return</span> <span class="n">np</span><span class="o">.</span><span class="n">abs</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">diagonal</span><span class="p">(</span><span class="n">pccd</span><span class="p">))</span><span class="o">*</span><span class="n">u</span><span class="o">.</span><span class="n">deg</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;WCS is rotated, cannot determine consistent pixel scales&quot;</span><span class="p">)</span></div>
+
+
+<span class="k">def</span> <span class="nf">_has_distortion</span><span class="p">(</span><span class="n">wcs</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    `True` if contains any SIP or image distortion components.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">return</span> <span class="nb">any</span><span class="p">(</span><span class="nb">getattr</span><span class="p">(</span><span class="n">wcs</span><span class="p">,</span> <span class="n">dist_attr</span><span class="p">)</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span>
+               <span class="k">for</span> <span class="n">dist_attr</span> <span class="ow">in</span> <span class="p">[</span><span class="s1">&#39;cpdis1&#39;</span><span class="p">,</span> <span class="s1">&#39;cpdis2&#39;</span><span class="p">,</span> <span class="s1">&#39;det2im1&#39;</span><span class="p">,</span> <span class="s1">&#39;det2im2&#39;</span><span class="p">,</span> <span class="s1">&#39;sip&#39;</span><span class="p">])</span>
+
+
+<span class="c1"># TODO: in future, we should think about how the following two functions can be</span>
+<span class="c1"># integrated better into the WCS class.</span>
+
+<div class="viewcode-block" id="skycoord_to_pixel"><a class="viewcode-back" href="../../../api/astropy.wcs.utils.skycoord_to_pixel.html#astropy.wcs.utils.skycoord_to_pixel">[docs]</a><span class="k">def</span> <span class="nf">skycoord_to_pixel</span><span class="p">(</span><span class="n">coords</span><span class="p">,</span> <span class="n">wcs</span><span class="p">,</span> <span class="n">origin</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span> <span class="n">mode</span><span class="o">=</span><span class="s1">&#39;all&#39;</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Convert a set of SkyCoord coordinates into pixels.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    coords : `~astropy.coordinates.SkyCoord`</span>
+<span class="sd">        The coordinates to convert.</span>
+<span class="sd">    wcs : `~astropy.wcs.WCS`</span>
+<span class="sd">        The WCS transformation to use.</span>
+<span class="sd">    origin : int</span>
+<span class="sd">        Whether to return 0 or 1-based pixel coordinates.</span>
+<span class="sd">    mode : &#39;all&#39; or &#39;wcs&#39;</span>
+<span class="sd">        Whether to do the transformation including distortions (``&#39;all&#39;``) or</span>
+<span class="sd">        only including only the core WCS transformation (``&#39;wcs&#39;``).</span>
+
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+<span class="sd">    xp, yp : `numpy.ndarray`</span>
+<span class="sd">        The pixel coordinates</span>
+
+<span class="sd">    See Also</span>
+<span class="sd">    --------</span>
+<span class="sd">    astropy.coordinates.SkyCoord.from_pixel</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="kn">from</span> <span class="nn">..</span> <span class="k">import</span> <span class="n">units</span> <span class="k">as</span> <span class="n">u</span>
+    <span class="kn">from</span> <span class="nn">.</span> <span class="k">import</span> <span class="n">WCSSUB_CELESTIAL</span>
+
+    <span class="k">if</span> <span class="n">_has_distortion</span><span class="p">(</span><span class="n">wcs</span><span class="p">)</span> <span class="ow">and</span> <span class="n">wcs</span><span class="o">.</span><span class="n">naxis</span> <span class="o">!=</span> <span class="mi">2</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;Can only handle WCS with distortions for 2-dimensional WCS&quot;</span><span class="p">)</span>
+
+    <span class="c1"># Keep only the celestial part of the axes, also re-orders lon/lat</span>
+    <span class="n">wcs</span> <span class="o">=</span> <span class="n">wcs</span><span class="o">.</span><span class="n">sub</span><span class="p">([</span><span class="n">WCSSUB_CELESTIAL</span><span class="p">])</span>
+
+    <span class="k">if</span> <span class="n">wcs</span><span class="o">.</span><span class="n">naxis</span> <span class="o">!=</span> <span class="mi">2</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;WCS should contain celestial component&quot;</span><span class="p">)</span>
+
+    <span class="c1"># Check which frame the WCS uses</span>
+    <span class="n">frame</span> <span class="o">=</span> <span class="n">wcs_to_celestial_frame</span><span class="p">(</span><span class="n">wcs</span><span class="p">)</span>
+
+    <span class="c1"># Check what unit the WCS needs</span>
+    <span class="n">xw_unit</span> <span class="o">=</span> <span class="n">u</span><span class="o">.</span><span class="n">Unit</span><span class="p">(</span><span class="n">wcs</span><span class="o">.</span><span class="n">wcs</span><span class="o">.</span><span class="n">cunit</span><span class="p">[</span><span class="mi">0</span><span class="p">])</span>
+    <span class="n">yw_unit</span> <span class="o">=</span> <span class="n">u</span><span class="o">.</span><span class="n">Unit</span><span class="p">(</span><span class="n">wcs</span><span class="o">.</span><span class="n">wcs</span><span class="o">.</span><span class="n">cunit</span><span class="p">[</span><span class="mi">1</span><span class="p">])</span>
+
+    <span class="c1"># Convert positions to frame</span>
+    <span class="n">coords</span> <span class="o">=</span> <span class="n">coords</span><span class="o">.</span><span class="n">transform_to</span><span class="p">(</span><span class="n">frame</span><span class="p">)</span>
+
+    <span class="c1"># Extract longitude and latitude. We first try and use lon/lat directly,</span>
+    <span class="c1"># but if the representation is not spherical or unit spherical this will</span>
+    <span class="c1"># fail. We should then force the use of the unit spherical</span>
+    <span class="c1"># representation. We don&#39;t do that directly to make sure that we preserve</span>
+    <span class="c1"># custom lon/lat representations if available.</span>
+    <span class="k">try</span><span class="p">:</span>
+        <span class="n">lon</span> <span class="o">=</span> <span class="n">coords</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">lon</span><span class="o">.</span><span class="n">to</span><span class="p">(</span><span class="n">xw_unit</span><span class="p">)</span>
+        <span class="n">lat</span> <span class="o">=</span> <span class="n">coords</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">lat</span><span class="o">.</span><span class="n">to</span><span class="p">(</span><span class="n">yw_unit</span><span class="p">)</span>
+    <span class="k">except</span> <span class="ne">AttributeError</span><span class="p">:</span>
+        <span class="n">lon</span> <span class="o">=</span> <span class="n">coords</span><span class="o">.</span><span class="n">spherical</span><span class="o">.</span><span class="n">lon</span><span class="o">.</span><span class="n">to</span><span class="p">(</span><span class="n">xw_unit</span><span class="p">)</span>
+        <span class="n">lat</span> <span class="o">=</span> <span class="n">coords</span><span class="o">.</span><span class="n">spherical</span><span class="o">.</span><span class="n">lat</span><span class="o">.</span><span class="n">to</span><span class="p">(</span><span class="n">yw_unit</span><span class="p">)</span>
+
+    <span class="c1"># Convert to pixel coordinates</span>
+    <span class="k">if</span> <span class="n">mode</span> <span class="o">==</span> <span class="s1">&#39;all&#39;</span><span class="p">:</span>
+        <span class="n">xp</span><span class="p">,</span> <span class="n">yp</span> <span class="o">=</span> <span class="n">wcs</span><span class="o">.</span><span class="n">all_world2pix</span><span class="p">(</span><span class="n">lon</span><span class="o">.</span><span class="n">value</span><span class="p">,</span> <span class="n">lat</span><span class="o">.</span><span class="n">value</span><span class="p">,</span> <span class="n">origin</span><span class="p">)</span>
+    <span class="k">elif</span> <span class="n">mode</span> <span class="o">==</span> <span class="s1">&#39;wcs&#39;</span><span class="p">:</span>
+        <span class="n">xp</span><span class="p">,</span> <span class="n">yp</span> <span class="o">=</span> <span class="n">wcs</span><span class="o">.</span><span class="n">wcs_world2pix</span><span class="p">(</span><span class="n">lon</span><span class="o">.</span><span class="n">value</span><span class="p">,</span> <span class="n">lat</span><span class="o">.</span><span class="n">value</span><span class="p">,</span> <span class="n">origin</span><span class="p">)</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;mode should be either &#39;all&#39; or &#39;wcs&#39;&quot;</span><span class="p">)</span>
+
+    <span class="k">return</span> <span class="n">xp</span><span class="p">,</span> <span class="n">yp</span></div>
+
+
+<div class="viewcode-block" id="pixel_to_skycoord"><a class="viewcode-back" href="../../../api/astropy.wcs.utils.pixel_to_skycoord.html#astropy.wcs.utils.pixel_to_skycoord">[docs]</a><span class="k">def</span> <span class="nf">pixel_to_skycoord</span><span class="p">(</span><span class="n">xp</span><span class="p">,</span> <span class="n">yp</span><span class="p">,</span> <span class="n">wcs</span><span class="p">,</span> <span class="n">origin</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span> <span class="n">mode</span><span class="o">=</span><span class="s1">&#39;all&#39;</span><span class="p">,</span> <span class="n">cls</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Convert a set of pixel coordinates into a `~astropy.coordinates.SkyCoord`</span>
+<span class="sd">    coordinate.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    xp, yp : float or `numpy.ndarray`</span>
+<span class="sd">        The coordinates to convert.</span>
+<span class="sd">    wcs : `~astropy.wcs.WCS`</span>
+<span class="sd">        The WCS transformation to use.</span>
+<span class="sd">    origin : int</span>
+<span class="sd">        Whether to return 0 or 1-based pixel coordinates.</span>
+<span class="sd">    mode : &#39;all&#39; or &#39;wcs&#39;</span>
+<span class="sd">        Whether to do the transformation including distortions (``&#39;all&#39;``) or</span>
+<span class="sd">        only including only the core WCS transformation (``&#39;wcs&#39;``).</span>
+<span class="sd">    cls : class or None</span>
+<span class="sd">        The class of object to create.  Should be a</span>
+<span class="sd">        `~astropy.coordinates.SkyCoord` subclass.  If None, defaults to</span>
+<span class="sd">        `~astropy.coordinates.SkyCoord`.</span>
+
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+<span class="sd">    coords : Whatever ``cls`` is (a subclass of `~astropy.coordinates.SkyCoord`)</span>
+<span class="sd">        The celestial coordinates</span>
+
+<span class="sd">    See Also</span>
+<span class="sd">    --------</span>
+<span class="sd">    astropy.coordinates.SkyCoord.from_pixel</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="kn">from</span> <span class="nn">..</span> <span class="k">import</span> <span class="n">units</span> <span class="k">as</span> <span class="n">u</span>
+    <span class="kn">from</span> <span class="nn">.</span> <span class="k">import</span> <span class="n">WCSSUB_CELESTIAL</span>
+    <span class="kn">from</span> <span class="nn">..coordinates</span> <span class="k">import</span> <span class="n">SkyCoord</span><span class="p">,</span> <span class="n">UnitSphericalRepresentation</span>
+
+    <span class="c1"># we have to do this instead of actually setting the default to SkyCoord</span>
+    <span class="c1"># because importing SkyCoord at the module-level leads to circular</span>
+    <span class="c1"># dependencies.</span>
+    <span class="k">if</span> <span class="n">cls</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="n">cls</span> <span class="o">=</span> <span class="n">SkyCoord</span>
+
+    <span class="k">if</span> <span class="n">_has_distortion</span><span class="p">(</span><span class="n">wcs</span><span class="p">)</span> <span class="ow">and</span> <span class="n">wcs</span><span class="o">.</span><span class="n">naxis</span> <span class="o">!=</span> <span class="mi">2</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;Can only handle WCS with distortions for 2-dimensional WCS&quot;</span><span class="p">)</span>
+
+    <span class="c1"># Keep only the celestial part of the axes, also re-orders lon/lat</span>
+    <span class="n">wcs</span> <span class="o">=</span> <span class="n">wcs</span><span class="o">.</span><span class="n">sub</span><span class="p">([</span><span class="n">WCSSUB_CELESTIAL</span><span class="p">])</span>
+
+    <span class="k">if</span> <span class="n">wcs</span><span class="o">.</span><span class="n">naxis</span> <span class="o">!=</span> <span class="mi">2</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;WCS should contain celestial component&quot;</span><span class="p">)</span>
+
+    <span class="c1"># Check which frame the WCS uses</span>
+    <span class="n">frame</span> <span class="o">=</span> <span class="n">wcs_to_celestial_frame</span><span class="p">(</span><span class="n">wcs</span><span class="p">)</span>
+
+    <span class="c1"># Check what unit the WCS gives</span>
+    <span class="n">lon_unit</span> <span class="o">=</span> <span class="n">u</span><span class="o">.</span><span class="n">Unit</span><span class="p">(</span><span class="n">wcs</span><span class="o">.</span><span class="n">wcs</span><span class="o">.</span><span class="n">cunit</span><span class="p">[</span><span class="mi">0</span><span class="p">])</span>
+    <span class="n">lat_unit</span> <span class="o">=</span> <span class="n">u</span><span class="o">.</span><span class="n">Unit</span><span class="p">(</span><span class="n">wcs</span><span class="o">.</span><span class="n">wcs</span><span class="o">.</span><span class="n">cunit</span><span class="p">[</span><span class="mi">1</span><span class="p">])</span>
+
+    <span class="c1"># Convert pixel coordinates to celestial coordinates</span>
+    <span class="k">if</span> <span class="n">mode</span> <span class="o">==</span> <span class="s1">&#39;all&#39;</span><span class="p">:</span>
+        <span class="n">lon</span><span class="p">,</span> <span class="n">lat</span> <span class="o">=</span> <span class="n">wcs</span><span class="o">.</span><span class="n">all_pix2world</span><span class="p">(</span><span class="n">xp</span><span class="p">,</span> <span class="n">yp</span><span class="p">,</span> <span class="n">origin</span><span class="p">)</span>
+    <span class="k">elif</span> <span class="n">mode</span> <span class="o">==</span> <span class="s1">&#39;wcs&#39;</span><span class="p">:</span>
+        <span class="n">lon</span><span class="p">,</span> <span class="n">lat</span> <span class="o">=</span> <span class="n">wcs</span><span class="o">.</span><span class="n">wcs_pix2world</span><span class="p">(</span><span class="n">xp</span><span class="p">,</span> <span class="n">yp</span><span class="p">,</span> <span class="n">origin</span><span class="p">)</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;mode should be either &#39;all&#39; or &#39;wcs&#39;&quot;</span><span class="p">)</span>
+
+    <span class="c1"># Add units to longitude/latitude</span>
+    <span class="n">lon</span> <span class="o">=</span> <span class="n">lon</span> <span class="o">*</span> <span class="n">lon_unit</span>
+    <span class="n">lat</span> <span class="o">=</span> <span class="n">lat</span> <span class="o">*</span> <span class="n">lat_unit</span>
+
+    <span class="c1"># Create a SkyCoord-like object</span>
+    <span class="n">data</span> <span class="o">=</span> <span class="n">UnitSphericalRepresentation</span><span class="p">(</span><span class="n">lon</span><span class="o">=</span><span class="n">lon</span><span class="p">,</span> <span class="n">lat</span><span class="o">=</span><span class="n">lat</span><span class="p">)</span>
+    <span class="n">coords</span> <span class="o">=</span> <span class="n">cls</span><span class="p">(</span><span class="n">frame</span><span class="o">.</span><span class="n">realize_frame</span><span class="p">(</span><span class="n">data</span><span class="p">))</span>
+
+    <span class="k">return</span> <span class="n">coords</span></div>
+</pre></div>
+
+          </div>
+        </div>
+      </div>
+      <div class="sphinxsidebar" role="navigation" aria-label="main navigation">
+        <div class="sphinxsidebarwrapper"><h3>Page Contents</h3>
+
+
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+<footer class="footer">
+  <p class="pull-right"> &nbsp;
+    <a href="#">Back to Top</a></p>
+  <p>
+    &copy; Copyright 2011-2016, The Astropy Developers.<br/>
+    Created using <a href="http://sphinx.pocoo.org/">Sphinx</a> 1.5.6. &nbsp;
+    Last built 05 Jul 2017. <br/>
+  </p>
+</footer>
+  </body>
+</html>

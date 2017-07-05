@@ -1,0 +1,193 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <head>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    
+    <title>astropy.visualization.wcsaxes.patches &#8212; Astropy v3.0.dev19489</title>
+    
+    <link rel="stylesheet" href="../../../../_static/bootstrap-astropy.css" type="text/css" />
+    <link rel="stylesheet" href="../../../../_static/pygments.css" type="text/css" />
+    <link rel="stylesheet" href="../../../../_static/gallery.css" type="text/css" />
+    
+    <script type="text/javascript">
+      var DOCUMENTATION_OPTIONS = {
+        URL_ROOT:    '../../../../',
+        VERSION:     '3.0.dev19489',
+        COLLAPSE_INDEX: false,
+        FILE_SUFFIX: '.html',
+        HAS_SOURCE:  true,
+        SOURCELINK_SUFFIX: '.txt'
+      };
+    </script>
+    <script type="text/javascript" src="../../../../_static/jquery.js"></script>
+    <script type="text/javascript" src="../../../../_static/underscore.js"></script>
+    <script type="text/javascript" src="../../../../_static/doctools.js"></script>
+    <script type="text/javascript" src="../../../../_static/sidebar.js"></script>
+    <link rel="shortcut icon" href="../../../../_static/astropy_logo.ico"/>
+    <link rel="index" title="Index" href="../../../../genindex.html" />
+    <link rel="search" title="Search" href="../../../../search.html" />
+<link href='https://fonts.googleapis.com/css?family=Source+Sans+Pro:200,600' rel='stylesheet' type='text/css'/>
+<script type="text/javascript" src="../../../../_static/copybutton.js"></script>
+
+
+  </head>
+  <body role="document">
+<div class="topbar">
+  <a class="brand" title="Documentation Home" href="../../../../index.html"><span id="logotext1">astro</span><span id="logotext2">py</span><span id="logotext3">:docs</span></a>
+  <ul>
+    <li><a class="homelink" title="Astropy Homepage" href="http://www.astropy.org"></a></li>
+    <li><a title="General Index" href="../../../../genindex.html">Index</a></li>
+    <li><a title="Module Index" href="../../../../py-modindex.html">Modules</a></li>
+    <li>
+      
+      
+<form action="../../../../search.html" method="get">
+  <input type="text" name="q" placeholder="Search" />
+  <input type="hidden" name="check_keywords" value="yes" />
+  <input type="hidden" name="area" value="default" />
+</form>
+      
+    </li>
+  </ul>
+</div>
+
+<div class="related">
+    <h3>Navigation</h3>
+    <ul>
+      <li>
+	<a href="../../../../index.html">Astropy v3.0.dev19489</a>
+	 &#187;
+      </li>
+      <li><a href="../../../index.html" >Module code</a> &#187;</li>
+      <li><a href="../../../astropy.html" >astropy</a> &#187;</li>
+      <li><a href="../wcsaxes.html" accesskey="U">astropy.visualization.wcsaxes</a> &#187;</li>
+      
+       
+    </ul>
+</div>
+  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          <div class="body" role="main">
+            
+  <h1>Source code for astropy.visualization.wcsaxes.patches</h1><div class="highlight"><pre>
+<span></span><span class="c1"># Licensed under a 3-clause BSD style license - see LICENSE.rst</span>
+
+<span class="kn">from</span> <span class="nn">__future__</span> <span class="k">import</span> <span class="n">print_function</span><span class="p">,</span> <span class="n">division</span><span class="p">,</span> <span class="n">absolute_import</span>
+
+<span class="kn">import</span> <span class="nn">numpy</span> <span class="k">as</span> <span class="nn">np</span>
+<span class="kn">from</span> <span class="nn">matplotlib.patches</span> <span class="k">import</span> <span class="n">Polygon</span>
+
+<span class="kn">from</span> <span class="nn">...</span> <span class="k">import</span> <span class="n">units</span> <span class="k">as</span> <span class="n">u</span>
+<span class="kn">from</span> <span class="nn">...coordinates.representation</span> <span class="k">import</span> <span class="n">UnitSphericalRepresentation</span>
+<span class="kn">from</span> <span class="nn">...coordinates.matrix_utilities</span> <span class="k">import</span> <span class="n">rotation_matrix</span><span class="p">,</span> <span class="n">matrix_product</span>
+
+
+<span class="n">__all__</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;SphericalCircle&#39;</span><span class="p">]</span>
+
+
+<span class="k">def</span> <span class="nf">_rotate_polygon</span><span class="p">(</span><span class="n">lon</span><span class="p">,</span> <span class="n">lat</span><span class="p">,</span> <span class="n">lon0</span><span class="p">,</span> <span class="n">lat0</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Given a polygon with vertices defined by (lon, lat), rotate the polygon</span>
+<span class="sd">    such that the North pole of the spherical coordinates is now at (lon0,</span>
+<span class="sd">    lat0). Therefore, to end up with a polygon centered on (lon0, lat0), the</span>
+<span class="sd">    polygon should initially be drawn around the North pole.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="c1"># Create a representation object</span>
+    <span class="n">polygon</span> <span class="o">=</span> <span class="n">UnitSphericalRepresentation</span><span class="p">(</span><span class="n">lon</span><span class="o">=</span><span class="n">lon</span><span class="p">,</span> <span class="n">lat</span><span class="o">=</span><span class="n">lat</span><span class="p">)</span>
+
+    <span class="c1"># Determine rotation matrix to make it so that the circle is centered</span>
+    <span class="c1"># on the correct longitude/latitude.</span>
+    <span class="n">m1</span> <span class="o">=</span> <span class="n">rotation_matrix</span><span class="p">(</span><span class="o">-</span><span class="p">(</span><span class="mf">0.5</span> <span class="o">*</span> <span class="n">np</span><span class="o">.</span><span class="n">pi</span> <span class="o">*</span> <span class="n">u</span><span class="o">.</span><span class="n">radian</span> <span class="o">-</span> <span class="n">lat0</span><span class="p">),</span> <span class="n">axis</span><span class="o">=</span><span class="s1">&#39;y&#39;</span><span class="p">)</span>
+    <span class="n">m2</span> <span class="o">=</span> <span class="n">rotation_matrix</span><span class="p">(</span><span class="o">-</span><span class="n">lon0</span><span class="p">,</span> <span class="n">axis</span><span class="o">=</span><span class="s1">&#39;z&#39;</span><span class="p">)</span>
+    <span class="n">transform_matrix</span> <span class="o">=</span> <span class="n">matrix_product</span><span class="p">(</span><span class="n">m2</span><span class="p">,</span> <span class="n">m1</span><span class="p">)</span>
+
+    <span class="c1"># Apply 3D rotation</span>
+    <span class="n">polygon</span> <span class="o">=</span> <span class="n">polygon</span><span class="o">.</span><span class="n">to_cartesian</span><span class="p">()</span>
+    <span class="n">polygon</span> <span class="o">=</span> <span class="n">polygon</span><span class="o">.</span><span class="n">transform</span><span class="p">(</span><span class="n">transform_matrix</span><span class="p">)</span>
+    <span class="n">polygon</span> <span class="o">=</span> <span class="n">UnitSphericalRepresentation</span><span class="o">.</span><span class="n">from_cartesian</span><span class="p">(</span><span class="n">polygon</span><span class="p">)</span>
+
+    <span class="k">return</span> <span class="n">polygon</span><span class="o">.</span><span class="n">lon</span><span class="p">,</span> <span class="n">polygon</span><span class="o">.</span><span class="n">lat</span>
+
+
+<div class="viewcode-block" id="SphericalCircle"><a class="viewcode-back" href="../../../../api/astropy.visualization.wcsaxes.SphericalCircle.html#astropy.visualization.wcsaxes.SphericalCircle">[docs]</a><span class="k">class</span> <span class="nc">SphericalCircle</span><span class="p">(</span><span class="n">Polygon</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Create a patch representing a spherical circle - that is, a circle that is</span>
+<span class="sd">    formed of all the points that are within a certain angle of the central</span>
+<span class="sd">    coordinates on a sphere. Here we assume that latitude goes from -90 to +90</span>
+
+<span class="sd">    This class is needed in cases where the user wants to add a circular patch</span>
+<span class="sd">    to a celestial image, since otherwise the circle will be distorted, because</span>
+<span class="sd">    a fixed interval in longitude corresponds to a different angle on the sky</span>
+<span class="sd">    depending on the latitude.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    center : tuple or `~astropy.units.Quantity`</span>
+<span class="sd">        This can be either a tuple of two `~astropy.units.Quantity` objects, or</span>
+<span class="sd">        a single `~astropy.units.Quantity` array with two elements.</span>
+<span class="sd">    radius : `~astropy.units.Quantity`</span>
+<span class="sd">        The radius of the circle</span>
+<span class="sd">    resolution : int, optional</span>
+<span class="sd">        The number of points that make up the circle - increase this to get a</span>
+<span class="sd">        smoother circle.</span>
+<span class="sd">    vertex_unit : `~astropy.units.Unit`</span>
+<span class="sd">        The units in which the resulting polygon should be defined - this</span>
+<span class="sd">        should match the unit that the transformation (e.g. the WCS</span>
+<span class="sd">        transformation) expects as input.</span>
+
+<span class="sd">    Notes</span>
+<span class="sd">    -----</span>
+<span class="sd">    Additional keyword arguments are passed to `~matplotlib.patches.Polygon`</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">center</span><span class="p">,</span> <span class="n">radius</span><span class="p">,</span> <span class="n">resolution</span><span class="o">=</span><span class="mi">100</span><span class="p">,</span> <span class="n">vertex_unit</span><span class="o">=</span><span class="n">u</span><span class="o">.</span><span class="n">degree</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+
+        <span class="c1"># Extract longitude/latitude, either from a tuple of two quantities, or</span>
+        <span class="c1"># a single 2-element Quantity.</span>
+        <span class="n">longitude</span><span class="p">,</span> <span class="n">latitude</span> <span class="o">=</span> <span class="n">center</span>
+
+        <span class="c1"># Start off by generating the circle around the North pole</span>
+        <span class="n">lon</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">linspace</span><span class="p">(</span><span class="mf">0.</span><span class="p">,</span> <span class="mi">2</span> <span class="o">*</span> <span class="n">np</span><span class="o">.</span><span class="n">pi</span><span class="p">,</span> <span class="n">resolution</span> <span class="o">+</span> <span class="mi">1</span><span class="p">)[:</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span> <span class="o">*</span> <span class="n">u</span><span class="o">.</span><span class="n">radian</span>
+        <span class="n">lat</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">repeat</span><span class="p">(</span><span class="mf">0.5</span> <span class="o">*</span> <span class="n">np</span><span class="o">.</span><span class="n">pi</span> <span class="o">-</span> <span class="n">radius</span><span class="o">.</span><span class="n">to_value</span><span class="p">(</span><span class="n">u</span><span class="o">.</span><span class="n">radian</span><span class="p">),</span> <span class="n">resolution</span><span class="p">)</span> <span class="o">*</span> <span class="n">u</span><span class="o">.</span><span class="n">radian</span>
+
+        <span class="n">lon</span><span class="p">,</span> <span class="n">lat</span> <span class="o">=</span> <span class="n">_rotate_polygon</span><span class="p">(</span><span class="n">lon</span><span class="p">,</span> <span class="n">lat</span><span class="p">,</span> <span class="n">longitude</span><span class="p">,</span> <span class="n">latitude</span><span class="p">)</span>
+
+        <span class="c1"># Extract new longitude/latitude in the requested units</span>
+        <span class="n">lon</span> <span class="o">=</span> <span class="n">lon</span><span class="o">.</span><span class="n">to_value</span><span class="p">(</span><span class="n">vertex_unit</span><span class="p">)</span>
+        <span class="n">lat</span> <span class="o">=</span> <span class="n">lat</span><span class="o">.</span><span class="n">to_value</span><span class="p">(</span><span class="n">vertex_unit</span><span class="p">)</span>
+
+        <span class="c1"># Create polygon vertices</span>
+        <span class="n">vertices</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">([</span><span class="n">lon</span><span class="p">,</span> <span class="n">lat</span><span class="p">])</span><span class="o">.</span><span class="n">transpose</span><span class="p">()</span>
+
+        <span class="nb">super</span><span class="p">(</span><span class="n">SphericalCircle</span><span class="p">,</span> <span class="bp">self</span><span class="p">)</span><span class="o">.</span><span class="n">__init__</span><span class="p">(</span><span class="n">vertices</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span></div>
+</pre></div>
+
+          </div>
+        </div>
+      </div>
+      <div class="sphinxsidebar" role="navigation" aria-label="main navigation">
+        <div class="sphinxsidebarwrapper"><h3>Page Contents</h3>
+
+
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+<footer class="footer">
+  <p class="pull-right"> &nbsp;
+    <a href="#">Back to Top</a></p>
+  <p>
+    &copy; Copyright 2011-2016, The Astropy Developers.<br/>
+    Created using <a href="http://sphinx.pocoo.org/">Sphinx</a> 1.5.6. &nbsp;
+    Last built 05 Jul 2017. <br/>
+  </p>
+</footer>
+  </body>
+</html>

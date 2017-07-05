@@ -1,0 +1,545 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <head>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    
+    <title>astropy.io.ascii.latex &#8212; Astropy v3.0.dev19489</title>
+    
+    <link rel="stylesheet" href="../../../../_static/bootstrap-astropy.css" type="text/css" />
+    <link rel="stylesheet" href="../../../../_static/pygments.css" type="text/css" />
+    <link rel="stylesheet" href="../../../../_static/gallery.css" type="text/css" />
+    
+    <script type="text/javascript">
+      var DOCUMENTATION_OPTIONS = {
+        URL_ROOT:    '../../../../',
+        VERSION:     '3.0.dev19489',
+        COLLAPSE_INDEX: false,
+        FILE_SUFFIX: '.html',
+        HAS_SOURCE:  true,
+        SOURCELINK_SUFFIX: '.txt'
+      };
+    </script>
+    <script type="text/javascript" src="../../../../_static/jquery.js"></script>
+    <script type="text/javascript" src="../../../../_static/underscore.js"></script>
+    <script type="text/javascript" src="../../../../_static/doctools.js"></script>
+    <script type="text/javascript" src="../../../../_static/sidebar.js"></script>
+    <link rel="shortcut icon" href="../../../../_static/astropy_logo.ico"/>
+    <link rel="index" title="Index" href="../../../../genindex.html" />
+    <link rel="search" title="Search" href="../../../../search.html" />
+<link href='https://fonts.googleapis.com/css?family=Source+Sans+Pro:200,600' rel='stylesheet' type='text/css'/>
+<script type="text/javascript" src="../../../../_static/copybutton.js"></script>
+
+
+  </head>
+  <body role="document">
+<div class="topbar">
+  <a class="brand" title="Documentation Home" href="../../../../index.html"><span id="logotext1">astro</span><span id="logotext2">py</span><span id="logotext3">:docs</span></a>
+  <ul>
+    <li><a class="homelink" title="Astropy Homepage" href="http://www.astropy.org"></a></li>
+    <li><a title="General Index" href="../../../../genindex.html">Index</a></li>
+    <li><a title="Module Index" href="../../../../py-modindex.html">Modules</a></li>
+    <li>
+      
+      
+<form action="../../../../search.html" method="get">
+  <input type="text" name="q" placeholder="Search" />
+  <input type="hidden" name="check_keywords" value="yes" />
+  <input type="hidden" name="area" value="default" />
+</form>
+      
+    </li>
+  </ul>
+</div>
+
+<div class="related">
+    <h3>Navigation</h3>
+    <ul>
+      <li>
+	<a href="../../../../index.html">Astropy v3.0.dev19489</a>
+	 &#187;
+      </li>
+      <li><a href="../../../index.html" >Module code</a> &#187;</li>
+      <li><a href="../../../astropy.html" accesskey="U">astropy</a> &#187;</li>
+      
+       
+    </ul>
+</div>
+  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          <div class="body" role="main">
+            
+  <h1>Source code for astropy.io.ascii.latex</h1><div class="highlight"><pre>
+<span></span><span class="c1"># Licensed under a 3-clause BSD style license - see LICENSE.rst</span>
+<span class="sd">&quot;&quot;&quot;An extensible ASCII table reader and writer.</span>
+
+<span class="sd">latex.py:</span>
+<span class="sd">  Classes to read and write LaTeX tables</span>
+
+<span class="sd">:Copyright: Smithsonian Astrophysical Observatory (2011)</span>
+<span class="sd">:Author: Tom Aldcroft (aldcroft@head.cfa.harvard.edu)</span>
+<span class="sd">&quot;&quot;&quot;</span>
+
+<span class="kn">from</span> <span class="nn">__future__</span> <span class="k">import</span> <span class="n">absolute_import</span><span class="p">,</span> <span class="n">division</span><span class="p">,</span> <span class="n">print_function</span>
+
+<span class="kn">import</span> <span class="nn">re</span>
+
+<span class="kn">from</span> <span class="nn">...extern</span> <span class="k">import</span> <span class="n">six</span>
+<span class="kn">from</span> <span class="nn">...extern.six.moves</span> <span class="k">import</span> <span class="nb">zip</span>
+<span class="kn">from</span> <span class="nn">.</span> <span class="k">import</span> <span class="n">core</span>
+
+<span class="n">latexdicts</span> <span class="o">=</span> <span class="p">{</span><span class="s1">&#39;AA&#39;</span><span class="p">:</span> <span class="p">{</span><span class="s1">&#39;tabletype&#39;</span><span class="p">:</span> <span class="s1">&#39;table&#39;</span><span class="p">,</span>
+                      <span class="s1">&#39;header_start&#39;</span><span class="p">:</span> <span class="s1">r&#39;\hline \hline&#39;</span><span class="p">,</span> <span class="s1">&#39;header_end&#39;</span><span class="p">:</span> <span class="s1">r&#39;\hline&#39;</span><span class="p">,</span>
+                      <span class="s1">&#39;data_end&#39;</span><span class="p">:</span> <span class="s1">r&#39;\hline&#39;</span><span class="p">},</span>
+              <span class="s1">&#39;doublelines&#39;</span><span class="p">:</span> <span class="p">{</span><span class="s1">&#39;tabletype&#39;</span><span class="p">:</span> <span class="s1">&#39;table&#39;</span><span class="p">,</span>
+                              <span class="s1">&#39;header_start&#39;</span><span class="p">:</span> <span class="s1">r&#39;\hline \hline&#39;</span><span class="p">,</span> <span class="s1">&#39;header_end&#39;</span><span class="p">:</span> <span class="s1">r&#39;\hline\hline&#39;</span><span class="p">,</span>
+                              <span class="s1">&#39;data_end&#39;</span><span class="p">:</span> <span class="s1">r&#39;\hline\hline&#39;</span><span class="p">},</span>
+              <span class="s1">&#39;template&#39;</span><span class="p">:</span> <span class="p">{</span><span class="s1">&#39;tabletype&#39;</span><span class="p">:</span> <span class="s1">&#39;tabletype&#39;</span><span class="p">,</span> <span class="s1">&#39;caption&#39;</span><span class="p">:</span> <span class="s1">&#39;caption&#39;</span><span class="p">,</span>
+                           <span class="s1">&#39;tablealign&#39;</span><span class="p">:</span> <span class="s1">&#39;tablealign&#39;</span><span class="p">,</span>
+                           <span class="s1">&#39;col_align&#39;</span><span class="p">:</span> <span class="s1">&#39;col_align&#39;</span><span class="p">,</span> <span class="s1">&#39;preamble&#39;</span><span class="p">:</span> <span class="s1">&#39;preamble&#39;</span><span class="p">,</span>
+                           <span class="s1">&#39;header_start&#39;</span><span class="p">:</span> <span class="s1">&#39;header_start&#39;</span><span class="p">,</span>
+                           <span class="s1">&#39;header_end&#39;</span><span class="p">:</span> <span class="s1">&#39;header_end&#39;</span><span class="p">,</span> <span class="s1">&#39;data_start&#39;</span><span class="p">:</span> <span class="s1">&#39;data_start&#39;</span><span class="p">,</span>
+                           <span class="s1">&#39;data_end&#39;</span><span class="p">:</span> <span class="s1">&#39;data_end&#39;</span><span class="p">,</span> <span class="s1">&#39;tablefoot&#39;</span><span class="p">:</span> <span class="s1">&#39;tablefoot&#39;</span><span class="p">,</span>
+                           <span class="s1">&#39;units&#39;</span><span class="p">:</span> <span class="p">{</span><span class="s1">&#39;col1&#39;</span><span class="p">:</span> <span class="s1">&#39;unit of col1&#39;</span><span class="p">,</span> <span class="s1">&#39;col2&#39;</span><span class="p">:</span> <span class="s1">&#39;unit of col2&#39;</span><span class="p">}}</span>
+              <span class="p">}</span>
+
+
+<span class="n">RE_COMMENT</span> <span class="o">=</span> <span class="n">re</span><span class="o">.</span><span class="n">compile</span><span class="p">(</span><span class="s1">r&#39;(?&lt;!</span><span class="se">\\</span><span class="s1">)%&#39;</span><span class="p">)</span>  <span class="c1"># % character but not \%</span>
+
+
+<span class="k">def</span> <span class="nf">add_dictval_to_list</span><span class="p">(</span><span class="n">adict</span><span class="p">,</span> <span class="n">key</span><span class="p">,</span> <span class="n">alist</span><span class="p">):</span>
+    <span class="sd">&#39;&#39;&#39;</span>
+<span class="sd">    Add a value from a dictionary to a list</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    adict : dictionary</span>
+<span class="sd">    key : hashable</span>
+<span class="sd">    alist : list</span>
+<span class="sd">        List where value should be added</span>
+<span class="sd">    &#39;&#39;&#39;</span>
+    <span class="k">if</span> <span class="n">key</span> <span class="ow">in</span> <span class="n">adict</span><span class="p">:</span>
+        <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">adict</span><span class="p">[</span><span class="n">key</span><span class="p">],</span> <span class="n">six</span><span class="o">.</span><span class="n">string_types</span><span class="p">):</span>
+            <span class="n">alist</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">adict</span><span class="p">[</span><span class="n">key</span><span class="p">])</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">alist</span><span class="o">.</span><span class="n">extend</span><span class="p">(</span><span class="n">adict</span><span class="p">[</span><span class="n">key</span><span class="p">])</span>
+
+
+<span class="k">def</span> <span class="nf">find_latex_line</span><span class="p">(</span><span class="n">lines</span><span class="p">,</span> <span class="n">latex</span><span class="p">):</span>
+    <span class="sd">&#39;&#39;&#39;</span>
+<span class="sd">    Find the first line which matches a patters</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    lines : list</span>
+<span class="sd">        List of strings</span>
+<span class="sd">    latex : str</span>
+<span class="sd">        Search pattern</span>
+
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+<span class="sd">    line_num : int, None</span>
+<span class="sd">        Line number. Returns None, if no match was found</span>
+
+<span class="sd">    &#39;&#39;&#39;</span>
+    <span class="n">re_string</span> <span class="o">=</span> <span class="n">re</span><span class="o">.</span><span class="n">compile</span><span class="p">(</span><span class="n">latex</span><span class="o">.</span><span class="n">replace</span><span class="p">(</span><span class="s1">&#39;</span><span class="se">\\</span><span class="s1">&#39;</span><span class="p">,</span> <span class="s1">&#39;</span><span class="se">\\\\</span><span class="s1">&#39;</span><span class="p">))</span>
+    <span class="k">for</span> <span class="n">i</span><span class="p">,</span> <span class="n">line</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="n">lines</span><span class="p">):</span>
+        <span class="k">if</span> <span class="n">re_string</span><span class="o">.</span><span class="n">match</span><span class="p">(</span><span class="n">line</span><span class="p">):</span>
+            <span class="k">return</span> <span class="n">i</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="k">return</span> <span class="kc">None</span>
+
+
+<span class="k">class</span> <span class="nc">LatexSplitter</span><span class="p">(</span><span class="n">core</span><span class="o">.</span><span class="n">BaseSplitter</span><span class="p">):</span>
+    <span class="sd">&#39;&#39;&#39;Split LaTeX table date. Default delimiter is `&amp;`.</span>
+<span class="sd">    &#39;&#39;&#39;</span>
+    <span class="n">delimiter</span> <span class="o">=</span> <span class="s1">&#39;&amp;&#39;</span>
+
+    <span class="k">def</span> <span class="nf">__call__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">lines</span><span class="p">):</span>
+        <span class="n">last_line</span> <span class="o">=</span> <span class="n">RE_COMMENT</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="n">lines</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">])[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">strip</span><span class="p">()</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">last_line</span><span class="o">.</span><span class="n">endswith</span><span class="p">(</span><span class="s1">r&#39;</span><span class="se">\\</span><span class="s1">&#39;</span><span class="p">):</span>
+            <span class="n">lines</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span> <span class="o">=</span> <span class="n">last_line</span> <span class="o">+</span> <span class="s1">r&#39;</span><span class="se">\\</span><span class="s1">&#39;</span>
+
+        <span class="k">return</span> <span class="nb">super</span><span class="p">(</span><span class="n">LatexSplitter</span><span class="p">,</span> <span class="bp">self</span><span class="p">)</span><span class="o">.</span><span class="n">__call__</span><span class="p">(</span><span class="n">lines</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">process_line</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">line</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Remove whitespace at the beginning or end of line. Also remove</span>
+<span class="sd">        \\ at end of line&quot;&quot;&quot;</span>
+        <span class="n">line</span> <span class="o">=</span> <span class="n">RE_COMMENT</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="n">line</span><span class="p">)[</span><span class="mi">0</span><span class="p">]</span>
+        <span class="n">line</span> <span class="o">=</span> <span class="n">line</span><span class="o">.</span><span class="n">strip</span><span class="p">()</span>
+        <span class="k">if</span> <span class="n">line</span><span class="o">.</span><span class="n">endswith</span><span class="p">(</span><span class="s1">r&#39;</span><span class="se">\\</span><span class="s1">&#39;</span><span class="p">):</span>
+            <span class="n">line</span> <span class="o">=</span> <span class="n">line</span><span class="o">.</span><span class="n">rstrip</span><span class="p">(</span><span class="s1">r&#39;</span><span class="se">\\</span><span class="s1">&#39;</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="n">core</span><span class="o">.</span><span class="n">InconsistentTableError</span><span class="p">(</span><span class="s1">r&#39;Lines in LaTeX table have to end with </span><span class="se">\\</span><span class="s1">&#39;</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">line</span>
+
+    <span class="k">def</span> <span class="nf">process_val</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">val</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Remove whitespace and {} at the beginning or end of value.&quot;&quot;&quot;</span>
+        <span class="n">val</span> <span class="o">=</span> <span class="n">val</span><span class="o">.</span><span class="n">strip</span><span class="p">()</span>
+        <span class="k">if</span> <span class="n">val</span> <span class="ow">and</span> <span class="p">(</span><span class="n">val</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">==</span> <span class="s1">&#39;{&#39;</span><span class="p">)</span> <span class="ow">and</span> <span class="p">(</span><span class="n">val</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span> <span class="o">==</span> <span class="s1">&#39;}&#39;</span><span class="p">):</span>
+            <span class="n">val</span> <span class="o">=</span> <span class="n">val</span><span class="p">[</span><span class="mi">1</span><span class="p">:</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span>
+        <span class="k">return</span> <span class="n">val</span>
+
+    <span class="k">def</span> <span class="nf">join</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">vals</span><span class="p">):</span>
+        <span class="sd">&#39;&#39;&#39;Join values together and add a few extra spaces for readability&#39;&#39;&#39;</span>
+        <span class="n">delimiter</span> <span class="o">=</span> <span class="s1">&#39; &#39;</span> <span class="o">+</span> <span class="bp">self</span><span class="o">.</span><span class="n">delimiter</span> <span class="o">+</span> <span class="s1">&#39; &#39;</span>
+        <span class="k">return</span> <span class="n">delimiter</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">x</span><span class="o">.</span><span class="n">strip</span><span class="p">()</span> <span class="k">for</span> <span class="n">x</span> <span class="ow">in</span> <span class="n">vals</span><span class="p">)</span> <span class="o">+</span> <span class="s1">r&#39; </span><span class="se">\\</span><span class="s1">&#39;</span>
+
+
+<span class="k">class</span> <span class="nc">LatexHeader</span><span class="p">(</span><span class="n">core</span><span class="o">.</span><span class="n">BaseHeader</span><span class="p">):</span>
+    <span class="sd">&#39;&#39;&#39;Class to read the header of Latex Tables&#39;&#39;&#39;</span>
+    <span class="n">header_start</span> <span class="o">=</span> <span class="s1">r&#39;\begin</span><span class="si">{tabular}</span><span class="s1">&#39;</span>
+    <span class="n">splitter_class</span> <span class="o">=</span> <span class="n">LatexSplitter</span>
+
+    <span class="k">def</span> <span class="nf">start_line</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">lines</span><span class="p">):</span>
+        <span class="n">line</span> <span class="o">=</span> <span class="n">find_latex_line</span><span class="p">(</span><span class="n">lines</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">header_start</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">line</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="k">return</span> <span class="n">line</span> <span class="o">+</span> <span class="mi">1</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">return</span> <span class="kc">None</span>
+
+    <span class="k">def</span> <span class="nf">_get_units</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="n">units</span> <span class="o">=</span> <span class="p">{}</span>
+        <span class="n">col_units</span> <span class="o">=</span> <span class="p">[</span><span class="n">col</span><span class="o">.</span><span class="n">info</span><span class="o">.</span><span class="n">unit</span> <span class="k">for</span> <span class="n">col</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">cols</span><span class="p">]</span>
+        <span class="k">for</span> <span class="n">name</span><span class="p">,</span> <span class="n">unit</span> <span class="ow">in</span> <span class="nb">zip</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">colnames</span><span class="p">,</span> <span class="n">col_units</span><span class="p">):</span>
+            <span class="k">if</span> <span class="n">unit</span><span class="p">:</span>
+                <span class="k">try</span><span class="p">:</span>
+                    <span class="n">units</span><span class="p">[</span><span class="n">name</span><span class="p">]</span> <span class="o">=</span> <span class="n">unit</span><span class="o">.</span><span class="n">to_string</span><span class="p">(</span><span class="nb">format</span><span class="o">=</span><span class="s1">&#39;latex_inline&#39;</span><span class="p">)</span>
+                <span class="k">except</span> <span class="ne">AttributeError</span><span class="p">:</span>
+                    <span class="n">units</span><span class="p">[</span><span class="n">name</span><span class="p">]</span> <span class="o">=</span> <span class="n">unit</span>
+        <span class="k">return</span> <span class="n">units</span>
+
+    <span class="k">def</span> <span class="nf">write</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">lines</span><span class="p">):</span>
+        <span class="k">if</span> <span class="s1">&#39;col_align&#39;</span> <span class="ow">not</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">latex</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">latex</span><span class="p">[</span><span class="s1">&#39;col_align&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">cols</span><span class="p">)</span> <span class="o">*</span> <span class="s1">&#39;c&#39;</span>
+        <span class="k">if</span> <span class="s1">&#39;tablealign&#39;</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">latex</span><span class="p">:</span>
+            <span class="n">align</span> <span class="o">=</span> <span class="s1">&#39;[&#39;</span> <span class="o">+</span> <span class="bp">self</span><span class="o">.</span><span class="n">latex</span><span class="p">[</span><span class="s1">&#39;tablealign&#39;</span><span class="p">]</span> <span class="o">+</span> <span class="s1">&#39;]&#39;</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">align</span> <span class="o">=</span> <span class="s1">&#39;&#39;</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">latex</span><span class="p">[</span><span class="s1">&#39;tabletype&#39;</span><span class="p">]</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">lines</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="s1">r&#39;\begin{&#39;</span> <span class="o">+</span> <span class="bp">self</span><span class="o">.</span><span class="n">latex</span><span class="p">[</span><span class="s1">&#39;tabletype&#39;</span><span class="p">]</span> <span class="o">+</span> <span class="s1">r&#39;}&#39;</span> <span class="o">+</span> <span class="n">align</span><span class="p">)</span>
+        <span class="n">add_dictval_to_list</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">latex</span><span class="p">,</span> <span class="s1">&#39;preamble&#39;</span><span class="p">,</span> <span class="n">lines</span><span class="p">)</span>
+        <span class="k">if</span> <span class="s1">&#39;caption&#39;</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">latex</span><span class="p">:</span>
+            <span class="n">lines</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="s1">r&#39;\caption{&#39;</span> <span class="o">+</span> <span class="bp">self</span><span class="o">.</span><span class="n">latex</span><span class="p">[</span><span class="s1">&#39;caption&#39;</span><span class="p">]</span> <span class="o">+</span> <span class="s1">&#39;}&#39;</span><span class="p">)</span>
+        <span class="n">lines</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">header_start</span> <span class="o">+</span> <span class="s1">r&#39;{&#39;</span> <span class="o">+</span> <span class="bp">self</span><span class="o">.</span><span class="n">latex</span><span class="p">[</span><span class="s1">&#39;col_align&#39;</span><span class="p">]</span> <span class="o">+</span> <span class="s1">r&#39;}&#39;</span><span class="p">)</span>
+        <span class="n">add_dictval_to_list</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">latex</span><span class="p">,</span> <span class="s1">&#39;header_start&#39;</span><span class="p">,</span> <span class="n">lines</span><span class="p">)</span>
+        <span class="n">lines</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">splitter</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">colnames</span><span class="p">))</span>
+        <span class="n">units</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_get_units</span><span class="p">()</span>
+        <span class="k">if</span> <span class="s1">&#39;units&#39;</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">latex</span><span class="p">:</span>
+            <span class="n">units</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">latex</span><span class="p">[</span><span class="s1">&#39;units&#39;</span><span class="p">])</span>
+        <span class="k">if</span> <span class="n">units</span><span class="p">:</span>
+            <span class="n">lines</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">splitter</span><span class="o">.</span><span class="n">join</span><span class="p">([</span><span class="n">units</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">name</span><span class="p">,</span> <span class="s1">&#39; &#39;</span><span class="p">)</span> <span class="k">for</span> <span class="n">name</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">colnames</span><span class="p">]))</span>
+        <span class="n">add_dictval_to_list</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">latex</span><span class="p">,</span> <span class="s1">&#39;header_end&#39;</span><span class="p">,</span> <span class="n">lines</span><span class="p">)</span>
+
+
+<span class="k">class</span> <span class="nc">LatexData</span><span class="p">(</span><span class="n">core</span><span class="o">.</span><span class="n">BaseData</span><span class="p">):</span>
+    <span class="sd">&#39;&#39;&#39;Class to read the data in LaTeX tables&#39;&#39;&#39;</span>
+    <span class="n">data_start</span> <span class="o">=</span> <span class="kc">None</span>
+    <span class="n">data_end</span> <span class="o">=</span> <span class="s1">r&#39;\end</span><span class="si">{tabular}</span><span class="s1">&#39;</span>
+    <span class="n">splitter_class</span> <span class="o">=</span> <span class="n">LatexSplitter</span>
+
+    <span class="k">def</span> <span class="nf">start_line</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">lines</span><span class="p">):</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">data_start</span><span class="p">:</span>
+            <span class="k">return</span> <span class="n">find_latex_line</span><span class="p">(</span><span class="n">lines</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">data_start</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">header</span><span class="o">.</span><span class="n">start_line</span><span class="p">(</span><span class="n">lines</span><span class="p">)</span> <span class="o">+</span> <span class="mi">1</span>
+
+    <span class="k">def</span> <span class="nf">end_line</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">lines</span><span class="p">):</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">data_end</span><span class="p">:</span>
+            <span class="k">return</span> <span class="n">find_latex_line</span><span class="p">(</span><span class="n">lines</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">data_end</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">return</span> <span class="kc">None</span>
+
+    <span class="k">def</span> <span class="nf">write</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">lines</span><span class="p">):</span>
+        <span class="n">add_dictval_to_list</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">latex</span><span class="p">,</span> <span class="s1">&#39;data_start&#39;</span><span class="p">,</span> <span class="n">lines</span><span class="p">)</span>
+        <span class="n">core</span><span class="o">.</span><span class="n">BaseData</span><span class="o">.</span><span class="n">write</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">lines</span><span class="p">)</span>
+        <span class="n">add_dictval_to_list</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">latex</span><span class="p">,</span> <span class="s1">&#39;data_end&#39;</span><span class="p">,</span> <span class="n">lines</span><span class="p">)</span>
+        <span class="n">lines</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">data_end</span><span class="p">)</span>
+        <span class="n">add_dictval_to_list</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">latex</span><span class="p">,</span> <span class="s1">&#39;tablefoot&#39;</span><span class="p">,</span> <span class="n">lines</span><span class="p">)</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">latex</span><span class="p">[</span><span class="s1">&#39;tabletype&#39;</span><span class="p">]</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">lines</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="s1">r&#39;\end{&#39;</span> <span class="o">+</span> <span class="bp">self</span><span class="o">.</span><span class="n">latex</span><span class="p">[</span><span class="s1">&#39;tabletype&#39;</span><span class="p">]</span> <span class="o">+</span> <span class="s1">&#39;}&#39;</span><span class="p">)</span>
+
+
+<div class="viewcode-block" id="Latex"><a class="viewcode-back" href="../../../../api/astropy.io.ascii.Latex.html#astropy.io.ascii.Latex">[docs]</a><span class="k">class</span> <span class="nc">Latex</span><span class="p">(</span><span class="n">core</span><span class="o">.</span><span class="n">BaseReader</span><span class="p">):</span>
+    <span class="sd">r&#39;&#39;&#39;Write and read LaTeX tables.</span>
+
+<span class="sd">    This class implements some LaTeX specific commands.  Its main</span>
+<span class="sd">    purpose is to write out a table in a form that LaTeX can compile. It</span>
+<span class="sd">    is beyond the scope of this class to implement every possible LaTeX</span>
+<span class="sd">    command, instead the focus is to generate a syntactically valid</span>
+<span class="sd">    LaTeX tables.</span>
+
+<span class="sd">    This class can also read simple LaTeX tables (one line per table</span>
+<span class="sd">    row, no ``\multicolumn`` or similar constructs), specifically, it</span>
+<span class="sd">    can read the tables that it writes.</span>
+
+<span class="sd">    Reading a LaTeX table, the following keywords are accepted:</span>
+
+<span class="sd">    **ignore_latex_commands** :</span>
+<span class="sd">        Lines starting with these LaTeX commands will be treated as comments (i.e. ignored).</span>
+
+<span class="sd">    When writing a LaTeX table, the some keywords can customize the</span>
+<span class="sd">    format.  Care has to be taken here, because python interprets ``\\``</span>
+<span class="sd">    in a string as an escape character.  In order to pass this to the</span>
+<span class="sd">    output either format your strings as raw strings with the ``r``</span>
+<span class="sd">    specifier or use a double ``\\\\``.</span>
+
+<span class="sd">    Examples::</span>
+
+<span class="sd">        caption = r&#39;My table \label{mytable}&#39;</span>
+<span class="sd">        caption = &#39;My table \\\\label{mytable}&#39;</span>
+
+<span class="sd">    **latexdict** : Dictionary of extra parameters for the LaTeX output</span>
+
+<span class="sd">        * tabletype : used for first and last line of table.</span>
+<span class="sd">            The default is ``\\begin{table}``.  The following would generate a table,</span>
+<span class="sd">            which spans the whole page in a two-column document::</span>
+
+<span class="sd">                ascii.write(data, sys.stdout, Writer = ascii.Latex,</span>
+<span class="sd">                            latexdict = {&#39;tabletype&#39;: &#39;table*&#39;})</span>
+
+<span class="sd">            If ``None``, the table environment will be dropped, keeping only</span>
+<span class="sd">            the ``tabular`` environment.</span>
+
+<span class="sd">        * tablealign : positioning of table in text.</span>
+<span class="sd">            The default is not to specify a position preference in the text.</span>
+<span class="sd">            If, e.g. the alignment is ``ht``, then the LaTeX will be ``\\begin{table}[ht]``.</span>
+
+<span class="sd">        * col_align : Alignment of columns</span>
+<span class="sd">            If not present all columns will be centered.</span>
+
+<span class="sd">        * caption : Table caption (string or list of strings)</span>
+<span class="sd">            This will appear above the table as it is the standard in</span>
+<span class="sd">            many scientific publications.  If you prefer a caption below</span>
+<span class="sd">            the table, just write the full LaTeX command as</span>
+<span class="sd">            ``latexdict[&#39;tablefoot&#39;] = r&#39;\caption{My table}&#39;``</span>
+
+<span class="sd">        * preamble, header_start, header_end, data_start, data_end, tablefoot: Pure LaTeX</span>
+<span class="sd">            Each one can be a string or a list of strings. These strings</span>
+<span class="sd">            will be inserted into the table without any further</span>
+<span class="sd">            processing. See the examples below.</span>
+
+<span class="sd">        * units : dictionary of strings</span>
+<span class="sd">            Keys in this dictionary should be names of columns. If</span>
+<span class="sd">            present, a line in the LaTeX table directly below the column</span>
+<span class="sd">            names is added, which contains the values of the</span>
+<span class="sd">            dictionary. Example::</span>
+
+<span class="sd">              from astropy.io import ascii</span>
+<span class="sd">              data = {&#39;name&#39;: [&#39;bike&#39;, &#39;car&#39;], &#39;mass&#39;: [75,1200], &#39;speed&#39;: [10, 130]}</span>
+<span class="sd">              ascii.write(data, Writer=ascii.Latex,</span>
+<span class="sd">                               latexdict = {&#39;units&#39;: {&#39;mass&#39;: &#39;kg&#39;, &#39;speed&#39;: &#39;km/h&#39;}})</span>
+
+<span class="sd">            If the column has no entry in the ``units`` dictionary, it defaults</span>
+<span class="sd">            to the **unit** attribute of the column. If this attribute is not</span>
+<span class="sd">            specified (i.e. it is None), the unit will be written as ``&#39; &#39;``.</span>
+
+<span class="sd">        Run the following code to see where each element of the</span>
+<span class="sd">        dictionary is inserted in the LaTeX table::</span>
+
+<span class="sd">            from astropy.io import ascii</span>
+<span class="sd">            data = {&#39;cola&#39;: [1,2], &#39;colb&#39;: [3,4]}</span>
+<span class="sd">            ascii.write(data, Writer=ascii.Latex, latexdict=ascii.latex.latexdicts[&#39;template&#39;])</span>
+
+<span class="sd">        Some table styles are predefined in the dictionary</span>
+<span class="sd">        ``ascii.latex.latexdicts``. The following generates in table in</span>
+<span class="sd">        style preferred by A&amp;A and some other journals::</span>
+
+<span class="sd">            ascii.write(data, Writer=ascii.Latex, latexdict=ascii.latex.latexdicts[&#39;AA&#39;])</span>
+
+<span class="sd">        As an example, this generates a table, which spans all columns</span>
+<span class="sd">        and is centered on the page::</span>
+
+<span class="sd">            ascii.write(data, Writer=ascii.Latex, col_align=&#39;|lr|&#39;,</span>
+<span class="sd">                        latexdict={&#39;preamble&#39;: r&#39;\begin{center}&#39;,</span>
+<span class="sd">                                   &#39;tablefoot&#39;: r&#39;\end{center}&#39;,</span>
+<span class="sd">                                   &#39;tabletype&#39;: &#39;table*&#39;})</span>
+
+<span class="sd">    **caption** : Set table caption</span>
+<span class="sd">        Shorthand for::</span>
+
+<span class="sd">            latexdict[&#39;caption&#39;] = caption</span>
+
+<span class="sd">    **col_align** : Set the column alignment.</span>
+<span class="sd">        If not present this will be auto-generated for centered</span>
+<span class="sd">        columns. Shorthand for::</span>
+
+<span class="sd">            latexdict[&#39;col_align&#39;] = col_align</span>
+
+<span class="sd">    &#39;&#39;&#39;</span>
+    <span class="n">_format_name</span> <span class="o">=</span> <span class="s1">&#39;latex&#39;</span>
+    <span class="n">_io_registry_format_aliases</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;latex&#39;</span><span class="p">]</span>
+    <span class="n">_io_registry_suffix</span> <span class="o">=</span> <span class="s1">&#39;.tex&#39;</span>
+    <span class="n">_description</span> <span class="o">=</span> <span class="s1">&#39;LaTeX table&#39;</span>
+
+    <span class="n">header_class</span> <span class="o">=</span> <span class="n">LatexHeader</span>
+    <span class="n">data_class</span> <span class="o">=</span> <span class="n">LatexData</span>
+
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">ignore_latex_commands</span><span class="o">=</span><span class="p">[</span><span class="s1">&#39;hline&#39;</span><span class="p">,</span> <span class="s1">&#39;vspace&#39;</span><span class="p">,</span> <span class="s1">&#39;tableline&#39;</span><span class="p">],</span>
+                 <span class="n">latexdict</span><span class="o">=</span><span class="p">{},</span> <span class="n">caption</span><span class="o">=</span><span class="s1">&#39;&#39;</span><span class="p">,</span> <span class="n">col_align</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+
+        <span class="nb">super</span><span class="p">(</span><span class="n">Latex</span><span class="p">,</span> <span class="bp">self</span><span class="p">)</span><span class="o">.</span><span class="n">__init__</span><span class="p">()</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">latex</span> <span class="o">=</span> <span class="p">{}</span>
+        <span class="c1"># The latex dict drives the format of the table and needs to be shared</span>
+        <span class="c1"># with data and header</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">header</span><span class="o">.</span><span class="n">latex</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">latex</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">latex</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">latex</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">latex</span><span class="p">[</span><span class="s1">&#39;tabletype&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="s1">&#39;table&#39;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">latex</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="n">latexdict</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">caption</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">latex</span><span class="p">[</span><span class="s1">&#39;caption&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">caption</span>
+        <span class="k">if</span> <span class="n">col_align</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">latex</span><span class="p">[</span><span class="s1">&#39;col_align&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">col_align</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">ignore_latex_commands</span> <span class="o">=</span> <span class="n">ignore_latex_commands</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">header</span><span class="o">.</span><span class="n">comment</span> <span class="o">=</span> <span class="s1">&#39;%|&#39;</span> <span class="o">+</span> <span class="s1">&#39;|&#39;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span>
+            <span class="p">[</span><span class="s1">r&#39;</span><span class="se">\\</span><span class="s1">&#39;</span> <span class="o">+</span> <span class="n">command</span> <span class="k">for</span> <span class="n">command</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">ignore_latex_commands</span><span class="p">])</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">comment</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">header</span><span class="o">.</span><span class="n">comment</span>
+
+<div class="viewcode-block" id="Latex.write"><a class="viewcode-back" href="../../../../api/astropy.io.ascii.Latex.html#astropy.io.ascii.Latex.write">[docs]</a>    <span class="k">def</span> <span class="nf">write</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">table</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">header</span><span class="o">.</span><span class="n">start_line</span> <span class="o">=</span> <span class="kc">None</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">start_line</span> <span class="o">=</span> <span class="kc">None</span>
+        <span class="k">return</span> <span class="n">core</span><span class="o">.</span><span class="n">BaseReader</span><span class="o">.</span><span class="n">write</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">table</span><span class="o">=</span><span class="n">table</span><span class="p">)</span></div></div>
+
+
+<span class="k">class</span> <span class="nc">AASTexHeaderSplitter</span><span class="p">(</span><span class="n">LatexSplitter</span><span class="p">):</span>
+    <span class="sd">r&#39;&#39;&#39;Extract column names from a `deluxetable`_.</span>
+
+<span class="sd">    This splitter expects the following LaTeX code **in a single line**:</span>
+
+<span class="sd">        \tablehead{\colhead{col1} &amp; ... &amp; \colhead{coln}}</span>
+<span class="sd">    &#39;&#39;&#39;</span>
+
+    <span class="k">def</span> <span class="nf">__call__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">lines</span><span class="p">):</span>
+        <span class="k">return</span> <span class="nb">super</span><span class="p">(</span><span class="n">LatexSplitter</span><span class="p">,</span> <span class="bp">self</span><span class="p">)</span><span class="o">.</span><span class="n">__call__</span><span class="p">(</span><span class="n">lines</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">process_line</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">line</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;extract column names from tablehead</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">line</span> <span class="o">=</span> <span class="n">line</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="s1">&#39;%&#39;</span><span class="p">)[</span><span class="mi">0</span><span class="p">]</span>
+        <span class="n">line</span> <span class="o">=</span> <span class="n">line</span><span class="o">.</span><span class="n">replace</span><span class="p">(</span><span class="s1">r&#39;\tablehead&#39;</span><span class="p">,</span> <span class="s1">&#39;&#39;</span><span class="p">)</span>
+        <span class="n">line</span> <span class="o">=</span> <span class="n">line</span><span class="o">.</span><span class="n">strip</span><span class="p">()</span>
+        <span class="k">if</span> <span class="p">(</span><span class="n">line</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">==</span> <span class="s1">&#39;{&#39;</span><span class="p">)</span> <span class="ow">and</span> <span class="p">(</span><span class="n">line</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span> <span class="o">==</span> <span class="s1">&#39;}&#39;</span><span class="p">):</span>
+            <span class="n">line</span> <span class="o">=</span> <span class="n">line</span><span class="p">[</span><span class="mi">1</span><span class="p">:</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="n">core</span><span class="o">.</span><span class="n">InconsistentTableError</span><span class="p">(</span><span class="s1">r&#39;\tablehead is missing </span><span class="si">{}</span><span class="s1">&#39;</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">line</span><span class="o">.</span><span class="n">replace</span><span class="p">(</span><span class="s1">r&#39;\colhead&#39;</span><span class="p">,</span> <span class="s1">&#39;&#39;</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">join</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">vals</span><span class="p">):</span>
+        <span class="k">return</span> <span class="s1">&#39; &amp; &#39;</span><span class="o">.</span><span class="n">join</span><span class="p">([</span><span class="s1">r&#39;\colhead{&#39;</span> <span class="o">+</span> <span class="nb">str</span><span class="p">(</span><span class="n">x</span><span class="p">)</span> <span class="o">+</span> <span class="s1">&#39;}&#39;</span> <span class="k">for</span> <span class="n">x</span> <span class="ow">in</span> <span class="n">vals</span><span class="p">])</span>
+
+
+<span class="k">class</span> <span class="nc">AASTexHeader</span><span class="p">(</span><span class="n">LatexHeader</span><span class="p">):</span>
+    <span class="sd">r&#39;&#39;&#39;In a `deluxetable</span>
+<span class="sd">    &lt;http://fits.gsfc.nasa.gov/standard30/deluxetable.sty&gt;`_ some header</span>
+<span class="sd">    keywords differ from standard LaTeX.</span>
+
+<span class="sd">    This header is modified to take that into account.</span>
+<span class="sd">    &#39;&#39;&#39;</span>
+    <span class="n">header_start</span> <span class="o">=</span> <span class="s1">r&#39;\tablehead&#39;</span>
+    <span class="n">splitter_class</span> <span class="o">=</span> <span class="n">AASTexHeaderSplitter</span>
+
+    <span class="k">def</span> <span class="nf">start_line</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">lines</span><span class="p">):</span>
+        <span class="k">return</span> <span class="n">find_latex_line</span><span class="p">(</span><span class="n">lines</span><span class="p">,</span> <span class="s1">r&#39;\tablehead&#39;</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">write</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">lines</span><span class="p">):</span>
+        <span class="k">if</span> <span class="s1">&#39;col_align&#39;</span> <span class="ow">not</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">latex</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">latex</span><span class="p">[</span><span class="s1">&#39;col_align&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">cols</span><span class="p">)</span> <span class="o">*</span> <span class="s1">&#39;c&#39;</span>
+        <span class="k">if</span> <span class="s1">&#39;tablealign&#39;</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">latex</span><span class="p">:</span>
+            <span class="n">align</span> <span class="o">=</span> <span class="s1">&#39;[&#39;</span> <span class="o">+</span> <span class="bp">self</span><span class="o">.</span><span class="n">latex</span><span class="p">[</span><span class="s1">&#39;tablealign&#39;</span><span class="p">]</span> <span class="o">+</span> <span class="s1">&#39;]&#39;</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">align</span> <span class="o">=</span> <span class="s1">&#39;&#39;</span>
+        <span class="n">lines</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="s1">r&#39;\begin{&#39;</span> <span class="o">+</span> <span class="bp">self</span><span class="o">.</span><span class="n">latex</span><span class="p">[</span><span class="s1">&#39;tabletype&#39;</span><span class="p">]</span> <span class="o">+</span> <span class="s1">r&#39;}{&#39;</span> <span class="o">+</span> <span class="bp">self</span><span class="o">.</span><span class="n">latex</span><span class="p">[</span><span class="s1">&#39;col_align&#39;</span><span class="p">]</span> <span class="o">+</span> <span class="s1">r&#39;}&#39;</span>
+                       <span class="o">+</span> <span class="n">align</span><span class="p">)</span>
+        <span class="n">add_dictval_to_list</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">latex</span><span class="p">,</span> <span class="s1">&#39;preamble&#39;</span><span class="p">,</span> <span class="n">lines</span><span class="p">)</span>
+        <span class="k">if</span> <span class="s1">&#39;caption&#39;</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">latex</span><span class="p">:</span>
+            <span class="n">lines</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="s1">r&#39;\tablecaption{&#39;</span> <span class="o">+</span> <span class="bp">self</span><span class="o">.</span><span class="n">latex</span><span class="p">[</span><span class="s1">&#39;caption&#39;</span><span class="p">]</span> <span class="o">+</span> <span class="s1">&#39;}&#39;</span><span class="p">)</span>
+        <span class="n">tablehead</span> <span class="o">=</span> <span class="s1">&#39; &amp; &#39;</span><span class="o">.</span><span class="n">join</span><span class="p">([</span><span class="s1">r&#39;\colhead{&#39;</span> <span class="o">+</span> <span class="n">name</span> <span class="o">+</span> <span class="s1">&#39;}&#39;</span> <span class="k">for</span> <span class="n">name</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">colnames</span><span class="p">])</span>
+        <span class="n">units</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_get_units</span><span class="p">()</span>
+        <span class="k">if</span> <span class="s1">&#39;units&#39;</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">latex</span><span class="p">:</span>
+            <span class="n">units</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">latex</span><span class="p">[</span><span class="s1">&#39;units&#39;</span><span class="p">])</span>
+        <span class="k">if</span> <span class="n">units</span><span class="p">:</span>
+            <span class="n">tablehead</span> <span class="o">+=</span> <span class="s1">r&#39;</span><span class="se">\\</span><span class="s1"> &#39;</span> <span class="o">+</span> <span class="bp">self</span><span class="o">.</span><span class="n">splitter</span><span class="o">.</span><span class="n">join</span><span class="p">([</span><span class="n">units</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">name</span><span class="p">,</span> <span class="s1">&#39; &#39;</span><span class="p">)</span>
+                                                      <span class="k">for</span> <span class="n">name</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">colnames</span><span class="p">])</span>
+        <span class="n">lines</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="s1">r&#39;\tablehead{&#39;</span> <span class="o">+</span> <span class="n">tablehead</span> <span class="o">+</span> <span class="s1">&#39;}&#39;</span><span class="p">)</span>
+
+
+<span class="k">class</span> <span class="nc">AASTexData</span><span class="p">(</span><span class="n">LatexData</span><span class="p">):</span>
+    <span class="sd">r&#39;&#39;&#39;In a `deluxetable`_ the data is enclosed in `\startdata` and `\enddata`</span>
+<span class="sd">    &#39;&#39;&#39;</span>
+    <span class="n">data_start</span> <span class="o">=</span> <span class="s1">r&#39;\startdata&#39;</span>
+    <span class="n">data_end</span> <span class="o">=</span> <span class="s1">r&#39;\enddata&#39;</span>
+
+    <span class="k">def</span> <span class="nf">start_line</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">lines</span><span class="p">):</span>
+        <span class="k">return</span> <span class="n">find_latex_line</span><span class="p">(</span><span class="n">lines</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">data_start</span><span class="p">)</span> <span class="o">+</span> <span class="mi">1</span>
+
+    <span class="k">def</span> <span class="nf">write</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">lines</span><span class="p">):</span>
+        <span class="n">lines</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">data_start</span><span class="p">)</span>
+        <span class="n">lines_length_initial</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="n">lines</span><span class="p">)</span>
+        <span class="n">core</span><span class="o">.</span><span class="n">BaseData</span><span class="o">.</span><span class="n">write</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">lines</span><span class="p">)</span>
+        <span class="c1"># To remove extra space(s) and // appended which creates an extra new line</span>
+        <span class="c1"># in the end.</span>
+        <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">lines</span><span class="p">)</span> <span class="o">&gt;</span> <span class="n">lines_length_initial</span><span class="p">:</span>
+            <span class="c1"># we compile separately because py2.6 doesn&#39;t have a flags keyword in re.sub</span>
+            <span class="n">re_final_line</span> <span class="o">=</span> <span class="n">re</span><span class="o">.</span><span class="n">compile</span><span class="p">(</span><span class="s1">r&#39;\s* </span><span class="se">\\</span><span class="s1"> </span><span class="se">\\</span><span class="s1"> \s* $&#39;</span><span class="p">,</span> <span class="n">flags</span><span class="o">=</span><span class="n">re</span><span class="o">.</span><span class="n">VERBOSE</span><span class="p">)</span>
+            <span class="n">lines</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span> <span class="o">=</span> <span class="n">re</span><span class="o">.</span><span class="n">sub</span><span class="p">(</span><span class="n">re_final_line</span><span class="p">,</span> <span class="s1">&#39;&#39;</span><span class="p">,</span> <span class="n">lines</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">])</span>
+        <span class="n">lines</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">data_end</span><span class="p">)</span>
+        <span class="n">add_dictval_to_list</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">latex</span><span class="p">,</span> <span class="s1">&#39;tablefoot&#39;</span><span class="p">,</span> <span class="n">lines</span><span class="p">)</span>
+        <span class="n">lines</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="s1">r&#39;\end{&#39;</span> <span class="o">+</span> <span class="bp">self</span><span class="o">.</span><span class="n">latex</span><span class="p">[</span><span class="s1">&#39;tabletype&#39;</span><span class="p">]</span> <span class="o">+</span> <span class="s1">r&#39;}&#39;</span><span class="p">)</span>
+
+
+<div class="viewcode-block" id="AASTex"><a class="viewcode-back" href="../../../../api/astropy.io.ascii.AASTex.html#astropy.io.ascii.AASTex">[docs]</a><span class="k">class</span> <span class="nc">AASTex</span><span class="p">(</span><span class="n">Latex</span><span class="p">):</span>
+    <span class="sd">&#39;&#39;&#39;Write and read AASTeX tables.</span>
+
+<span class="sd">    This class implements some AASTeX specific commands.</span>
+<span class="sd">    AASTeX is used for the AAS (American Astronomical Society)</span>
+<span class="sd">    publications like ApJ, ApJL and AJ.</span>
+
+<span class="sd">    It derives from the ``Latex`` reader and accepts the same</span>
+<span class="sd">    keywords.  However, the keywords ``header_start``, ``header_end``,</span>
+<span class="sd">    ``data_start`` and ``data_end`` in ``latexdict`` have no effect.</span>
+<span class="sd">    &#39;&#39;&#39;</span>
+
+    <span class="n">_format_name</span> <span class="o">=</span> <span class="s1">&#39;aastex&#39;</span>
+    <span class="n">_io_registry_format_aliases</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;aastex&#39;</span><span class="p">]</span>
+    <span class="n">_io_registry_suffix</span> <span class="o">=</span> <span class="s1">&#39;&#39;</span>  <span class="c1"># AASTex inherits from Latex, so override this class attr</span>
+    <span class="n">_description</span> <span class="o">=</span> <span class="s1">&#39;AASTeX deluxetable used for AAS journals&#39;</span>
+
+    <span class="n">header_class</span> <span class="o">=</span> <span class="n">AASTexHeader</span>
+    <span class="n">data_class</span> <span class="o">=</span> <span class="n">AASTexData</span>
+
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+        <span class="nb">super</span><span class="p">(</span><span class="n">AASTex</span><span class="p">,</span> <span class="bp">self</span><span class="p">)</span><span class="o">.</span><span class="n">__init__</span><span class="p">(</span><span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
+        <span class="c1"># check if tabletype was explicitly set by the user</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="p">((</span><span class="s1">&#39;latexdict&#39;</span> <span class="ow">in</span> <span class="n">kwargs</span><span class="p">)</span> <span class="ow">and</span> <span class="p">(</span><span class="s1">&#39;tabletype&#39;</span> <span class="ow">in</span> <span class="n">kwargs</span><span class="p">[</span><span class="s1">&#39;latexdict&#39;</span><span class="p">])):</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">latex</span><span class="p">[</span><span class="s1">&#39;tabletype&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="s1">&#39;deluxetable&#39;</span></div>
+</pre></div>
+
+          </div>
+        </div>
+      </div>
+      <div class="sphinxsidebar" role="navigation" aria-label="main navigation">
+        <div class="sphinxsidebarwrapper"><h3>Page Contents</h3>
+
+
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+<footer class="footer">
+  <p class="pull-right"> &nbsp;
+    <a href="#">Back to Top</a></p>
+  <p>
+    &copy; Copyright 2011-2016, The Astropy Developers.<br/>
+    Created using <a href="http://sphinx.pocoo.org/">Sphinx</a> 1.5.6. &nbsp;
+    Last built 05 Jul 2017. <br/>
+  </p>
+</footer>
+  </body>
+</html>

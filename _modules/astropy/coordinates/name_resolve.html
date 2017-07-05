@@ -1,0 +1,274 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <head>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    
+    <title>astropy.coordinates.name_resolve &#8212; Astropy v3.0.dev19489</title>
+    
+    <link rel="stylesheet" href="../../../_static/bootstrap-astropy.css" type="text/css" />
+    <link rel="stylesheet" href="../../../_static/pygments.css" type="text/css" />
+    <link rel="stylesheet" href="../../../_static/gallery.css" type="text/css" />
+    
+    <script type="text/javascript">
+      var DOCUMENTATION_OPTIONS = {
+        URL_ROOT:    '../../../',
+        VERSION:     '3.0.dev19489',
+        COLLAPSE_INDEX: false,
+        FILE_SUFFIX: '.html',
+        HAS_SOURCE:  true,
+        SOURCELINK_SUFFIX: '.txt'
+      };
+    </script>
+    <script type="text/javascript" src="../../../_static/jquery.js"></script>
+    <script type="text/javascript" src="../../../_static/underscore.js"></script>
+    <script type="text/javascript" src="../../../_static/doctools.js"></script>
+    <script type="text/javascript" src="../../../_static/sidebar.js"></script>
+    <link rel="shortcut icon" href="../../../_static/astropy_logo.ico"/>
+    <link rel="index" title="Index" href="../../../genindex.html" />
+    <link rel="search" title="Search" href="../../../search.html" />
+<link href='https://fonts.googleapis.com/css?family=Source+Sans+Pro:200,600' rel='stylesheet' type='text/css'/>
+<script type="text/javascript" src="../../../_static/copybutton.js"></script>
+
+
+  </head>
+  <body role="document">
+<div class="topbar">
+  <a class="brand" title="Documentation Home" href="../../../index.html"><span id="logotext1">astro</span><span id="logotext2">py</span><span id="logotext3">:docs</span></a>
+  <ul>
+    <li><a class="homelink" title="Astropy Homepage" href="http://www.astropy.org"></a></li>
+    <li><a title="General Index" href="../../../genindex.html">Index</a></li>
+    <li><a title="Module Index" href="../../../py-modindex.html">Modules</a></li>
+    <li>
+      
+      
+<form action="../../../search.html" method="get">
+  <input type="text" name="q" placeholder="Search" />
+  <input type="hidden" name="check_keywords" value="yes" />
+  <input type="hidden" name="area" value="default" />
+</form>
+      
+    </li>
+  </ul>
+</div>
+
+<div class="related">
+    <h3>Navigation</h3>
+    <ul>
+      <li>
+	<a href="../../../index.html">Astropy v3.0.dev19489</a>
+	 &#187;
+      </li>
+      <li><a href="../../index.html" >Module code</a> &#187;</li>
+      <li><a href="../../astropy.html" accesskey="U">astropy</a> &#187;</li>
+      
+       
+    </ul>
+</div>
+  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          <div class="body" role="main">
+            
+  <h1>Source code for astropy.coordinates.name_resolve</h1><div class="highlight"><pre>
+<span></span><span class="c1"># Licensed under a 3-clause BSD style license - see LICENSE.rst</span>
+
+<span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">This module contains convenience functions for getting a coordinate object</span>
+<span class="sd">for a named object by querying SESAME and getting the first returned result.</span>
+<span class="sd">Note that this is intended to be a convenience, and is very simple. If you</span>
+<span class="sd">need precise coordinates for an object you should find the appropriate</span>
+<span class="sd">reference for that measurement and input the coordinates manually.</span>
+<span class="sd">&quot;&quot;&quot;</span>
+<span class="kn">from</span> <span class="nn">__future__</span> <span class="k">import</span> <span class="p">(</span><span class="n">absolute_import</span><span class="p">,</span> <span class="n">division</span><span class="p">,</span> <span class="n">print_function</span><span class="p">,</span>
+                        <span class="n">unicode_literals</span><span class="p">)</span>
+
+<span class="c1"># Standard library</span>
+<span class="kn">import</span> <span class="nn">os</span>
+<span class="kn">import</span> <span class="nn">re</span>
+<span class="kn">import</span> <span class="nn">socket</span>
+
+<span class="c1"># Astropy</span>
+<span class="kn">from</span> <span class="nn">..extern.six.moves</span> <span class="k">import</span> <span class="n">urllib</span>
+<span class="kn">from</span> <span class="nn">..</span> <span class="k">import</span> <span class="n">units</span> <span class="k">as</span> <span class="n">u</span>
+<span class="kn">from</span> <span class="nn">.sky_coordinate</span> <span class="k">import</span> <span class="n">SkyCoord</span>
+<span class="kn">from</span> <span class="nn">..utils</span> <span class="k">import</span> <span class="n">data</span>
+<span class="kn">from</span> <span class="nn">..utils.state</span> <span class="k">import</span> <span class="n">ScienceState</span>
+
+<span class="n">__all__</span> <span class="o">=</span> <span class="p">[</span><span class="s2">&quot;get_icrs_coordinates&quot;</span><span class="p">]</span>
+
+
+<span class="k">class</span> <span class="nc">sesame_url</span><span class="p">(</span><span class="n">ScienceState</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    The URL(s) to Sesame&#39;s web-queryable database.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">_value</span> <span class="o">=</span> <span class="p">[</span><span class="s2">&quot;http://cdsweb.u-strasbg.fr/cgi-bin/nph-sesame/&quot;</span><span class="p">,</span>
+              <span class="s2">&quot;http://vizier.cfa.harvard.edu/viz-bin/nph-sesame/&quot;</span><span class="p">]</span>
+
+    <span class="nd">@classmethod</span>
+    <span class="k">def</span> <span class="nf">validate</span><span class="p">(</span><span class="n">cls</span><span class="p">,</span> <span class="n">value</span><span class="p">):</span>
+        <span class="c1"># TODO: Implement me</span>
+        <span class="k">return</span> <span class="n">value</span>
+
+
+<span class="k">class</span> <span class="nc">sesame_database</span><span class="p">(</span><span class="n">ScienceState</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    This specifies the default database that SESAME will query when</span>
+<span class="sd">    using the name resolve mechanism in the coordinates</span>
+<span class="sd">    subpackage. Default is to search all databases, but this can be</span>
+<span class="sd">    &#39;all&#39;, &#39;simbad&#39;, &#39;ned&#39;, or &#39;vizier&#39;.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">_value</span> <span class="o">=</span> <span class="s1">&#39;all&#39;</span>
+
+    <span class="nd">@classmethod</span>
+    <span class="k">def</span> <span class="nf">validate</span><span class="p">(</span><span class="n">cls</span><span class="p">,</span> <span class="n">value</span><span class="p">):</span>
+        <span class="k">if</span> <span class="n">value</span> <span class="ow">not</span> <span class="ow">in</span> <span class="p">[</span><span class="s1">&#39;all&#39;</span><span class="p">,</span> <span class="s1">&#39;simbad&#39;</span><span class="p">,</span> <span class="s1">&#39;ned&#39;</span><span class="p">,</span> <span class="s1">&#39;vizier&#39;</span><span class="p">]:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;Unknown database &#39;</span><span class="si">{0}</span><span class="s2">&#39;&quot;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">value</span><span class="p">))</span>
+        <span class="k">return</span> <span class="n">value</span>
+
+
+<span class="k">class</span> <span class="nc">NameResolveError</span><span class="p">(</span><span class="ne">Exception</span><span class="p">):</span>
+    <span class="k">pass</span>
+
+
+<span class="k">def</span> <span class="nf">_parse_response</span><span class="p">(</span><span class="n">resp_data</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Given a string response from SESAME, parse out the coordinates by looking</span>
+<span class="sd">    for a line starting with a J, meaning ICRS J2000 coordinates.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    resp_data : str</span>
+<span class="sd">        The string HTTP response from SESAME.</span>
+
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+<span class="sd">    ra : str</span>
+<span class="sd">        The string Right Ascension parsed from the HTTP response.</span>
+<span class="sd">    dec : str</span>
+<span class="sd">        The string Declination parsed from the HTTP response.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="n">pattr</span> <span class="o">=</span> <span class="n">re</span><span class="o">.</span><span class="n">compile</span><span class="p">(</span><span class="s2">r&quot;%J\s*([0-9\.]+)\s*([\+\-\.0-9]+)&quot;</span><span class="p">)</span>
+    <span class="n">matched</span> <span class="o">=</span> <span class="n">pattr</span><span class="o">.</span><span class="n">search</span><span class="p">(</span><span class="n">resp_data</span><span class="o">.</span><span class="n">decode</span><span class="p">(</span><span class="s1">&#39;utf-8&#39;</span><span class="p">))</span>
+
+    <span class="k">if</span> <span class="n">matched</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="k">return</span> <span class="kc">None</span><span class="p">,</span> <span class="kc">None</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="n">ra</span><span class="p">,</span> <span class="n">dec</span> <span class="o">=</span> <span class="n">matched</span><span class="o">.</span><span class="n">groups</span><span class="p">()</span>
+        <span class="k">return</span> <span class="n">ra</span><span class="p">,</span> <span class="n">dec</span>
+
+
+<div class="viewcode-block" id="get_icrs_coordinates"><a class="viewcode-back" href="../../../api/astropy.coordinates.get_icrs_coordinates.html#astropy.coordinates.get_icrs_coordinates">[docs]</a><span class="k">def</span> <span class="nf">get_icrs_coordinates</span><span class="p">(</span><span class="n">name</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Retrieve an ICRS object by using an online name resolving service to</span>
+<span class="sd">    retrieve coordinates for the specified name. By default, this will</span>
+<span class="sd">    search all available databases until a match is found. If you would like</span>
+<span class="sd">    to specify the database, use the science state</span>
+<span class="sd">    ``astropy.coordinates.name_resolve.sesame_database``. You can also</span>
+<span class="sd">    specify a list of servers to use for querying Sesame using the science</span>
+<span class="sd">    state ``astropy.coordinates.name_resolve.sesame_url``. This will try</span>
+<span class="sd">    each one in order until a valid response is returned. By default, this</span>
+<span class="sd">    list includes the main Sesame host and a mirror at vizier.  The</span>
+<span class="sd">    configuration item `astropy.utils.data.Conf.remote_timeout` controls the</span>
+<span class="sd">    number of seconds to wait for a response from the server before giving</span>
+<span class="sd">    up.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    name : str</span>
+<span class="sd">        The name of the object to get coordinates for, e.g. ``&#39;M42&#39;``.</span>
+
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+<span class="sd">    coord : `astropy.coordinates.ICRS` object</span>
+<span class="sd">        The object&#39;s coordinates in the ICRS frame.</span>
+
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="n">database</span> <span class="o">=</span> <span class="n">sesame_database</span><span class="o">.</span><span class="n">get</span><span class="p">()</span>
+    <span class="c1"># The web API just takes the first letter of the database name</span>
+    <span class="n">db</span> <span class="o">=</span> <span class="n">database</span><span class="o">.</span><span class="n">upper</span><span class="p">()[</span><span class="mi">0</span><span class="p">]</span>
+
+    <span class="c1"># Make sure we don&#39;t have duplicates in the url list</span>
+    <span class="n">urls</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="n">domains</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="k">for</span> <span class="n">url</span> <span class="ow">in</span> <span class="n">sesame_url</span><span class="o">.</span><span class="n">get</span><span class="p">():</span>
+        <span class="n">domain</span> <span class="o">=</span> <span class="n">urllib</span><span class="o">.</span><span class="n">parse</span><span class="o">.</span><span class="n">urlparse</span><span class="p">(</span><span class="n">url</span><span class="p">)</span><span class="o">.</span><span class="n">netloc</span>
+
+        <span class="c1"># Check for duplicates</span>
+        <span class="k">if</span> <span class="n">domain</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">domains</span><span class="p">:</span>
+            <span class="n">domains</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">domain</span><span class="p">)</span>
+
+            <span class="c1"># Add the query to the end of the url, add to url list</span>
+            <span class="n">fmt_url</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">url</span><span class="p">,</span> <span class="s2">&quot;</span><span class="si">{db}</span><span class="s2">?</span><span class="si">{name}</span><span class="s2">&quot;</span><span class="p">)</span>
+            <span class="n">fmt_url</span> <span class="o">=</span> <span class="n">fmt_url</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">name</span><span class="o">=</span><span class="n">urllib</span><span class="o">.</span><span class="n">parse</span><span class="o">.</span><span class="n">quote</span><span class="p">(</span><span class="n">name</span><span class="p">),</span> <span class="n">db</span><span class="o">=</span><span class="n">db</span><span class="p">)</span>
+            <span class="n">urls</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">fmt_url</span><span class="p">)</span>
+
+    <span class="n">exceptions</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="k">for</span> <span class="n">url</span> <span class="ow">in</span> <span class="n">urls</span><span class="p">:</span>
+        <span class="k">try</span><span class="p">:</span>
+            <span class="c1"># Retrieve ascii name resolve data from CDS</span>
+            <span class="n">resp</span> <span class="o">=</span> <span class="n">urllib</span><span class="o">.</span><span class="n">request</span><span class="o">.</span><span class="n">urlopen</span><span class="p">(</span><span class="n">url</span><span class="p">,</span> <span class="n">timeout</span><span class="o">=</span><span class="n">data</span><span class="o">.</span><span class="n">conf</span><span class="o">.</span><span class="n">remote_timeout</span><span class="p">)</span>
+            <span class="n">resp_data</span> <span class="o">=</span> <span class="n">resp</span><span class="o">.</span><span class="n">read</span><span class="p">()</span>
+            <span class="k">break</span>
+        <span class="k">except</span> <span class="n">urllib</span><span class="o">.</span><span class="n">error</span><span class="o">.</span><span class="n">URLError</span> <span class="k">as</span> <span class="n">e</span><span class="p">:</span>
+            <span class="n">exceptions</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">e</span><span class="p">)</span>
+            <span class="k">continue</span>
+        <span class="k">except</span> <span class="n">socket</span><span class="o">.</span><span class="n">timeout</span> <span class="k">as</span> <span class="n">e</span><span class="p">:</span>
+            <span class="c1"># There are some cases where urllib2 does not catch socket.timeout</span>
+            <span class="c1"># especially while receiving response data on an already previously</span>
+            <span class="c1"># working request</span>
+            <span class="n">exceptions</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">e</span><span class="p">)</span>
+            <span class="k">continue</span>
+
+    <span class="c1"># All Sesame URL&#39;s failed...</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="n">messages</span> <span class="o">=</span> <span class="p">[</span><span class="s2">&quot;</span><span class="si">{url}</span><span class="s2">: </span><span class="si">{e.reason}</span><span class="s2">&quot;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">url</span><span class="o">=</span><span class="n">url</span><span class="p">,</span> <span class="n">e</span><span class="o">=</span><span class="n">e</span><span class="p">)</span>
+                    <span class="k">for</span> <span class="n">url</span><span class="p">,</span> <span class="n">e</span> <span class="ow">in</span> <span class="nb">zip</span><span class="p">(</span><span class="n">urls</span><span class="p">,</span> <span class="n">exceptions</span><span class="p">)]</span>
+        <span class="k">raise</span> <span class="n">NameResolveError</span><span class="p">(</span><span class="s2">&quot;All Sesame queries failed. Unable to &quot;</span>
+                               <span class="s2">&quot;retrieve coordinates. See errors per URL &quot;</span>
+                               <span class="s2">&quot;below: </span><span class="se">\n</span><span class="s2"> </span><span class="si">{}</span><span class="s2">&quot;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="s2">&quot;</span><span class="se">\n</span><span class="s2">&quot;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">messages</span><span class="p">)))</span>
+
+    <span class="n">ra</span><span class="p">,</span> <span class="n">dec</span> <span class="o">=</span> <span class="n">_parse_response</span><span class="p">(</span><span class="n">resp_data</span><span class="p">)</span>
+
+    <span class="k">if</span> <span class="n">ra</span> <span class="ow">is</span> <span class="kc">None</span> <span class="ow">and</span> <span class="n">dec</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="k">if</span> <span class="n">db</span> <span class="o">==</span> <span class="s2">&quot;A&quot;</span><span class="p">:</span>
+            <span class="n">err</span> <span class="o">=</span> <span class="s2">&quot;Unable to find coordinates for name &#39;</span><span class="si">{0}</span><span class="s2">&#39;&quot;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">name</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">err</span> <span class="o">=</span> <span class="s2">&quot;Unable to find coordinates for name &#39;</span><span class="si">{0}</span><span class="s2">&#39; in database </span><span class="si">{1}</span><span class="s2">&quot;</span>\
+                  <span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">name</span><span class="p">,</span> <span class="n">database</span><span class="p">)</span>
+
+        <span class="k">raise</span> <span class="n">NameResolveError</span><span class="p">(</span><span class="n">err</span><span class="p">)</span>
+
+    <span class="c1"># Return SkyCoord object</span>
+    <span class="n">sc</span> <span class="o">=</span> <span class="n">SkyCoord</span><span class="p">(</span><span class="n">ra</span><span class="o">=</span><span class="n">ra</span><span class="p">,</span> <span class="n">dec</span><span class="o">=</span><span class="n">dec</span><span class="p">,</span> <span class="n">unit</span><span class="o">=</span><span class="p">(</span><span class="n">u</span><span class="o">.</span><span class="n">degree</span><span class="p">,</span> <span class="n">u</span><span class="o">.</span><span class="n">degree</span><span class="p">),</span> <span class="n">frame</span><span class="o">=</span><span class="s1">&#39;icrs&#39;</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">sc</span></div>
+</pre></div>
+
+          </div>
+        </div>
+      </div>
+      <div class="sphinxsidebar" role="navigation" aria-label="main navigation">
+        <div class="sphinxsidebarwrapper"><h3>Page Contents</h3>
+
+
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+<footer class="footer">
+  <p class="pull-right"> &nbsp;
+    <a href="#">Back to Top</a></p>
+  <p>
+    &copy; Copyright 2011-2016, The Astropy Developers.<br/>
+    Created using <a href="http://sphinx.pocoo.org/">Sphinx</a> 1.5.6. &nbsp;
+    Last built 05 Jul 2017. <br/>
+  </p>
+</footer>
+  </body>
+</html>

@@ -1,0 +1,459 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <head>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    
+    <title>astropy.io.misc.yaml &#8212; Astropy v3.0.dev19489</title>
+    
+    <link rel="stylesheet" href="../../../../_static/bootstrap-astropy.css" type="text/css" />
+    <link rel="stylesheet" href="../../../../_static/pygments.css" type="text/css" />
+    <link rel="stylesheet" href="../../../../_static/gallery.css" type="text/css" />
+    
+    <script type="text/javascript">
+      var DOCUMENTATION_OPTIONS = {
+        URL_ROOT:    '../../../../',
+        VERSION:     '3.0.dev19489',
+        COLLAPSE_INDEX: false,
+        FILE_SUFFIX: '.html',
+        HAS_SOURCE:  true,
+        SOURCELINK_SUFFIX: '.txt'
+      };
+    </script>
+    <script type="text/javascript" src="../../../../_static/jquery.js"></script>
+    <script type="text/javascript" src="../../../../_static/underscore.js"></script>
+    <script type="text/javascript" src="../../../../_static/doctools.js"></script>
+    <script type="text/javascript" src="../../../../_static/sidebar.js"></script>
+    <link rel="shortcut icon" href="../../../../_static/astropy_logo.ico"/>
+    <link rel="index" title="Index" href="../../../../genindex.html" />
+    <link rel="search" title="Search" href="../../../../search.html" />
+<link href='https://fonts.googleapis.com/css?family=Source+Sans+Pro:200,600' rel='stylesheet' type='text/css'/>
+<script type="text/javascript" src="../../../../_static/copybutton.js"></script>
+
+
+  </head>
+  <body role="document">
+<div class="topbar">
+  <a class="brand" title="Documentation Home" href="../../../../index.html"><span id="logotext1">astro</span><span id="logotext2">py</span><span id="logotext3">:docs</span></a>
+  <ul>
+    <li><a class="homelink" title="Astropy Homepage" href="http://www.astropy.org"></a></li>
+    <li><a title="General Index" href="../../../../genindex.html">Index</a></li>
+    <li><a title="Module Index" href="../../../../py-modindex.html">Modules</a></li>
+    <li>
+      
+      
+<form action="../../../../search.html" method="get">
+  <input type="text" name="q" placeholder="Search" />
+  <input type="hidden" name="check_keywords" value="yes" />
+  <input type="hidden" name="area" value="default" />
+</form>
+      
+    </li>
+  </ul>
+</div>
+
+<div class="related">
+    <h3>Navigation</h3>
+    <ul>
+      <li>
+	<a href="../../../../index.html">Astropy v3.0.dev19489</a>
+	 &#187;
+      </li>
+      <li><a href="../../../index.html" >Module code</a> &#187;</li>
+      <li><a href="../../../astropy.html" accesskey="U">astropy</a> &#187;</li>
+      
+       
+    </ul>
+</div>
+  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          <div class="body" role="main">
+            
+  <h1>Source code for astropy.io.misc.yaml</h1><div class="highlight"><pre>
+<span></span><span class="c1"># Licensed under a 3-clause BSD style license - see LICENSE.rst</span>
+<span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">This module contains functions for serializing core astropy objects via the</span>
+<span class="sd">YAML protocol.</span>
+
+<span class="sd">It provides functions `~astropy.io.misc.yaml.dump`,</span>
+<span class="sd">`~astropy.io.misc.yaml.load`, and `~astropy.io.misc.yaml.load_all` which</span>
+<span class="sd">call the corresponding functions in `PyYaml &lt;http://pyyaml.org&gt;`_ but use the</span>
+<span class="sd">`~astropy.io.misc.yaml.AstropyDumper` and `~astropy.io.misc.yaml.AstropyLoader`</span>
+<span class="sd">classes to define custom YAML tags for the following astropy classes:</span>
+
+<span class="sd">- `astropy.units.Unit`</span>
+<span class="sd">- `astropy.units.Quantity`</span>
+<span class="sd">- `astropy.time.Time`</span>
+<span class="sd">- `astropy.time.TimeDelta`</span>
+<span class="sd">- `astropy.coordinates.SkyCoord`</span>
+<span class="sd">- `astropy.coordinates.Angle`</span>
+<span class="sd">- `astropy.coordinates.Latitude`</span>
+<span class="sd">- `astropy.coordinates.Longitude`</span>
+<span class="sd">- `astropy.coordinates.EarthLocation`</span>
+<span class="sd">- `astropy.table.SerializedColumn`</span>
+
+<span class="sd">.. Note ::</span>
+
+<span class="sd">   This module requires PyYaml version 3.12 or later, which in turn requires</span>
+<span class="sd">   Python 2.7 or Python 3.4 or later.</span>
+
+<span class="sd">Example</span>
+<span class="sd">=======</span>
+<span class="sd">::</span>
+
+<span class="sd">  &gt;&gt;&gt; from astropy.io.misc import yaml</span>
+<span class="sd">  &gt;&gt;&gt; import astropy.units as u</span>
+<span class="sd">  &gt;&gt;&gt; from astropy.time import Time</span>
+<span class="sd">  &gt;&gt;&gt; from astropy.coordinates import EarthLocation</span>
+
+<span class="sd">  &gt;&gt;&gt; t = Time(2457389.0, format=&#39;mjd&#39;,</span>
+<span class="sd">  ...          location=EarthLocation(1000, 2000, 3000, unit=u.km))</span>
+<span class="sd">  &gt;&gt;&gt; td = yaml.dump(t)</span>
+
+<span class="sd">  &gt;&gt;&gt; print(td)</span>
+<span class="sd">  !astropy.time.Time</span>
+<span class="sd">  format: mjd</span>
+<span class="sd">  in_subfmt: &#39;*&#39;</span>
+<span class="sd">  jd1: 4857389.5</span>
+<span class="sd">  jd2: 0.0</span>
+<span class="sd">  location: !astropy.coordinates.earth.EarthLocation</span>
+<span class="sd">    ellipsoid: WGS84</span>
+<span class="sd">    x: !astropy.units.Quantity</span>
+<span class="sd">      unit: &amp;id001 !astropy.units.Unit {unit: km}</span>
+<span class="sd">      value: 1000.0</span>
+<span class="sd">    y: !astropy.units.Quantity</span>
+<span class="sd">      unit: *id001</span>
+<span class="sd">      value: 2000.0</span>
+<span class="sd">    z: !astropy.units.Quantity</span>
+<span class="sd">      unit: *id001</span>
+<span class="sd">      value: 3000.0</span>
+<span class="sd">  out_subfmt: &#39;*&#39;</span>
+<span class="sd">  precision: 3</span>
+<span class="sd">  scale: utc</span>
+
+<span class="sd">  &gt;&gt;&gt; ty = yaml.load(td)</span>
+<span class="sd">  &gt;&gt;&gt; ty</span>
+<span class="sd">  &lt;Time object: scale=&#39;utc&#39; format=&#39;mjd&#39; value=2457389.0&gt;</span>
+
+<span class="sd">  &gt;&gt;&gt; ty.location</span>
+<span class="sd">  &lt;EarthLocation ( 1000.,  2000.,  3000.) km&gt;</span>
+<span class="sd">&quot;&quot;&quot;</span>
+
+<span class="kn">from</span> <span class="nn">__future__</span> <span class="k">import</span> <span class="n">absolute_import</span><span class="p">,</span> <span class="n">division</span>
+
+<span class="kn">import</span> <span class="nn">base64</span>
+<span class="kn">import</span> <span class="nn">numpy</span> <span class="k">as</span> <span class="nn">np</span>
+
+<span class="kn">from</span> <span class="nn">...time</span> <span class="k">import</span> <span class="n">Time</span><span class="p">,</span> <span class="n">TimeDelta</span>
+<span class="kn">from</span> <span class="nn">...</span> <span class="k">import</span> <span class="n">units</span> <span class="k">as</span> <span class="n">u</span>
+<span class="kn">from</span> <span class="nn">...</span> <span class="k">import</span> <span class="n">coordinates</span> <span class="k">as</span> <span class="n">coords</span>
+<span class="kn">from</span> <span class="nn">...utils</span> <span class="k">import</span> <span class="n">minversion</span>
+<span class="kn">from</span> <span class="nn">...extern</span> <span class="k">import</span> <span class="n">six</span>
+<span class="kn">from</span> <span class="nn">...table</span> <span class="k">import</span> <span class="n">SerializedColumn</span>
+
+
+<span class="k">try</span><span class="p">:</span>
+    <span class="kn">import</span> <span class="nn">yaml</span>
+<span class="k">except</span> <span class="ne">ImportError</span><span class="p">:</span>
+    <span class="k">raise</span> <span class="ne">ImportError</span><span class="p">(</span><span class="s1">&#39;`import yaml` failed, PyYAML package is required for YAML&#39;</span><span class="p">)</span>
+
+
+<span class="n">YAML_LT_3_12</span> <span class="o">=</span> <span class="ow">not</span> <span class="n">minversion</span><span class="p">(</span><span class="n">yaml</span><span class="p">,</span> <span class="s1">&#39;3.12&#39;</span><span class="p">)</span>
+
+
+<span class="n">__all__</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;AstropyLoader&#39;</span><span class="p">,</span> <span class="s1">&#39;AstropyDumper&#39;</span><span class="p">,</span> <span class="s1">&#39;load&#39;</span><span class="p">,</span> <span class="s1">&#39;load_all&#39;</span><span class="p">,</span> <span class="s1">&#39;dump&#39;</span><span class="p">]</span>
+
+
+<span class="k">def</span> <span class="nf">_unit_representer</span><span class="p">(</span><span class="n">dumper</span><span class="p">,</span> <span class="n">obj</span><span class="p">):</span>
+    <span class="n">out</span> <span class="o">=</span> <span class="p">{</span><span class="s1">&#39;unit&#39;</span><span class="p">:</span> <span class="nb">str</span><span class="p">(</span><span class="n">obj</span><span class="o">.</span><span class="n">to_string</span><span class="p">())}</span>
+    <span class="k">return</span> <span class="n">dumper</span><span class="o">.</span><span class="n">represent_mapping</span><span class="p">(</span><span class="s1">&#39;!astropy.units.Unit&#39;</span><span class="p">,</span> <span class="n">out</span><span class="p">)</span>
+
+
+<span class="k">def</span> <span class="nf">_unit_constructor</span><span class="p">(</span><span class="n">loader</span><span class="p">,</span> <span class="n">node</span><span class="p">):</span>
+    <span class="nb">map</span> <span class="o">=</span> <span class="n">loader</span><span class="o">.</span><span class="n">construct_mapping</span><span class="p">(</span><span class="n">node</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">u</span><span class="o">.</span><span class="n">Unit</span><span class="p">(</span><span class="nb">map</span><span class="p">[</span><span class="s1">&#39;unit&#39;</span><span class="p">])</span>
+
+
+<span class="k">def</span> <span class="nf">_serialized_column_representer</span><span class="p">(</span><span class="n">dumper</span><span class="p">,</span> <span class="n">obj</span><span class="p">):</span>
+    <span class="n">out</span> <span class="o">=</span> <span class="n">dumper</span><span class="o">.</span><span class="n">represent_mapping</span><span class="p">(</span><span class="s1">&#39;!astropy.table.SerializedColumn&#39;</span><span class="p">,</span> <span class="n">obj</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">out</span>
+
+
+<span class="k">def</span> <span class="nf">_serialized_column_constructor</span><span class="p">(</span><span class="n">loader</span><span class="p">,</span> <span class="n">node</span><span class="p">):</span>
+    <span class="nb">map</span> <span class="o">=</span> <span class="n">loader</span><span class="o">.</span><span class="n">construct_mapping</span><span class="p">(</span><span class="n">node</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">SerializedColumn</span><span class="p">(</span><span class="nb">map</span><span class="p">)</span>
+
+
+<span class="k">def</span> <span class="nf">_time_representer</span><span class="p">(</span><span class="n">dumper</span><span class="p">,</span> <span class="n">obj</span><span class="p">):</span>
+    <span class="n">out</span> <span class="o">=</span> <span class="n">obj</span><span class="o">.</span><span class="n">info</span><span class="o">.</span><span class="n">_represent_as_dict</span><span class="p">()</span>
+    <span class="k">return</span> <span class="n">dumper</span><span class="o">.</span><span class="n">represent_mapping</span><span class="p">(</span><span class="s1">&#39;!astropy.time.Time&#39;</span><span class="p">,</span> <span class="n">out</span><span class="p">)</span>
+
+
+<span class="k">def</span> <span class="nf">_time_constructor</span><span class="p">(</span><span class="n">loader</span><span class="p">,</span> <span class="n">node</span><span class="p">):</span>
+    <span class="nb">map</span> <span class="o">=</span> <span class="n">loader</span><span class="o">.</span><span class="n">construct_mapping</span><span class="p">(</span><span class="n">node</span><span class="p">)</span>
+    <span class="n">out</span> <span class="o">=</span> <span class="n">Time</span><span class="o">.</span><span class="n">info</span><span class="o">.</span><span class="n">_construct_from_dict</span><span class="p">(</span><span class="nb">map</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">out</span>
+
+
+<span class="k">def</span> <span class="nf">_timedelta_representer</span><span class="p">(</span><span class="n">dumper</span><span class="p">,</span> <span class="n">obj</span><span class="p">):</span>
+    <span class="n">out</span> <span class="o">=</span> <span class="n">obj</span><span class="o">.</span><span class="n">info</span><span class="o">.</span><span class="n">_represent_as_dict</span><span class="p">()</span>
+    <span class="k">return</span> <span class="n">dumper</span><span class="o">.</span><span class="n">represent_mapping</span><span class="p">(</span><span class="s1">&#39;!astropy.time.TimeDelta&#39;</span><span class="p">,</span> <span class="n">out</span><span class="p">)</span>
+
+
+<span class="k">def</span> <span class="nf">_timedelta_constructor</span><span class="p">(</span><span class="n">loader</span><span class="p">,</span> <span class="n">node</span><span class="p">):</span>
+    <span class="nb">map</span> <span class="o">=</span> <span class="n">loader</span><span class="o">.</span><span class="n">construct_mapping</span><span class="p">(</span><span class="n">node</span><span class="p">)</span>
+    <span class="n">out</span> <span class="o">=</span> <span class="n">TimeDelta</span><span class="o">.</span><span class="n">info</span><span class="o">.</span><span class="n">_construct_from_dict</span><span class="p">(</span><span class="nb">map</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">out</span>
+
+
+<span class="k">def</span> <span class="nf">_ndarray_representer</span><span class="p">(</span><span class="n">dumper</span><span class="p">,</span> <span class="n">obj</span><span class="p">):</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="p">(</span><span class="n">obj</span><span class="o">.</span><span class="n">flags</span><span class="p">[</span><span class="s1">&#39;C_CONTIGUOUS&#39;</span><span class="p">]</span> <span class="ow">or</span> <span class="n">obj</span><span class="o">.</span><span class="n">flags</span><span class="p">[</span><span class="s1">&#39;F_CONTIGUOUS&#39;</span><span class="p">]):</span>
+        <span class="n">obj</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">ascontiguousarray</span><span class="p">(</span><span class="n">obj</span><span class="p">)</span>
+
+    <span class="k">if</span> <span class="n">np</span><span class="o">.</span><span class="n">isfortran</span><span class="p">(</span><span class="n">obj</span><span class="p">):</span>
+        <span class="n">obj</span> <span class="o">=</span> <span class="n">obj</span><span class="o">.</span><span class="n">T</span>
+        <span class="n">order</span> <span class="o">=</span> <span class="s1">&#39;F&#39;</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="n">order</span> <span class="o">=</span> <span class="s1">&#39;C&#39;</span>
+
+    <span class="n">data_b64</span> <span class="o">=</span> <span class="n">base64</span><span class="o">.</span><span class="n">b64encode</span><span class="p">(</span><span class="n">obj</span><span class="o">.</span><span class="n">tostring</span><span class="p">())</span>
+
+    <span class="n">out</span> <span class="o">=</span> <span class="nb">dict</span><span class="p">(</span><span class="n">buffer</span><span class="o">=</span><span class="n">data_b64</span><span class="p">,</span>
+               <span class="n">dtype</span><span class="o">=</span><span class="nb">str</span><span class="p">(</span><span class="n">obj</span><span class="o">.</span><span class="n">dtype</span><span class="p">),</span>
+               <span class="n">shape</span><span class="o">=</span><span class="n">obj</span><span class="o">.</span><span class="n">shape</span><span class="p">,</span>
+               <span class="n">order</span><span class="o">=</span><span class="n">order</span><span class="p">)</span>
+
+    <span class="k">return</span> <span class="n">dumper</span><span class="o">.</span><span class="n">represent_mapping</span><span class="p">(</span><span class="s1">&#39;!numpy.ndarray&#39;</span><span class="p">,</span> <span class="n">out</span><span class="p">)</span>
+
+
+<span class="k">def</span> <span class="nf">_ndarray_constructor</span><span class="p">(</span><span class="n">loader</span><span class="p">,</span> <span class="n">node</span><span class="p">):</span>
+    <span class="nb">map</span> <span class="o">=</span> <span class="n">loader</span><span class="o">.</span><span class="n">construct_mapping</span><span class="p">(</span><span class="n">node</span><span class="p">)</span>
+    <span class="nb">map</span><span class="p">[</span><span class="s1">&#39;buffer&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">base64</span><span class="o">.</span><span class="n">b64decode</span><span class="p">(</span><span class="nb">map</span><span class="p">[</span><span class="s1">&#39;buffer&#39;</span><span class="p">])</span>
+    <span class="k">return</span> <span class="n">np</span><span class="o">.</span><span class="n">ndarray</span><span class="p">(</span><span class="o">**</span><span class="nb">map</span><span class="p">)</span>
+
+
+<span class="k">def</span> <span class="nf">_quantity_representer</span><span class="p">(</span><span class="n">tag</span><span class="p">):</span>
+    <span class="k">def</span> <span class="nf">representer</span><span class="p">(</span><span class="n">dumper</span><span class="p">,</span> <span class="n">obj</span><span class="p">):</span>
+        <span class="n">out</span> <span class="o">=</span> <span class="n">obj</span><span class="o">.</span><span class="n">info</span><span class="o">.</span><span class="n">_represent_as_dict</span><span class="p">()</span>
+        <span class="k">return</span> <span class="n">dumper</span><span class="o">.</span><span class="n">represent_mapping</span><span class="p">(</span><span class="n">tag</span><span class="p">,</span> <span class="n">out</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">representer</span>
+
+
+<span class="k">def</span> <span class="nf">_quantity_constructor</span><span class="p">(</span><span class="n">cls</span><span class="p">):</span>
+    <span class="k">def</span> <span class="nf">constructor</span><span class="p">(</span><span class="n">loader</span><span class="p">,</span> <span class="n">node</span><span class="p">):</span>
+        <span class="nb">map</span> <span class="o">=</span> <span class="n">loader</span><span class="o">.</span><span class="n">construct_mapping</span><span class="p">(</span><span class="n">node</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">cls</span><span class="o">.</span><span class="n">info</span><span class="o">.</span><span class="n">_construct_from_dict</span><span class="p">(</span><span class="nb">map</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">constructor</span>
+
+
+<span class="k">def</span> <span class="nf">_skycoord_representer</span><span class="p">(</span><span class="n">dumper</span><span class="p">,</span> <span class="n">obj</span><span class="p">):</span>
+    <span class="nb">map</span> <span class="o">=</span> <span class="n">obj</span><span class="o">.</span><span class="n">info</span><span class="o">.</span><span class="n">_represent_as_dict</span><span class="p">()</span>
+    <span class="n">out</span> <span class="o">=</span> <span class="n">dumper</span><span class="o">.</span><span class="n">represent_mapping</span><span class="p">(</span><span class="s1">&#39;!astropy.coordinates.sky_coordinate.SkyCoord&#39;</span><span class="p">,</span>
+                                   <span class="nb">map</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">out</span>
+
+
+<span class="k">def</span> <span class="nf">_skycoord_constructor</span><span class="p">(</span><span class="n">loader</span><span class="p">,</span> <span class="n">node</span><span class="p">):</span>
+    <span class="nb">map</span> <span class="o">=</span> <span class="n">loader</span><span class="o">.</span><span class="n">construct_mapping</span><span class="p">(</span><span class="n">node</span><span class="p">)</span>
+    <span class="n">out</span> <span class="o">=</span> <span class="n">coords</span><span class="o">.</span><span class="n">SkyCoord</span><span class="o">.</span><span class="n">info</span><span class="o">.</span><span class="n">_construct_from_dict</span><span class="p">(</span><span class="nb">map</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">out</span>
+
+
+<span class="c1"># Straight from yaml&#39;s Representer</span>
+<span class="k">def</span> <span class="nf">_complex_representer</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">data</span><span class="p">):</span>
+    <span class="k">if</span> <span class="n">data</span><span class="o">.</span><span class="n">imag</span> <span class="o">==</span> <span class="mf">0.0</span><span class="p">:</span>
+        <span class="n">data</span> <span class="o">=</span> <span class="s1">u&#39;</span><span class="si">%r</span><span class="s1">&#39;</span> <span class="o">%</span> <span class="n">data</span><span class="o">.</span><span class="n">real</span>
+    <span class="k">elif</span> <span class="n">data</span><span class="o">.</span><span class="n">real</span> <span class="o">==</span> <span class="mf">0.0</span><span class="p">:</span>
+        <span class="n">data</span> <span class="o">=</span> <span class="s1">u&#39;</span><span class="si">%r</span><span class="s1">j&#39;</span> <span class="o">%</span> <span class="n">data</span><span class="o">.</span><span class="n">imag</span>
+    <span class="k">elif</span> <span class="n">data</span><span class="o">.</span><span class="n">imag</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">:</span>
+        <span class="n">data</span> <span class="o">=</span> <span class="s1">u&#39;</span><span class="si">%r</span><span class="s1">+</span><span class="si">%r</span><span class="s1">j&#39;</span> <span class="o">%</span> <span class="p">(</span><span class="n">data</span><span class="o">.</span><span class="n">real</span><span class="p">,</span> <span class="n">data</span><span class="o">.</span><span class="n">imag</span><span class="p">)</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="n">data</span> <span class="o">=</span> <span class="s1">u&#39;</span><span class="si">%r%r</span><span class="s1">j&#39;</span> <span class="o">%</span> <span class="p">(</span><span class="n">data</span><span class="o">.</span><span class="n">real</span><span class="p">,</span> <span class="n">data</span><span class="o">.</span><span class="n">imag</span><span class="p">)</span>
+    <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">represent_scalar</span><span class="p">(</span><span class="s1">u&#39;tag:yaml.org,2002:python/complex&#39;</span><span class="p">,</span> <span class="n">data</span><span class="p">)</span>
+
+
+<span class="k">def</span> <span class="nf">_complex_constructor</span><span class="p">(</span><span class="n">loader</span><span class="p">,</span> <span class="n">node</span><span class="p">):</span>
+    <span class="nb">map</span> <span class="o">=</span> <span class="n">loader</span><span class="o">.</span><span class="n">construct_scalar</span><span class="p">(</span><span class="n">node</span><span class="p">)</span>
+    <span class="k">return</span> <span class="nb">complex</span><span class="p">(</span><span class="nb">map</span><span class="p">)</span>
+
+
+<div class="viewcode-block" id="AstropyLoader"><a class="viewcode-back" href="../../../../api/astropy.io.misc.yaml.AstropyLoader.html#astropy.io.misc.yaml.AstropyLoader">[docs]</a><span class="k">class</span> <span class="nc">AstropyLoader</span><span class="p">(</span><span class="n">yaml</span><span class="o">.</span><span class="n">SafeLoader</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Custom SafeLoader that constructs astropy core objects as well</span>
+<span class="sd">    as Python tuple and unicode objects.</span>
+
+<span class="sd">    This class is not directly instantiated by user code, but instead is</span>
+<span class="sd">    used to maintain the available constructor functions that are</span>
+<span class="sd">    called when parsing a YAML stream.  See the `PyYaml documentation</span>
+<span class="sd">    &lt;http://pyyaml.org/wiki/PyYAMLDocumentation&gt;`_ for details of the</span>
+<span class="sd">    class signature.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="k">def</span> <span class="nf">_construct_python_tuple</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">node</span><span class="p">):</span>
+        <span class="k">return</span> <span class="nb">tuple</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">construct_sequence</span><span class="p">(</span><span class="n">node</span><span class="p">))</span>
+
+    <span class="k">def</span> <span class="nf">_construct_python_unicode</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">node</span><span class="p">):</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">construct_scalar</span><span class="p">(</span><span class="n">node</span><span class="p">)</span></div>
+
+
+<div class="viewcode-block" id="AstropyDumper"><a class="viewcode-back" href="../../../../api/astropy.io.misc.yaml.AstropyDumper.html#astropy.io.misc.yaml.AstropyDumper">[docs]</a><span class="k">class</span> <span class="nc">AstropyDumper</span><span class="p">(</span><span class="n">yaml</span><span class="o">.</span><span class="n">SafeDumper</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Custom SafeDumper that represents astropy core objects as well</span>
+<span class="sd">    as Python tuple and unicode objects.</span>
+
+<span class="sd">    This class is not directly instantiated by user code, but instead is</span>
+<span class="sd">    used to maintain the available representer functions that are</span>
+<span class="sd">    called when generating a YAML stream from an object.  See the</span>
+<span class="sd">    `PyYaml documentation &lt;http://pyyaml.org/wiki/PyYAMLDocumentation&gt;`_</span>
+<span class="sd">    for details of the class signature.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="k">def</span> <span class="nf">_represent_tuple</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">data</span><span class="p">):</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">represent_sequence</span><span class="p">(</span><span class="s1">&#39;tag:yaml.org,2002:python/tuple&#39;</span><span class="p">,</span> <span class="n">data</span><span class="p">)</span>
+
+    <span class="k">if</span> <span class="n">YAML_LT_3_12</span><span class="p">:</span>
+        <span class="c1"># pre-3.12, ignore-aliases could not deal with ndarray, so we backport</span>
+        <span class="c1"># the more recent ignore_alises definition.</span>
+        <span class="k">def</span> <span class="nf">ignore_aliases</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">data</span><span class="p">):</span>
+            <span class="k">if</span> <span class="n">data</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+                <span class="k">return</span> <span class="kc">True</span>
+            <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">data</span><span class="p">,</span> <span class="nb">tuple</span><span class="p">)</span> <span class="ow">and</span> <span class="n">data</span> <span class="o">==</span> <span class="p">():</span>
+                <span class="k">return</span> <span class="kc">True</span>
+            <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">data</span><span class="p">,</span> <span class="n">six</span><span class="o">.</span><span class="n">string_types</span> <span class="o">+</span> <span class="p">(</span><span class="nb">bool</span><span class="p">,</span> <span class="nb">int</span><span class="p">,</span> <span class="nb">float</span><span class="p">)):</span>
+                <span class="k">return</span> <span class="kc">True</span></div>
+
+
+<span class="n">AstropyDumper</span><span class="o">.</span><span class="n">add_representer</span><span class="p">(</span><span class="n">u</span><span class="o">.</span><span class="n">IrreducibleUnit</span><span class="p">,</span> <span class="n">_unit_representer</span><span class="p">)</span>
+<span class="n">AstropyDumper</span><span class="o">.</span><span class="n">add_representer</span><span class="p">(</span><span class="n">u</span><span class="o">.</span><span class="n">CompositeUnit</span><span class="p">,</span> <span class="n">_unit_representer</span><span class="p">)</span>
+<span class="n">AstropyDumper</span><span class="o">.</span><span class="n">add_multi_representer</span><span class="p">(</span><span class="n">u</span><span class="o">.</span><span class="n">Unit</span><span class="p">,</span> <span class="n">_unit_representer</span><span class="p">)</span>
+<span class="n">AstropyDumper</span><span class="o">.</span><span class="n">add_representer</span><span class="p">(</span><span class="nb">tuple</span><span class="p">,</span> <span class="n">AstropyDumper</span><span class="o">.</span><span class="n">_represent_tuple</span><span class="p">)</span>
+<span class="n">AstropyDumper</span><span class="o">.</span><span class="n">add_representer</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">ndarray</span><span class="p">,</span> <span class="n">_ndarray_representer</span><span class="p">)</span>
+<span class="n">AstropyDumper</span><span class="o">.</span><span class="n">add_representer</span><span class="p">(</span><span class="n">Time</span><span class="p">,</span> <span class="n">_time_representer</span><span class="p">)</span>
+<span class="n">AstropyDumper</span><span class="o">.</span><span class="n">add_representer</span><span class="p">(</span><span class="n">TimeDelta</span><span class="p">,</span> <span class="n">_timedelta_representer</span><span class="p">)</span>
+<span class="n">AstropyDumper</span><span class="o">.</span><span class="n">add_representer</span><span class="p">(</span><span class="n">coords</span><span class="o">.</span><span class="n">SkyCoord</span><span class="p">,</span> <span class="n">_skycoord_representer</span><span class="p">)</span>
+<span class="n">AstropyDumper</span><span class="o">.</span><span class="n">add_representer</span><span class="p">(</span><span class="n">SerializedColumn</span><span class="p">,</span> <span class="n">_serialized_column_representer</span><span class="p">)</span>
+
+<span class="c1"># Numpy dtypes</span>
+<span class="n">AstropyDumper</span><span class="o">.</span><span class="n">add_representer</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">bool_</span><span class="p">,</span>
+                              <span class="n">yaml</span><span class="o">.</span><span class="n">representer</span><span class="o">.</span><span class="n">SafeRepresenter</span><span class="o">.</span><span class="n">represent_bool</span><span class="p">)</span>
+<span class="k">for</span> <span class="n">np_type</span> <span class="ow">in</span> <span class="p">[</span><span class="n">np</span><span class="o">.</span><span class="n">int_</span><span class="p">,</span> <span class="n">np</span><span class="o">.</span><span class="n">int</span><span class="p">,</span> <span class="n">np</span><span class="o">.</span><span class="n">intc</span><span class="p">,</span> <span class="n">np</span><span class="o">.</span><span class="n">intp</span><span class="p">,</span> <span class="n">np</span><span class="o">.</span><span class="n">int8</span><span class="p">,</span> <span class="n">np</span><span class="o">.</span><span class="n">int16</span><span class="p">,</span> <span class="n">np</span><span class="o">.</span><span class="n">int32</span><span class="p">,</span>
+                <span class="n">np</span><span class="o">.</span><span class="n">int64</span><span class="p">,</span> <span class="n">np</span><span class="o">.</span><span class="n">uint8</span><span class="p">,</span> <span class="n">np</span><span class="o">.</span><span class="n">uint16</span><span class="p">,</span> <span class="n">np</span><span class="o">.</span><span class="n">uint32</span><span class="p">,</span> <span class="n">np</span><span class="o">.</span><span class="n">uint64</span><span class="p">]:</span>
+    <span class="n">AstropyDumper</span><span class="o">.</span><span class="n">add_representer</span><span class="p">(</span><span class="n">np_type</span><span class="p">,</span>
+                                 <span class="n">yaml</span><span class="o">.</span><span class="n">representer</span><span class="o">.</span><span class="n">SafeRepresenter</span><span class="o">.</span><span class="n">represent_int</span><span class="p">)</span>
+<span class="k">for</span> <span class="n">np_type</span> <span class="ow">in</span> <span class="p">[</span><span class="n">np</span><span class="o">.</span><span class="n">float_</span><span class="p">,</span> <span class="n">np</span><span class="o">.</span><span class="n">float</span><span class="p">,</span> <span class="n">np</span><span class="o">.</span><span class="n">float16</span><span class="p">,</span> <span class="n">np</span><span class="o">.</span><span class="n">float32</span><span class="p">,</span> <span class="n">np</span><span class="o">.</span><span class="n">float64</span><span class="p">,</span>
+                <span class="n">np</span><span class="o">.</span><span class="n">longdouble</span><span class="p">]:</span>
+    <span class="n">AstropyDumper</span><span class="o">.</span><span class="n">add_representer</span><span class="p">(</span><span class="n">np_type</span><span class="p">,</span>
+                                 <span class="n">yaml</span><span class="o">.</span><span class="n">representer</span><span class="o">.</span><span class="n">SafeRepresenter</span><span class="o">.</span><span class="n">represent_float</span><span class="p">)</span>
+<span class="k">for</span> <span class="n">np_type</span> <span class="ow">in</span> <span class="p">[</span><span class="n">np</span><span class="o">.</span><span class="n">complex_</span><span class="p">,</span> <span class="n">np</span><span class="o">.</span><span class="n">complex</span><span class="p">,</span> <span class="n">np</span><span class="o">.</span><span class="n">complex64</span><span class="p">,</span> <span class="n">np</span><span class="o">.</span><span class="n">complex128</span><span class="p">]:</span>
+    <span class="n">AstropyDumper</span><span class="o">.</span><span class="n">add_representer</span><span class="p">(</span><span class="n">np_type</span><span class="p">,</span>
+                                 <span class="n">_complex_representer</span><span class="p">)</span>
+
+<span class="n">AstropyLoader</span><span class="o">.</span><span class="n">add_constructor</span><span class="p">(</span><span class="s1">u&#39;tag:yaml.org,2002:python/complex&#39;</span><span class="p">,</span>
+                              <span class="n">_complex_constructor</span><span class="p">)</span>
+<span class="n">AstropyLoader</span><span class="o">.</span><span class="n">add_constructor</span><span class="p">(</span><span class="s1">&#39;tag:yaml.org,2002:python/tuple&#39;</span><span class="p">,</span>
+                              <span class="n">AstropyLoader</span><span class="o">.</span><span class="n">_construct_python_tuple</span><span class="p">)</span>
+<span class="n">AstropyLoader</span><span class="o">.</span><span class="n">add_constructor</span><span class="p">(</span><span class="s1">&#39;tag:yaml.org,2002:python/unicode&#39;</span><span class="p">,</span>
+                              <span class="n">AstropyLoader</span><span class="o">.</span><span class="n">_construct_python_unicode</span><span class="p">)</span>
+<span class="n">AstropyLoader</span><span class="o">.</span><span class="n">add_constructor</span><span class="p">(</span><span class="s1">&#39;!astropy.units.Unit&#39;</span><span class="p">,</span> <span class="n">_unit_constructor</span><span class="p">)</span>
+<span class="n">AstropyLoader</span><span class="o">.</span><span class="n">add_constructor</span><span class="p">(</span><span class="s1">&#39;!numpy.ndarray&#39;</span><span class="p">,</span> <span class="n">_ndarray_constructor</span><span class="p">)</span>
+<span class="n">AstropyLoader</span><span class="o">.</span><span class="n">add_constructor</span><span class="p">(</span><span class="s1">&#39;!astropy.time.Time&#39;</span><span class="p">,</span> <span class="n">_time_constructor</span><span class="p">)</span>
+<span class="n">AstropyLoader</span><span class="o">.</span><span class="n">add_constructor</span><span class="p">(</span><span class="s1">&#39;!astropy.time.TimeDelta&#39;</span><span class="p">,</span> <span class="n">_timedelta_constructor</span><span class="p">)</span>
+<span class="n">AstropyLoader</span><span class="o">.</span><span class="n">add_constructor</span><span class="p">(</span><span class="s1">&#39;!astropy.coordinates.sky_coordinate.SkyCoord&#39;</span><span class="p">,</span>
+                              <span class="n">_skycoord_constructor</span><span class="p">)</span>
+<span class="n">AstropyLoader</span><span class="o">.</span><span class="n">add_constructor</span><span class="p">(</span><span class="s1">&#39;!astropy.table.SerializedColumn&#39;</span><span class="p">,</span>
+                              <span class="n">_serialized_column_constructor</span><span class="p">)</span>
+
+<span class="k">for</span> <span class="n">cls</span><span class="p">,</span> <span class="n">tag</span> <span class="ow">in</span> <span class="p">((</span><span class="n">u</span><span class="o">.</span><span class="n">Quantity</span><span class="p">,</span> <span class="s1">&#39;!astropy.units.Quantity&#39;</span><span class="p">),</span>
+                 <span class="p">(</span><span class="n">coords</span><span class="o">.</span><span class="n">Angle</span><span class="p">,</span> <span class="s1">&#39;!astropy.coordinates.Angle&#39;</span><span class="p">),</span>
+                 <span class="p">(</span><span class="n">coords</span><span class="o">.</span><span class="n">Latitude</span><span class="p">,</span> <span class="s1">&#39;!astropy.coordinates.Latitude&#39;</span><span class="p">),</span>
+                 <span class="p">(</span><span class="n">coords</span><span class="o">.</span><span class="n">Longitude</span><span class="p">,</span> <span class="s1">&#39;!astropy.coordinates.Longitude&#39;</span><span class="p">),</span>
+                 <span class="p">(</span><span class="n">coords</span><span class="o">.</span><span class="n">EarthLocation</span><span class="p">,</span> <span class="s1">&#39;!astropy.coordinates.earth.EarthLocation&#39;</span><span class="p">)):</span>
+    <span class="n">AstropyDumper</span><span class="o">.</span><span class="n">add_multi_representer</span><span class="p">(</span><span class="n">cls</span><span class="p">,</span> <span class="n">_quantity_representer</span><span class="p">(</span><span class="n">tag</span><span class="p">))</span>
+    <span class="n">AstropyLoader</span><span class="o">.</span><span class="n">add_constructor</span><span class="p">(</span><span class="n">tag</span><span class="p">,</span> <span class="n">_quantity_constructor</span><span class="p">(</span><span class="n">cls</span><span class="p">))</span>
+
+
+<div class="viewcode-block" id="load"><a class="viewcode-back" href="../../../../api/astropy.io.misc.yaml.load.html#astropy.io.misc.yaml.load">[docs]</a><span class="k">def</span> <span class="nf">load</span><span class="p">(</span><span class="n">stream</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;Parse the first YAML document in a stream using the AstropyLoader and</span>
+<span class="sd">    produce the corresponding Python object.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    stream : str or file-like object</span>
+<span class="sd">        YAML input</span>
+
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+<span class="sd">    obj : object</span>
+<span class="sd">        Object corresponding to YAML document</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">return</span> <span class="n">yaml</span><span class="o">.</span><span class="n">load</span><span class="p">(</span><span class="n">stream</span><span class="p">,</span> <span class="n">Loader</span><span class="o">=</span><span class="n">AstropyLoader</span><span class="p">)</span></div>
+
+
+<div class="viewcode-block" id="load_all"><a class="viewcode-back" href="../../../../api/astropy.io.misc.yaml.load_all.html#astropy.io.misc.yaml.load_all">[docs]</a><span class="k">def</span> <span class="nf">load_all</span><span class="p">(</span><span class="n">stream</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;Parse the all YAML documents in a stream using the AstropyLoader class and</span>
+<span class="sd">    produce the corresponding Python object.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    stream : str or file-like object</span>
+<span class="sd">        YAML input</span>
+
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+<span class="sd">    obj : object</span>
+<span class="sd">        Object corresponding to YAML document</span>
+
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">return</span> <span class="n">yaml</span><span class="o">.</span><span class="n">load_all</span><span class="p">(</span><span class="n">stream</span><span class="p">,</span> <span class="n">Loader</span><span class="o">=</span><span class="n">AstropyLoader</span><span class="p">)</span></div>
+
+
+<div class="viewcode-block" id="dump"><a class="viewcode-back" href="../../../../api/astropy.io.misc.yaml.dump.html#astropy.io.misc.yaml.dump">[docs]</a><span class="k">def</span> <span class="nf">dump</span><span class="p">(</span><span class="n">data</span><span class="p">,</span> <span class="n">stream</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;Serialize a Python object into a YAML stream using the AstropyDumper class.</span>
+<span class="sd">    If stream is None, return the produced string instead.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    data: object</span>
+<span class="sd">        Object to serialize to YAML</span>
+<span class="sd">    stream : file-like object, optional</span>
+<span class="sd">        YAML output (if not supplied a string is returned)</span>
+<span class="sd">    **kwargs</span>
+<span class="sd">        Other keyword arguments that get passed to yaml.dump()</span>
+
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+<span class="sd">    out : str or None</span>
+<span class="sd">        If no ``stream`` is supplied then YAML output is returned as str</span>
+
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">kwargs</span><span class="p">[</span><span class="s1">&#39;Dumper&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">AstropyDumper</span>
+    <span class="k">return</span> <span class="n">yaml</span><span class="o">.</span><span class="n">dump</span><span class="p">(</span><span class="n">data</span><span class="p">,</span> <span class="n">stream</span><span class="o">=</span><span class="n">stream</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span></div>
+</pre></div>
+
+          </div>
+        </div>
+      </div>
+      <div class="sphinxsidebar" role="navigation" aria-label="main navigation">
+        <div class="sphinxsidebarwrapper"><h3>Page Contents</h3>
+
+
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+<footer class="footer">
+  <p class="pull-right"> &nbsp;
+    <a href="#">Back to Top</a></p>
+  <p>
+    &copy; Copyright 2011-2016, The Astropy Developers.<br/>
+    Created using <a href="http://sphinx.pocoo.org/">Sphinx</a> 1.5.6. &nbsp;
+    Last built 05 Jul 2017. <br/>
+  </p>
+</footer>
+  </body>
+</html>

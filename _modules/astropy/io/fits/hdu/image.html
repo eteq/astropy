@@ -1,0 +1,1239 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <head>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    
+    <title>astropy.io.fits.hdu.image &#8212; Astropy v3.0.dev19489</title>
+    
+    <link rel="stylesheet" href="../../../../../_static/bootstrap-astropy.css" type="text/css" />
+    <link rel="stylesheet" href="../../../../../_static/pygments.css" type="text/css" />
+    <link rel="stylesheet" href="../../../../../_static/gallery.css" type="text/css" />
+    
+    <script type="text/javascript">
+      var DOCUMENTATION_OPTIONS = {
+        URL_ROOT:    '../../../../../',
+        VERSION:     '3.0.dev19489',
+        COLLAPSE_INDEX: false,
+        FILE_SUFFIX: '.html',
+        HAS_SOURCE:  true,
+        SOURCELINK_SUFFIX: '.txt'
+      };
+    </script>
+    <script type="text/javascript" src="../../../../../_static/jquery.js"></script>
+    <script type="text/javascript" src="../../../../../_static/underscore.js"></script>
+    <script type="text/javascript" src="../../../../../_static/doctools.js"></script>
+    <script type="text/javascript" src="../../../../../_static/sidebar.js"></script>
+    <link rel="shortcut icon" href="../../../../../_static/astropy_logo.ico"/>
+    <link rel="index" title="Index" href="../../../../../genindex.html" />
+    <link rel="search" title="Search" href="../../../../../search.html" />
+<link href='https://fonts.googleapis.com/css?family=Source+Sans+Pro:200,600' rel='stylesheet' type='text/css'/>
+<script type="text/javascript" src="../../../../../_static/copybutton.js"></script>
+
+
+  </head>
+  <body role="document">
+<div class="topbar">
+  <a class="brand" title="Documentation Home" href="../../../../../index.html"><span id="logotext1">astro</span><span id="logotext2">py</span><span id="logotext3">:docs</span></a>
+  <ul>
+    <li><a class="homelink" title="Astropy Homepage" href="http://www.astropy.org"></a></li>
+    <li><a title="General Index" href="../../../../../genindex.html">Index</a></li>
+    <li><a title="Module Index" href="../../../../../py-modindex.html">Modules</a></li>
+    <li>
+      
+      
+<form action="../../../../../search.html" method="get">
+  <input type="text" name="q" placeholder="Search" />
+  <input type="hidden" name="check_keywords" value="yes" />
+  <input type="hidden" name="area" value="default" />
+</form>
+      
+    </li>
+  </ul>
+</div>
+
+<div class="related">
+    <h3>Navigation</h3>
+    <ul>
+      <li>
+	<a href="../../../../../index.html">Astropy v3.0.dev19489</a>
+	 &#187;
+      </li>
+      <li><a href="../../../../index.html" >Module code</a> &#187;</li>
+      <li><a href="../../../../astropy.html" accesskey="U">astropy</a> &#187;</li>
+      
+       
+    </ul>
+</div>
+  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          <div class="body" role="main">
+            
+  <h1>Source code for astropy.io.fits.hdu.image</h1><div class="highlight"><pre>
+<span></span><span class="c1"># Licensed under a 3-clause BSD style license - see PYFITS.rst</span>
+
+<span class="kn">import</span> <span class="nn">sys</span>
+<span class="kn">import</span> <span class="nn">warnings</span>
+
+<span class="kn">import</span> <span class="nn">numpy</span> <span class="k">as</span> <span class="nn">np</span>
+
+<span class="kn">from</span> <span class="nn">.base</span> <span class="k">import</span> <span class="n">DELAYED</span><span class="p">,</span> <span class="n">_ValidHDU</span><span class="p">,</span> <span class="n">ExtensionHDU</span><span class="p">,</span> <span class="n">BITPIX2DTYPE</span><span class="p">,</span> <span class="n">DTYPE2BITPIX</span>
+<span class="kn">from</span> <span class="nn">..header</span> <span class="k">import</span> <span class="n">Header</span>
+<span class="kn">from</span> <span class="nn">..util</span> <span class="k">import</span> <span class="n">_is_pseudo_unsigned</span><span class="p">,</span> <span class="n">_unsigned_zero</span><span class="p">,</span> <span class="n">_is_int</span>
+<span class="kn">from</span> <span class="nn">..verify</span> <span class="k">import</span> <span class="n">VerifyWarning</span>
+
+<span class="kn">from</span> <span class="nn">....extern.six</span> <span class="k">import</span> <span class="n">string_types</span>
+<span class="kn">from</span> <span class="nn">....extern.six.moves</span> <span class="k">import</span> <span class="nb">range</span><span class="p">,</span> <span class="nb">zip</span>
+<span class="kn">from</span> <span class="nn">....utils</span> <span class="k">import</span> <span class="n">isiterable</span><span class="p">,</span> <span class="n">lazyproperty</span>
+
+
+<span class="k">class</span> <span class="nc">_ImageBaseHDU</span><span class="p">(</span><span class="n">_ValidHDU</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;FITS image HDU base class.</span>
+
+<span class="sd">    Attributes</span>
+<span class="sd">    ----------</span>
+<span class="sd">    header</span>
+<span class="sd">        image header</span>
+
+<span class="sd">    data</span>
+<span class="sd">        image data</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="n">standard_keyword_comments</span> <span class="o">=</span> <span class="p">{</span>
+        <span class="s1">&#39;SIMPLE&#39;</span><span class="p">:</span> <span class="s1">&#39;conforms to FITS standard&#39;</span><span class="p">,</span>
+        <span class="s1">&#39;XTENSION&#39;</span><span class="p">:</span> <span class="s1">&#39;Image extension&#39;</span><span class="p">,</span>
+        <span class="s1">&#39;BITPIX&#39;</span><span class="p">:</span> <span class="s1">&#39;array data type&#39;</span><span class="p">,</span>
+        <span class="s1">&#39;NAXIS&#39;</span><span class="p">:</span> <span class="s1">&#39;number of array dimensions&#39;</span><span class="p">,</span>
+        <span class="s1">&#39;GROUPS&#39;</span><span class="p">:</span> <span class="s1">&#39;has groups&#39;</span><span class="p">,</span>
+        <span class="s1">&#39;PCOUNT&#39;</span><span class="p">:</span> <span class="s1">&#39;number of parameters&#39;</span><span class="p">,</span>
+        <span class="s1">&#39;GCOUNT&#39;</span><span class="p">:</span> <span class="s1">&#39;number of groups&#39;</span>
+    <span class="p">}</span>
+
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">data</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">header</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">do_not_scale_image_data</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span>
+                 <span class="n">uint</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">scale_back</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="n">ignore_blank</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+
+        <span class="kn">from</span> <span class="nn">.groups</span> <span class="k">import</span> <span class="n">GroupsHDU</span>
+
+        <span class="nb">super</span><span class="p">(</span><span class="n">_ImageBaseHDU</span><span class="p">,</span> <span class="bp">self</span><span class="p">)</span><span class="o">.</span><span class="n">__init__</span><span class="p">(</span><span class="n">data</span><span class="o">=</span><span class="n">data</span><span class="p">,</span> <span class="n">header</span><span class="o">=</span><span class="n">header</span><span class="p">)</span>
+
+        <span class="k">if</span> <span class="n">header</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="k">if</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">header</span><span class="p">,</span> <span class="n">Header</span><span class="p">):</span>
+                <span class="c1"># TODO: Instead maybe try initializing a new Header object from</span>
+                <span class="c1"># whatever is passed in as the header--there are various types</span>
+                <span class="c1"># of objects that could work for this...</span>
+                <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s1">&#39;header must be a Header object&#39;</span><span class="p">)</span>
+
+        <span class="k">if</span> <span class="n">data</span> <span class="ow">is</span> <span class="n">DELAYED</span><span class="p">:</span>
+            <span class="c1"># Presumably if data is DELAYED then this HDU is coming from an</span>
+            <span class="c1"># open file, and was not created in memory</span>
+            <span class="k">if</span> <span class="n">header</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+                <span class="c1"># this should never happen</span>
+                <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s1">&#39;No header to setup HDU.&#39;</span><span class="p">)</span>
+
+            <span class="c1"># if the file is read the first time, no need to copy, and keep it</span>
+            <span class="c1"># unchanged</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">_header</span> <span class="o">=</span> <span class="n">header</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="c1"># TODO: Some of this card manipulation should go into the</span>
+            <span class="c1"># PrimaryHDU and GroupsHDU subclasses</span>
+            <span class="c1"># construct a list of cards of minimal header</span>
+            <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">ExtensionHDU</span><span class="p">):</span>
+                <span class="n">c0</span> <span class="o">=</span> <span class="p">(</span><span class="s1">&#39;XTENSION&#39;</span><span class="p">,</span> <span class="s1">&#39;IMAGE&#39;</span><span class="p">,</span>
+                      <span class="bp">self</span><span class="o">.</span><span class="n">standard_keyword_comments</span><span class="p">[</span><span class="s1">&#39;XTENSION&#39;</span><span class="p">])</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="n">c0</span> <span class="o">=</span> <span class="p">(</span><span class="s1">&#39;SIMPLE&#39;</span><span class="p">,</span> <span class="kc">True</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">standard_keyword_comments</span><span class="p">[</span><span class="s1">&#39;SIMPLE&#39;</span><span class="p">])</span>
+            <span class="n">cards</span> <span class="o">=</span> <span class="p">[</span>
+                <span class="n">c0</span><span class="p">,</span>
+                <span class="p">(</span><span class="s1">&#39;BITPIX&#39;</span><span class="p">,</span> <span class="mi">8</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">standard_keyword_comments</span><span class="p">[</span><span class="s1">&#39;BITPIX&#39;</span><span class="p">]),</span>
+                <span class="p">(</span><span class="s1">&#39;NAXIS&#39;</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">standard_keyword_comments</span><span class="p">[</span><span class="s1">&#39;NAXIS&#39;</span><span class="p">])]</span>
+
+            <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">GroupsHDU</span><span class="p">):</span>
+                <span class="n">cards</span><span class="o">.</span><span class="n">append</span><span class="p">((</span><span class="s1">&#39;GROUPS&#39;</span><span class="p">,</span> <span class="kc">True</span><span class="p">,</span>
+                             <span class="bp">self</span><span class="o">.</span><span class="n">standard_keyword_comments</span><span class="p">[</span><span class="s1">&#39;GROUPS&#39;</span><span class="p">]))</span>
+
+            <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="p">(</span><span class="n">ExtensionHDU</span><span class="p">,</span> <span class="n">GroupsHDU</span><span class="p">)):</span>
+                <span class="n">cards</span><span class="o">.</span><span class="n">append</span><span class="p">((</span><span class="s1">&#39;PCOUNT&#39;</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span>
+                              <span class="bp">self</span><span class="o">.</span><span class="n">standard_keyword_comments</span><span class="p">[</span><span class="s1">&#39;PCOUNT&#39;</span><span class="p">]))</span>
+                <span class="n">cards</span><span class="o">.</span><span class="n">append</span><span class="p">((</span><span class="s1">&#39;GCOUNT&#39;</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span>
+                              <span class="bp">self</span><span class="o">.</span><span class="n">standard_keyword_comments</span><span class="p">[</span><span class="s1">&#39;GCOUNT&#39;</span><span class="p">]))</span>
+
+            <span class="k">if</span> <span class="n">header</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+                <span class="n">orig</span> <span class="o">=</span> <span class="n">header</span><span class="o">.</span><span class="n">copy</span><span class="p">()</span>
+                <span class="n">header</span> <span class="o">=</span> <span class="n">Header</span><span class="p">(</span><span class="n">cards</span><span class="p">)</span>
+                <span class="n">header</span><span class="o">.</span><span class="n">extend</span><span class="p">(</span><span class="n">orig</span><span class="p">,</span> <span class="n">strip</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">update</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">end</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="n">header</span> <span class="o">=</span> <span class="n">Header</span><span class="p">(</span><span class="n">cards</span><span class="p">)</span>
+
+            <span class="bp">self</span><span class="o">.</span><span class="n">_header</span> <span class="o">=</span> <span class="n">header</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">_do_not_scale_image_data</span> <span class="o">=</span> <span class="n">do_not_scale_image_data</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">_uint</span> <span class="o">=</span> <span class="n">uint</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_scale_back</span> <span class="o">=</span> <span class="n">scale_back</span>
+
+        <span class="c1"># Keep track of whether BZERO/BSCALE were set from the header so that</span>
+        <span class="c1"># values for self._orig_bzero and self._orig_bscale can be set</span>
+        <span class="c1"># properly, if necessary, once the data has been set.</span>
+        <span class="n">bzero_in_header</span> <span class="o">=</span> <span class="s1">&#39;BZERO&#39;</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">_header</span>
+        <span class="n">bscale_in_header</span> <span class="o">=</span> <span class="s1">&#39;BSCALE&#39;</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">_header</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_bzero</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_header</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;BZERO&#39;</span><span class="p">,</span> <span class="mi">0</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_bscale</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_header</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;BSCALE&#39;</span><span class="p">,</span> <span class="mi">1</span><span class="p">)</span>
+
+        <span class="c1"># Save off other important values from the header needed to interpret</span>
+        <span class="c1"># the image data</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_axes</span> <span class="o">=</span> <span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">_header</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;NAXIS&#39;</span> <span class="o">+</span> <span class="nb">str</span><span class="p">(</span><span class="n">axis</span> <span class="o">+</span> <span class="mi">1</span><span class="p">),</span> <span class="mi">0</span><span class="p">)</span>
+                      <span class="k">for</span> <span class="n">axis</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_header</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;NAXIS&#39;</span><span class="p">,</span> <span class="mi">0</span><span class="p">))]</span>
+
+        <span class="c1"># Not supplying a default for BITPIX makes sense because BITPIX</span>
+        <span class="c1"># is either in the header or should be determined from the dtype of</span>
+        <span class="c1"># the data (which occurs when the data is set).</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_bitpix</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_header</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;BITPIX&#39;</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_gcount</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_header</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;GCOUNT&#39;</span><span class="p">,</span> <span class="mi">1</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_pcount</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_header</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;PCOUNT&#39;</span><span class="p">,</span> <span class="mi">0</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_blank</span> <span class="o">=</span> <span class="kc">None</span> <span class="k">if</span> <span class="n">ignore_blank</span> <span class="k">else</span> <span class="bp">self</span><span class="o">.</span><span class="n">_header</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;BLANK&#39;</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_verify_blank</span><span class="p">()</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">_orig_bitpix</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_bitpix</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_orig_blank</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_header</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;BLANK&#39;</span><span class="p">)</span>
+
+        <span class="c1"># These get set again below, but need to be set to sensible defaults</span>
+        <span class="c1"># here.</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_orig_bzero</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_bzero</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_orig_bscale</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_bscale</span>
+
+        <span class="c1"># Set the name attribute if it was provided (if this is an ImageHDU</span>
+        <span class="c1"># this will result in setting the EXTNAME keyword of the header as</span>
+        <span class="c1"># well)</span>
+        <span class="k">if</span> <span class="s1">&#39;name&#39;</span> <span class="ow">in</span> <span class="n">kwargs</span> <span class="ow">and</span> <span class="n">kwargs</span><span class="p">[</span><span class="s1">&#39;name&#39;</span><span class="p">]:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">name</span> <span class="o">=</span> <span class="n">kwargs</span><span class="p">[</span><span class="s1">&#39;name&#39;</span><span class="p">]</span>
+
+        <span class="c1"># Set to True if the data or header is replaced, indicating that</span>
+        <span class="c1"># update_header should be called</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_modified</span> <span class="o">=</span> <span class="kc">False</span>
+
+        <span class="k">if</span> <span class="n">data</span> <span class="ow">is</span> <span class="n">DELAYED</span><span class="p">:</span>
+            <span class="k">if</span> <span class="p">(</span><span class="ow">not</span> <span class="n">do_not_scale_image_data</span> <span class="ow">and</span>
+                    <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_bscale</span> <span class="o">!=</span> <span class="mi">1</span> <span class="ow">or</span> <span class="bp">self</span><span class="o">.</span><span class="n">_bzero</span> <span class="o">!=</span> <span class="mi">0</span><span class="p">)):</span>
+                <span class="c1"># This indicates that when the data is accessed or written out</span>
+                <span class="c1"># to a new file it will need to be rescaled</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">_data_needs_rescale</span> <span class="o">=</span> <span class="kc">True</span>
+            <span class="k">return</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="c1"># Setting data will set set _bitpix, _bzero, and _bscale to the</span>
+            <span class="c1"># appropriate BITPIX for the data, and always sets _bzero=0 and</span>
+            <span class="c1"># _bscale=1.</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">data</span> <span class="o">=</span> <span class="n">data</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">update_header</span><span class="p">()</span>
+
+            <span class="c1"># Check again for BITPIX/BSCALE/BZERO in case they changed when the</span>
+            <span class="c1"># data was assigned. This can happen, for example, if the input</span>
+            <span class="c1"># data is an unsigned int numpy array.</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_bitpix</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_header</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;BITPIX&#39;</span><span class="p">)</span>
+
+            <span class="c1"># Do not provide default values for BZERO and BSCALE here because</span>
+            <span class="c1"># the keywords will have been deleted in the header if appropriate</span>
+            <span class="c1"># after scaling. We do not want to put them back in if they</span>
+            <span class="c1"># should not be there.</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_bzero</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_header</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;BZERO&#39;</span><span class="p">)</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_bscale</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_header</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;BSCALE&#39;</span><span class="p">)</span>
+
+        <span class="c1"># Handle case where there was no BZERO/BSCALE in the initial header</span>
+        <span class="c1"># but there should be a BSCALE/BZERO now that the data has been set.</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">bzero_in_header</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_orig_bzero</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_bzero</span>
+        <span class="k">if</span> <span class="n">bscale_in_header</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_orig_bscale</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_bscale</span>
+
+    <span class="nd">@classmethod</span>
+    <span class="k">def</span> <span class="nf">match_header</span><span class="p">(</span><span class="n">cls</span><span class="p">,</span> <span class="n">header</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        _ImageBaseHDU is sort of an abstract class for HDUs containing image</span>
+<span class="sd">        data (as opposed to table data) and should never be used directly.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+
+        <span class="k">raise</span> <span class="ne">NotImplementedError</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">is_image</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="kc">True</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">section</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Access a section of the image array without loading the entire array</span>
+<span class="sd">        into memory.  The :class:`Section` object returned by this attribute is</span>
+<span class="sd">        not meant to be used directly by itself.  Rather, slices of the section</span>
+<span class="sd">        return the appropriate slice of the data, and loads *only* that section</span>
+<span class="sd">        into memory.</span>
+
+<span class="sd">        Sections are mostly obsoleted by memmap support, but should still be</span>
+<span class="sd">        used to deal with very large scaled images.  See the</span>
+<span class="sd">        :ref:`data-sections` section of the PyFITS documentation for more</span>
+<span class="sd">        details.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+
+        <span class="k">return</span> <span class="n">Section</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">shape</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Shape of the image array--should be equivalent to ``self.data.shape``.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+
+        <span class="c1"># Determine from the values read from the header</span>
+        <span class="k">return</span> <span class="nb">tuple</span><span class="p">(</span><span class="nb">reversed</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_axes</span><span class="p">))</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">header</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_header</span>
+
+    <span class="nd">@header</span><span class="o">.</span><span class="n">setter</span>
+    <span class="k">def</span> <span class="nf">header</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">header</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_header</span> <span class="o">=</span> <span class="n">header</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_modified</span> <span class="o">=</span> <span class="kc">True</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">update_header</span><span class="p">()</span>
+
+    <span class="nd">@lazyproperty</span>
+    <span class="k">def</span> <span class="nf">data</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Image/array data as a `~numpy.ndarray`.</span>
+
+<span class="sd">        Please remember that the order of axes on an Numpy array are opposite</span>
+<span class="sd">        of the order specified in the FITS file.  For example for a 2D image</span>
+<span class="sd">        the &quot;rows&quot; or y-axis are the first dimension, and the &quot;columns&quot; or</span>
+<span class="sd">        x-axis are the second dimension.</span>
+
+<span class="sd">        If the data is scaled using the BZERO and BSCALE parameters, this</span>
+<span class="sd">        attribute returns the data scaled to its physical values unless the</span>
+<span class="sd">        file was opened with ``do_not_scale_image_data=True``.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+
+        <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_axes</span><span class="p">)</span> <span class="o">&lt;</span> <span class="mi">1</span><span class="p">:</span>
+            <span class="k">return</span>
+
+        <span class="n">data</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_get_scaled_image_data</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_data_offset</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">shape</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_update_header_scale_info</span><span class="p">(</span><span class="n">data</span><span class="o">.</span><span class="n">dtype</span><span class="p">)</span>
+
+        <span class="k">return</span> <span class="n">data</span>
+
+    <span class="nd">@data</span><span class="o">.</span><span class="n">setter</span>
+    <span class="k">def</span> <span class="nf">data</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">data</span><span class="p">):</span>
+        <span class="k">if</span> <span class="s1">&#39;data&#39;</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">__dict__</span> <span class="ow">and</span> <span class="bp">self</span><span class="o">.</span><span class="n">__dict__</span><span class="p">[</span><span class="s1">&#39;data&#39;</span><span class="p">]</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">__dict__</span><span class="p">[</span><span class="s1">&#39;data&#39;</span><span class="p">]</span> <span class="ow">is</span> <span class="n">data</span><span class="p">:</span>
+                <span class="k">return</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">_data_replaced</span> <span class="o">=</span> <span class="kc">True</span>
+            <span class="n">was_unsigned</span> <span class="o">=</span> <span class="n">_is_pseudo_unsigned</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">__dict__</span><span class="p">[</span><span class="s1">&#39;data&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">dtype</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_data_replaced</span> <span class="o">=</span> <span class="kc">True</span>
+            <span class="n">was_unsigned</span> <span class="o">=</span> <span class="kc">False</span>
+
+        <span class="k">if</span> <span class="n">data</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="ow">and</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">data</span><span class="p">,</span> <span class="n">np</span><span class="o">.</span><span class="n">ndarray</span><span class="p">):</span>
+            <span class="c1"># Try to coerce the data into a numpy array--this will work, on</span>
+            <span class="c1"># some level, for most objects</span>
+            <span class="k">try</span><span class="p">:</span>
+                <span class="n">data</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">(</span><span class="n">data</span><span class="p">)</span>
+            <span class="k">except</span> <span class="ne">Exception</span><span class="p">:</span>
+                <span class="k">raise</span> <span class="ne">TypeError</span><span class="p">(</span><span class="s1">&#39;data object </span><span class="si">{!r}</span><span class="s1"> could not be coerced into an &#39;</span>
+                                <span class="s1">&#39;ndarray&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">data</span><span class="p">))</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">__dict__</span><span class="p">[</span><span class="s1">&#39;data&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">data</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_modified</span> <span class="o">=</span> <span class="kc">True</span>
+
+        <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">data</span><span class="p">,</span> <span class="n">np</span><span class="o">.</span><span class="n">ndarray</span><span class="p">):</span>
+            <span class="c1"># Set new values of bitpix, bzero, and bscale now, but wait to</span>
+            <span class="c1"># revise original values until header is updated.</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_bitpix</span> <span class="o">=</span> <span class="n">DTYPE2BITPIX</span><span class="p">[</span><span class="n">data</span><span class="o">.</span><span class="n">dtype</span><span class="o">.</span><span class="n">name</span><span class="p">]</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_bscale</span> <span class="o">=</span> <span class="mi">1</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_bzero</span> <span class="o">=</span> <span class="mi">0</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_blank</span> <span class="o">=</span> <span class="kc">None</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_axes</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="n">data</span><span class="o">.</span><span class="n">shape</span><span class="p">)</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_axes</span><span class="o">.</span><span class="n">reverse</span><span class="p">()</span>
+        <span class="k">elif</span> <span class="bp">self</span><span class="o">.</span><span class="n">data</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_axes</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s1">&#39;not a valid data array&#39;</span><span class="p">)</span>
+
+        <span class="c1"># Update the header, including adding BZERO/BSCALE if new data is</span>
+        <span class="c1"># unsigned. Does not change the values of self._bitpix,</span>
+        <span class="c1"># self._orig_bitpix, etc.</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">update_header</span><span class="p">()</span>
+        <span class="k">if</span> <span class="p">(</span><span class="n">data</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="ow">and</span> <span class="n">was_unsigned</span><span class="p">):</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_update_header_scale_info</span><span class="p">(</span><span class="n">data</span><span class="o">.</span><span class="n">dtype</span><span class="p">)</span>
+
+        <span class="c1"># Keep _orig_bitpix as it was until header update is done, then</span>
+        <span class="c1"># set it, to allow easier handling of the case of unsigned</span>
+        <span class="c1"># integer data being converted to something else. Setting these here</span>
+        <span class="c1"># is needed only for the case do_not_scale_image_data=True when</span>
+        <span class="c1"># setting the data to unsigned int.</span>
+
+        <span class="c1"># If necessary during initialization, i.e. if BSCALE and BZERO were</span>
+        <span class="c1"># not in the header but the data was unsigned, the attributes below</span>
+        <span class="c1"># will be update in __init__.</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_orig_bitpix</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_bitpix</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_orig_bscale</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_bscale</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_orig_bzero</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_bzero</span>
+
+        <span class="c1"># returning the data signals to lazyproperty that we&#39;ve already handled</span>
+        <span class="c1"># setting self.__dict__[&#39;data&#39;]</span>
+        <span class="k">return</span> <span class="n">data</span>
+
+    <span class="k">def</span> <span class="nf">update_header</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Update the header keywords to agree with the data.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+
+        <span class="k">if</span> <span class="ow">not</span> <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_modified</span> <span class="ow">or</span> <span class="bp">self</span><span class="o">.</span><span class="n">_header</span><span class="o">.</span><span class="n">_modified</span> <span class="ow">or</span>
+                <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_has_data</span> <span class="ow">and</span> <span class="bp">self</span><span class="o">.</span><span class="n">shape</span> <span class="o">!=</span> <span class="bp">self</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">shape</span><span class="p">)):</span>
+            <span class="c1"># Not likely that anything needs updating</span>
+            <span class="k">return</span>
+
+        <span class="n">old_naxis</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_header</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;NAXIS&#39;</span><span class="p">,</span> <span class="mi">0</span><span class="p">)</span>
+
+        <span class="k">if</span> <span class="s1">&#39;BITPIX&#39;</span> <span class="ow">not</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">_header</span><span class="p">:</span>
+            <span class="n">bitpix_comment</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">standard_keyword_comments</span><span class="p">[</span><span class="s1">&#39;BITPIX&#39;</span><span class="p">]</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">bitpix_comment</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_header</span><span class="o">.</span><span class="n">comments</span><span class="p">[</span><span class="s1">&#39;BITPIX&#39;</span><span class="p">]</span>
+
+        <span class="c1"># Update the BITPIX keyword and ensure it&#39;s in the correct</span>
+        <span class="c1"># location in the header</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_header</span><span class="o">.</span><span class="n">set</span><span class="p">(</span><span class="s1">&#39;BITPIX&#39;</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">_bitpix</span><span class="p">,</span> <span class="n">bitpix_comment</span><span class="p">,</span> <span class="n">after</span><span class="o">=</span><span class="mi">0</span><span class="p">)</span>
+
+        <span class="c1"># If the data&#39;s shape has changed (this may have happened without our</span>
+        <span class="c1"># noticing either via a direct update to the data.shape attribute) we</span>
+        <span class="c1"># need to update the internal self._axes</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_has_data</span> <span class="ow">and</span> <span class="bp">self</span><span class="o">.</span><span class="n">shape</span> <span class="o">!=</span> <span class="bp">self</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">shape</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_axes</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">shape</span><span class="p">)</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_axes</span><span class="o">.</span><span class="n">reverse</span><span class="p">()</span>
+
+        <span class="c1"># Update the NAXIS keyword and ensure it&#39;s in the correct location in</span>
+        <span class="c1"># the header</span>
+        <span class="k">if</span> <span class="s1">&#39;NAXIS&#39;</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">_header</span><span class="p">:</span>
+            <span class="n">naxis_comment</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_header</span><span class="o">.</span><span class="n">comments</span><span class="p">[</span><span class="s1">&#39;NAXIS&#39;</span><span class="p">]</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">naxis_comment</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">standard_keyword_comments</span><span class="p">[</span><span class="s1">&#39;NAXIS&#39;</span><span class="p">]</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_header</span><span class="o">.</span><span class="n">set</span><span class="p">(</span><span class="s1">&#39;NAXIS&#39;</span><span class="p">,</span> <span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_axes</span><span class="p">),</span> <span class="n">naxis_comment</span><span class="p">,</span>
+                         <span class="n">after</span><span class="o">=</span><span class="s1">&#39;BITPIX&#39;</span><span class="p">)</span>
+
+        <span class="c1"># TODO: This routine is repeated in several different classes--it</span>
+        <span class="c1"># should probably be made available as a method on all standard HDU</span>
+        <span class="c1"># types</span>
+        <span class="c1"># add NAXISi if it does not exist</span>
+        <span class="k">for</span> <span class="n">idx</span><span class="p">,</span> <span class="n">axis</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_axes</span><span class="p">):</span>
+            <span class="n">naxisn</span> <span class="o">=</span> <span class="s1">&#39;NAXIS&#39;</span> <span class="o">+</span> <span class="nb">str</span><span class="p">(</span><span class="n">idx</span> <span class="o">+</span> <span class="mi">1</span><span class="p">)</span>
+            <span class="k">if</span> <span class="n">naxisn</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">_header</span><span class="p">:</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">_header</span><span class="p">[</span><span class="n">naxisn</span><span class="p">]</span> <span class="o">=</span> <span class="n">axis</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="k">if</span> <span class="p">(</span><span class="n">idx</span> <span class="o">==</span> <span class="mi">0</span><span class="p">):</span>
+                    <span class="n">after</span> <span class="o">=</span> <span class="s1">&#39;NAXIS&#39;</span>
+                <span class="k">else</span><span class="p">:</span>
+                    <span class="n">after</span> <span class="o">=</span> <span class="s1">&#39;NAXIS&#39;</span> <span class="o">+</span> <span class="nb">str</span><span class="p">(</span><span class="n">idx</span><span class="p">)</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">_header</span><span class="o">.</span><span class="n">set</span><span class="p">(</span><span class="n">naxisn</span><span class="p">,</span> <span class="n">axis</span><span class="p">,</span> <span class="n">after</span><span class="o">=</span><span class="n">after</span><span class="p">)</span>
+
+        <span class="c1"># delete extra NAXISi&#39;s</span>
+        <span class="k">for</span> <span class="n">idx</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_axes</span><span class="p">)</span> <span class="o">+</span> <span class="mi">1</span><span class="p">,</span> <span class="n">old_naxis</span> <span class="o">+</span> <span class="mi">1</span><span class="p">):</span>
+            <span class="k">try</span><span class="p">:</span>
+                <span class="k">del</span> <span class="bp">self</span><span class="o">.</span><span class="n">_header</span><span class="p">[</span><span class="s1">&#39;NAXIS&#39;</span> <span class="o">+</span> <span class="nb">str</span><span class="p">(</span><span class="n">idx</span><span class="p">)]</span>
+            <span class="k">except</span> <span class="ne">KeyError</span><span class="p">:</span>
+                <span class="k">pass</span>
+
+        <span class="k">if</span> <span class="s1">&#39;BLANK&#39;</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">_header</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_blank</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_header</span><span class="p">[</span><span class="s1">&#39;BLANK&#39;</span><span class="p">]</span>
+
+        <span class="c1"># Add BSCALE/BZERO to header if data is unsigned int.</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_update_uint_scale_keywords</span><span class="p">()</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">_modified</span> <span class="o">=</span> <span class="kc">False</span>
+
+    <span class="k">def</span> <span class="nf">_update_header_scale_info</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Delete BSCALE/BZERO from header if necessary.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+
+        <span class="c1"># Note that _dtype_for_bitpix determines the dtype based on the</span>
+        <span class="c1"># &quot;original&quot; values of bitpix, bscale, and bzero, stored in</span>
+        <span class="c1"># self._orig_bitpix, etc. It contains the logic for determining which</span>
+        <span class="c1"># special cases of BZERO/BSCALE, if any, are auto-detected as following</span>
+        <span class="c1"># the FITS unsigned int convention.</span>
+
+        <span class="c1"># Added original_was_unsigned with the intent of facilitating the</span>
+        <span class="c1"># special case of do_not_scale_image_data=True and uint=True</span>
+        <span class="c1"># eventually.</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_dtype_for_bitpix</span><span class="p">()</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">original_was_unsigned</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_dtype_for_bitpix</span><span class="p">()</span><span class="o">.</span><span class="n">kind</span> <span class="o">==</span> <span class="s1">&#39;u&#39;</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">original_was_unsigned</span> <span class="o">=</span> <span class="kc">False</span>
+
+        <span class="k">if</span> <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_do_not_scale_image_data</span> <span class="ow">or</span>
+                <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_orig_bzero</span> <span class="o">==</span> <span class="mi">0</span> <span class="ow">and</span> <span class="bp">self</span><span class="o">.</span><span class="n">_orig_bscale</span> <span class="o">==</span> <span class="mi">1</span><span class="p">)):</span>
+            <span class="k">return</span>
+
+        <span class="k">if</span> <span class="n">dtype</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">dtype</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_dtype_for_bitpix</span><span class="p">()</span>
+
+        <span class="k">if</span> <span class="p">(</span><span class="n">dtype</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="ow">and</span> <span class="n">dtype</span><span class="o">.</span><span class="n">kind</span> <span class="o">==</span> <span class="s1">&#39;u&#39;</span> <span class="ow">and</span>
+                <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_scale_back</span> <span class="ow">or</span> <span class="bp">self</span><span class="o">.</span><span class="n">_scale_back</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">)):</span>
+            <span class="c1"># Data is pseudo-unsigned integers, and the scale_back option</span>
+            <span class="c1"># was not explicitly set to False, so preserve all the scale</span>
+            <span class="c1"># factors</span>
+            <span class="k">return</span>
+
+        <span class="k">for</span> <span class="n">keyword</span> <span class="ow">in</span> <span class="p">[</span><span class="s1">&#39;BSCALE&#39;</span><span class="p">,</span> <span class="s1">&#39;BZERO&#39;</span><span class="p">]:</span>
+            <span class="k">try</span><span class="p">:</span>
+                <span class="k">del</span> <span class="bp">self</span><span class="o">.</span><span class="n">_header</span><span class="p">[</span><span class="n">keyword</span><span class="p">]</span>
+                <span class="c1"># Since _update_header_scale_info can, currently, be called</span>
+                <span class="c1"># *after* _prewriteto(), replace these with blank cards so</span>
+                <span class="c1"># the header size doesn&#39;t change</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">_header</span><span class="o">.</span><span class="n">append</span><span class="p">()</span>
+            <span class="k">except</span> <span class="ne">KeyError</span><span class="p">:</span>
+                <span class="k">pass</span>
+
+        <span class="k">if</span> <span class="n">dtype</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">dtype</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_dtype_for_bitpix</span><span class="p">()</span>
+        <span class="k">if</span> <span class="n">dtype</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_header</span><span class="p">[</span><span class="s1">&#39;BITPIX&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">DTYPE2BITPIX</span><span class="p">[</span><span class="n">dtype</span><span class="o">.</span><span class="n">name</span><span class="p">]</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">_bzero</span> <span class="o">=</span> <span class="mi">0</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_bscale</span> <span class="o">=</span> <span class="mi">1</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_bitpix</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_header</span><span class="p">[</span><span class="s1">&#39;BITPIX&#39;</span><span class="p">]</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_blank</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_header</span><span class="o">.</span><span class="n">pop</span><span class="p">(</span><span class="s1">&#39;BLANK&#39;</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">scale</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="nb">type</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">option</span><span class="o">=</span><span class="s1">&#39;old&#39;</span><span class="p">,</span> <span class="n">bscale</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span> <span class="n">bzero</span><span class="o">=</span><span class="mi">0</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Scale image data by using ``BSCALE``/``BZERO``.</span>
+
+<span class="sd">        Call to this method will scale `data` and update the keywords of</span>
+<span class="sd">        ``BSCALE`` and ``BZERO`` in the HDU&#39;s header.  This method should only</span>
+<span class="sd">        be used right before writing to the output file, as the data will be</span>
+<span class="sd">        scaled and is therefore not very usable after the call.</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        type : str, optional</span>
+<span class="sd">            destination data type, use a string representing a numpy</span>
+<span class="sd">            dtype name, (e.g. ``&#39;uint8&#39;``, ``&#39;int16&#39;``, ``&#39;float32&#39;``</span>
+<span class="sd">            etc.).  If is `None`, use the current data type.</span>
+
+<span class="sd">        option : str</span>
+<span class="sd">            How to scale the data: if ``&quot;old&quot;``, use the original</span>
+<span class="sd">            ``BSCALE`` and ``BZERO`` values when the data was</span>
+<span class="sd">            read/created. If ``&quot;minmax&quot;``, use the minimum and maximum</span>
+<span class="sd">            of the data to scale.  The option will be overwritten by</span>
+<span class="sd">            any user specified ``bscale``/``bzero`` values.</span>
+
+<span class="sd">        bscale, bzero : int, optional</span>
+<span class="sd">            User-specified ``BSCALE`` and ``BZERO`` values</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+
+        <span class="c1"># Disable blank support for now</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_scale_internal</span><span class="p">(</span><span class="nb">type</span><span class="o">=</span><span class="nb">type</span><span class="p">,</span> <span class="n">option</span><span class="o">=</span><span class="n">option</span><span class="p">,</span> <span class="n">bscale</span><span class="o">=</span><span class="n">bscale</span><span class="p">,</span>
+                             <span class="n">bzero</span><span class="o">=</span><span class="n">bzero</span><span class="p">,</span> <span class="n">blank</span><span class="o">=</span><span class="kc">None</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">_scale_internal</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="nb">type</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">option</span><span class="o">=</span><span class="s1">&#39;old&#39;</span><span class="p">,</span> <span class="n">bscale</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span> <span class="n">bzero</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span>
+                        <span class="n">blank</span><span class="o">=</span><span class="mi">0</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        This is an internal implementation of the `scale` method, which</span>
+<span class="sd">        also supports handling BLANK properly.</span>
+
+<span class="sd">        TODO: This is only needed for fixing #3865 without introducing any</span>
+<span class="sd">        public API changes.  We should support BLANK better when rescaling</span>
+<span class="sd">        data, and when that is added the need for this internal interface</span>
+<span class="sd">        should go away.</span>
+
+<span class="sd">        Note: the default of ``blank=0`` merely reflects the current behavior,</span>
+<span class="sd">        and is not necessarily a deliberate choice (better would be to disallow</span>
+<span class="sd">        conversion of floats to ints without specifying a BLANK if there are</span>
+<span class="sd">        NaN/inf values).</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">data</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="k">return</span>
+
+        <span class="c1"># Determine the destination (numpy) data type</span>
+        <span class="k">if</span> <span class="nb">type</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="nb">type</span> <span class="o">=</span> <span class="n">BITPIX2DTYPE</span><span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">_bitpix</span><span class="p">]</span>
+        <span class="n">_type</span> <span class="o">=</span> <span class="nb">getattr</span><span class="p">(</span><span class="n">np</span><span class="p">,</span> <span class="nb">type</span><span class="p">)</span>
+
+        <span class="c1"># Determine how to scale the data</span>
+        <span class="c1"># bscale and bzero takes priority</span>
+        <span class="k">if</span> <span class="p">(</span><span class="n">bscale</span> <span class="o">!=</span> <span class="mi">1</span> <span class="ow">or</span> <span class="n">bzero</span> <span class="o">!=</span> <span class="mi">0</span><span class="p">):</span>
+            <span class="n">_scale</span> <span class="o">=</span> <span class="n">bscale</span>
+            <span class="n">_zero</span> <span class="o">=</span> <span class="n">bzero</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">if</span> <span class="n">option</span> <span class="o">==</span> <span class="s1">&#39;old&#39;</span><span class="p">:</span>
+                <span class="n">_scale</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_orig_bscale</span>
+                <span class="n">_zero</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_orig_bzero</span>
+            <span class="k">elif</span> <span class="n">option</span> <span class="o">==</span> <span class="s1">&#39;minmax&#39;</span><span class="p">:</span>
+                <span class="k">if</span> <span class="nb">issubclass</span><span class="p">(</span><span class="n">_type</span><span class="p">,</span> <span class="n">np</span><span class="o">.</span><span class="n">floating</span><span class="p">):</span>
+                    <span class="n">_scale</span> <span class="o">=</span> <span class="mi">1</span>
+                    <span class="n">_zero</span> <span class="o">=</span> <span class="mi">0</span>
+                <span class="k">else</span><span class="p">:</span>
+
+                    <span class="nb">min</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">minimum</span><span class="o">.</span><span class="n">reduce</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">flat</span><span class="p">)</span>
+                    <span class="nb">max</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">maximum</span><span class="o">.</span><span class="n">reduce</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">flat</span><span class="p">)</span>
+
+                    <span class="k">if</span> <span class="n">_type</span> <span class="o">==</span> <span class="n">np</span><span class="o">.</span><span class="n">uint8</span><span class="p">:</span>  <span class="c1"># uint8 case</span>
+                        <span class="n">_zero</span> <span class="o">=</span> <span class="nb">min</span>
+                        <span class="n">_scale</span> <span class="o">=</span> <span class="p">(</span><span class="nb">max</span> <span class="o">-</span> <span class="nb">min</span><span class="p">)</span> <span class="o">/</span> <span class="p">(</span><span class="mf">2.0</span> <span class="o">**</span> <span class="mi">8</span> <span class="o">-</span> <span class="mi">1</span><span class="p">)</span>
+                    <span class="k">else</span><span class="p">:</span>
+                        <span class="n">_zero</span> <span class="o">=</span> <span class="p">(</span><span class="nb">max</span> <span class="o">+</span> <span class="nb">min</span><span class="p">)</span> <span class="o">/</span> <span class="mf">2.0</span>
+
+                        <span class="c1"># throw away -2^N</span>
+                        <span class="n">nbytes</span> <span class="o">=</span> <span class="mi">8</span> <span class="o">*</span> <span class="n">_type</span><span class="p">()</span><span class="o">.</span><span class="n">itemsize</span>
+                        <span class="n">_scale</span> <span class="o">=</span> <span class="p">(</span><span class="nb">max</span> <span class="o">-</span> <span class="nb">min</span><span class="p">)</span> <span class="o">/</span> <span class="p">(</span><span class="mf">2.0</span> <span class="o">**</span> <span class="n">nbytes</span> <span class="o">-</span> <span class="mi">2</span><span class="p">)</span>
+
+        <span class="c1"># Do the scaling</span>
+        <span class="k">if</span> <span class="n">_zero</span> <span class="o">!=</span> <span class="mi">0</span><span class="p">:</span>
+            <span class="c1"># 0.9.6.3 to avoid out of range error for BZERO = +32768</span>
+            <span class="c1"># We have to explcitly cast _zero to prevent numpy from raising an</span>
+            <span class="c1"># error when doing self.data -= zero, and we do this instead of</span>
+            <span class="c1"># self.data = self.data - zero to avoid doubling memory usage.</span>
+            <span class="n">np</span><span class="o">.</span><span class="n">add</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">data</span><span class="p">,</span> <span class="o">-</span><span class="n">_zero</span><span class="p">,</span> <span class="n">out</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">data</span><span class="p">,</span> <span class="n">casting</span><span class="o">=</span><span class="s1">&#39;unsafe&#39;</span><span class="p">)</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_header</span><span class="p">[</span><span class="s1">&#39;BZERO&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">_zero</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">try</span><span class="p">:</span>
+                <span class="k">del</span> <span class="bp">self</span><span class="o">.</span><span class="n">_header</span><span class="p">[</span><span class="s1">&#39;BZERO&#39;</span><span class="p">]</span>
+            <span class="k">except</span> <span class="ne">KeyError</span><span class="p">:</span>
+                <span class="k">pass</span>
+
+        <span class="k">if</span> <span class="n">_scale</span> <span class="ow">and</span> <span class="n">_scale</span> <span class="o">!=</span> <span class="mi">1</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">data</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">data</span> <span class="o">/</span> <span class="n">_scale</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_header</span><span class="p">[</span><span class="s1">&#39;BSCALE&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">_scale</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">try</span><span class="p">:</span>
+                <span class="k">del</span> <span class="bp">self</span><span class="o">.</span><span class="n">_header</span><span class="p">[</span><span class="s1">&#39;BSCALE&#39;</span><span class="p">]</span>
+            <span class="k">except</span> <span class="ne">KeyError</span><span class="p">:</span>
+                <span class="k">pass</span>
+
+        <span class="c1"># Set blanks</span>
+        <span class="k">if</span> <span class="n">blank</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="ow">and</span> <span class="nb">issubclass</span><span class="p">(</span><span class="n">_type</span><span class="p">,</span> <span class="n">np</span><span class="o">.</span><span class="n">integer</span><span class="p">):</span>
+            <span class="c1"># TODO: Perhaps check that the requested BLANK value fits in the</span>
+            <span class="c1"># integer type being scaled to?</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">data</span><span class="p">[</span><span class="n">np</span><span class="o">.</span><span class="n">isnan</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">data</span><span class="p">)]</span> <span class="o">=</span> <span class="n">blank</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_header</span><span class="p">[</span><span class="s1">&#39;BLANK&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">blank</span>
+
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">dtype</span><span class="o">.</span><span class="n">type</span> <span class="o">!=</span> <span class="n">_type</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">data</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">around</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">data</span><span class="p">),</span> <span class="n">dtype</span><span class="o">=</span><span class="n">_type</span><span class="p">)</span>
+
+        <span class="c1"># Update the BITPIX Card to match the data</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_bitpix</span> <span class="o">=</span> <span class="n">DTYPE2BITPIX</span><span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">dtype</span><span class="o">.</span><span class="n">name</span><span class="p">]</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_bzero</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_header</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;BZERO&#39;</span><span class="p">,</span> <span class="mi">0</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_bscale</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_header</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;BSCALE&#39;</span><span class="p">,</span> <span class="mi">1</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_blank</span> <span class="o">=</span> <span class="n">blank</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_header</span><span class="p">[</span><span class="s1">&#39;BITPIX&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_bitpix</span>
+
+        <span class="c1"># Since the image has been manually scaled, the current</span>
+        <span class="c1"># bitpix/bzero/bscale now serve as the &#39;original&#39; scaling of the image,</span>
+        <span class="c1"># as though the original image has been completely replaced</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_orig_bitpix</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_bitpix</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_orig_bzero</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_bzero</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_orig_bscale</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_bscale</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_orig_blank</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_blank</span>
+
+    <span class="k">def</span> <span class="nf">_verify</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">option</span><span class="o">=</span><span class="s1">&#39;warn&#39;</span><span class="p">):</span>
+        <span class="c1"># update_header can fix some things that would otherwise cause</span>
+        <span class="c1"># verification to fail, so do that now...</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">update_header</span><span class="p">()</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_verify_blank</span><span class="p">()</span>
+
+        <span class="k">return</span> <span class="nb">super</span><span class="p">(</span><span class="n">_ImageBaseHDU</span><span class="p">,</span> <span class="bp">self</span><span class="p">)</span><span class="o">.</span><span class="n">_verify</span><span class="p">(</span><span class="n">option</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">_verify_blank</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="c1"># Probably not the best place for this (it should probably happen</span>
+        <span class="c1"># in _verify as well) but I want to be able to raise this warning</span>
+        <span class="c1"># both when the HDU is created and when written</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_blank</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="k">return</span>
+
+        <span class="n">messages</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="c1"># TODO: Once the FITSSchema framewhere is merged these warnings</span>
+        <span class="c1"># should be handled by the schema</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">_is_int</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_blank</span><span class="p">):</span>
+            <span class="n">messages</span><span class="o">.</span><span class="n">append</span><span class="p">(</span>
+                <span class="s2">&quot;Invalid value for &#39;BLANK&#39; keyword in header: </span><span class="si">{0!r}</span><span class="s2"> &quot;</span>
+                <span class="s2">&quot;The &#39;BLANK&#39; keyword must be an integer.  It will be &quot;</span>
+                <span class="s2">&quot;ignored in the meantime.&quot;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_blank</span><span class="p">))</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_blank</span> <span class="o">=</span> <span class="kc">None</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="bp">self</span><span class="o">.</span><span class="n">_bitpix</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">:</span>
+            <span class="n">messages</span><span class="o">.</span><span class="n">append</span><span class="p">(</span>
+                <span class="s2">&quot;Invalid &#39;BLANK&#39; keyword in header.  The &#39;BLANK&#39; keyword &quot;</span>
+                <span class="s2">&quot;is only applicable to integer data, and will be ignored &quot;</span>
+                <span class="s2">&quot;in this HDU.&quot;</span><span class="p">)</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_blank</span> <span class="o">=</span> <span class="kc">None</span>
+
+        <span class="k">for</span> <span class="n">msg</span> <span class="ow">in</span> <span class="n">messages</span><span class="p">:</span>
+            <span class="n">warnings</span><span class="o">.</span><span class="n">warn</span><span class="p">(</span><span class="n">msg</span><span class="p">,</span> <span class="n">VerifyWarning</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">_prewriteto</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">checksum</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="n">inplace</span><span class="o">=</span><span class="kc">False</span><span class="p">):</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_scale_back</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_scale_internal</span><span class="p">(</span><span class="n">BITPIX2DTYPE</span><span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">_orig_bitpix</span><span class="p">],</span>
+                                 <span class="n">blank</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">_orig_blank</span><span class="p">)</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">update_header</span><span class="p">()</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">inplace</span> <span class="ow">and</span> <span class="bp">self</span><span class="o">.</span><span class="n">_data_needs_rescale</span><span class="p">:</span>
+            <span class="c1"># Go ahead and load the scaled image data and update the header</span>
+            <span class="c1"># with the correct post-rescaling headers</span>
+            <span class="n">_</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">data</span>
+
+        <span class="k">return</span> <span class="nb">super</span><span class="p">(</span><span class="n">_ImageBaseHDU</span><span class="p">,</span> <span class="bp">self</span><span class="p">)</span><span class="o">.</span><span class="n">_prewriteto</span><span class="p">(</span><span class="n">checksum</span><span class="p">,</span> <span class="n">inplace</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">_writedata_internal</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">fileobj</span><span class="p">):</span>
+        <span class="n">size</span> <span class="o">=</span> <span class="mi">0</span>
+
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">data</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="c1"># Based on the system type, determine the byteorders that</span>
+            <span class="c1"># would need to be swapped to get to big-endian output</span>
+            <span class="k">if</span> <span class="n">sys</span><span class="o">.</span><span class="n">byteorder</span> <span class="o">==</span> <span class="s1">&#39;little&#39;</span><span class="p">:</span>
+                <span class="n">swap_types</span> <span class="o">=</span> <span class="p">(</span><span class="s1">&#39;&lt;&#39;</span><span class="p">,</span> <span class="s1">&#39;=&#39;</span><span class="p">)</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="n">swap_types</span> <span class="o">=</span> <span class="p">(</span><span class="s1">&#39;&lt;&#39;</span><span class="p">,)</span>
+            <span class="c1"># deal with unsigned integer 16, 32 and 64 data</span>
+            <span class="k">if</span> <span class="n">_is_pseudo_unsigned</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">dtype</span><span class="p">):</span>
+                <span class="c1"># Convert the unsigned array to signed</span>
+                <span class="n">output</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">(</span>
+                    <span class="bp">self</span><span class="o">.</span><span class="n">data</span> <span class="o">-</span> <span class="n">_unsigned_zero</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">dtype</span><span class="p">),</span>
+                    <span class="n">dtype</span><span class="o">=</span><span class="s1">&#39;&gt;i</span><span class="si">{}</span><span class="s1">&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">dtype</span><span class="o">.</span><span class="n">itemsize</span><span class="p">))</span>
+                <span class="n">should_swap</span> <span class="o">=</span> <span class="kc">False</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="n">output</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">data</span>
+                <span class="n">byteorder</span> <span class="o">=</span> <span class="n">output</span><span class="o">.</span><span class="n">dtype</span><span class="o">.</span><span class="n">str</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+                <span class="n">should_swap</span> <span class="o">=</span> <span class="p">(</span><span class="n">byteorder</span> <span class="ow">in</span> <span class="n">swap_types</span><span class="p">)</span>
+
+            <span class="k">if</span> <span class="ow">not</span> <span class="n">fileobj</span><span class="o">.</span><span class="n">simulateonly</span><span class="p">:</span>
+
+                <span class="k">if</span> <span class="n">should_swap</span><span class="p">:</span>
+                    <span class="k">if</span> <span class="n">output</span><span class="o">.</span><span class="n">flags</span><span class="o">.</span><span class="n">writeable</span><span class="p">:</span>
+                        <span class="n">output</span><span class="o">.</span><span class="n">byteswap</span><span class="p">(</span><span class="kc">True</span><span class="p">)</span>
+                        <span class="k">try</span><span class="p">:</span>
+                            <span class="n">fileobj</span><span class="o">.</span><span class="n">writearray</span><span class="p">(</span><span class="n">output</span><span class="p">)</span>
+                        <span class="k">finally</span><span class="p">:</span>
+                            <span class="n">output</span><span class="o">.</span><span class="n">byteswap</span><span class="p">(</span><span class="kc">True</span><span class="p">)</span>
+                    <span class="k">else</span><span class="p">:</span>
+                        <span class="c1"># For read-only arrays, there is no way around making</span>
+                        <span class="c1"># a byteswapped copy of the data.</span>
+                        <span class="n">fileobj</span><span class="o">.</span><span class="n">writearray</span><span class="p">(</span><span class="n">output</span><span class="o">.</span><span class="n">byteswap</span><span class="p">(</span><span class="kc">False</span><span class="p">))</span>
+                <span class="k">else</span><span class="p">:</span>
+                    <span class="n">fileobj</span><span class="o">.</span><span class="n">writearray</span><span class="p">(</span><span class="n">output</span><span class="p">)</span>
+
+            <span class="n">size</span> <span class="o">+=</span> <span class="n">output</span><span class="o">.</span><span class="n">size</span> <span class="o">*</span> <span class="n">output</span><span class="o">.</span><span class="n">itemsize</span>
+
+        <span class="k">return</span> <span class="n">size</span>
+
+    <span class="k">def</span> <span class="nf">_dtype_for_bitpix</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Determine the dtype that the data should be converted to depending on</span>
+<span class="sd">        the BITPIX value in the header, and possibly on the BSCALE value as</span>
+<span class="sd">        well.  Returns None if there should not be any change.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+
+        <span class="n">bitpix</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_orig_bitpix</span>
+        <span class="c1"># Handle possible conversion to uints if enabled</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_uint</span> <span class="ow">and</span> <span class="bp">self</span><span class="o">.</span><span class="n">_orig_bscale</span> <span class="o">==</span> <span class="mi">1</span><span class="p">:</span>
+            <span class="k">for</span> <span class="n">bits</span><span class="p">,</span> <span class="n">dtype</span> <span class="ow">in</span> <span class="p">((</span><span class="mi">16</span><span class="p">,</span> <span class="n">np</span><span class="o">.</span><span class="n">dtype</span><span class="p">(</span><span class="s1">&#39;uint16&#39;</span><span class="p">)),</span>
+                                <span class="p">(</span><span class="mi">32</span><span class="p">,</span> <span class="n">np</span><span class="o">.</span><span class="n">dtype</span><span class="p">(</span><span class="s1">&#39;uint32&#39;</span><span class="p">)),</span>
+                                <span class="p">(</span><span class="mi">64</span><span class="p">,</span> <span class="n">np</span><span class="o">.</span><span class="n">dtype</span><span class="p">(</span><span class="s1">&#39;uint64&#39;</span><span class="p">))):</span>
+                <span class="k">if</span> <span class="n">bitpix</span> <span class="o">==</span> <span class="n">bits</span> <span class="ow">and</span> <span class="bp">self</span><span class="o">.</span><span class="n">_orig_bzero</span> <span class="o">==</span> <span class="mi">1</span> <span class="o">&lt;&lt;</span> <span class="p">(</span><span class="n">bits</span> <span class="o">-</span> <span class="mi">1</span><span class="p">):</span>
+                    <span class="k">return</span> <span class="n">dtype</span>
+
+        <span class="k">if</span> <span class="n">bitpix</span> <span class="o">&gt;</span> <span class="mi">16</span><span class="p">:</span>  <span class="c1"># scale integers to Float64</span>
+            <span class="k">return</span> <span class="n">np</span><span class="o">.</span><span class="n">dtype</span><span class="p">(</span><span class="s1">&#39;float64&#39;</span><span class="p">)</span>
+        <span class="k">elif</span> <span class="n">bitpix</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">:</span>  <span class="c1"># scale integers to Float32</span>
+            <span class="k">return</span> <span class="n">np</span><span class="o">.</span><span class="n">dtype</span><span class="p">(</span><span class="s1">&#39;float32&#39;</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">_convert_pseudo_unsigned</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">data</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Handle &quot;pseudo-unsigned&quot; integers, if the user requested it.  Returns</span>
+<span class="sd">        the converted data array if so; otherwise returns None.</span>
+
+<span class="sd">        In this case case, we don&#39;t need to handle BLANK to convert it to NAN,</span>
+<span class="sd">        since we can&#39;t do NaNs with integers, anyway, i.e. the user is</span>
+<span class="sd">        responsible for managing blanks.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+
+        <span class="n">dtype</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_dtype_for_bitpix</span><span class="p">()</span>
+        <span class="c1"># bool(dtype) is always False--have to explicitly compare to None; this</span>
+        <span class="c1"># caused a fair amount of hair loss</span>
+        <span class="k">if</span> <span class="n">dtype</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="ow">and</span> <span class="n">dtype</span><span class="o">.</span><span class="n">kind</span> <span class="o">==</span> <span class="s1">&#39;u&#39;</span><span class="p">:</span>
+            <span class="c1"># Convert the input raw data into an unsigned integer array and</span>
+            <span class="c1"># then scale the data adjusting for the value of BZERO.  Note that</span>
+            <span class="c1"># we subtract the value of BZERO instead of adding because of the</span>
+            <span class="c1"># way numpy converts the raw signed array into an unsigned array.</span>
+            <span class="n">bits</span> <span class="o">=</span> <span class="n">dtype</span><span class="o">.</span><span class="n">itemsize</span> <span class="o">*</span> <span class="mi">8</span>
+            <span class="n">data</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">(</span><span class="n">data</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="n">dtype</span><span class="p">)</span>
+            <span class="n">data</span> <span class="o">-=</span> <span class="n">np</span><span class="o">.</span><span class="n">uint64</span><span class="p">(</span><span class="mi">1</span> <span class="o">&lt;&lt;</span> <span class="p">(</span><span class="n">bits</span> <span class="o">-</span> <span class="mi">1</span><span class="p">))</span>
+
+            <span class="k">return</span> <span class="n">data</span>
+
+    <span class="k">def</span> <span class="nf">_get_scaled_image_data</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">offset</span><span class="p">,</span> <span class="n">shape</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Internal function for reading image data from a file and apply scale</span>
+<span class="sd">        factors to it.  Normally this is used for the entire image, but it</span>
+<span class="sd">        supports alternate offset/shape for Section support.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+
+        <span class="n">code</span> <span class="o">=</span> <span class="n">BITPIX2DTYPE</span><span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">_orig_bitpix</span><span class="p">]</span>
+
+        <span class="n">raw_data</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_get_raw_data</span><span class="p">(</span><span class="n">shape</span><span class="p">,</span> <span class="n">code</span><span class="p">,</span> <span class="n">offset</span><span class="p">)</span>
+        <span class="n">raw_data</span><span class="o">.</span><span class="n">dtype</span> <span class="o">=</span> <span class="n">raw_data</span><span class="o">.</span><span class="n">dtype</span><span class="o">.</span><span class="n">newbyteorder</span><span class="p">(</span><span class="s1">&#39;&gt;&#39;</span><span class="p">)</span>
+
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_do_not_scale_image_data</span> <span class="ow">or</span> <span class="p">(</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">_orig_bzero</span> <span class="o">==</span> <span class="mi">0</span> <span class="ow">and</span> <span class="bp">self</span><span class="o">.</span><span class="n">_orig_bscale</span> <span class="o">==</span> <span class="mi">1</span> <span class="ow">and</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">_blank</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">):</span>
+            <span class="c1"># No further conversion of the data is necessary</span>
+            <span class="k">return</span> <span class="n">raw_data</span>
+
+        <span class="k">try</span><span class="p">:</span>
+            <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_file</span><span class="o">.</span><span class="n">strict_memmap</span><span class="p">:</span>
+                <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;Cannot load a memory-mapped image: &quot;</span>
+                                 <span class="s2">&quot;BZERO/BSCALE/BLANK header keywords present. &quot;</span>
+                                 <span class="s2">&quot;Set memmap=False.&quot;</span><span class="p">)</span>
+        <span class="k">except</span> <span class="ne">AttributeError</span><span class="p">:</span>  <span class="c1"># strict_memmap not set</span>
+            <span class="k">pass</span>
+
+        <span class="n">data</span> <span class="o">=</span> <span class="kc">None</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_orig_bzero</span> <span class="o">==</span> <span class="mi">0</span> <span class="ow">and</span> <span class="bp">self</span><span class="o">.</span><span class="n">_orig_bscale</span> <span class="o">==</span> <span class="mi">1</span><span class="p">):</span>
+            <span class="n">data</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_convert_pseudo_unsigned</span><span class="p">(</span><span class="n">raw_data</span><span class="p">)</span>
+
+        <span class="k">if</span> <span class="n">data</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="c1"># In these cases, we end up with floating-point arrays and have to</span>
+            <span class="c1"># apply bscale and bzero. We may have to handle BLANK and convert</span>
+            <span class="c1"># to NaN in the resulting floating-point arrays.</span>
+            <span class="c1"># The BLANK keyword should only be applied for integer data (this</span>
+            <span class="c1"># is checked in __init__ but it can&#39;t hurt to double check here)</span>
+            <span class="n">blanks</span> <span class="o">=</span> <span class="kc">None</span>
+
+            <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_blank</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="ow">and</span> <span class="bp">self</span><span class="o">.</span><span class="n">_bitpix</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">:</span>
+                <span class="n">blanks</span> <span class="o">=</span> <span class="n">raw_data</span><span class="o">.</span><span class="n">flat</span> <span class="o">==</span> <span class="bp">self</span><span class="o">.</span><span class="n">_blank</span>
+                <span class="c1"># The size of blanks in bytes is the number of elements in</span>
+                <span class="c1"># raw_data.flat.  However, if we use np.where instead we will</span>
+                <span class="c1"># only use 8 bytes for each index where the condition is true.</span>
+                <span class="c1"># So if the number of blank items is fewer than</span>
+                <span class="c1"># len(raw_data.flat) / 8, using np.where will use less memory</span>
+                <span class="k">if</span> <span class="n">blanks</span><span class="o">.</span><span class="n">sum</span><span class="p">()</span> <span class="o">&lt;</span> <span class="nb">len</span><span class="p">(</span><span class="n">blanks</span><span class="p">)</span> <span class="o">/</span> <span class="mi">8</span><span class="p">:</span>
+                    <span class="n">blanks</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">where</span><span class="p">(</span><span class="n">blanks</span><span class="p">)</span>
+
+            <span class="n">new_dtype</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_dtype_for_bitpix</span><span class="p">()</span>
+            <span class="k">if</span> <span class="n">new_dtype</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+                <span class="n">data</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">(</span><span class="n">raw_data</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="n">new_dtype</span><span class="p">)</span>
+            <span class="k">else</span><span class="p">:</span>  <span class="c1"># floating point cases</span>
+                <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_file</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="ow">and</span> <span class="bp">self</span><span class="o">.</span><span class="n">_file</span><span class="o">.</span><span class="n">memmap</span><span class="p">:</span>
+                    <span class="n">data</span> <span class="o">=</span> <span class="n">raw_data</span><span class="o">.</span><span class="n">copy</span><span class="p">()</span>
+                <span class="k">elif</span> <span class="ow">not</span> <span class="n">raw_data</span><span class="o">.</span><span class="n">flags</span><span class="o">.</span><span class="n">writeable</span><span class="p">:</span>
+                    <span class="c1"># create a writeable copy if needed</span>
+                    <span class="n">data</span> <span class="o">=</span> <span class="n">raw_data</span><span class="o">.</span><span class="n">copy</span><span class="p">()</span>
+                <span class="c1"># if not memmap, use the space already in memory</span>
+                <span class="k">else</span><span class="p">:</span>
+                    <span class="n">data</span> <span class="o">=</span> <span class="n">raw_data</span>
+
+            <span class="k">del</span> <span class="n">raw_data</span>
+
+            <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_orig_bscale</span> <span class="o">!=</span> <span class="mi">1</span><span class="p">:</span>
+                <span class="n">np</span><span class="o">.</span><span class="n">multiply</span><span class="p">(</span><span class="n">data</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">_orig_bscale</span><span class="p">,</span> <span class="n">data</span><span class="p">)</span>
+            <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_orig_bzero</span> <span class="o">!=</span> <span class="mi">0</span><span class="p">:</span>
+                <span class="n">data</span> <span class="o">+=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_orig_bzero</span>
+
+            <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_blank</span><span class="p">:</span>
+                <span class="n">data</span><span class="o">.</span><span class="n">flat</span><span class="p">[</span><span class="n">blanks</span><span class="p">]</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">nan</span>
+
+        <span class="k">return</span> <span class="n">data</span>
+
+    <span class="k">def</span> <span class="nf">_summary</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Summarize the HDU: name, dimensions, and formats.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+
+        <span class="n">class_name</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">__class__</span><span class="o">.</span><span class="n">__name__</span>
+
+        <span class="c1"># if data is touched, use data info.</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_data_loaded</span><span class="p">:</span>
+            <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">data</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+                <span class="nb">format</span> <span class="o">=</span> <span class="s1">&#39;&#39;</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="nb">format</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">dtype</span><span class="o">.</span><span class="n">name</span>
+                <span class="nb">format</span> <span class="o">=</span> <span class="nb">format</span><span class="p">[</span><span class="nb">format</span><span class="o">.</span><span class="n">rfind</span><span class="p">(</span><span class="s1">&#39;.&#39;</span><span class="p">)</span><span class="o">+</span><span class="mi">1</span><span class="p">:]</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">shape</span> <span class="ow">and</span> <span class="nb">all</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">shape</span><span class="p">):</span>
+                <span class="c1"># Only show the format if all the dimensions are non-zero</span>
+                <span class="c1"># if data is not touched yet, use header info.</span>
+                <span class="nb">format</span> <span class="o">=</span> <span class="n">BITPIX2DTYPE</span><span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">_bitpix</span><span class="p">]</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="nb">format</span> <span class="o">=</span> <span class="s1">&#39;&#39;</span>
+
+            <span class="k">if</span> <span class="p">(</span><span class="nb">format</span> <span class="ow">and</span> <span class="ow">not</span> <span class="bp">self</span><span class="o">.</span><span class="n">_do_not_scale_image_data</span> <span class="ow">and</span>
+                    <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_orig_bscale</span> <span class="o">!=</span> <span class="mi">1</span> <span class="ow">or</span> <span class="bp">self</span><span class="o">.</span><span class="n">_orig_bzero</span> <span class="o">!=</span> <span class="mi">0</span><span class="p">)):</span>
+                <span class="n">new_dtype</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_dtype_for_bitpix</span><span class="p">()</span>
+                <span class="k">if</span> <span class="n">new_dtype</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+                    <span class="nb">format</span> <span class="o">+=</span> <span class="s1">&#39; (rescales to </span><span class="si">{0}</span><span class="s1">)&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">new_dtype</span><span class="o">.</span><span class="n">name</span><span class="p">)</span>
+
+        <span class="c1"># Display shape in FITS-order</span>
+        <span class="n">shape</span> <span class="o">=</span> <span class="nb">tuple</span><span class="p">(</span><span class="nb">reversed</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">shape</span><span class="p">))</span>
+
+        <span class="k">return</span> <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">name</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">ver</span><span class="p">,</span> <span class="n">class_name</span><span class="p">,</span> <span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_header</span><span class="p">),</span> <span class="n">shape</span><span class="p">,</span> <span class="nb">format</span><span class="p">,</span> <span class="s1">&#39;&#39;</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">_calculate_datasum</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">blocking</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Calculate the value for the ``DATASUM`` card in the HDU.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_has_data</span><span class="p">:</span>
+
+            <span class="c1"># We have the data to be used.</span>
+            <span class="n">d</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">data</span>
+
+            <span class="c1"># First handle the special case where the data is unsigned integer</span>
+            <span class="c1"># 16, 32 or 64</span>
+            <span class="k">if</span> <span class="n">_is_pseudo_unsigned</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">dtype</span><span class="p">):</span>
+                <span class="n">d</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">data</span> <span class="o">-</span> <span class="n">_unsigned_zero</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">dtype</span><span class="p">),</span>
+                             <span class="n">dtype</span><span class="o">=</span><span class="s1">&#39;i</span><span class="si">{}</span><span class="s1">&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">dtype</span><span class="o">.</span><span class="n">itemsize</span><span class="p">))</span>
+
+            <span class="c1"># Check the byte order of the data.  If it is little endian we</span>
+            <span class="c1"># must swap it before calculating the datasum.</span>
+            <span class="k">if</span> <span class="n">d</span><span class="o">.</span><span class="n">dtype</span><span class="o">.</span><span class="n">str</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">!=</span> <span class="s1">&#39;&gt;&#39;</span><span class="p">:</span>
+                <span class="k">if</span> <span class="n">d</span><span class="o">.</span><span class="n">flags</span><span class="o">.</span><span class="n">writeable</span><span class="p">:</span>
+                    <span class="n">byteswapped</span> <span class="o">=</span> <span class="kc">True</span>
+                    <span class="n">d</span> <span class="o">=</span> <span class="n">d</span><span class="o">.</span><span class="n">byteswap</span><span class="p">(</span><span class="kc">True</span><span class="p">)</span>
+                    <span class="n">d</span><span class="o">.</span><span class="n">dtype</span> <span class="o">=</span> <span class="n">d</span><span class="o">.</span><span class="n">dtype</span><span class="o">.</span><span class="n">newbyteorder</span><span class="p">(</span><span class="s1">&#39;&gt;&#39;</span><span class="p">)</span>
+                <span class="k">else</span><span class="p">:</span>
+                    <span class="c1"># If the data is not writeable, we just make a byteswapped</span>
+                    <span class="c1"># copy and don&#39;t bother changing it back after</span>
+                    <span class="n">d</span> <span class="o">=</span> <span class="n">d</span><span class="o">.</span><span class="n">byteswap</span><span class="p">(</span><span class="kc">False</span><span class="p">)</span>
+                    <span class="n">d</span><span class="o">.</span><span class="n">dtype</span> <span class="o">=</span> <span class="n">d</span><span class="o">.</span><span class="n">dtype</span><span class="o">.</span><span class="n">newbyteorder</span><span class="p">(</span><span class="s1">&#39;&gt;&#39;</span><span class="p">)</span>
+                    <span class="n">byteswapped</span> <span class="o">=</span> <span class="kc">False</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="n">byteswapped</span> <span class="o">=</span> <span class="kc">False</span>
+
+            <span class="n">cs</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_compute_checksum</span><span class="p">(</span><span class="n">d</span><span class="o">.</span><span class="n">flatten</span><span class="p">()</span><span class="o">.</span><span class="n">view</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">uint8</span><span class="p">),</span>
+                                        <span class="n">blocking</span><span class="o">=</span><span class="n">blocking</span><span class="p">)</span>
+
+            <span class="c1"># If the data was byteswapped in this method then return it to</span>
+            <span class="c1"># its original little-endian order.</span>
+            <span class="k">if</span> <span class="n">byteswapped</span> <span class="ow">and</span> <span class="ow">not</span> <span class="n">_is_pseudo_unsigned</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">dtype</span><span class="p">):</span>
+                <span class="n">d</span><span class="o">.</span><span class="n">byteswap</span><span class="p">(</span><span class="kc">True</span><span class="p">)</span>
+                <span class="n">d</span><span class="o">.</span><span class="n">dtype</span> <span class="o">=</span> <span class="n">d</span><span class="o">.</span><span class="n">dtype</span><span class="o">.</span><span class="n">newbyteorder</span><span class="p">(</span><span class="s1">&#39;&lt;&#39;</span><span class="p">)</span>
+
+            <span class="k">return</span> <span class="n">cs</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="c1"># This is the case where the data has not been read from the file</span>
+            <span class="c1"># yet.  We can handle that in a generic manner so we do it in the</span>
+            <span class="c1"># base class.  The other possibility is that there is no data at</span>
+            <span class="c1"># all.  This can also be handled in a generic manner.</span>
+            <span class="k">return</span> <span class="nb">super</span><span class="p">(</span><span class="n">_ImageBaseHDU</span><span class="p">,</span> <span class="bp">self</span><span class="p">)</span><span class="o">.</span><span class="n">_calculate_datasum</span><span class="p">(</span>
+                <span class="n">blocking</span><span class="o">=</span><span class="n">blocking</span><span class="p">)</span>
+
+
+<div class="viewcode-block" id="Section"><a class="viewcode-back" href="../../../../../io/fits/api/images.html#astropy.io.fits.Section">[docs]</a><span class="k">class</span> <span class="nc">Section</span><span class="p">(</span><span class="nb">object</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Image section.</span>
+
+<span class="sd">    Slices of this object load the corresponding section of an image array from</span>
+<span class="sd">    the underlying FITS file on disk, and applies any BSCALE/BZERO factors.</span>
+
+<span class="sd">    Section slices cannot be assigned to, and modifications to a section are</span>
+<span class="sd">    not saved back to the underlying file.</span>
+
+<span class="sd">    See the :ref:`data-sections` section of the PyFITS documentation for more</span>
+<span class="sd">    details.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">hdu</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">hdu</span> <span class="o">=</span> <span class="n">hdu</span>
+
+    <span class="k">def</span> <span class="nf">__getitem__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">key</span><span class="p">):</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">key</span><span class="p">,</span> <span class="nb">tuple</span><span class="p">):</span>
+            <span class="n">key</span> <span class="o">=</span> <span class="p">(</span><span class="n">key</span><span class="p">,)</span>
+        <span class="n">naxis</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">hdu</span><span class="o">.</span><span class="n">shape</span><span class="p">)</span>
+        <span class="n">return_scalar</span> <span class="o">=</span> <span class="p">(</span><span class="nb">all</span><span class="p">(</span><span class="nb">isinstance</span><span class="p">(</span><span class="n">k</span><span class="p">,</span> <span class="p">(</span><span class="nb">int</span><span class="p">,</span> <span class="n">np</span><span class="o">.</span><span class="n">integer</span><span class="p">))</span> <span class="k">for</span> <span class="n">k</span> <span class="ow">in</span> <span class="n">key</span><span class="p">)</span>
+                         <span class="ow">and</span> <span class="nb">len</span><span class="p">(</span><span class="n">key</span><span class="p">)</span> <span class="o">==</span> <span class="n">naxis</span><span class="p">)</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="nb">any</span><span class="p">(</span><span class="n">k</span> <span class="ow">is</span> <span class="bp">Ellipsis</span> <span class="k">for</span> <span class="n">k</span> <span class="ow">in</span> <span class="n">key</span><span class="p">):</span>
+            <span class="c1"># We can always add a ... at the end, after making note of whether</span>
+            <span class="c1"># to return a scalar.</span>
+            <span class="n">key</span> <span class="o">+=</span> <span class="bp">Ellipsis</span><span class="p">,</span>
+        <span class="n">ellipsis_count</span> <span class="o">=</span> <span class="nb">len</span><span class="p">([</span><span class="n">k</span> <span class="k">for</span> <span class="n">k</span> <span class="ow">in</span> <span class="n">key</span> <span class="k">if</span> <span class="n">k</span> <span class="ow">is</span> <span class="bp">Ellipsis</span><span class="p">])</span>
+        <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">key</span><span class="p">)</span> <span class="o">-</span> <span class="n">ellipsis_count</span> <span class="o">&gt;</span> <span class="n">naxis</span> <span class="ow">or</span> <span class="n">ellipsis_count</span> <span class="o">&gt;</span> <span class="mi">1</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">IndexError</span><span class="p">(</span><span class="s1">&#39;too many indices for array&#39;</span><span class="p">)</span>
+        <span class="c1"># Insert extra dimensions as needed.</span>
+        <span class="n">idx</span> <span class="o">=</span> <span class="nb">next</span><span class="p">(</span><span class="n">i</span> <span class="k">for</span> <span class="n">i</span><span class="p">,</span> <span class="n">k</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="n">key</span> <span class="o">+</span> <span class="p">(</span><span class="bp">Ellipsis</span><span class="p">,))</span> <span class="k">if</span> <span class="n">k</span> <span class="ow">is</span> <span class="bp">Ellipsis</span><span class="p">)</span>
+        <span class="n">key</span> <span class="o">=</span> <span class="n">key</span><span class="p">[:</span><span class="n">idx</span><span class="p">]</span> <span class="o">+</span> <span class="p">(</span><span class="nb">slice</span><span class="p">(</span><span class="kc">None</span><span class="p">),)</span> <span class="o">*</span> <span class="p">(</span><span class="n">naxis</span> <span class="o">-</span> <span class="nb">len</span><span class="p">(</span><span class="n">key</span><span class="p">)</span> <span class="o">+</span> <span class="mi">1</span><span class="p">)</span> <span class="o">+</span> <span class="n">key</span><span class="p">[</span><span class="n">idx</span><span class="o">+</span><span class="mi">1</span><span class="p">:]</span>
+        <span class="n">return_0dim</span> <span class="o">=</span> <span class="p">(</span><span class="nb">all</span><span class="p">(</span><span class="nb">isinstance</span><span class="p">(</span><span class="n">k</span><span class="p">,</span> <span class="p">(</span><span class="nb">int</span><span class="p">,</span> <span class="n">np</span><span class="o">.</span><span class="n">integer</span><span class="p">))</span> <span class="k">for</span> <span class="n">k</span> <span class="ow">in</span> <span class="n">key</span><span class="p">)</span>
+                       <span class="ow">and</span> <span class="nb">len</span><span class="p">(</span><span class="n">key</span><span class="p">)</span> <span class="o">==</span> <span class="n">naxis</span><span class="p">)</span>
+
+        <span class="n">dims</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="n">offset</span> <span class="o">=</span> <span class="mi">0</span>
+        <span class="c1"># Find all leading axes for which a single point is used.</span>
+        <span class="k">for</span> <span class="n">idx</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">naxis</span><span class="p">):</span>
+            <span class="n">axis</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">hdu</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="n">idx</span><span class="p">]</span>
+            <span class="n">indx</span> <span class="o">=</span> <span class="n">_IndexInfo</span><span class="p">(</span><span class="n">key</span><span class="p">[</span><span class="n">idx</span><span class="p">],</span> <span class="n">axis</span><span class="p">)</span>
+            <span class="n">offset</span> <span class="o">=</span> <span class="n">offset</span> <span class="o">*</span> <span class="n">axis</span> <span class="o">+</span> <span class="n">indx</span><span class="o">.</span><span class="n">offset</span>
+            <span class="k">if</span> <span class="ow">not</span> <span class="n">_is_int</span><span class="p">(</span><span class="n">key</span><span class="p">[</span><span class="n">idx</span><span class="p">]):</span>
+                <span class="n">dims</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">indx</span><span class="o">.</span><span class="n">npts</span><span class="p">)</span>
+                <span class="k">break</span>
+
+        <span class="n">is_contiguous</span> <span class="o">=</span> <span class="n">indx</span><span class="o">.</span><span class="n">contiguous</span>
+        <span class="k">for</span> <span class="n">jdx</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">idx</span> <span class="o">+</span> <span class="mi">1</span><span class="p">,</span> <span class="n">naxis</span><span class="p">):</span>
+            <span class="n">axis</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">hdu</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="n">jdx</span><span class="p">]</span>
+            <span class="n">indx</span> <span class="o">=</span> <span class="n">_IndexInfo</span><span class="p">(</span><span class="n">key</span><span class="p">[</span><span class="n">jdx</span><span class="p">],</span> <span class="n">axis</span><span class="p">)</span>
+            <span class="n">dims</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">indx</span><span class="o">.</span><span class="n">npts</span><span class="p">)</span>
+            <span class="k">if</span> <span class="n">indx</span><span class="o">.</span><span class="n">npts</span> <span class="o">==</span> <span class="n">axis</span> <span class="ow">and</span> <span class="n">indx</span><span class="o">.</span><span class="n">contiguous</span><span class="p">:</span>
+                <span class="c1"># The offset needs to multiply the length of all remaining axes</span>
+                <span class="n">offset</span> <span class="o">*=</span> <span class="n">axis</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="n">is_contiguous</span> <span class="o">=</span> <span class="kc">False</span>
+
+        <span class="k">if</span> <span class="n">is_contiguous</span><span class="p">:</span>
+            <span class="n">dims</span> <span class="o">=</span> <span class="nb">tuple</span><span class="p">(</span><span class="n">dims</span><span class="p">)</span> <span class="ow">or</span> <span class="p">(</span><span class="mi">1</span><span class="p">,)</span>
+            <span class="n">bitpix</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">hdu</span><span class="o">.</span><span class="n">_orig_bitpix</span>
+            <span class="n">offset</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">hdu</span><span class="o">.</span><span class="n">_data_offset</span> <span class="o">+</span> <span class="n">offset</span> <span class="o">*</span> <span class="nb">abs</span><span class="p">(</span><span class="n">bitpix</span><span class="p">)</span> <span class="o">//</span> <span class="mi">8</span>
+            <span class="n">data</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">hdu</span><span class="o">.</span><span class="n">_get_scaled_image_data</span><span class="p">(</span><span class="n">offset</span><span class="p">,</span> <span class="n">dims</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">data</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_getdata</span><span class="p">(</span><span class="n">key</span><span class="p">)</span>
+
+        <span class="k">if</span> <span class="n">return_scalar</span><span class="p">:</span>
+            <span class="n">data</span> <span class="o">=</span> <span class="n">data</span><span class="o">.</span><span class="n">item</span><span class="p">()</span>
+        <span class="k">elif</span> <span class="n">return_0dim</span><span class="p">:</span>
+            <span class="n">data</span> <span class="o">=</span> <span class="n">data</span><span class="o">.</span><span class="n">squeeze</span><span class="p">()</span>
+        <span class="k">return</span> <span class="n">data</span>
+
+    <span class="k">def</span> <span class="nf">_getdata</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">keys</span><span class="p">):</span>
+        <span class="k">for</span> <span class="n">idx</span><span class="p">,</span> <span class="p">(</span><span class="n">key</span><span class="p">,</span> <span class="n">axis</span><span class="p">)</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="nb">zip</span><span class="p">(</span><span class="n">keys</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">hdu</span><span class="o">.</span><span class="n">shape</span><span class="p">)):</span>
+            <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">key</span><span class="p">,</span> <span class="nb">slice</span><span class="p">):</span>
+                <span class="n">ks</span> <span class="o">=</span> <span class="nb">range</span><span class="p">(</span><span class="o">*</span><span class="n">key</span><span class="o">.</span><span class="n">indices</span><span class="p">(</span><span class="n">axis</span><span class="p">))</span>
+                <span class="k">break</span>
+            <span class="k">elif</span> <span class="n">isiterable</span><span class="p">(</span><span class="n">key</span><span class="p">):</span>
+                <span class="c1"># Handle both integer and boolean arrays.</span>
+                <span class="n">ks</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">arange</span><span class="p">(</span><span class="n">axis</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="nb">int</span><span class="p">)[</span><span class="n">key</span><span class="p">]</span>
+                <span class="k">break</span>
+            <span class="c1"># This should always break at some point if _getdata is called.</span>
+
+        <span class="n">data</span> <span class="o">=</span> <span class="p">[</span><span class="bp">self</span><span class="p">[</span><span class="n">keys</span><span class="p">[:</span><span class="n">idx</span><span class="p">]</span> <span class="o">+</span> <span class="p">(</span><span class="n">k</span><span class="p">,)</span> <span class="o">+</span> <span class="n">keys</span><span class="p">[</span><span class="n">idx</span> <span class="o">+</span> <span class="mi">1</span><span class="p">:]]</span> <span class="k">for</span> <span class="n">k</span> <span class="ow">in</span> <span class="n">ks</span><span class="p">]</span>
+
+        <span class="k">if</span> <span class="nb">any</span><span class="p">(</span><span class="nb">isinstance</span><span class="p">(</span><span class="n">key</span><span class="p">,</span> <span class="nb">slice</span><span class="p">)</span> <span class="ow">or</span> <span class="n">isiterable</span><span class="p">(</span><span class="n">key</span><span class="p">)</span>
+               <span class="k">for</span> <span class="n">key</span> <span class="ow">in</span> <span class="n">keys</span><span class="p">[</span><span class="n">idx</span> <span class="o">+</span> <span class="mi">1</span><span class="p">:]):</span>
+            <span class="c1"># data contains multidimensional arrays; combine them.</span>
+            <span class="k">return</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">(</span><span class="n">data</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="c1"># Only singleton dimensions remain; concatenate in a 1D array.</span>
+            <span class="k">return</span> <span class="n">np</span><span class="o">.</span><span class="n">concatenate</span><span class="p">([</span><span class="n">np</span><span class="o">.</span><span class="n">atleast_1d</span><span class="p">(</span><span class="n">array</span><span class="p">)</span> <span class="k">for</span> <span class="n">array</span> <span class="ow">in</span> <span class="n">data</span><span class="p">])</span></div>
+
+
+<div class="viewcode-block" id="PrimaryHDU"><a class="viewcode-back" href="../../../../../io/fits/api/hdus.html#astropy.io.fits.PrimaryHDU">[docs]</a><span class="k">class</span> <span class="nc">PrimaryHDU</span><span class="p">(</span><span class="n">_ImageBaseHDU</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    FITS primary HDU class.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="n">_default_name</span> <span class="o">=</span> <span class="s1">&#39;PRIMARY&#39;</span>
+
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">data</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">header</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">do_not_scale_image_data</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span>
+                 <span class="n">ignore_blank</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span>
+                 <span class="n">uint</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">scale_back</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Construct a primary HDU.</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        data : array or DELAYED, optional</span>
+<span class="sd">            The data in the HDU.</span>
+
+<span class="sd">        header : Header instance, optional</span>
+<span class="sd">            The header to be used (as a template).  If ``header`` is `None`, a</span>
+<span class="sd">            minimal header will be provided.</span>
+
+<span class="sd">        do_not_scale_image_data : bool, optional</span>
+<span class="sd">            If `True`, image data is not scaled using BSCALE/BZERO values</span>
+<span class="sd">            when read. (default: False)</span>
+
+<span class="sd">        ignore_blank : bool, optional</span>
+<span class="sd">            If `True`, the BLANK header keyword will be ignored if present.</span>
+<span class="sd">            Otherwise, pixels equal to this value will be replaced with</span>
+<span class="sd">            NaNs. (default: False)</span>
+
+<span class="sd">        uint : bool, optional</span>
+<span class="sd">            Interpret signed integer data where ``BZERO`` is the</span>
+<span class="sd">            central value and ``BSCALE == 1`` as unsigned integer</span>
+<span class="sd">            data.  For example, ``int16`` data with ``BZERO = 32768``</span>
+<span class="sd">            and ``BSCALE = 1`` would be treated as ``uint16`` data.</span>
+<span class="sd">            (default: True)</span>
+
+<span class="sd">        scale_back : bool, optional</span>
+<span class="sd">            If `True`, when saving changes to a file that contained scaled</span>
+<span class="sd">            image data, restore the data to the original type and reapply the</span>
+<span class="sd">            original BSCALE/BZERO values.  This could lead to loss of accuracy</span>
+<span class="sd">            if scaling back to integer values after performing floating point</span>
+<span class="sd">            operations on the data.  Pseudo-unsigned integers are automatically</span>
+<span class="sd">            rescaled unless scale_back is explicitly set to `False`.</span>
+<span class="sd">            (default: None)</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+
+        <span class="nb">super</span><span class="p">(</span><span class="n">PrimaryHDU</span><span class="p">,</span> <span class="bp">self</span><span class="p">)</span><span class="o">.</span><span class="n">__init__</span><span class="p">(</span>
+            <span class="n">data</span><span class="o">=</span><span class="n">data</span><span class="p">,</span> <span class="n">header</span><span class="o">=</span><span class="n">header</span><span class="p">,</span>
+            <span class="n">do_not_scale_image_data</span><span class="o">=</span><span class="n">do_not_scale_image_data</span><span class="p">,</span> <span class="n">uint</span><span class="o">=</span><span class="n">uint</span><span class="p">,</span>
+            <span class="n">ignore_blank</span><span class="o">=</span><span class="n">ignore_blank</span><span class="p">,</span>
+            <span class="n">scale_back</span><span class="o">=</span><span class="n">scale_back</span><span class="p">)</span>
+
+        <span class="c1"># insert the keywords EXTEND</span>
+        <span class="k">if</span> <span class="n">header</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">dim</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_header</span><span class="p">[</span><span class="s1">&#39;NAXIS&#39;</span><span class="p">]</span>
+            <span class="k">if</span> <span class="n">dim</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
+                <span class="n">dim</span> <span class="o">=</span> <span class="s1">&#39;&#39;</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_header</span><span class="o">.</span><span class="n">set</span><span class="p">(</span><span class="s1">&#39;EXTEND&#39;</span><span class="p">,</span> <span class="kc">True</span><span class="p">,</span> <span class="n">after</span><span class="o">=</span><span class="s1">&#39;NAXIS&#39;</span> <span class="o">+</span> <span class="nb">str</span><span class="p">(</span><span class="n">dim</span><span class="p">))</span>
+
+    <span class="nd">@classmethod</span>
+    <span class="k">def</span> <span class="nf">match_header</span><span class="p">(</span><span class="n">cls</span><span class="p">,</span> <span class="n">header</span><span class="p">):</span>
+        <span class="n">card</span> <span class="o">=</span> <span class="n">header</span><span class="o">.</span><span class="n">cards</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+        <span class="c1"># Due to problems discussed in #5808, we cannot assume the &#39;GROUPS&#39;</span>
+        <span class="c1"># keyword to be True/False, have to check the value</span>
+        <span class="k">return</span> <span class="p">(</span><span class="n">card</span><span class="o">.</span><span class="n">keyword</span> <span class="o">==</span> <span class="s1">&#39;SIMPLE&#39;</span> <span class="ow">and</span>
+                <span class="p">(</span><span class="s1">&#39;GROUPS&#39;</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">header</span> <span class="ow">or</span> <span class="n">header</span><span class="p">[</span><span class="s1">&#39;GROUPS&#39;</span><span class="p">]</span> <span class="o">!=</span> <span class="kc">True</span><span class="p">)</span> <span class="ow">and</span>  <span class="c1"># noqa</span>
+                <span class="n">card</span><span class="o">.</span><span class="n">value</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">update_header</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="nb">super</span><span class="p">(</span><span class="n">PrimaryHDU</span><span class="p">,</span> <span class="bp">self</span><span class="p">)</span><span class="o">.</span><span class="n">update_header</span><span class="p">()</span>
+
+        <span class="c1"># Update the position of the EXTEND keyword if it already exists</span>
+        <span class="k">if</span> <span class="s1">&#39;EXTEND&#39;</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">_header</span><span class="p">:</span>
+            <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_axes</span><span class="p">):</span>
+                <span class="n">after</span> <span class="o">=</span> <span class="s1">&#39;NAXIS&#39;</span> <span class="o">+</span> <span class="nb">str</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_axes</span><span class="p">))</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="n">after</span> <span class="o">=</span> <span class="s1">&#39;NAXIS&#39;</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_header</span><span class="o">.</span><span class="n">set</span><span class="p">(</span><span class="s1">&#39;EXTEND&#39;</span><span class="p">,</span> <span class="n">after</span><span class="o">=</span><span class="n">after</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">_verify</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">option</span><span class="o">=</span><span class="s1">&#39;warn&#39;</span><span class="p">):</span>
+        <span class="n">errs</span> <span class="o">=</span> <span class="nb">super</span><span class="p">(</span><span class="n">PrimaryHDU</span><span class="p">,</span> <span class="bp">self</span><span class="p">)</span><span class="o">.</span><span class="n">_verify</span><span class="p">(</span><span class="n">option</span><span class="o">=</span><span class="n">option</span><span class="p">)</span>
+
+        <span class="c1"># Verify location and value of mandatory keywords.</span>
+        <span class="c1"># The EXTEND keyword is only mandatory if the HDU has extensions; this</span>
+        <span class="c1"># condition is checked by the HDUList object.  However, if we already</span>
+        <span class="c1"># have an EXTEND keyword check that its position is correct</span>
+        <span class="k">if</span> <span class="s1">&#39;EXTEND&#39;</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">_header</span><span class="p">:</span>
+            <span class="n">naxis</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_header</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;NAXIS&#39;</span><span class="p">,</span> <span class="mi">0</span><span class="p">)</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">req_cards</span><span class="p">(</span><span class="s1">&#39;EXTEND&#39;</span><span class="p">,</span> <span class="n">naxis</span> <span class="o">+</span> <span class="mi">3</span><span class="p">,</span> <span class="k">lambda</span> <span class="n">v</span><span class="p">:</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">v</span><span class="p">,</span> <span class="nb">bool</span><span class="p">),</span>
+                           <span class="kc">True</span><span class="p">,</span> <span class="n">option</span><span class="p">,</span> <span class="n">errs</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">errs</span></div>
+
+
+<div class="viewcode-block" id="ImageHDU"><a class="viewcode-back" href="../../../../../io/fits/api/images.html#astropy.io.fits.ImageHDU">[docs]</a><span class="k">class</span> <span class="nc">ImageHDU</span><span class="p">(</span><span class="n">_ImageBaseHDU</span><span class="p">,</span> <span class="n">ExtensionHDU</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    FITS image extension HDU class.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="n">_extension</span> <span class="o">=</span> <span class="s1">&#39;IMAGE&#39;</span>
+
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">data</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">header</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">name</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+                 <span class="n">do_not_scale_image_data</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="n">uint</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">scale_back</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Construct an image HDU.</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        data : array</span>
+<span class="sd">            The data in the HDU.</span>
+
+<span class="sd">        header : Header instance</span>
+<span class="sd">            The header to be used (as a template).  If ``header`` is</span>
+<span class="sd">            `None`, a minimal header will be provided.</span>
+
+<span class="sd">        name : str, optional</span>
+<span class="sd">            The name of the HDU, will be the value of the keyword</span>
+<span class="sd">            ``EXTNAME``.</span>
+
+<span class="sd">        do_not_scale_image_data : bool, optional</span>
+<span class="sd">            If `True`, image data is not scaled using BSCALE/BZERO values</span>
+<span class="sd">            when read. (default: False)</span>
+
+<span class="sd">        uint : bool, optional</span>
+<span class="sd">            Interpret signed integer data where ``BZERO`` is the</span>
+<span class="sd">            central value and ``BSCALE == 1`` as unsigned integer</span>
+<span class="sd">            data.  For example, ``int16`` data with ``BZERO = 32768``</span>
+<span class="sd">            and ``BSCALE = 1`` would be treated as ``uint16`` data.</span>
+<span class="sd">            (default: True)</span>
+
+<span class="sd">        scale_back : bool, optional</span>
+<span class="sd">            If `True`, when saving changes to a file that contained scaled</span>
+<span class="sd">            image data, restore the data to the original type and reapply the</span>
+<span class="sd">            original BSCALE/BZERO values.  This could lead to loss of accuracy</span>
+<span class="sd">            if scaling back to integer values after performing floating point</span>
+<span class="sd">            operations on the data.  Pseudo-unsigned integers are automatically</span>
+<span class="sd">            rescaled unless scale_back is explicitly set to `False`.</span>
+<span class="sd">            (default: None)</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+
+        <span class="c1"># This __init__ currently does nothing differently from the base class,</span>
+        <span class="c1"># and is only explicitly defined for the docstring.</span>
+
+        <span class="nb">super</span><span class="p">(</span><span class="n">ImageHDU</span><span class="p">,</span> <span class="bp">self</span><span class="p">)</span><span class="o">.</span><span class="n">__init__</span><span class="p">(</span>
+            <span class="n">data</span><span class="o">=</span><span class="n">data</span><span class="p">,</span> <span class="n">header</span><span class="o">=</span><span class="n">header</span><span class="p">,</span> <span class="n">name</span><span class="o">=</span><span class="n">name</span><span class="p">,</span>
+            <span class="n">do_not_scale_image_data</span><span class="o">=</span><span class="n">do_not_scale_image_data</span><span class="p">,</span> <span class="n">uint</span><span class="o">=</span><span class="n">uint</span><span class="p">,</span>
+            <span class="n">scale_back</span><span class="o">=</span><span class="n">scale_back</span><span class="p">)</span>
+
+    <span class="nd">@classmethod</span>
+    <span class="k">def</span> <span class="nf">match_header</span><span class="p">(</span><span class="n">cls</span><span class="p">,</span> <span class="n">header</span><span class="p">):</span>
+        <span class="n">card</span> <span class="o">=</span> <span class="n">header</span><span class="o">.</span><span class="n">cards</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+        <span class="n">xtension</span> <span class="o">=</span> <span class="n">card</span><span class="o">.</span><span class="n">value</span>
+        <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">xtension</span><span class="p">,</span> <span class="n">string_types</span><span class="p">):</span>
+            <span class="n">xtension</span> <span class="o">=</span> <span class="n">xtension</span><span class="o">.</span><span class="n">rstrip</span><span class="p">()</span>
+        <span class="k">return</span> <span class="n">card</span><span class="o">.</span><span class="n">keyword</span> <span class="o">==</span> <span class="s1">&#39;XTENSION&#39;</span> <span class="ow">and</span> <span class="n">xtension</span> <span class="o">==</span> <span class="n">cls</span><span class="o">.</span><span class="n">_extension</span>
+
+    <span class="k">def</span> <span class="nf">_verify</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">option</span><span class="o">=</span><span class="s1">&#39;warn&#39;</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        ImageHDU verify method.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+
+        <span class="n">errs</span> <span class="o">=</span> <span class="nb">super</span><span class="p">(</span><span class="n">ImageHDU</span><span class="p">,</span> <span class="bp">self</span><span class="p">)</span><span class="o">.</span><span class="n">_verify</span><span class="p">(</span><span class="n">option</span><span class="o">=</span><span class="n">option</span><span class="p">)</span>
+        <span class="n">naxis</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_header</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;NAXIS&#39;</span><span class="p">,</span> <span class="mi">0</span><span class="p">)</span>
+        <span class="c1"># PCOUNT must == 0, GCOUNT must == 1; the former is verified in</span>
+        <span class="c1"># ExtensionHDU._verify, however ExtensionHDU._verify allows PCOUNT</span>
+        <span class="c1"># to be &gt;= 0, so we need to check it here</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">req_cards</span><span class="p">(</span><span class="s1">&#39;PCOUNT&#39;</span><span class="p">,</span> <span class="n">naxis</span> <span class="o">+</span> <span class="mi">3</span><span class="p">,</span> <span class="k">lambda</span> <span class="n">v</span><span class="p">:</span> <span class="p">(</span><span class="n">_is_int</span><span class="p">(</span><span class="n">v</span><span class="p">)</span> <span class="ow">and</span> <span class="n">v</span> <span class="o">==</span> <span class="mi">0</span><span class="p">),</span>
+                       <span class="mi">0</span><span class="p">,</span> <span class="n">option</span><span class="p">,</span> <span class="n">errs</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">errs</span></div>
+
+
+<span class="k">class</span> <span class="nc">_IndexInfo</span><span class="p">(</span><span class="nb">object</span><span class="p">):</span>
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">indx</span><span class="p">,</span> <span class="n">naxis</span><span class="p">):</span>
+        <span class="k">if</span> <span class="n">_is_int</span><span class="p">(</span><span class="n">indx</span><span class="p">):</span>
+            <span class="k">if</span> <span class="mi">0</span> <span class="o">&lt;=</span> <span class="n">indx</span> <span class="o">&lt;</span> <span class="n">naxis</span><span class="p">:</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">npts</span> <span class="o">=</span> <span class="mi">1</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">offset</span> <span class="o">=</span> <span class="n">indx</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">contiguous</span> <span class="o">=</span> <span class="kc">True</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="k">raise</span> <span class="ne">IndexError</span><span class="p">(</span><span class="s1">&#39;Index </span><span class="si">{}</span><span class="s1"> out of range.&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">indx</span><span class="p">))</span>
+        <span class="k">elif</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">indx</span><span class="p">,</span> <span class="nb">slice</span><span class="p">):</span>
+            <span class="n">start</span><span class="p">,</span> <span class="n">stop</span><span class="p">,</span> <span class="n">step</span> <span class="o">=</span> <span class="n">indx</span><span class="o">.</span><span class="n">indices</span><span class="p">(</span><span class="n">naxis</span><span class="p">)</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">npts</span> <span class="o">=</span> <span class="p">(</span><span class="n">stop</span> <span class="o">-</span> <span class="n">start</span><span class="p">)</span> <span class="o">//</span> <span class="n">step</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">offset</span> <span class="o">=</span> <span class="n">start</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">contiguous</span> <span class="o">=</span> <span class="n">step</span> <span class="o">==</span> <span class="mi">1</span>
+        <span class="k">elif</span> <span class="n">isiterable</span><span class="p">(</span><span class="n">indx</span><span class="p">):</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">npts</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="n">indx</span><span class="p">)</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">offset</span> <span class="o">=</span> <span class="mi">0</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">contiguous</span> <span class="o">=</span> <span class="kc">False</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">IndexError</span><span class="p">(</span><span class="s1">&#39;Illegal index </span><span class="si">{}</span><span class="s1">&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">indx</span><span class="p">))</span>
+</pre></div>
+
+          </div>
+        </div>
+      </div>
+      <div class="sphinxsidebar" role="navigation" aria-label="main navigation">
+        <div class="sphinxsidebarwrapper"><h3>Page Contents</h3>
+
+
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+<footer class="footer">
+  <p class="pull-right"> &nbsp;
+    <a href="#">Back to Top</a></p>
+  <p>
+    &copy; Copyright 2011-2016, The Astropy Developers.<br/>
+    Created using <a href="http://sphinx.pocoo.org/">Sphinx</a> 1.5.6. &nbsp;
+    Last built 05 Jul 2017. <br/>
+  </p>
+</footer>
+  </body>
+</html>

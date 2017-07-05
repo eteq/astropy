@@ -1,0 +1,402 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <head>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    
+    <title>astropy.modeling.tabular &#8212; Astropy v3.0.dev19489</title>
+    
+    <link rel="stylesheet" href="../../../_static/bootstrap-astropy.css" type="text/css" />
+    <link rel="stylesheet" href="../../../_static/pygments.css" type="text/css" />
+    <link rel="stylesheet" href="../../../_static/gallery.css" type="text/css" />
+    
+    <script type="text/javascript">
+      var DOCUMENTATION_OPTIONS = {
+        URL_ROOT:    '../../../',
+        VERSION:     '3.0.dev19489',
+        COLLAPSE_INDEX: false,
+        FILE_SUFFIX: '.html',
+        HAS_SOURCE:  true,
+        SOURCELINK_SUFFIX: '.txt'
+      };
+    </script>
+    <script type="text/javascript" src="../../../_static/jquery.js"></script>
+    <script type="text/javascript" src="../../../_static/underscore.js"></script>
+    <script type="text/javascript" src="../../../_static/doctools.js"></script>
+    <script type="text/javascript" src="../../../_static/sidebar.js"></script>
+    <link rel="shortcut icon" href="../../../_static/astropy_logo.ico"/>
+    <link rel="index" title="Index" href="../../../genindex.html" />
+    <link rel="search" title="Search" href="../../../search.html" />
+<link href='https://fonts.googleapis.com/css?family=Source+Sans+Pro:200,600' rel='stylesheet' type='text/css'/>
+<script type="text/javascript" src="../../../_static/copybutton.js"></script>
+
+
+  </head>
+  <body role="document">
+<div class="topbar">
+  <a class="brand" title="Documentation Home" href="../../../index.html"><span id="logotext1">astro</span><span id="logotext2">py</span><span id="logotext3">:docs</span></a>
+  <ul>
+    <li><a class="homelink" title="Astropy Homepage" href="http://www.astropy.org"></a></li>
+    <li><a title="General Index" href="../../../genindex.html">Index</a></li>
+    <li><a title="Module Index" href="../../../py-modindex.html">Modules</a></li>
+    <li>
+      
+      
+<form action="../../../search.html" method="get">
+  <input type="text" name="q" placeholder="Search" />
+  <input type="hidden" name="check_keywords" value="yes" />
+  <input type="hidden" name="area" value="default" />
+</form>
+      
+    </li>
+  </ul>
+</div>
+
+<div class="related">
+    <h3>Navigation</h3>
+    <ul>
+      <li>
+	<a href="../../../index.html">Astropy v3.0.dev19489</a>
+	 &#187;
+      </li>
+      <li><a href="../../index.html" >Module code</a> &#187;</li>
+      <li><a href="../../astropy.html" accesskey="U">astropy</a> &#187;</li>
+      
+       
+    </ul>
+</div>
+  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          <div class="body" role="main">
+            
+  <h1>Source code for astropy.modeling.tabular</h1><div class="highlight"><pre>
+<span></span><span class="c1"># Licensed under a 3-clause BSD style license - see LICENSE.rst</span>
+
+<span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">Tabular models.</span>
+
+<span class="sd">Tabular models of any dimension can be created using `tabular_model`.</span>
+<span class="sd">For convenience `Tabular1D` and `Tabular2D` are provided.</span>
+
+<span class="sd">Examples</span>
+<span class="sd">--------</span>
+<span class="sd">&gt;&gt;&gt; table = np.array([[ 3.,  0.,  0.],</span>
+<span class="sd">...                  [ 0.,  2.,  0.],</span>
+<span class="sd">...                  [ 0.,  0.,  0.]])</span>
+<span class="sd">&gt;&gt;&gt; points = ([1, 2, 3], [1, 2, 3])</span>
+<span class="sd">&gt;&gt;&gt; t2 = Tabular2D(points, lookup_table=table, bounds_error=False, fill_value=None, method=&#39;nearest&#39;)</span>
+
+<span class="sd">&quot;&quot;&quot;</span>
+
+<span class="kn">from</span> <span class="nn">__future__</span> <span class="k">import</span> <span class="p">(</span><span class="n">absolute_import</span><span class="p">,</span> <span class="n">unicode_literals</span><span class="p">,</span> <span class="n">division</span><span class="p">,</span>
+                        <span class="n">print_function</span><span class="p">)</span>
+<span class="kn">import</span> <span class="nn">abc</span>
+<span class="kn">import</span> <span class="nn">numpy</span> <span class="k">as</span> <span class="nn">np</span>
+<span class="kn">from</span> <span class="nn">.core</span> <span class="k">import</span> <span class="n">Model</span>
+<span class="kn">from</span> <span class="nn">..utils</span> <span class="k">import</span> <span class="n">minversion</span>
+<span class="kn">from</span> <span class="nn">..extern.six.moves</span> <span class="k">import</span> <span class="nb">range</span>
+
+<span class="k">try</span><span class="p">:</span>
+    <span class="kn">import</span> <span class="nn">scipy</span>
+    <span class="kn">from</span> <span class="nn">scipy.interpolate</span> <span class="k">import</span> <span class="n">interpn</span>
+    <span class="n">has_scipy</span> <span class="o">=</span> <span class="kc">True</span>
+<span class="k">except</span> <span class="ne">ImportError</span><span class="p">:</span>
+    <span class="n">has_scipy</span> <span class="o">=</span> <span class="kc">False</span>
+
+<span class="n">has_scipy</span> <span class="o">=</span> <span class="n">has_scipy</span> <span class="ow">and</span> <span class="n">minversion</span><span class="p">(</span><span class="n">scipy</span><span class="p">,</span> <span class="s2">&quot;0.14&quot;</span><span class="p">)</span>
+
+
+<span class="n">__all__</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;tabular_model&#39;</span><span class="p">,</span> <span class="s1">&#39;Tabular1D&#39;</span><span class="p">,</span> <span class="s1">&#39;Tabular2D&#39;</span><span class="p">]</span>
+
+
+<span class="n">__doctest_requires__</span> <span class="o">=</span> <span class="p">{(</span><span class="s1">&#39;tabular_model&#39;</span><span class="p">):</span> <span class="p">[</span><span class="s1">&#39;scipy&#39;</span><span class="p">]}</span>
+
+
+<span class="k">class</span> <span class="nc">_Tabular</span><span class="p">(</span><span class="n">Model</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Returns an interpolated lookup table value.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    points : tuple of ndarray of float, with shapes (m1, ), ..., (mn, ), optional</span>
+<span class="sd">        The points defining the regular grid in n dimensions.</span>
+<span class="sd">    lookup_table : array-like, shape (m1, ..., mn, ...)</span>
+<span class="sd">        The data on a regular grid in n dimensions.</span>
+<span class="sd">    method : str, optional</span>
+<span class="sd">        The method of interpolation to perform. Supported are &quot;linear&quot; and</span>
+<span class="sd">        &quot;nearest&quot;, and &quot;splinef2d&quot;. &quot;splinef2d&quot; is only supported for</span>
+<span class="sd">        2-dimensional data. Default is &quot;linear&quot;.</span>
+<span class="sd">    bounds_error : bool, optional</span>
+<span class="sd">        If True, when interpolated values are requested outside of the</span>
+<span class="sd">        domain of the input data, a ValueError is raised.</span>
+<span class="sd">        If False, then ``fill_value`` is used.</span>
+<span class="sd">    fill_value : float, optional</span>
+<span class="sd">        If provided, the value to use for points outside of the</span>
+<span class="sd">        interpolation domain. If None, values outside</span>
+<span class="sd">        the domain are extrapolated.  Extrapolation is not supported by method</span>
+<span class="sd">        &quot;splinef2d&quot;.</span>
+
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+<span class="sd">    value : ndarray</span>
+<span class="sd">        Interpolated values at input coordinates.</span>
+
+<span class="sd">    Raises</span>
+<span class="sd">    ------</span>
+<span class="sd">    ImportError</span>
+<span class="sd">        Scipy is not installed.</span>
+
+<span class="sd">    Notes</span>
+<span class="sd">    -----</span>
+<span class="sd">    Uses `scipy.interpolate.interpn`.</span>
+
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="n">linear</span> <span class="o">=</span> <span class="kc">False</span>
+    <span class="n">fittable</span> <span class="o">=</span> <span class="kc">False</span>
+
+    <span class="n">standard_broadcasting</span> <span class="o">=</span> <span class="kc">False</span>
+    <span class="n">outputs</span> <span class="o">=</span> <span class="p">(</span><span class="s1">&#39;y&#39;</span><span class="p">,)</span>
+
+    <span class="n">lookup_table</span> <span class="o">=</span> <span class="n">abc</span><span class="o">.</span><span class="n">abstractproperty</span><span class="p">()</span>
+
+    <span class="n">_is_dynamic</span> <span class="o">=</span> <span class="kc">True</span>
+
+    <span class="n">_id</span> <span class="o">=</span> <span class="mi">0</span>
+
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">points</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">lookup_table</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">method</span><span class="o">=</span><span class="s1">&#39;linear&#39;</span><span class="p">,</span>
+                 <span class="n">bounds_error</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">fill_value</span><span class="o">=</span><span class="n">np</span><span class="o">.</span><span class="n">nan</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+
+        <span class="n">n_models</span> <span class="o">=</span> <span class="n">kwargs</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;n_models&#39;</span><span class="p">,</span> <span class="mi">1</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">n_models</span> <span class="o">&gt;</span> <span class="mi">1</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">NotImplementedError</span><span class="p">(</span><span class="s1">&#39;Only n_models=1 is supported.&#39;</span><span class="p">)</span>
+        <span class="nb">super</span><span class="p">(</span><span class="n">_Tabular</span><span class="p">,</span> <span class="bp">self</span><span class="p">)</span><span class="o">.</span><span class="n">__init__</span><span class="p">(</span><span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
+
+        <span class="k">if</span> <span class="n">lookup_table</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">lookup_table</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span><span class="n">lookup_table</span><span class="p">)</span>
+            <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">lookup_table</span><span class="o">.</span><span class="n">ndim</span> <span class="o">!=</span> <span class="n">lookup_table</span><span class="o">.</span><span class="n">ndim</span><span class="p">:</span>
+                <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;lookup_table should be an array with &quot;</span>
+                                 <span class="s2">&quot;</span><span class="si">{0}</span><span class="s2"> dimensions&quot;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">lookup_table</span><span class="o">.</span><span class="n">ndim</span><span class="p">))</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">lookup_table</span> <span class="o">=</span> <span class="n">lookup_table</span>
+        <span class="k">if</span> <span class="n">points</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">points</span> <span class="o">=</span> <span class="nb">tuple</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">arange</span><span class="p">(</span><span class="n">x</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="n">np</span><span class="o">.</span><span class="n">float</span><span class="p">)</span>
+                                <span class="k">for</span> <span class="n">x</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">lookup_table</span><span class="o">.</span><span class="n">shape</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">lookup_table</span><span class="o">.</span><span class="n">ndim</span> <span class="o">==</span> <span class="mi">1</span> <span class="ow">and</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">points</span><span class="p">,</span> <span class="nb">tuple</span><span class="p">):</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">points</span> <span class="o">=</span> <span class="p">(</span><span class="n">points</span><span class="p">,)</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">points</span> <span class="o">=</span> <span class="n">points</span>
+            <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">points</span><span class="p">)</span> <span class="o">!=</span> <span class="bp">self</span><span class="o">.</span><span class="n">lookup_table</span><span class="o">.</span><span class="n">ndim</span><span class="p">:</span>
+                <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;Expected grid points in &quot;</span>
+                                 <span class="s2">&quot;</span><span class="si">{0}</span><span class="s2"> directions, got </span><span class="si">{1}</span><span class="s2">&quot;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">lookup_table</span><span class="o">.</span><span class="n">ndim</span><span class="p">,</span>
+                                                                  <span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">points</span><span class="p">)))</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">bounds_error</span> <span class="o">=</span> <span class="n">bounds_error</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">method</span> <span class="o">=</span> <span class="n">method</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">fill_value</span> <span class="o">=</span> <span class="n">fill_value</span>
+
+    <span class="k">def</span> <span class="nf">__repr__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="n">fmt</span> <span class="o">=</span> <span class="s2">&quot;&lt;</span><span class="si">{0}</span><span class="s2">(points=</span><span class="si">{1}</span><span class="s2">, lookup_table=</span><span class="si">{2}</span><span class="s2">)&gt;&quot;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">__class__</span><span class="o">.</span><span class="n">__name__</span><span class="p">,</span>
+                                                           <span class="bp">self</span><span class="o">.</span><span class="n">points</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">lookup_table</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">fmt</span>
+
+    <span class="k">def</span> <span class="nf">__str__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="n">default_keywords</span> <span class="o">=</span> <span class="p">[</span>
+            <span class="p">(</span><span class="s1">&#39;Model&#39;</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">__class__</span><span class="o">.</span><span class="n">__name__</span><span class="p">),</span>
+            <span class="p">(</span><span class="s1">&#39;Name&#39;</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">name</span><span class="p">),</span>
+            <span class="p">(</span><span class="s1">&#39;Inputs&#39;</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">inputs</span><span class="p">),</span>
+            <span class="p">(</span><span class="s1">&#39;Outputs&#39;</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">outputs</span><span class="p">),</span>
+            <span class="p">(</span><span class="s1">&#39;Parameters&#39;</span><span class="p">,</span> <span class="s2">&quot;&quot;</span><span class="p">),</span>
+            <span class="p">(</span><span class="s1">&#39;  points&#39;</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">points</span><span class="p">),</span>
+            <span class="p">(</span><span class="s1">&#39;  lookup_table&#39;</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">lookup_table</span><span class="p">),</span>
+            <span class="p">(</span><span class="s1">&#39;  method&#39;</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">method</span><span class="p">),</span>
+            <span class="p">(</span><span class="s1">&#39;  fill_value&#39;</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">fill_value</span><span class="p">),</span>
+            <span class="p">(</span><span class="s1">&#39;  bounds_error&#39;</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">bounds_error</span><span class="p">)</span>
+        <span class="p">]</span>
+
+        <span class="n">parts</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;</span><span class="si">{0}</span><span class="s1">: </span><span class="si">{1}</span><span class="s1">&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">keyword</span><span class="p">,</span> <span class="n">value</span><span class="p">)</span>
+                 <span class="k">for</span> <span class="n">keyword</span><span class="p">,</span> <span class="n">value</span> <span class="ow">in</span> <span class="n">default_keywords</span>
+                 <span class="k">if</span> <span class="n">value</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">]</span>
+
+        <span class="k">return</span> <span class="s1">&#39;</span><span class="se">\n</span><span class="s1">&#39;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">parts</span><span class="p">)</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">bounding_box</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Tuple defining the default ``bounding_box`` limits,</span>
+<span class="sd">        ``(points_low, points_high)``.</span>
+
+<span class="sd">        Examples</span>
+<span class="sd">        --------</span>
+<span class="sd">        &gt;&gt;&gt; from astropy.modeling.models import Tabular1D, Tabular2D</span>
+<span class="sd">        &gt;&gt;&gt; t1 = Tabular1D(points=[1,2,3], lookup_table=[10, 20, 30])</span>
+<span class="sd">        &gt;&gt;&gt; t1.bounding_box</span>
+<span class="sd">        (1, 3)</span>
+<span class="sd">        &gt;&gt;&gt; t2 = Tabular2D(points=[[1,2,3],[2,3,4]], lookup_table=[[10,20,30],[20,30,40]])</span>
+<span class="sd">        &gt;&gt;&gt; t2.bounding_box</span>
+<span class="sd">        ((2, 4), (1, 3))</span>
+
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">bbox</span> <span class="o">=</span> <span class="p">[(</span><span class="nb">min</span><span class="p">(</span><span class="n">p</span><span class="p">),</span> <span class="nb">max</span><span class="p">(</span><span class="n">p</span><span class="p">))</span> <span class="k">for</span> <span class="n">p</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">points</span><span class="p">][::</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span>
+        <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">bbox</span><span class="p">)</span> <span class="o">==</span> <span class="mi">1</span><span class="p">:</span>
+            <span class="n">bbox</span> <span class="o">=</span> <span class="n">bbox</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+        <span class="k">return</span> <span class="nb">tuple</span><span class="p">(</span><span class="n">bbox</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">evaluate</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="o">*</span><span class="n">inputs</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Return the interpolated values at the input coordinates.</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        inputs : list of scalars or ndarrays</span>
+<span class="sd">            Input coordinates. The number of inputs must be equal</span>
+<span class="sd">            to the dimensions of the lookup table.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">inputs</span> <span class="o">=</span> <span class="p">[</span><span class="n">inp</span><span class="o">.</span><span class="n">flatten</span><span class="p">()</span> <span class="k">for</span> <span class="n">inp</span> <span class="ow">in</span> <span class="n">inputs</span><span class="p">[:</span> <span class="bp">self</span><span class="o">.</span><span class="n">n_inputs</span><span class="p">]]</span>
+        <span class="n">inputs</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">(</span><span class="n">inputs</span><span class="p">)</span><span class="o">.</span><span class="n">T</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">has_scipy</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">ImportError</span><span class="p">(</span><span class="s2">&quot;This model requires scipy &gt;= v0.14&quot;</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">interpn</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">points</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">lookup_table</span><span class="p">,</span> <span class="n">inputs</span><span class="p">,</span>
+                       <span class="n">method</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">method</span><span class="p">,</span> <span class="n">bounds_error</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">bounds_error</span><span class="p">,</span>
+                       <span class="n">fill_value</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">fill_value</span><span class="p">)</span>
+
+
+<div class="viewcode-block" id="tabular_model"><a class="viewcode-back" href="../../../api/astropy.modeling.tabular.tabular_model.html#astropy.modeling.tabular.tabular_model">[docs]</a><span class="k">def</span> <span class="nf">tabular_model</span><span class="p">(</span><span class="n">dim</span><span class="p">,</span> <span class="n">name</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Make a ``Tabular`` model where ``n_inputs`` is</span>
+<span class="sd">    based on the dimension of the lookup_table.</span>
+
+<span class="sd">    This model has to be further initialized and when evaluated</span>
+<span class="sd">    returns the interpolated values.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    dim : int</span>
+<span class="sd">        Dimensions of the lookup table.</span>
+<span class="sd">    name : str</span>
+<span class="sd">        Name for the class.</span>
+
+<span class="sd">    Examples</span>
+<span class="sd">    --------</span>
+<span class="sd">    &gt;&gt;&gt; table = np.array([[ 3.,  0.,  0.],</span>
+<span class="sd">    ...                  [ 0.,  2.,  0.],</span>
+<span class="sd">    ...                  [ 0.,  0.,  0.]])</span>
+
+<span class="sd">    &gt;&gt;&gt; tab = tabular_model(2, name=&#39;Tabular2D&#39;)</span>
+<span class="sd">    &gt;&gt;&gt; print(tab)</span>
+<span class="sd">        &lt;class &#39;abc.Tabular2D&#39;&gt;</span>
+<span class="sd">        Name: Tabular2D</span>
+<span class="sd">        Inputs: (u&#39;x0&#39;, u&#39;x1&#39;)</span>
+<span class="sd">        Outputs: (u&#39;y&#39;,)</span>
+
+<span class="sd">    &gt;&gt;&gt; points = ([1, 2, 3], [1, 2, 3])</span>
+
+<span class="sd">    Setting fill_value to None, allows extrapolation.</span>
+<span class="sd">    &gt;&gt;&gt; m = tab(points, lookup_table=table, name=&#39;my_table&#39;, bounds_error=False, fill_value=None, method=&#39;nearest&#39;)</span>
+
+<span class="sd">    &gt;&gt;&gt; xinterp = [0, 1, 1.5, 2.72, 3.14]</span>
+<span class="sd">    &gt;&gt;&gt; m(xinterp, xinterp)</span>
+<span class="sd">        array([ 3., 3., 3., 0., 0.])</span>
+
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">table</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">zeros</span><span class="p">([</span><span class="mi">2</span><span class="p">]</span> <span class="o">*</span> <span class="n">dim</span><span class="p">)</span>
+    <span class="n">inputs</span> <span class="o">=</span> <span class="nb">tuple</span><span class="p">(</span><span class="s1">&#39;x</span><span class="si">{0}</span><span class="s1">&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">idx</span><span class="p">)</span> <span class="k">for</span> <span class="n">idx</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">table</span><span class="o">.</span><span class="n">ndim</span><span class="p">))</span>
+    <span class="n">members</span> <span class="o">=</span> <span class="p">{</span><span class="s1">&#39;lookup_table&#39;</span><span class="p">:</span> <span class="n">table</span><span class="p">,</span> <span class="s1">&#39;inputs&#39;</span><span class="p">:</span> <span class="n">inputs</span><span class="p">}</span>
+    <span class="k">if</span> <span class="n">name</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="n">model_id</span> <span class="o">=</span> <span class="n">_Tabular</span><span class="o">.</span><span class="n">_id</span>
+        <span class="n">_Tabular</span><span class="o">.</span><span class="n">_id</span> <span class="o">+=</span> <span class="mi">1</span>
+        <span class="n">name</span> <span class="o">=</span> <span class="s1">&#39;Tabular</span><span class="si">{0}</span><span class="s1">&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">model_id</span><span class="p">)</span>
+
+    <span class="k">return</span> <span class="nb">type</span><span class="p">(</span><span class="nb">str</span><span class="p">(</span><span class="n">name</span><span class="p">),</span> <span class="p">(</span><span class="n">_Tabular</span><span class="p">,),</span> <span class="n">members</span><span class="p">)</span></div>
+
+
+<span class="n">Tabular1D</span> <span class="o">=</span> <span class="n">tabular_model</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="n">name</span><span class="o">=</span><span class="s1">&#39;Tabular1D&#39;</span><span class="p">)</span>
+
+
+<span class="n">Tabular2D</span> <span class="o">=</span> <span class="n">tabular_model</span><span class="p">(</span><span class="mi">2</span><span class="p">,</span> <span class="n">name</span><span class="o">=</span><span class="s1">&#39;Tabular2D&#39;</span><span class="p">)</span>
+
+<span class="n">_tab_docs</span> <span class="o">=</span> <span class="s2">&quot;&quot;&quot;</span>
+<span class="s2">    method : str, optional</span>
+<span class="s2">        The method of interpolation to perform. Supported are &quot;linear&quot; and</span>
+<span class="s2">        &quot;nearest&quot;, and &quot;splinef2d&quot;. &quot;splinef2d&quot; is only supported for</span>
+<span class="s2">        2-dimensional data. Default is &quot;linear&quot;.</span>
+<span class="s2">    bounds_error : bool, optional</span>
+<span class="s2">        If True, when interpolated values are requested outside of the</span>
+<span class="s2">        domain of the input data, a ValueError is raised.</span>
+<span class="s2">        If False, then ``fill_value`` is used.</span>
+<span class="s2">    fill_value : float, optional</span>
+<span class="s2">        If provided, the value to use for points outside of the</span>
+<span class="s2">        interpolation domain. If None, values outside</span>
+<span class="s2">        the domain are extrapolated.  Extrapolation is not supported by method</span>
+<span class="s2">        &quot;splinef2d&quot;.</span>
+
+<span class="s2">    Returns</span>
+<span class="s2">    -------</span>
+<span class="s2">    value : ndarray</span>
+<span class="s2">        Interpolated values at input coordinates.</span>
+
+<span class="s2">    Raises</span>
+<span class="s2">    ------</span>
+<span class="s2">    ImportError</span>
+<span class="s2">        Scipy is not installed.</span>
+
+<span class="s2">    Notes</span>
+<span class="s2">    -----</span>
+<span class="s2">    Uses `scipy.interpolate.interpn`.</span>
+<span class="s2">&quot;&quot;&quot;</span>
+
+
+<span class="n">Tabular1D</span><span class="o">.</span><span class="n">__doc__</span> <span class="o">=</span> <span class="s2">&quot;&quot;&quot;</span>
+<span class="s2">    Tabular model in 1D.</span>
+<span class="s2">    Returns an interpolated lookup table value.</span>
+
+<span class="s2">    Parameters</span>
+<span class="s2">    ----------</span>
+<span class="s2">    points : array-like of float of ndim=1.</span>
+<span class="s2">        The points defining the regular grid in n dimensions.</span>
+<span class="s2">    lookup_table : array-like, of ndim=1.</span>
+<span class="s2">        The data in one dimensions.</span>
+<span class="s2">&quot;&quot;&quot;</span> <span class="o">+</span> <span class="n">_tab_docs</span>
+
+
+<span class="n">Tabular2D</span><span class="o">.</span><span class="n">__doc__</span> <span class="o">=</span> <span class="s2">&quot;&quot;&quot;</span>
+<span class="s2">    Tabular model in 2D.</span>
+<span class="s2">    Returns an interpolated lookup table value.</span>
+
+<span class="s2">    Parameters</span>
+<span class="s2">    ----------</span>
+<span class="s2">    points : tuple of ndarray of float, with shapes (m1, m2), optional</span>
+<span class="s2">        The points defining the regular grid in n dimensions.</span>
+<span class="s2">    lookup_table : array-like, shape (m1, m2)</span>
+<span class="s2">        The data on a regular grid in 2 dimensions.</span>
+
+<span class="s2">&quot;&quot;&quot;</span> <span class="o">+</span> <span class="n">_tab_docs</span>
+</pre></div>
+
+          </div>
+        </div>
+      </div>
+      <div class="sphinxsidebar" role="navigation" aria-label="main navigation">
+        <div class="sphinxsidebarwrapper"><h3>Page Contents</h3>
+
+
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+<footer class="footer">
+  <p class="pull-right"> &nbsp;
+    <a href="#">Back to Top</a></p>
+  <p>
+    &copy; Copyright 2011-2016, The Astropy Developers.<br/>
+    Created using <a href="http://sphinx.pocoo.org/">Sphinx</a> 1.5.6. &nbsp;
+    Last built 05 Jul 2017. <br/>
+  </p>
+</footer>
+  </body>
+</html>

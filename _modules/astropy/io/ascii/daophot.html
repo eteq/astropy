@@ -1,0 +1,496 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <head>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    
+    <title>astropy.io.ascii.daophot &#8212; Astropy v3.0.dev19489</title>
+    
+    <link rel="stylesheet" href="../../../../_static/bootstrap-astropy.css" type="text/css" />
+    <link rel="stylesheet" href="../../../../_static/pygments.css" type="text/css" />
+    <link rel="stylesheet" href="../../../../_static/gallery.css" type="text/css" />
+    
+    <script type="text/javascript">
+      var DOCUMENTATION_OPTIONS = {
+        URL_ROOT:    '../../../../',
+        VERSION:     '3.0.dev19489',
+        COLLAPSE_INDEX: false,
+        FILE_SUFFIX: '.html',
+        HAS_SOURCE:  true,
+        SOURCELINK_SUFFIX: '.txt'
+      };
+    </script>
+    <script type="text/javascript" src="../../../../_static/jquery.js"></script>
+    <script type="text/javascript" src="../../../../_static/underscore.js"></script>
+    <script type="text/javascript" src="../../../../_static/doctools.js"></script>
+    <script type="text/javascript" src="../../../../_static/sidebar.js"></script>
+    <link rel="shortcut icon" href="../../../../_static/astropy_logo.ico"/>
+    <link rel="index" title="Index" href="../../../../genindex.html" />
+    <link rel="search" title="Search" href="../../../../search.html" />
+<link href='https://fonts.googleapis.com/css?family=Source+Sans+Pro:200,600' rel='stylesheet' type='text/css'/>
+<script type="text/javascript" src="../../../../_static/copybutton.js"></script>
+
+
+  </head>
+  <body role="document">
+<div class="topbar">
+  <a class="brand" title="Documentation Home" href="../../../../index.html"><span id="logotext1">astro</span><span id="logotext2">py</span><span id="logotext3">:docs</span></a>
+  <ul>
+    <li><a class="homelink" title="Astropy Homepage" href="http://www.astropy.org"></a></li>
+    <li><a title="General Index" href="../../../../genindex.html">Index</a></li>
+    <li><a title="Module Index" href="../../../../py-modindex.html">Modules</a></li>
+    <li>
+      
+      
+<form action="../../../../search.html" method="get">
+  <input type="text" name="q" placeholder="Search" />
+  <input type="hidden" name="check_keywords" value="yes" />
+  <input type="hidden" name="area" value="default" />
+</form>
+      
+    </li>
+  </ul>
+</div>
+
+<div class="related">
+    <h3>Navigation</h3>
+    <ul>
+      <li>
+	<a href="../../../../index.html">Astropy v3.0.dev19489</a>
+	 &#187;
+      </li>
+      <li><a href="../../../index.html" >Module code</a> &#187;</li>
+      <li><a href="../../../astropy.html" accesskey="U">astropy</a> &#187;</li>
+      
+       
+    </ul>
+</div>
+  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          <div class="body" role="main">
+            
+  <h1>Source code for astropy.io.ascii.daophot</h1><div class="highlight"><pre>
+<span></span><span class="c1"># Licensed under a 3-clause BSD style license - see LICENSE.rst</span>
+<span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">An extensible ASCII table reader and writer.</span>
+
+<span class="sd">Classes to read DAOphot table format</span>
+
+<span class="sd">:Copyright: Smithsonian Astrophysical Observatory (2011)</span>
+<span class="sd">:Author: Tom Aldcroft (aldcroft@head.cfa.harvard.edu)</span>
+<span class="sd">&quot;&quot;&quot;</span>
+
+<span class="kn">from</span> <span class="nn">__future__</span> <span class="k">import</span> <span class="n">absolute_import</span><span class="p">,</span> <span class="n">division</span><span class="p">,</span> <span class="n">print_function</span>
+
+<span class="kn">import</span> <span class="nn">re</span>
+<span class="kn">import</span> <span class="nn">numpy</span> <span class="k">as</span> <span class="nn">np</span>
+<span class="kn">import</span> <span class="nn">itertools</span> <span class="k">as</span> <span class="nn">itt</span>
+<span class="kn">from</span> <span class="nn">collections</span> <span class="k">import</span> <span class="n">defaultdict</span><span class="p">,</span> <span class="n">OrderedDict</span>
+
+<span class="kn">from</span> <span class="nn">.</span> <span class="k">import</span> <span class="n">core</span>
+<span class="kn">from</span> <span class="nn">.</span> <span class="k">import</span> <span class="n">fixedwidth</span>
+<span class="kn">from</span> <span class="nn">...extern.six.moves</span> <span class="k">import</span> <span class="nb">zip</span><span class="p">,</span> <span class="nb">map</span><span class="p">,</span> <span class="nb">range</span>
+<span class="kn">from</span> <span class="nn">.misc</span> <span class="k">import</span> <span class="n">first_true_index</span><span class="p">,</span> <span class="n">first_false_index</span><span class="p">,</span> <span class="n">groupmore</span>
+
+
+<span class="k">class</span> <span class="nc">DaophotHeader</span><span class="p">(</span><span class="n">core</span><span class="o">.</span><span class="n">BaseHeader</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Read the header from a file produced by the IRAF DAOphot routine.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="n">comment</span> <span class="o">=</span> <span class="s1">r&#39;\s*#K&#39;</span>
+
+    <span class="c1"># Regex for extracting the format strings</span>
+    <span class="n">re_format</span> <span class="o">=</span> <span class="n">re</span><span class="o">.</span><span class="n">compile</span><span class="p">(</span><span class="s1">r&#39;%-?(\d+)\.?\d?[sdfg]&#39;</span><span class="p">)</span>
+    <span class="n">re_header_keyword</span> <span class="o">=</span> <span class="n">re</span><span class="o">.</span><span class="n">compile</span><span class="p">(</span><span class="s1">r&#39;[#]K&#39;</span>
+                                   <span class="s1">r&#39;\s+ (?P&lt;name&gt; \w+)&#39;</span>
+                                   <span class="s1">r&#39;\s* = (?P&lt;stuff&gt; .+) $&#39;</span><span class="p">,</span>
+                                   <span class="n">re</span><span class="o">.</span><span class="n">VERBOSE</span><span class="p">)</span>
+    <span class="n">aperture_values</span> <span class="o">=</span> <span class="p">()</span>
+
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="n">core</span><span class="o">.</span><span class="n">BaseHeader</span><span class="o">.</span><span class="n">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">parse_col_defs</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">grouped_lines_dict</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Parse a series of column definition lines like below.  There may be several</span>
+<span class="sd">        such blocks in a single file (where continuation characters have already been</span>
+<span class="sd">        stripped).</span>
+<span class="sd">        #N ID    XCENTER   YCENTER   MAG         MERR          MSKY           NITER</span>
+<span class="sd">        #U ##    pixels    pixels    magnitudes  magnitudes    counts         ##</span>
+<span class="sd">        #F %-9d  %-10.3f   %-10.3f   %-12.3f     %-14.3f       %-15.7g        %-6d</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">line_ids</span> <span class="o">=</span> <span class="p">(</span><span class="s1">&#39;#N&#39;</span><span class="p">,</span> <span class="s1">&#39;#U&#39;</span><span class="p">,</span> <span class="s1">&#39;#F&#39;</span><span class="p">)</span>
+        <span class="n">coldef_dict</span> <span class="o">=</span> <span class="n">defaultdict</span><span class="p">(</span><span class="nb">list</span><span class="p">)</span>
+
+        <span class="c1"># Function to strip identifier lines</span>
+        <span class="n">stripper</span> <span class="o">=</span> <span class="k">lambda</span> <span class="n">s</span><span class="p">:</span> <span class="n">s</span><span class="p">[</span><span class="mi">2</span><span class="p">:]</span><span class="o">.</span><span class="n">strip</span><span class="p">(</span><span class="s1">&#39; </span><span class="se">\\</span><span class="s1">&#39;</span><span class="p">)</span>
+        <span class="k">for</span> <span class="n">defblock</span> <span class="ow">in</span> <span class="nb">zip</span><span class="p">(</span><span class="o">*</span><span class="nb">map</span><span class="p">(</span><span class="n">grouped_lines_dict</span><span class="o">.</span><span class="n">get</span><span class="p">,</span> <span class="n">line_ids</span><span class="p">)):</span>
+            <span class="k">for</span> <span class="n">key</span><span class="p">,</span> <span class="n">line</span> <span class="ow">in</span> <span class="nb">zip</span><span class="p">(</span><span class="n">line_ids</span><span class="p">,</span> <span class="nb">map</span><span class="p">(</span><span class="n">stripper</span><span class="p">,</span> <span class="n">defblock</span><span class="p">)):</span>
+                <span class="n">coldef_dict</span><span class="p">[</span><span class="n">key</span><span class="p">]</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">line</span><span class="o">.</span><span class="n">split</span><span class="p">())</span>
+
+        <span class="c1"># Save the original columns so we can use it later to reconstruct the</span>
+        <span class="c1"># original header for writing</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">is_multiline</span><span class="p">:</span>
+            <span class="c1"># Database contains multi-aperture data.</span>
+            <span class="c1"># Autogen column names, units, formats from last row of column headers</span>
+            <span class="n">last_names</span><span class="p">,</span> <span class="n">last_units</span><span class="p">,</span> <span class="n">last_formats</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="nb">zip</span><span class="p">(</span><span class="o">*</span><span class="nb">map</span><span class="p">(</span><span class="n">coldef_dict</span><span class="o">.</span><span class="n">get</span><span class="p">,</span> <span class="n">line_ids</span><span class="p">)))[</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span>
+            <span class="n">N_multiline</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">first_block</span><span class="p">)</span>
+            <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">np</span><span class="o">.</span><span class="n">arange</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="n">N_multiline</span> <span class="o">+</span> <span class="mi">1</span><span class="p">)</span><span class="o">.</span><span class="n">astype</span><span class="p">(</span><span class="s1">&#39;U2&#39;</span><span class="p">):</span>
+                <span class="c1"># extra column names eg. RAPERT2, SUM2 etc...</span>
+                <span class="n">extended_names</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="nb">map</span><span class="p">(</span><span class="s1">&#39;&#39;</span><span class="o">.</span><span class="n">join</span><span class="p">,</span> <span class="nb">zip</span><span class="p">(</span><span class="n">last_names</span><span class="p">,</span> <span class="n">itt</span><span class="o">.</span><span class="n">repeat</span><span class="p">(</span><span class="n">i</span><span class="p">))))</span>
+                <span class="k">if</span> <span class="n">i</span> <span class="o">==</span> <span class="s1">&#39;1&#39;</span><span class="p">:</span>      <span class="c1"># Enumerate the names starting at 1</span>
+                    <span class="n">coldef_dict</span><span class="p">[</span><span class="s1">&#39;#N&#39;</span><span class="p">][</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span> <span class="o">=</span> <span class="n">extended_names</span>
+                <span class="k">else</span><span class="p">:</span>
+                    <span class="n">coldef_dict</span><span class="p">[</span><span class="s1">&#39;#N&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">extended_names</span><span class="p">)</span>
+                    <span class="n">coldef_dict</span><span class="p">[</span><span class="s1">&#39;#U&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">last_units</span><span class="p">)</span>
+                    <span class="n">coldef_dict</span><span class="p">[</span><span class="s1">&#39;#F&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">last_formats</span><span class="p">)</span>
+
+        <span class="c1"># Get column widths from column format specifiers</span>
+        <span class="n">get_col_width</span> <span class="o">=</span> <span class="k">lambda</span> <span class="n">s</span><span class="p">:</span> <span class="nb">int</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">re_format</span><span class="o">.</span><span class="n">search</span><span class="p">(</span><span class="n">s</span><span class="p">)</span><span class="o">.</span><span class="n">groups</span><span class="p">()[</span><span class="mi">0</span><span class="p">])</span>
+        <span class="n">col_widths</span> <span class="o">=</span> <span class="p">[[</span><span class="n">get_col_width</span><span class="p">(</span><span class="n">f</span><span class="p">)</span> <span class="k">for</span> <span class="n">f</span> <span class="ow">in</span> <span class="n">formats</span><span class="p">]</span>
+                      <span class="k">for</span> <span class="n">formats</span> <span class="ow">in</span> <span class="n">coldef_dict</span><span class="p">[</span><span class="s1">&#39;#F&#39;</span><span class="p">]]</span>
+        <span class="c1"># original data format might be shorter than 80 characters and filled with spaces</span>
+        <span class="n">row_widths</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">fromiter</span><span class="p">(</span><span class="nb">map</span><span class="p">(</span><span class="nb">sum</span><span class="p">,</span> <span class="n">col_widths</span><span class="p">),</span> <span class="nb">int</span><span class="p">)</span>
+        <span class="n">row_short</span> <span class="o">=</span> <span class="n">Daophot</span><span class="o">.</span><span class="n">table_width</span> <span class="o">-</span> <span class="n">row_widths</span>
+        <span class="c1"># fix last column widths</span>
+        <span class="k">for</span> <span class="n">w</span><span class="p">,</span> <span class="n">r</span> <span class="ow">in</span> <span class="nb">zip</span><span class="p">(</span><span class="n">col_widths</span><span class="p">,</span> <span class="n">row_short</span><span class="p">):</span>
+            <span class="n">w</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span> <span class="o">+=</span> <span class="n">r</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">col_widths</span> <span class="o">=</span> <span class="n">col_widths</span>
+
+        <span class="c1"># merge the multi-line header data into single line data</span>
+        <span class="n">coldef_dict</span> <span class="o">=</span> <span class="nb">dict</span><span class="p">((</span><span class="n">k</span><span class="p">,</span> <span class="nb">sum</span><span class="p">(</span><span class="n">v</span><span class="p">,</span> <span class="p">[]))</span> <span class="k">for</span> <span class="p">(</span><span class="n">k</span><span class="p">,</span> <span class="n">v</span><span class="p">)</span> <span class="ow">in</span> <span class="n">coldef_dict</span><span class="o">.</span><span class="n">items</span><span class="p">())</span>
+
+        <span class="k">return</span> <span class="n">coldef_dict</span>
+
+    <span class="k">def</span> <span class="nf">update_meta</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">lines</span><span class="p">,</span> <span class="n">meta</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Extract table-level keywords for DAOphot table.  These are indicated by</span>
+<span class="sd">        a leading &#39;#K &#39; prefix.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">table_meta</span> <span class="o">=</span> <span class="n">meta</span><span class="p">[</span><span class="s1">&#39;table&#39;</span><span class="p">]</span>
+
+        <span class="c1"># self.lines = self.get_header_lines(lines)</span>
+        <span class="n">Nlines</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">lines</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">Nlines</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">:</span>
+            <span class="c1"># Group the header lines according to their line identifiers (#K,</span>
+            <span class="c1"># #N, #U, #F or just # (spacer line)) function that grabs the line</span>
+            <span class="c1"># identifier</span>
+            <span class="n">get_line_id</span> <span class="o">=</span> <span class="k">lambda</span> <span class="n">s</span><span class="p">:</span> <span class="n">s</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="kc">None</span><span class="p">,</span> <span class="mi">1</span><span class="p">)[</span><span class="mi">0</span><span class="p">]</span>
+
+            <span class="c1"># Group lines by the line identifier (&#39;#N&#39;, &#39;#U&#39;, &#39;#F&#39;, &#39;#K&#39;) and</span>
+            <span class="c1"># capture line index</span>
+            <span class="n">gid</span><span class="p">,</span> <span class="n">groups</span> <span class="o">=</span> <span class="nb">zip</span><span class="p">(</span><span class="o">*</span><span class="n">groupmore</span><span class="p">(</span><span class="n">get_line_id</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">lines</span><span class="p">,</span> <span class="nb">range</span><span class="p">(</span><span class="n">Nlines</span><span class="p">)))</span>
+
+            <span class="c1"># Groups of lines and their indices</span>
+            <span class="n">grouped_lines</span><span class="p">,</span> <span class="n">gix</span> <span class="o">=</span> <span class="nb">zip</span><span class="p">(</span><span class="o">*</span><span class="n">groups</span><span class="p">)</span>
+
+            <span class="c1"># Dict of line groups keyed by line identifiers</span>
+            <span class="n">grouped_lines_dict</span> <span class="o">=</span> <span class="nb">dict</span><span class="p">(</span><span class="nb">zip</span><span class="p">(</span><span class="n">gid</span><span class="p">,</span> <span class="n">grouped_lines</span><span class="p">))</span>
+
+            <span class="c1"># Update the table_meta keywords if necessary</span>
+            <span class="k">if</span> <span class="s1">&#39;#K&#39;</span> <span class="ow">in</span> <span class="n">grouped_lines_dict</span><span class="p">:</span>
+                <span class="n">keywords</span> <span class="o">=</span> <span class="n">OrderedDict</span><span class="p">(</span><span class="nb">map</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">extract_keyword_line</span><span class="p">,</span> <span class="n">grouped_lines_dict</span><span class="p">[</span><span class="s1">&#39;#K&#39;</span><span class="p">]))</span>
+                <span class="n">table_meta</span><span class="p">[</span><span class="s1">&#39;keywords&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">keywords</span>
+
+            <span class="n">coldef_dict</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">parse_col_defs</span><span class="p">(</span><span class="n">grouped_lines_dict</span><span class="p">)</span>
+
+            <span class="n">line_ids</span> <span class="o">=</span> <span class="p">(</span><span class="s1">&#39;#N&#39;</span><span class="p">,</span> <span class="s1">&#39;#U&#39;</span><span class="p">,</span> <span class="s1">&#39;#F&#39;</span><span class="p">)</span>
+            <span class="k">for</span> <span class="n">name</span><span class="p">,</span> <span class="n">unit</span><span class="p">,</span> <span class="n">fmt</span> <span class="ow">in</span> <span class="nb">zip</span><span class="p">(</span><span class="o">*</span><span class="nb">map</span><span class="p">(</span><span class="n">coldef_dict</span><span class="o">.</span><span class="n">get</span><span class="p">,</span> <span class="n">line_ids</span><span class="p">)):</span>
+                <span class="n">meta</span><span class="p">[</span><span class="s1">&#39;cols&#39;</span><span class="p">][</span><span class="n">name</span><span class="p">]</span> <span class="o">=</span> <span class="p">{</span><span class="s1">&#39;unit&#39;</span><span class="p">:</span> <span class="n">unit</span><span class="p">,</span>
+                                      <span class="s1">&#39;format&#39;</span><span class="p">:</span> <span class="n">fmt</span><span class="p">}</span>
+
+            <span class="bp">self</span><span class="o">.</span><span class="n">meta</span> <span class="o">=</span> <span class="n">meta</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">names</span> <span class="o">=</span> <span class="n">coldef_dict</span><span class="p">[</span><span class="s1">&#39;#N&#39;</span><span class="p">]</span>
+
+    <span class="k">def</span> <span class="nf">extract_keyword_line</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">line</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Extract info from a header keyword line (#K)</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">m</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">re_header_keyword</span><span class="o">.</span><span class="n">match</span><span class="p">(</span><span class="n">line</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">m</span><span class="p">:</span>
+            <span class="n">vals</span> <span class="o">=</span> <span class="n">m</span><span class="o">.</span><span class="n">group</span><span class="p">(</span><span class="s1">&#39;stuff&#39;</span><span class="p">)</span><span class="o">.</span><span class="n">strip</span><span class="p">()</span><span class="o">.</span><span class="n">rsplit</span><span class="p">(</span><span class="kc">None</span><span class="p">,</span> <span class="mi">2</span><span class="p">)</span>
+            <span class="n">keyword_dict</span> <span class="o">=</span> <span class="p">{</span><span class="s1">&#39;units&#39;</span><span class="p">:</span> <span class="n">vals</span><span class="p">[</span><span class="o">-</span><span class="mi">2</span><span class="p">],</span>
+                            <span class="s1">&#39;format&#39;</span><span class="p">:</span> <span class="n">vals</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">],</span>
+                            <span class="s1">&#39;value&#39;</span><span class="p">:</span> <span class="p">(</span><span class="n">vals</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">vals</span><span class="p">)</span> <span class="o">&gt;</span> <span class="mi">2</span> <span class="k">else</span> <span class="s2">&quot;&quot;</span><span class="p">)}</span>
+            <span class="k">return</span> <span class="n">m</span><span class="o">.</span><span class="n">group</span><span class="p">(</span><span class="s1">&#39;name&#39;</span><span class="p">),</span> <span class="n">keyword_dict</span>
+
+    <span class="k">def</span> <span class="nf">get_cols</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">lines</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Initialize the header Column objects from the table ``lines`` for a DAOphot</span>
+<span class="sd">        header.  The DAOphot header is specialized so that we just copy the entire BaseHeader</span>
+<span class="sd">        get_cols routine and modify as needed.</span>
+
+
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        lines : list</span>
+<span class="sd">            List of table lines</span>
+
+<span class="sd">        Returns</span>
+<span class="sd">        ----------</span>
+<span class="sd">        col : list</span>
+<span class="sd">            List of table Columns</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+
+        <span class="k">if</span> <span class="ow">not</span> <span class="bp">self</span><span class="o">.</span><span class="n">names</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="n">core</span><span class="o">.</span><span class="n">InconsistentTableError</span><span class="p">(</span><span class="s1">&#39;No column names found in DAOphot header&#39;</span><span class="p">)</span>
+
+        <span class="c1"># Create the list of io.ascii column objects</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_set_cols_from_names</span><span class="p">()</span>
+
+        <span class="c1"># Set unit and format as needed.</span>
+        <span class="n">coldefs</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">meta</span><span class="p">[</span><span class="s1">&#39;cols&#39;</span><span class="p">]</span>
+        <span class="k">for</span> <span class="n">col</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">cols</span><span class="p">:</span>
+            <span class="n">unit</span><span class="p">,</span> <span class="n">fmt</span> <span class="o">=</span> <span class="nb">map</span><span class="p">(</span><span class="n">coldefs</span><span class="p">[</span><span class="n">col</span><span class="o">.</span><span class="n">name</span><span class="p">]</span><span class="o">.</span><span class="n">get</span><span class="p">,</span> <span class="p">(</span><span class="s1">&#39;unit&#39;</span><span class="p">,</span> <span class="s1">&#39;format&#39;</span><span class="p">))</span>
+            <span class="k">if</span> <span class="n">unit</span> <span class="o">!=</span> <span class="s1">&#39;##&#39;</span><span class="p">:</span>
+                <span class="n">col</span><span class="o">.</span><span class="n">unit</span> <span class="o">=</span> <span class="n">unit</span>
+            <span class="k">if</span> <span class="n">fmt</span> <span class="o">!=</span> <span class="s1">&#39;##&#39;</span><span class="p">:</span>
+                <span class="n">col</span><span class="o">.</span><span class="n">format</span> <span class="o">=</span> <span class="n">fmt</span>
+
+        <span class="c1"># Set column start and end positions.</span>
+        <span class="n">col_width</span> <span class="o">=</span> <span class="nb">sum</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">col_widths</span><span class="p">,</span> <span class="p">[])</span>
+        <span class="n">ends</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">cumsum</span><span class="p">(</span><span class="n">col_width</span><span class="p">)</span>
+        <span class="n">starts</span> <span class="o">=</span> <span class="n">ends</span> <span class="o">-</span> <span class="n">col_width</span>
+        <span class="k">for</span> <span class="n">i</span><span class="p">,</span> <span class="n">col</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">cols</span><span class="p">):</span>
+            <span class="n">col</span><span class="o">.</span><span class="n">start</span><span class="p">,</span> <span class="n">col</span><span class="o">.</span><span class="n">end</span> <span class="o">=</span> <span class="n">starts</span><span class="p">[</span><span class="n">i</span><span class="p">],</span> <span class="n">ends</span><span class="p">[</span><span class="n">i</span><span class="p">]</span>
+            <span class="n">col</span><span class="o">.</span><span class="n">span</span> <span class="o">=</span> <span class="n">col</span><span class="o">.</span><span class="n">end</span> <span class="o">-</span> <span class="n">col</span><span class="o">.</span><span class="n">start</span>
+            <span class="k">if</span> <span class="nb">hasattr</span><span class="p">(</span><span class="n">col</span><span class="p">,</span> <span class="s1">&#39;format&#39;</span><span class="p">):</span>
+                <span class="k">if</span> <span class="nb">any</span><span class="p">(</span><span class="n">x</span> <span class="ow">in</span> <span class="n">col</span><span class="o">.</span><span class="n">format</span> <span class="k">for</span> <span class="n">x</span> <span class="ow">in</span> <span class="s1">&#39;fg&#39;</span><span class="p">):</span>
+                    <span class="n">col</span><span class="o">.</span><span class="n">type</span> <span class="o">=</span> <span class="n">core</span><span class="o">.</span><span class="n">FloatType</span>
+                <span class="k">elif</span> <span class="s1">&#39;d&#39;</span> <span class="ow">in</span> <span class="n">col</span><span class="o">.</span><span class="n">format</span><span class="p">:</span>
+                    <span class="n">col</span><span class="o">.</span><span class="n">type</span> <span class="o">=</span> <span class="n">core</span><span class="o">.</span><span class="n">IntType</span>
+                <span class="k">elif</span> <span class="s1">&#39;s&#39;</span> <span class="ow">in</span> <span class="n">col</span><span class="o">.</span><span class="n">format</span><span class="p">:</span>
+                    <span class="n">col</span><span class="o">.</span><span class="n">type</span> <span class="o">=</span> <span class="n">core</span><span class="o">.</span><span class="n">StrType</span>
+
+        <span class="c1"># INDEF is the missing value marker</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">fill_values</span><span class="o">.</span><span class="n">append</span><span class="p">((</span><span class="s1">&#39;INDEF&#39;</span><span class="p">,</span> <span class="s1">&#39;0&#39;</span><span class="p">))</span>
+
+
+<span class="k">class</span> <span class="nc">DaophotData</span><span class="p">(</span><span class="n">core</span><span class="o">.</span><span class="n">BaseData</span><span class="p">):</span>
+    <span class="n">splitter_class</span> <span class="o">=</span> <span class="n">fixedwidth</span><span class="o">.</span><span class="n">FixedWidthSplitter</span>
+    <span class="n">start_line</span> <span class="o">=</span> <span class="mi">0</span>
+    <span class="n">comment</span> <span class="o">=</span> <span class="s1">r&#39;\s*#&#39;</span>
+
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="n">core</span><span class="o">.</span><span class="n">BaseData</span><span class="o">.</span><span class="n">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">is_multiline</span> <span class="o">=</span> <span class="kc">False</span>
+
+    <span class="k">def</span> <span class="nf">get_data_lines</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">lines</span><span class="p">):</span>
+
+        <span class="c1"># Special case for multiline daophot databases. Extract the aperture</span>
+        <span class="c1"># values from the first multiline data block</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">is_multiline</span><span class="p">:</span>
+            <span class="c1"># Grab the first column of the special block (aperture values) and</span>
+            <span class="c1"># recreate the aperture description string</span>
+            <span class="n">aplist</span> <span class="o">=</span> <span class="nb">next</span><span class="p">(</span><span class="nb">zip</span><span class="p">(</span><span class="o">*</span><span class="nb">map</span><span class="p">(</span><span class="nb">str</span><span class="o">.</span><span class="n">split</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">first_block</span><span class="p">)))</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">header</span><span class="o">.</span><span class="n">aperture_values</span> <span class="o">=</span> <span class="nb">tuple</span><span class="p">(</span><span class="nb">map</span><span class="p">(</span><span class="nb">float</span><span class="p">,</span> <span class="n">aplist</span><span class="p">))</span>
+
+        <span class="c1"># Set self.data.data_lines to a slice of lines contain the data rows</span>
+        <span class="n">core</span><span class="o">.</span><span class="n">BaseData</span><span class="o">.</span><span class="n">get_data_lines</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">lines</span><span class="p">)</span>
+
+
+<span class="k">class</span> <span class="nc">DaophotInputter</span><span class="p">(</span><span class="n">core</span><span class="o">.</span><span class="n">ContinuationLinesInputter</span><span class="p">):</span>
+
+    <span class="n">continuation_char</span> <span class="o">=</span> <span class="s1">&#39;</span><span class="se">\\</span><span class="s1">&#39;</span>
+    <span class="n">multiline_char</span> <span class="o">=</span> <span class="s1">&#39;*&#39;</span>
+    <span class="n">replace_char</span> <span class="o">=</span> <span class="s1">&#39; &#39;</span>
+    <span class="n">re_multiline</span> <span class="o">=</span> <span class="n">re</span><span class="o">.</span><span class="n">compile</span><span class="p">(</span><span class="s1">r&#39;(#?)[^</span><span class="se">\\</span><span class="s1">*#]*(\*?)(</span><span class="se">\\</span><span class="s1">*) ?$&#39;</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">search_multiline</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">lines</span><span class="p">,</span> <span class="n">depth</span><span class="o">=</span><span class="mi">150</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Search lines for special continuation character to determine number of</span>
+<span class="sd">        continued rows in a datablock.  For efficiency, depth gives the upper</span>
+<span class="sd">        limit of lines to search.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+
+        <span class="c1"># The list of apertures given in the #K APERTURES keyword may not be</span>
+        <span class="c1"># complete!!  This happens if the string description of the aperture</span>
+        <span class="c1"># list is longer than the field width of the #K APERTURES field.  In</span>
+        <span class="c1"># this case we have to figure out how many apertures there are based on</span>
+        <span class="c1"># the file structure.</span>
+
+        <span class="n">comment</span><span class="p">,</span> <span class="n">special</span><span class="p">,</span> <span class="n">cont</span> <span class="o">=</span> <span class="nb">zip</span><span class="p">(</span><span class="o">*</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">re_multiline</span><span class="o">.</span><span class="n">search</span><span class="p">(</span><span class="n">l</span><span class="p">)</span><span class="o">.</span><span class="n">groups</span><span class="p">()</span>
+                                       <span class="k">for</span> <span class="n">l</span> <span class="ow">in</span> <span class="n">lines</span><span class="p">[:</span><span class="n">depth</span><span class="p">]))</span>
+
+        <span class="c1"># Find first non-comment line</span>
+        <span class="n">data_start</span> <span class="o">=</span> <span class="n">first_false_index</span><span class="p">(</span><span class="n">comment</span><span class="p">)</span>
+
+        <span class="c1"># No data in lines[:depth].  This may be because there is no data in</span>
+        <span class="c1"># the file, or because the header is really huge.  If the latter,</span>
+        <span class="c1"># increasing the search depth should help</span>
+        <span class="k">if</span> <span class="n">data_start</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="k">return</span> <span class="kc">None</span><span class="p">,</span> <span class="kc">None</span><span class="p">,</span> <span class="n">lines</span><span class="p">[:</span><span class="n">depth</span><span class="p">]</span>
+
+        <span class="n">header_lines</span> <span class="o">=</span> <span class="n">lines</span><span class="p">[:</span><span class="n">data_start</span><span class="p">]</span>
+
+        <span class="c1"># Find first line ending on special row continuation character &#39;*&#39;</span>
+        <span class="c1"># indexed relative to data_start</span>
+        <span class="n">first_special</span> <span class="o">=</span> <span class="n">first_true_index</span><span class="p">(</span><span class="n">special</span><span class="p">[</span><span class="n">data_start</span><span class="p">:</span><span class="n">depth</span><span class="p">])</span>
+        <span class="k">if</span> <span class="n">first_special</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>  <span class="c1"># no special lines</span>
+            <span class="k">return</span> <span class="kc">None</span><span class="p">,</span> <span class="kc">None</span><span class="p">,</span> <span class="n">header_lines</span>
+
+        <span class="c1"># last line ending on special &#39;*&#39;, but not on line continue &#39;/&#39;</span>
+        <span class="n">last_special</span> <span class="o">=</span> <span class="n">first_false_index</span><span class="p">(</span><span class="n">special</span><span class="p">[</span><span class="n">data_start</span> <span class="o">+</span> <span class="n">first_special</span><span class="p">:</span><span class="n">depth</span><span class="p">])</span>
+        <span class="c1"># index relative to first_special</span>
+
+        <span class="c1"># if first_special is None: #no end of special lines within search</span>
+        <span class="c1"># depth!  increase search depth return self.search_multiline( lines,</span>
+        <span class="c1"># depth=2*depth )</span>
+
+        <span class="c1"># indexing now relative to line[0]</span>
+        <span class="n">markers</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">cumsum</span><span class="p">([</span><span class="n">data_start</span><span class="p">,</span> <span class="n">first_special</span><span class="p">,</span> <span class="n">last_special</span><span class="p">])</span>
+        <span class="c1"># multiline portion of first data block</span>
+        <span class="n">multiline_block</span> <span class="o">=</span> <span class="n">lines</span><span class="p">[</span><span class="n">markers</span><span class="p">[</span><span class="mi">1</span><span class="p">]:</span><span class="n">markers</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">]]</span>
+
+        <span class="k">return</span> <span class="n">markers</span><span class="p">,</span> <span class="n">multiline_block</span><span class="p">,</span> <span class="n">header_lines</span>
+
+    <span class="k">def</span> <span class="nf">process_lines</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">lines</span><span class="p">):</span>
+
+        <span class="n">markers</span><span class="p">,</span> <span class="n">block</span><span class="p">,</span> <span class="n">header</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">search_multiline</span><span class="p">(</span><span class="n">lines</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">is_multiline</span> <span class="o">=</span> <span class="n">markers</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">markers</span> <span class="o">=</span> <span class="n">markers</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">first_block</span> <span class="o">=</span> <span class="n">block</span>
+        <span class="c1"># set the header lines returned by the search as a attribute of the header</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">header</span><span class="o">.</span><span class="n">lines</span> <span class="o">=</span> <span class="n">header</span>
+
+        <span class="k">if</span> <span class="n">markers</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">lines</span> <span class="o">=</span> <span class="n">lines</span><span class="p">[</span><span class="n">markers</span><span class="p">[</span><span class="mi">0</span><span class="p">]:]</span>
+
+        <span class="n">continuation_char</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">continuation_char</span>
+        <span class="n">multiline_char</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">multiline_char</span>
+        <span class="n">replace_char</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">replace_char</span>
+
+        <span class="n">parts</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="n">outlines</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="k">for</span> <span class="n">i</span><span class="p">,</span> <span class="n">line</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="n">lines</span><span class="p">):</span>
+            <span class="n">mo</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">re_multiline</span><span class="o">.</span><span class="n">search</span><span class="p">(</span><span class="n">line</span><span class="p">)</span>
+            <span class="k">if</span> <span class="n">mo</span><span class="p">:</span>
+                <span class="n">comment</span><span class="p">,</span> <span class="n">special</span><span class="p">,</span> <span class="n">cont</span> <span class="o">=</span> <span class="n">mo</span><span class="o">.</span><span class="n">groups</span><span class="p">()</span>
+                <span class="k">if</span> <span class="n">comment</span> <span class="ow">or</span> <span class="n">cont</span><span class="p">:</span>
+                    <span class="n">line</span> <span class="o">=</span> <span class="n">line</span><span class="o">.</span><span class="n">replace</span><span class="p">(</span><span class="n">continuation_char</span><span class="p">,</span> <span class="n">replace_char</span><span class="p">)</span>
+                <span class="k">if</span> <span class="n">special</span><span class="p">:</span>
+                    <span class="n">line</span> <span class="o">=</span> <span class="n">line</span><span class="o">.</span><span class="n">replace</span><span class="p">(</span><span class="n">multiline_char</span><span class="p">,</span> <span class="n">replace_char</span><span class="p">)</span>
+                <span class="k">if</span> <span class="n">cont</span> <span class="ow">and</span> <span class="ow">not</span> <span class="n">comment</span><span class="p">:</span>
+                    <span class="n">parts</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">line</span><span class="p">)</span>
+                <span class="k">if</span> <span class="ow">not</span> <span class="n">cont</span><span class="p">:</span>
+                    <span class="n">parts</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">line</span><span class="p">)</span>
+                    <span class="n">outlines</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="s1">&#39;&#39;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">parts</span><span class="p">))</span>
+                    <span class="n">parts</span> <span class="o">=</span> <span class="p">[]</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s1">&#39;multiline re could not match line &#39;</span>
+                                 <span class="s1">&#39;</span><span class="si">{}</span><span class="s1">: </span><span class="si">{}</span><span class="s1">&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">i</span><span class="p">,</span> <span class="n">line</span><span class="p">))</span>
+
+        <span class="k">return</span> <span class="n">outlines</span>
+
+
+<div class="viewcode-block" id="Daophot"><a class="viewcode-back" href="../../../../api/astropy.io.ascii.Daophot.html#astropy.io.ascii.Daophot">[docs]</a><span class="k">class</span> <span class="nc">Daophot</span><span class="p">(</span><span class="n">core</span><span class="o">.</span><span class="n">BaseReader</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Read a DAOphot file.</span>
+<span class="sd">    Example::</span>
+
+<span class="sd">      #K MERGERAD   = INDEF                   scaleunit  %-23.7g</span>
+<span class="sd">      #K IRAF = NOAO/IRAFV2.10EXPORT version %-23s</span>
+<span class="sd">      #K USER = davis name %-23s</span>
+<span class="sd">      #K HOST = tucana computer %-23s</span>
+<span class="sd">      #</span>
+<span class="sd">      #N ID    XCENTER   YCENTER   MAG         MERR          MSKY           NITER    \\</span>
+<span class="sd">      #U ##    pixels    pixels    magnitudes  magnitudes    counts         ##       \\</span>
+<span class="sd">      #F %-9d  %-10.3f   %-10.3f   %-12.3f     %-14.3f       %-15.7g        %-6d</span>
+<span class="sd">      #</span>
+<span class="sd">      #N         SHARPNESS   CHI         PIER  PERROR                                \\</span>
+<span class="sd">      #U         ##          ##          ##    perrors                               \\</span>
+<span class="sd">      #F         %-23.3f     %-12.3f     %-6d  %-13s</span>
+<span class="sd">      #</span>
+<span class="sd">      14       138.538     INDEF   15.461      0.003         34.85955       4        \\</span>
+<span class="sd">                  -0.032      0.802       0     No_error</span>
+
+<span class="sd">    The keywords defined in the #K records are available via the output table</span>
+<span class="sd">    ``meta`` attribute::</span>
+
+<span class="sd">      &gt;&gt;&gt; import os</span>
+<span class="sd">      &gt;&gt;&gt; from astropy.io import ascii</span>
+<span class="sd">      &gt;&gt;&gt; filename = os.path.join(ascii.__path__[0], &#39;tests/t/daophot.dat&#39;)</span>
+<span class="sd">      &gt;&gt;&gt; data = ascii.read(filename)</span>
+<span class="sd">      &gt;&gt;&gt; for name, keyword in data.meta[&#39;keywords&#39;].items():</span>
+<span class="sd">      ...     print(name, keyword[&#39;value&#39;], keyword[&#39;units&#39;], keyword[&#39;format&#39;])</span>
+<span class="sd">      ...</span>
+<span class="sd">      MERGERAD INDEF scaleunit %-23.7g</span>
+<span class="sd">      IRAF NOAO/IRAFV2.10EXPORT version %-23s</span>
+<span class="sd">      USER  name %-23s</span>
+<span class="sd">      ...</span>
+
+<span class="sd">    The unit and formats are available in the output table columns::</span>
+
+<span class="sd">      &gt;&gt;&gt; for colname in data.colnames:</span>
+<span class="sd">      ...     col = data[colname]</span>
+<span class="sd">      ...     print(colname, col.unit, col.format)</span>
+<span class="sd">      ...</span>
+<span class="sd">      ID None %-9d</span>
+<span class="sd">      XCENTER pixels %-10.3f</span>
+<span class="sd">      YCENTER pixels %-10.3f</span>
+<span class="sd">      ...</span>
+
+<span class="sd">    Any column values of INDEF are interpreted as a missing value and will be</span>
+<span class="sd">    masked out in the resultant table.</span>
+
+<span class="sd">    In case of multi-aperture daophot files containing repeated entries for the last</span>
+<span class="sd">    row of fields, extra unique column names will be created by suffixing</span>
+<span class="sd">    corresponding field names with numbers starting from 2 to N (where N is the</span>
+<span class="sd">    total number of apertures).</span>
+<span class="sd">    For example,</span>
+<span class="sd">    first aperture radius will be RAPERT and corresponding magnitude will be MAG,</span>
+<span class="sd">    second aperture radius will be RAPERT2 and corresponding magnitude will be MAG2,</span>
+<span class="sd">    third aperture radius will be RAPERT3 and corresponding magnitude will be MAG3,</span>
+<span class="sd">    and so on.</span>
+
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">_format_name</span> <span class="o">=</span> <span class="s1">&#39;daophot&#39;</span>
+    <span class="n">_io_registry_format_aliases</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;daophot&#39;</span><span class="p">]</span>
+    <span class="n">_io_registry_can_write</span> <span class="o">=</span> <span class="kc">False</span>
+    <span class="n">_description</span> <span class="o">=</span> <span class="s1">&#39;IRAF DAOphot format table&#39;</span>
+
+    <span class="n">header_class</span> <span class="o">=</span> <span class="n">DaophotHeader</span>
+    <span class="n">data_class</span> <span class="o">=</span> <span class="n">DaophotData</span>
+    <span class="n">inputter_class</span> <span class="o">=</span> <span class="n">DaophotInputter</span>
+
+    <span class="n">table_width</span> <span class="o">=</span> <span class="mi">80</span>
+
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="n">core</span><span class="o">.</span><span class="n">BaseReader</span><span class="o">.</span><span class="n">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span>
+        <span class="c1"># The inputter needs to know about the data (see DaophotInputter.process_lines)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">inputter</span><span class="o">.</span><span class="n">data</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">data</span>
+
+<div class="viewcode-block" id="Daophot.write"><a class="viewcode-back" href="../../../../api/astropy.io.ascii.Daophot.html#astropy.io.ascii.Daophot.write">[docs]</a>    <span class="k">def</span> <span class="nf">write</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">table</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+        <span class="k">raise</span> <span class="ne">NotImplementedError</span></div></div>
+</pre></div>
+
+          </div>
+        </div>
+      </div>
+      <div class="sphinxsidebar" role="navigation" aria-label="main navigation">
+        <div class="sphinxsidebarwrapper"><h3>Page Contents</h3>
+
+
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+<footer class="footer">
+  <p class="pull-right"> &nbsp;
+    <a href="#">Back to Top</a></p>
+  <p>
+    &copy; Copyright 2011-2016, The Astropy Developers.<br/>
+    Created using <a href="http://sphinx.pocoo.org/">Sphinx</a> 1.5.6. &nbsp;
+    Last built 05 Jul 2017. <br/>
+  </p>
+</footer>
+  </body>
+</html>

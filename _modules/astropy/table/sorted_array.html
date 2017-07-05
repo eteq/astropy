@@ -1,0 +1,419 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <head>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    
+    <title>astropy.table.sorted_array &#8212; Astropy v3.0.dev19489</title>
+    
+    <link rel="stylesheet" href="../../../_static/bootstrap-astropy.css" type="text/css" />
+    <link rel="stylesheet" href="../../../_static/pygments.css" type="text/css" />
+    <link rel="stylesheet" href="../../../_static/gallery.css" type="text/css" />
+    
+    <script type="text/javascript">
+      var DOCUMENTATION_OPTIONS = {
+        URL_ROOT:    '../../../',
+        VERSION:     '3.0.dev19489',
+        COLLAPSE_INDEX: false,
+        FILE_SUFFIX: '.html',
+        HAS_SOURCE:  true,
+        SOURCELINK_SUFFIX: '.txt'
+      };
+    </script>
+    <script type="text/javascript" src="../../../_static/jquery.js"></script>
+    <script type="text/javascript" src="../../../_static/underscore.js"></script>
+    <script type="text/javascript" src="../../../_static/doctools.js"></script>
+    <script type="text/javascript" src="../../../_static/sidebar.js"></script>
+    <link rel="shortcut icon" href="../../../_static/astropy_logo.ico"/>
+    <link rel="index" title="Index" href="../../../genindex.html" />
+    <link rel="search" title="Search" href="../../../search.html" />
+<link href='https://fonts.googleapis.com/css?family=Source+Sans+Pro:200,600' rel='stylesheet' type='text/css'/>
+<script type="text/javascript" src="../../../_static/copybutton.js"></script>
+
+
+  </head>
+  <body role="document">
+<div class="topbar">
+  <a class="brand" title="Documentation Home" href="../../../index.html"><span id="logotext1">astro</span><span id="logotext2">py</span><span id="logotext3">:docs</span></a>
+  <ul>
+    <li><a class="homelink" title="Astropy Homepage" href="http://www.astropy.org"></a></li>
+    <li><a title="General Index" href="../../../genindex.html">Index</a></li>
+    <li><a title="Module Index" href="../../../py-modindex.html">Modules</a></li>
+    <li>
+      
+      
+<form action="../../../search.html" method="get">
+  <input type="text" name="q" placeholder="Search" />
+  <input type="hidden" name="check_keywords" value="yes" />
+  <input type="hidden" name="area" value="default" />
+</form>
+      
+    </li>
+  </ul>
+</div>
+
+<div class="related">
+    <h3>Navigation</h3>
+    <ul>
+      <li>
+	<a href="../../../index.html">Astropy v3.0.dev19489</a>
+	 &#187;
+      </li>
+      <li><a href="../../index.html" >Module code</a> &#187;</li>
+      <li><a href="../../astropy.html" >astropy</a> &#187;</li>
+      <li><a href="../table.html" accesskey="U">astropy.table</a> &#187;</li>
+      
+       
+    </ul>
+</div>
+  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          <div class="body" role="main">
+            
+  <h1>Source code for astropy.table.sorted_array</h1><div class="highlight"><pre>
+<span></span><span class="c1"># Licensed under a 3-clause BSD style license - see LICENSE.rst</span>
+<span class="kn">from</span> <span class="nn">__future__</span> <span class="k">import</span> <span class="p">(</span><span class="n">absolute_import</span><span class="p">,</span> <span class="n">division</span><span class="p">,</span> <span class="n">print_function</span><span class="p">,</span>
+                        <span class="n">unicode_literals</span><span class="p">)</span>
+<span class="kn">import</span> <span class="nn">numpy</span> <span class="k">as</span> <span class="nn">np</span>
+<span class="kn">from</span> <span class="nn">..extern.six.moves</span> <span class="k">import</span> <span class="nb">range</span><span class="p">,</span> <span class="nb">zip</span>
+
+
+<span class="k">def</span> <span class="nf">_searchsorted</span><span class="p">(</span><span class="n">array</span><span class="p">,</span> <span class="n">val</span><span class="p">,</span> <span class="n">side</span><span class="o">=</span><span class="s1">&#39;left&#39;</span><span class="p">):</span>
+    <span class="sd">&#39;&#39;&#39;</span>
+<span class="sd">    Call np.searchsorted or use a custom binary</span>
+<span class="sd">    search if necessary.</span>
+<span class="sd">    &#39;&#39;&#39;</span>
+    <span class="k">if</span> <span class="nb">hasattr</span><span class="p">(</span><span class="n">array</span><span class="p">,</span> <span class="s1">&#39;searchsorted&#39;</span><span class="p">):</span>
+        <span class="k">return</span> <span class="n">array</span><span class="o">.</span><span class="n">searchsorted</span><span class="p">(</span><span class="n">val</span><span class="p">,</span> <span class="n">side</span><span class="o">=</span><span class="n">side</span><span class="p">)</span>
+    <span class="c1"># Python binary search</span>
+    <span class="n">begin</span> <span class="o">=</span> <span class="mi">0</span>
+    <span class="n">end</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="n">array</span><span class="p">)</span>
+    <span class="k">while</span> <span class="n">begin</span> <span class="o">&lt;</span> <span class="n">end</span><span class="p">:</span>
+        <span class="n">mid</span> <span class="o">=</span> <span class="p">(</span><span class="n">begin</span> <span class="o">+</span> <span class="n">end</span><span class="p">)</span> <span class="o">//</span> <span class="mi">2</span>
+        <span class="k">if</span> <span class="n">val</span> <span class="o">&gt;</span> <span class="n">array</span><span class="p">[</span><span class="n">mid</span><span class="p">]:</span>
+            <span class="n">begin</span> <span class="o">=</span> <span class="n">mid</span> <span class="o">+</span> <span class="mi">1</span>
+        <span class="k">elif</span> <span class="n">val</span> <span class="o">&lt;</span> <span class="n">array</span><span class="p">[</span><span class="n">mid</span><span class="p">]:</span>
+            <span class="n">end</span> <span class="o">=</span> <span class="n">mid</span>
+        <span class="k">elif</span> <span class="n">side</span> <span class="o">==</span> <span class="s1">&#39;right&#39;</span><span class="p">:</span>
+            <span class="n">begin</span> <span class="o">=</span> <span class="n">mid</span> <span class="o">+</span> <span class="mi">1</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">end</span> <span class="o">=</span> <span class="n">mid</span>
+    <span class="k">return</span> <span class="n">begin</span>
+
+
+<div class="viewcode-block" id="SortedArray"><a class="viewcode-back" href="../../../api/astropy.table.SortedArray.html#astropy.table.SortedArray">[docs]</a><span class="k">class</span> <span class="nc">SortedArray</span><span class="p">(</span><span class="nb">object</span><span class="p">):</span>
+    <span class="sd">&#39;&#39;&#39;</span>
+<span class="sd">    Implements a sorted array container using</span>
+<span class="sd">    a list of numpy arrays.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    data : Table</span>
+<span class="sd">        Sorted columns of the original table</span>
+<span class="sd">    row_index : Column object</span>
+<span class="sd">        Row numbers corresponding to data columns</span>
+<span class="sd">    unique : bool (defaults to False)</span>
+<span class="sd">        Whether the values of the index must be unique</span>
+<span class="sd">    &#39;&#39;&#39;</span>
+
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">data</span><span class="p">,</span> <span class="n">row_index</span><span class="p">,</span> <span class="n">unique</span><span class="o">=</span><span class="kc">False</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">data</span> <span class="o">=</span> <span class="n">data</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">row_index</span> <span class="o">=</span> <span class="n">row_index</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">num_cols</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="nb">getattr</span><span class="p">(</span><span class="n">data</span><span class="p">,</span> <span class="s1">&#39;colnames&#39;</span><span class="p">,</span> <span class="p">[]))</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">unique</span> <span class="o">=</span> <span class="n">unique</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">cols</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">columns</span><span class="o">.</span><span class="n">values</span><span class="p">()</span>
+
+<div class="viewcode-block" id="SortedArray.add"><a class="viewcode-back" href="../../../api/astropy.table.SortedArray.html#astropy.table.SortedArray.add">[docs]</a>    <span class="k">def</span> <span class="nf">add</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">key</span><span class="p">,</span> <span class="n">row</span><span class="p">):</span>
+        <span class="sd">&#39;&#39;&#39;</span>
+<span class="sd">        Add a new entry to the sorted array.</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        key : tuple</span>
+<span class="sd">            Column values at the given row</span>
+<span class="sd">        row : int</span>
+<span class="sd">            Row number</span>
+<span class="sd">        &#39;&#39;&#39;</span>
+        <span class="n">pos</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">find_pos</span><span class="p">(</span><span class="n">key</span><span class="p">,</span> <span class="n">row</span><span class="p">)</span>  <span class="c1"># first &gt;= key</span>
+
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">unique</span> <span class="ow">and</span> <span class="mi">0</span> <span class="o">&lt;=</span> <span class="n">pos</span> <span class="o">&lt;</span> <span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">row_index</span><span class="p">)</span> <span class="ow">and</span> \
+           <span class="nb">all</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">data</span><span class="p">[</span><span class="n">pos</span><span class="p">][</span><span class="n">i</span><span class="p">]</span> <span class="o">==</span> <span class="n">key</span><span class="p">[</span><span class="n">i</span><span class="p">]</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">key</span><span class="p">))):</span>
+            <span class="c1"># already exists</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s1">&#39;Cannot add duplicate value &quot;</span><span class="si">{0}</span><span class="s1">&quot; in a &#39;</span>
+                             <span class="s1">&#39;unique index&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">key</span><span class="p">))</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">insert_row</span><span class="p">(</span><span class="n">pos</span><span class="p">,</span> <span class="n">key</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">row_index</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">row_index</span><span class="o">.</span><span class="n">insert</span><span class="p">(</span><span class="n">pos</span><span class="p">,</span> <span class="n">row</span><span class="p">)</span></div>
+
+    <span class="k">def</span> <span class="nf">_get_key_slice</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">i</span><span class="p">,</span> <span class="n">begin</span><span class="p">,</span> <span class="n">end</span><span class="p">):</span>
+        <span class="sd">&#39;&#39;&#39;</span>
+<span class="sd">        Retrieve the ith slice of the sorted array</span>
+<span class="sd">        from begin to end.</span>
+<span class="sd">        &#39;&#39;&#39;</span>
+        <span class="k">if</span> <span class="n">i</span> <span class="o">&lt;</span> <span class="bp">self</span><span class="o">.</span><span class="n">num_cols</span><span class="p">:</span>
+            <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">cols</span><span class="p">[</span><span class="n">i</span><span class="p">][</span><span class="n">begin</span><span class="p">:</span><span class="n">end</span><span class="p">]</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">row_index</span><span class="p">[</span><span class="n">begin</span><span class="p">:</span><span class="n">end</span><span class="p">]</span>
+
+<div class="viewcode-block" id="SortedArray.find_pos"><a class="viewcode-back" href="../../../api/astropy.table.SortedArray.html#astropy.table.SortedArray.find_pos">[docs]</a>    <span class="k">def</span> <span class="nf">find_pos</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">key</span><span class="p">,</span> <span class="n">data</span><span class="p">,</span> <span class="n">exact</span><span class="o">=</span><span class="kc">False</span><span class="p">):</span>
+        <span class="sd">&#39;&#39;&#39;</span>
+<span class="sd">        Return the index of the largest key in data greater than or</span>
+<span class="sd">        equal to the given key, data pair.</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        key : tuple</span>
+<span class="sd">            Column key</span>
+<span class="sd">        data : int</span>
+<span class="sd">            Row number</span>
+<span class="sd">        exact : bool</span>
+<span class="sd">            If True, return the index of the given key in data</span>
+<span class="sd">            or -1 if the key is not present.</span>
+<span class="sd">        &#39;&#39;&#39;</span>
+        <span class="n">begin</span> <span class="o">=</span> <span class="mi">0</span>
+        <span class="n">end</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">row_index</span><span class="p">)</span>
+        <span class="n">num_cols</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">num_cols</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="bp">self</span><span class="o">.</span><span class="n">unique</span><span class="p">:</span>
+            <span class="c1"># consider the row value as well</span>
+            <span class="n">key</span> <span class="o">=</span> <span class="n">key</span> <span class="o">+</span> <span class="p">(</span><span class="n">data</span><span class="p">,)</span>
+            <span class="n">num_cols</span> <span class="o">+=</span> <span class="mi">1</span>
+
+        <span class="c1"># search through keys in lexicographic order</span>
+        <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">num_cols</span><span class="p">):</span>
+            <span class="n">key_slice</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_get_key_slice</span><span class="p">(</span><span class="n">i</span><span class="p">,</span> <span class="n">begin</span><span class="p">,</span> <span class="n">end</span><span class="p">)</span>
+            <span class="n">t</span> <span class="o">=</span> <span class="n">_searchsorted</span><span class="p">(</span><span class="n">key_slice</span><span class="p">,</span> <span class="n">key</span><span class="p">[</span><span class="n">i</span><span class="p">])</span>
+            <span class="c1"># t is the smallest index &gt;= key[i]</span>
+            <span class="k">if</span> <span class="n">exact</span> <span class="ow">and</span> <span class="p">(</span><span class="n">t</span> <span class="o">==</span> <span class="nb">len</span><span class="p">(</span><span class="n">key_slice</span><span class="p">)</span> <span class="ow">or</span> <span class="n">key_slice</span><span class="p">[</span><span class="n">t</span><span class="p">]</span> <span class="o">!=</span> <span class="n">key</span><span class="p">[</span><span class="n">i</span><span class="p">]):</span>
+                <span class="c1"># no match</span>
+                <span class="k">return</span> <span class="o">-</span><span class="mi">1</span>
+            <span class="k">elif</span> <span class="n">t</span> <span class="o">==</span> <span class="nb">len</span><span class="p">(</span><span class="n">key_slice</span><span class="p">)</span> <span class="ow">or</span> <span class="p">(</span><span class="n">t</span> <span class="o">==</span> <span class="mi">0</span> <span class="ow">and</span> <span class="nb">len</span><span class="p">(</span><span class="n">key_slice</span><span class="p">)</span> <span class="o">&gt;</span> <span class="mi">0</span> <span class="ow">and</span>
+                                         <span class="n">key</span><span class="p">[</span><span class="n">i</span><span class="p">]</span> <span class="o">&lt;</span> <span class="n">key_slice</span><span class="p">[</span><span class="mi">0</span><span class="p">]):</span>
+                <span class="c1"># too small or too large</span>
+                <span class="k">return</span> <span class="n">begin</span> <span class="o">+</span> <span class="n">t</span>
+            <span class="n">end</span> <span class="o">=</span> <span class="n">begin</span> <span class="o">+</span> <span class="n">_searchsorted</span><span class="p">(</span><span class="n">key_slice</span><span class="p">,</span> <span class="n">key</span><span class="p">[</span><span class="n">i</span><span class="p">],</span> <span class="n">side</span><span class="o">=</span><span class="s1">&#39;right&#39;</span><span class="p">)</span>
+            <span class="n">begin</span> <span class="o">+=</span> <span class="n">t</span>
+            <span class="k">if</span> <span class="n">begin</span> <span class="o">&gt;=</span> <span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">row_index</span><span class="p">):</span>  <span class="c1"># greater than all keys</span>
+                <span class="k">return</span> <span class="n">begin</span>
+
+        <span class="k">return</span> <span class="n">begin</span></div>
+
+<div class="viewcode-block" id="SortedArray.find"><a class="viewcode-back" href="../../../api/astropy.table.SortedArray.html#astropy.table.SortedArray.find">[docs]</a>    <span class="k">def</span> <span class="nf">find</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">key</span><span class="p">):</span>
+        <span class="sd">&#39;&#39;&#39;</span>
+<span class="sd">        Find all rows matching the given key.</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        key : tuple</span>
+<span class="sd">            Column values</span>
+
+<span class="sd">        Returns</span>
+<span class="sd">        -------</span>
+<span class="sd">        matching_rows : list</span>
+<span class="sd">            List of rows matching the input key</span>
+<span class="sd">        &#39;&#39;&#39;</span>
+        <span class="n">begin</span> <span class="o">=</span> <span class="mi">0</span>
+        <span class="n">end</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">row_index</span><span class="p">)</span>
+
+        <span class="c1"># search through keys in lexicographic order</span>
+        <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">num_cols</span><span class="p">):</span>
+            <span class="n">key_slice</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_get_key_slice</span><span class="p">(</span><span class="n">i</span><span class="p">,</span> <span class="n">begin</span><span class="p">,</span> <span class="n">end</span><span class="p">)</span>
+            <span class="n">t</span> <span class="o">=</span> <span class="n">_searchsorted</span><span class="p">(</span><span class="n">key_slice</span><span class="p">,</span> <span class="n">key</span><span class="p">[</span><span class="n">i</span><span class="p">])</span>
+            <span class="c1"># t is the smallest index &gt;= key[i]</span>
+            <span class="k">if</span> <span class="n">t</span> <span class="o">==</span> <span class="nb">len</span><span class="p">(</span><span class="n">key_slice</span><span class="p">)</span> <span class="ow">or</span> <span class="n">key_slice</span><span class="p">[</span><span class="n">t</span><span class="p">]</span> <span class="o">!=</span> <span class="n">key</span><span class="p">[</span><span class="n">i</span><span class="p">]:</span>
+                <span class="c1"># no match</span>
+                <span class="k">return</span> <span class="p">[]</span>
+            <span class="k">elif</span> <span class="n">t</span> <span class="o">==</span> <span class="mi">0</span> <span class="ow">and</span> <span class="nb">len</span><span class="p">(</span><span class="n">key_slice</span><span class="p">)</span> <span class="o">&gt;</span> <span class="mi">0</span> <span class="ow">and</span> <span class="n">key</span><span class="p">[</span><span class="n">i</span><span class="p">]</span> <span class="o">&lt;</span> <span class="n">key_slice</span><span class="p">[</span><span class="mi">0</span><span class="p">]:</span>
+                <span class="c1"># too small or too large</span>
+                <span class="k">return</span> <span class="p">[]</span>
+            <span class="n">end</span> <span class="o">=</span> <span class="n">begin</span> <span class="o">+</span> <span class="n">_searchsorted</span><span class="p">(</span><span class="n">key_slice</span><span class="p">,</span> <span class="n">key</span><span class="p">[</span><span class="n">i</span><span class="p">],</span> <span class="n">side</span><span class="o">=</span><span class="s1">&#39;right&#39;</span><span class="p">)</span>
+            <span class="n">begin</span> <span class="o">+=</span> <span class="n">t</span>
+            <span class="k">if</span> <span class="n">begin</span> <span class="o">&gt;=</span> <span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">row_index</span><span class="p">):</span>  <span class="c1"># greater than all keys</span>
+                <span class="k">return</span> <span class="p">[]</span>
+
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">row_index</span><span class="p">[</span><span class="n">begin</span><span class="p">:</span><span class="n">end</span><span class="p">]</span></div>
+
+<div class="viewcode-block" id="SortedArray.range"><a class="viewcode-back" href="../../../api/astropy.table.SortedArray.html#astropy.table.SortedArray.range">[docs]</a>    <span class="k">def</span> <span class="nf">range</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">lower</span><span class="p">,</span> <span class="n">upper</span><span class="p">,</span> <span class="n">bounds</span><span class="p">):</span>
+        <span class="sd">&#39;&#39;&#39;</span>
+<span class="sd">        Find values in the given range.</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        lower : tuple</span>
+<span class="sd">            Lower search bound</span>
+<span class="sd">        upper : tuple</span>
+<span class="sd">            Upper search bound</span>
+<span class="sd">        bounds : tuple (x, y) of bools</span>
+<span class="sd">            Indicates whether the search should be inclusive or</span>
+<span class="sd">            exclusive with respect to the endpoints. The first</span>
+<span class="sd">            argument x corresponds to an inclusive lower bound,</span>
+<span class="sd">            and the second argument y to an inclusive upper bound.</span>
+<span class="sd">        &#39;&#39;&#39;</span>
+        <span class="n">lower_pos</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">find_pos</span><span class="p">(</span><span class="n">lower</span><span class="p">,</span> <span class="mi">0</span><span class="p">)</span>
+        <span class="n">upper_pos</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">find_pos</span><span class="p">(</span><span class="n">upper</span><span class="p">,</span> <span class="mi">0</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">lower_pos</span> <span class="o">==</span> <span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">row_index</span><span class="p">):</span>
+            <span class="k">return</span> <span class="p">[]</span>
+
+        <span class="n">lower_bound</span> <span class="o">=</span> <span class="nb">tuple</span><span class="p">([</span><span class="n">col</span><span class="p">[</span><span class="n">lower_pos</span><span class="p">]</span> <span class="k">for</span> <span class="n">col</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">cols</span><span class="p">])</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">bounds</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="ow">and</span> <span class="n">lower_bound</span> <span class="o">==</span> <span class="n">lower</span><span class="p">:</span>
+            <span class="n">lower_pos</span> <span class="o">+=</span> <span class="mi">1</span>  <span class="c1"># data[lower_pos] &gt; lower</span>
+
+        <span class="c1"># data[lower_pos] &gt;= lower</span>
+        <span class="c1"># data[upper_pos] &gt;= upper</span>
+        <span class="k">if</span> <span class="n">upper_pos</span> <span class="o">&lt;</span> <span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">row_index</span><span class="p">):</span>
+            <span class="n">upper_bound</span> <span class="o">=</span> <span class="nb">tuple</span><span class="p">([</span><span class="n">col</span><span class="p">[</span><span class="n">upper_pos</span><span class="p">]</span> <span class="k">for</span> <span class="n">col</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">cols</span><span class="p">])</span>
+            <span class="k">if</span> <span class="ow">not</span> <span class="n">bounds</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span> <span class="ow">and</span> <span class="n">upper_bound</span> <span class="o">==</span> <span class="n">upper</span><span class="p">:</span>
+                <span class="n">upper_pos</span> <span class="o">-=</span> <span class="mi">1</span>  <span class="c1"># data[upper_pos] &lt; upper</span>
+            <span class="k">elif</span> <span class="n">upper_bound</span> <span class="o">&gt;</span> <span class="n">upper</span><span class="p">:</span>
+                <span class="n">upper_pos</span> <span class="o">-=</span> <span class="mi">1</span>  <span class="c1"># data[upper_pos] &lt;= upper</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">row_index</span><span class="p">[</span><span class="n">lower_pos</span><span class="p">:</span><span class="n">upper_pos</span> <span class="o">+</span> <span class="mi">1</span><span class="p">]</span></div>
+
+<div class="viewcode-block" id="SortedArray.remove"><a class="viewcode-back" href="../../../api/astropy.table.SortedArray.html#astropy.table.SortedArray.remove">[docs]</a>    <span class="k">def</span> <span class="nf">remove</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">key</span><span class="p">,</span> <span class="n">data</span><span class="p">):</span>
+        <span class="sd">&#39;&#39;&#39;</span>
+<span class="sd">        Remove the given entry from the sorted array.</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        key : tuple</span>
+<span class="sd">            Column values</span>
+<span class="sd">        data : int</span>
+<span class="sd">            Row number</span>
+
+<span class="sd">        Returns</span>
+<span class="sd">        -------</span>
+<span class="sd">        successful : bool</span>
+<span class="sd">            Whether the entry was successfully removed</span>
+<span class="sd">        &#39;&#39;&#39;</span>
+        <span class="n">pos</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">find_pos</span><span class="p">(</span><span class="n">key</span><span class="p">,</span> <span class="n">data</span><span class="p">,</span> <span class="n">exact</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">pos</span> <span class="o">==</span> <span class="o">-</span><span class="mi">1</span><span class="p">:</span>  <span class="c1"># key not found</span>
+            <span class="k">return</span> <span class="kc">False</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">remove_row</span><span class="p">(</span><span class="n">pos</span><span class="p">)</span>
+        <span class="n">keep_mask</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">ones</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">row_index</span><span class="p">),</span> <span class="n">dtype</span><span class="o">=</span><span class="n">np</span><span class="o">.</span><span class="n">bool</span><span class="p">)</span>
+        <span class="n">keep_mask</span><span class="p">[</span><span class="n">pos</span><span class="p">]</span> <span class="o">=</span> <span class="kc">False</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">row_index</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">row_index</span><span class="p">[</span><span class="n">keep_mask</span><span class="p">]</span>
+        <span class="k">return</span> <span class="kc">True</span></div>
+
+<div class="viewcode-block" id="SortedArray.shift_left"><a class="viewcode-back" href="../../../api/astropy.table.SortedArray.html#astropy.table.SortedArray.shift_left">[docs]</a>    <span class="k">def</span> <span class="nf">shift_left</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">row</span><span class="p">):</span>
+        <span class="sd">&#39;&#39;&#39;</span>
+<span class="sd">        Decrement all row numbers greater than the input row.</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        row : int</span>
+<span class="sd">            Input row number</span>
+<span class="sd">        &#39;&#39;&#39;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">row_index</span><span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">row_index</span> <span class="o">&gt;</span> <span class="n">row</span><span class="p">]</span> <span class="o">-=</span> <span class="mi">1</span></div>
+
+<div class="viewcode-block" id="SortedArray.shift_right"><a class="viewcode-back" href="../../../api/astropy.table.SortedArray.html#astropy.table.SortedArray.shift_right">[docs]</a>    <span class="k">def</span> <span class="nf">shift_right</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">row</span><span class="p">):</span>
+        <span class="sd">&#39;&#39;&#39;</span>
+<span class="sd">        Increment all row numbers greater than or equal to the input row.</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        row : int</span>
+<span class="sd">            Input row number</span>
+<span class="sd">        &#39;&#39;&#39;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">row_index</span><span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">row_index</span> <span class="o">&gt;=</span> <span class="n">row</span><span class="p">]</span> <span class="o">+=</span> <span class="mi">1</span></div>
+
+<div class="viewcode-block" id="SortedArray.replace_rows"><a class="viewcode-back" href="../../../api/astropy.table.SortedArray.html#astropy.table.SortedArray.replace_rows">[docs]</a>    <span class="k">def</span> <span class="nf">replace_rows</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">row_map</span><span class="p">):</span>
+        <span class="sd">&#39;&#39;&#39;</span>
+<span class="sd">        Replace all rows with the values they map to in the</span>
+<span class="sd">        given dictionary. Any rows not present as keys in</span>
+<span class="sd">        the dictionary will have their entries deleted.</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        row_map : dict</span>
+<span class="sd">            Mapping of row numbers to new row numbers</span>
+<span class="sd">        &#39;&#39;&#39;</span>
+        <span class="n">num_rows</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="n">row_map</span><span class="p">)</span>
+        <span class="n">keep_rows</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">zeros</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">row_index</span><span class="p">),</span> <span class="n">dtype</span><span class="o">=</span><span class="n">np</span><span class="o">.</span><span class="n">bool</span><span class="p">)</span>
+        <span class="n">tagged</span> <span class="o">=</span> <span class="mi">0</span>
+        <span class="k">for</span> <span class="n">i</span><span class="p">,</span> <span class="n">row</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">row_index</span><span class="p">):</span>
+            <span class="k">if</span> <span class="n">row</span> <span class="ow">in</span> <span class="n">row_map</span><span class="p">:</span>
+                <span class="n">keep_rows</span><span class="p">[</span><span class="n">i</span><span class="p">]</span> <span class="o">=</span> <span class="kc">True</span>
+                <span class="n">tagged</span> <span class="o">+=</span> <span class="mi">1</span>
+                <span class="k">if</span> <span class="n">tagged</span> <span class="o">==</span> <span class="n">num_rows</span><span class="p">:</span>
+                    <span class="k">break</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">data</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">data</span><span class="p">[</span><span class="n">keep_rows</span><span class="p">]</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">row_index</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">(</span>
+            <span class="p">[</span><span class="n">row_map</span><span class="p">[</span><span class="n">x</span><span class="p">]</span> <span class="k">for</span> <span class="n">x</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">row_index</span><span class="p">[</span><span class="n">keep_rows</span><span class="p">]])</span></div>
+
+<div class="viewcode-block" id="SortedArray.items"><a class="viewcode-back" href="../../../api/astropy.table.SortedArray.html#astropy.table.SortedArray.items">[docs]</a>    <span class="k">def</span> <span class="nf">items</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&#39;&#39;&#39;</span>
+<span class="sd">        Retrieve all array items as a list of pairs of the form</span>
+<span class="sd">        [(key, [row 1, row 2, ...]), ...]</span>
+<span class="sd">        &#39;&#39;&#39;</span>
+        <span class="n">array</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="n">last_key</span> <span class="o">=</span> <span class="kc">None</span>
+        <span class="k">for</span> <span class="n">i</span><span class="p">,</span> <span class="n">key</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="nb">zip</span><span class="p">(</span><span class="o">*</span><span class="bp">self</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">columns</span><span class="o">.</span><span class="n">values</span><span class="p">())):</span>
+            <span class="n">row</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">row_index</span><span class="p">[</span><span class="n">i</span><span class="p">]</span>
+            <span class="k">if</span> <span class="n">key</span> <span class="o">==</span> <span class="n">last_key</span><span class="p">:</span>
+                <span class="n">array</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">][</span><span class="mi">1</span><span class="p">]</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">row</span><span class="p">)</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="n">last_key</span> <span class="o">=</span> <span class="n">key</span>
+                <span class="n">array</span><span class="o">.</span><span class="n">append</span><span class="p">((</span><span class="n">key</span><span class="p">,</span> <span class="p">[</span><span class="n">row</span><span class="p">]))</span>
+        <span class="k">return</span> <span class="n">array</span></div>
+
+<div class="viewcode-block" id="SortedArray.sort"><a class="viewcode-back" href="../../../api/astropy.table.SortedArray.html#astropy.table.SortedArray.sort">[docs]</a>    <span class="k">def</span> <span class="nf">sort</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&#39;&#39;&#39;</span>
+<span class="sd">        Make row order align with key order.</span>
+<span class="sd">        &#39;&#39;&#39;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">row_index</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">arange</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">row_index</span><span class="p">))</span></div>
+
+<div class="viewcode-block" id="SortedArray.sorted_data"><a class="viewcode-back" href="../../../api/astropy.table.SortedArray.html#astropy.table.SortedArray.sorted_data">[docs]</a>    <span class="k">def</span> <span class="nf">sorted_data</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&#39;&#39;&#39;</span>
+<span class="sd">        Return rows in sorted order.</span>
+<span class="sd">        &#39;&#39;&#39;</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">row_index</span></div>
+
+    <span class="k">def</span> <span class="nf">__getitem__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">item</span><span class="p">):</span>
+        <span class="sd">&#39;&#39;&#39;</span>
+<span class="sd">        Return a sliced reference to this sorted array.</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        item : slice</span>
+<span class="sd">            Slice to use for referencing</span>
+<span class="sd">        &#39;&#39;&#39;</span>
+        <span class="k">return</span> <span class="n">SortedArray</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">data</span><span class="p">[</span><span class="n">item</span><span class="p">],</span> <span class="bp">self</span><span class="o">.</span><span class="n">row_index</span><span class="p">[</span><span class="n">item</span><span class="p">])</span>
+
+    <span class="k">def</span> <span class="nf">__repr__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="n">t</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">copy</span><span class="p">()</span>
+        <span class="n">t</span><span class="p">[</span><span class="s1">&#39;rows&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">row_index</span>
+        <span class="k">return</span> <span class="nb">str</span><span class="p">(</span><span class="n">t</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">__str__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="nb">repr</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span></div>
+</pre></div>
+
+          </div>
+        </div>
+      </div>
+      <div class="sphinxsidebar" role="navigation" aria-label="main navigation">
+        <div class="sphinxsidebarwrapper"><h3>Page Contents</h3>
+
+
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+<footer class="footer">
+  <p class="pull-right"> &nbsp;
+    <a href="#">Back to Top</a></p>
+  <p>
+    &copy; Copyright 2011-2016, The Astropy Developers.<br/>
+    Created using <a href="http://sphinx.pocoo.org/">Sphinx</a> 1.5.6. &nbsp;
+    Last built 05 Jul 2017. <br/>
+  </p>
+</footer>
+  </body>
+</html>

@@ -1,0 +1,507 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <head>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    
+    <title>astropy.io.ascii.fixedwidth &#8212; Astropy v3.0.dev19489</title>
+    
+    <link rel="stylesheet" href="../../../../_static/bootstrap-astropy.css" type="text/css" />
+    <link rel="stylesheet" href="../../../../_static/pygments.css" type="text/css" />
+    <link rel="stylesheet" href="../../../../_static/gallery.css" type="text/css" />
+    
+    <script type="text/javascript">
+      var DOCUMENTATION_OPTIONS = {
+        URL_ROOT:    '../../../../',
+        VERSION:     '3.0.dev19489',
+        COLLAPSE_INDEX: false,
+        FILE_SUFFIX: '.html',
+        HAS_SOURCE:  true,
+        SOURCELINK_SUFFIX: '.txt'
+      };
+    </script>
+    <script type="text/javascript" src="../../../../_static/jquery.js"></script>
+    <script type="text/javascript" src="../../../../_static/underscore.js"></script>
+    <script type="text/javascript" src="../../../../_static/doctools.js"></script>
+    <script type="text/javascript" src="../../../../_static/sidebar.js"></script>
+    <link rel="shortcut icon" href="../../../../_static/astropy_logo.ico"/>
+    <link rel="index" title="Index" href="../../../../genindex.html" />
+    <link rel="search" title="Search" href="../../../../search.html" />
+<link href='https://fonts.googleapis.com/css?family=Source+Sans+Pro:200,600' rel='stylesheet' type='text/css'/>
+<script type="text/javascript" src="../../../../_static/copybutton.js"></script>
+
+
+  </head>
+  <body role="document">
+<div class="topbar">
+  <a class="brand" title="Documentation Home" href="../../../../index.html"><span id="logotext1">astro</span><span id="logotext2">py</span><span id="logotext3">:docs</span></a>
+  <ul>
+    <li><a class="homelink" title="Astropy Homepage" href="http://www.astropy.org"></a></li>
+    <li><a title="General Index" href="../../../../genindex.html">Index</a></li>
+    <li><a title="Module Index" href="../../../../py-modindex.html">Modules</a></li>
+    <li>
+      
+      
+<form action="../../../../search.html" method="get">
+  <input type="text" name="q" placeholder="Search" />
+  <input type="hidden" name="check_keywords" value="yes" />
+  <input type="hidden" name="area" value="default" />
+</form>
+      
+    </li>
+  </ul>
+</div>
+
+<div class="related">
+    <h3>Navigation</h3>
+    <ul>
+      <li>
+	<a href="../../../../index.html">Astropy v3.0.dev19489</a>
+	 &#187;
+      </li>
+      <li><a href="../../../index.html" >Module code</a> &#187;</li>
+      <li><a href="../../../astropy.html" accesskey="U">astropy</a> &#187;</li>
+      
+       
+    </ul>
+</div>
+  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          <div class="body" role="main">
+            
+  <h1>Source code for astropy.io.ascii.fixedwidth</h1><div class="highlight"><pre>
+<span></span><span class="c1"># Licensed under a 3-clause BSD style license - see LICENSE.rst</span>
+<span class="sd">&quot;&quot;&quot;An extensible ASCII table reader and writer.</span>
+
+<span class="sd">fixedwidth.py:</span>
+<span class="sd">  Read or write a table with fixed width columns.</span>
+
+<span class="sd">:Copyright: Smithsonian Astrophysical Observatory (2011)</span>
+<span class="sd">:Author: Tom Aldcroft (aldcroft@head.cfa.harvard.edu)</span>
+<span class="sd">&quot;&quot;&quot;</span>
+
+<span class="kn">from</span> <span class="nn">__future__</span> <span class="k">import</span> <span class="n">absolute_import</span><span class="p">,</span> <span class="n">division</span><span class="p">,</span> <span class="n">print_function</span>
+
+<span class="kn">from</span> <span class="nn">...extern.six.moves</span> <span class="k">import</span> <span class="nb">zip</span><span class="p">,</span> <span class="nb">range</span>
+
+<span class="kn">from</span> <span class="nn">.</span> <span class="k">import</span> <span class="n">core</span>
+<span class="kn">from</span> <span class="nn">.core</span> <span class="k">import</span> <span class="n">InconsistentTableError</span><span class="p">,</span> <span class="n">DefaultSplitter</span>
+<span class="kn">from</span> <span class="nn">.</span> <span class="k">import</span> <span class="n">basic</span>
+
+
+<div class="viewcode-block" id="FixedWidthSplitter"><a class="viewcode-back" href="../../../../api/astropy.io.ascii.FixedWidthSplitter.html#astropy.io.ascii.FixedWidthSplitter">[docs]</a><span class="k">class</span> <span class="nc">FixedWidthSplitter</span><span class="p">(</span><span class="n">core</span><span class="o">.</span><span class="n">BaseSplitter</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Split line based on fixed start and end positions for each ``col`` in</span>
+<span class="sd">    ``self.cols``.</span>
+
+<span class="sd">    This class requires that the Header class will have defined ``col.start``</span>
+<span class="sd">    and ``col.end`` for each column.  The reference to the ``header.cols`` gets</span>
+<span class="sd">    put in the splitter object by the base Reader.read() function just in time</span>
+<span class="sd">    for splitting data lines by a ``data`` object.</span>
+
+<span class="sd">    Note that the ``start`` and ``end`` positions are defined in the pythonic</span>
+<span class="sd">    style so line[start:end] is the desired substring for a column.  This splitter</span>
+<span class="sd">    class does not have a hook for ``process_lines`` since that is generally not</span>
+<span class="sd">    useful for fixed-width input.</span>
+
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">delimiter_pad</span> <span class="o">=</span> <span class="s1">&#39;&#39;</span>
+    <span class="n">bookend</span> <span class="o">=</span> <span class="kc">False</span>
+    <span class="n">delimiter</span> <span class="o">=</span> <span class="s1">&#39;|&#39;</span>
+
+<div class="viewcode-block" id="FixedWidthSplitter.__call__"><a class="viewcode-back" href="../../../../api/astropy.io.ascii.FixedWidthSplitter.html#astropy.io.ascii.FixedWidthSplitter.__call__">[docs]</a>    <span class="k">def</span> <span class="nf">__call__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">lines</span><span class="p">):</span>
+        <span class="k">for</span> <span class="n">line</span> <span class="ow">in</span> <span class="n">lines</span><span class="p">:</span>
+            <span class="n">vals</span> <span class="o">=</span> <span class="p">[</span><span class="n">line</span><span class="p">[</span><span class="n">x</span><span class="o">.</span><span class="n">start</span><span class="p">:</span><span class="n">x</span><span class="o">.</span><span class="n">end</span><span class="p">]</span> <span class="k">for</span> <span class="n">x</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">cols</span><span class="p">]</span>
+            <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">process_val</span><span class="p">:</span>
+                <span class="k">yield</span> <span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">process_val</span><span class="p">(</span><span class="n">x</span><span class="p">)</span> <span class="k">for</span> <span class="n">x</span> <span class="ow">in</span> <span class="n">vals</span><span class="p">]</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="k">yield</span> <span class="n">vals</span></div>
+
+<div class="viewcode-block" id="FixedWidthSplitter.join"><a class="viewcode-back" href="../../../../api/astropy.io.ascii.FixedWidthSplitter.html#astropy.io.ascii.FixedWidthSplitter.join">[docs]</a>    <span class="k">def</span> <span class="nf">join</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">vals</span><span class="p">,</span> <span class="n">widths</span><span class="p">):</span>
+        <span class="n">pad</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">delimiter_pad</span> <span class="ow">or</span> <span class="s1">&#39;&#39;</span>
+        <span class="n">delimiter</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">delimiter</span> <span class="ow">or</span> <span class="s1">&#39;&#39;</span>
+        <span class="n">padded_delim</span> <span class="o">=</span> <span class="n">pad</span> <span class="o">+</span> <span class="n">delimiter</span> <span class="o">+</span> <span class="n">pad</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">bookend</span><span class="p">:</span>
+            <span class="n">bookend_left</span> <span class="o">=</span> <span class="n">delimiter</span> <span class="o">+</span> <span class="n">pad</span>
+            <span class="n">bookend_right</span> <span class="o">=</span> <span class="n">pad</span> <span class="o">+</span> <span class="n">delimiter</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">bookend_left</span> <span class="o">=</span> <span class="s1">&#39;&#39;</span>
+            <span class="n">bookend_right</span> <span class="o">=</span> <span class="s1">&#39;&#39;</span>
+        <span class="n">vals</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39; &#39;</span> <span class="o">*</span> <span class="p">(</span><span class="n">width</span> <span class="o">-</span> <span class="nb">len</span><span class="p">(</span><span class="n">val</span><span class="p">))</span> <span class="o">+</span> <span class="n">val</span> <span class="k">for</span> <span class="n">val</span><span class="p">,</span> <span class="n">width</span> <span class="ow">in</span> <span class="nb">zip</span><span class="p">(</span><span class="n">vals</span><span class="p">,</span> <span class="n">widths</span><span class="p">)]</span>
+        <span class="k">return</span> <span class="n">bookend_left</span> <span class="o">+</span> <span class="n">padded_delim</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">vals</span><span class="p">)</span> <span class="o">+</span> <span class="n">bookend_right</span></div></div>
+
+
+<span class="k">class</span> <span class="nc">FixedWidthHeaderSplitter</span><span class="p">(</span><span class="n">DefaultSplitter</span><span class="p">):</span>
+    <span class="sd">&#39;&#39;&#39;Splitter class that splits on ``|``.&#39;&#39;&#39;</span>
+    <span class="n">delimiter</span> <span class="o">=</span> <span class="s1">&#39;|&#39;</span>
+
+
+<div class="viewcode-block" id="FixedWidthHeader"><a class="viewcode-back" href="../../../../api/astropy.io.ascii.FixedWidthHeader.html#astropy.io.ascii.FixedWidthHeader">[docs]</a><span class="k">class</span> <span class="nc">FixedWidthHeader</span><span class="p">(</span><span class="n">basic</span><span class="o">.</span><span class="n">BasicHeader</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Fixed width table header reader.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">splitter_class</span> <span class="o">=</span> <span class="n">FixedWidthHeaderSplitter</span>
+    <span class="sd">&quot;&quot;&quot; Splitter class for splitting data lines into columns &quot;&quot;&quot;</span>
+    <span class="n">position_line</span> <span class="o">=</span> <span class="kc">None</span>   <span class="c1"># secondary header line position</span>
+    <span class="sd">&quot;&quot;&quot; row index of line that specifies position (default = 1) &quot;&quot;&quot;</span>
+    <span class="n">set_of_position_line_characters</span> <span class="o">=</span> <span class="nb">set</span><span class="p">(</span><span class="s1">r&#39;`~!#$%^&amp;*-_+=\|&quot;:&#39;</span> <span class="o">+</span> <span class="s2">&quot;&#39;&quot;</span><span class="p">)</span>
+
+<div class="viewcode-block" id="FixedWidthHeader.get_line"><a class="viewcode-back" href="../../../../api/astropy.io.ascii.FixedWidthHeader.html#astropy.io.ascii.FixedWidthHeader.get_line">[docs]</a>    <span class="k">def</span> <span class="nf">get_line</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">lines</span><span class="p">,</span> <span class="n">index</span><span class="p">):</span>
+        <span class="k">for</span> <span class="n">i</span><span class="p">,</span> <span class="n">line</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">process_lines</span><span class="p">(</span><span class="n">lines</span><span class="p">)):</span>
+            <span class="k">if</span> <span class="n">i</span> <span class="o">==</span> <span class="n">index</span><span class="p">:</span>
+                <span class="k">break</span>
+        <span class="k">else</span><span class="p">:</span>  <span class="c1"># No header line matching</span>
+            <span class="k">raise</span> <span class="n">InconsistentTableError</span><span class="p">(</span><span class="s1">&#39;No header line found in table&#39;</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">line</span></div>
+
+<div class="viewcode-block" id="FixedWidthHeader.get_cols"><a class="viewcode-back" href="../../../../api/astropy.io.ascii.FixedWidthHeader.html#astropy.io.ascii.FixedWidthHeader.get_cols">[docs]</a>    <span class="k">def</span> <span class="nf">get_cols</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">lines</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Initialize the header Column objects from the table ``lines``.</span>
+
+<span class="sd">        Based on the previously set Header attributes find or create the column names.</span>
+<span class="sd">        Sets ``self.cols`` with the list of Columns.</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        lines : list</span>
+<span class="sd">            List of table lines</span>
+
+<span class="sd">        &quot;&quot;&quot;</span>
+
+        <span class="c1"># See &quot;else&quot; clause below for explanation of start_line and position_line</span>
+        <span class="n">start_line</span> <span class="o">=</span> <span class="n">core</span><span class="o">.</span><span class="n">_get_line_index</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">start_line</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">process_lines</span><span class="p">(</span><span class="n">lines</span><span class="p">))</span>
+        <span class="n">position_line</span> <span class="o">=</span> <span class="n">core</span><span class="o">.</span><span class="n">_get_line_index</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">position_line</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">process_lines</span><span class="p">(</span><span class="n">lines</span><span class="p">))</span>
+
+        <span class="c1"># If start_line is none then there is no header line.  Column positions are</span>
+        <span class="c1"># determined from first data line and column names are either supplied by user</span>
+        <span class="c1"># or auto-generated.</span>
+        <span class="k">if</span> <span class="n">start_line</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="k">if</span> <span class="n">position_line</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+                <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;Cannot set position_line without also setting header_start&quot;</span><span class="p">)</span>
+            <span class="n">data_lines</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">process_lines</span><span class="p">(</span><span class="n">lines</span><span class="p">)</span>
+            <span class="k">if</span> <span class="ow">not</span> <span class="n">data_lines</span><span class="p">:</span>
+                <span class="k">raise</span> <span class="n">InconsistentTableError</span><span class="p">(</span>
+                    <span class="s1">&#39;No data lines found so cannot autogenerate column names&#39;</span><span class="p">)</span>
+            <span class="n">vals</span><span class="p">,</span> <span class="n">starts</span><span class="p">,</span> <span class="n">ends</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">get_fixedwidth_params</span><span class="p">(</span><span class="n">data_lines</span><span class="p">[</span><span class="mi">0</span><span class="p">])</span>
+
+            <span class="bp">self</span><span class="o">.</span><span class="n">names</span> <span class="o">=</span> <span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">auto_format</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">i</span><span class="p">)</span>
+                          <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="nb">len</span><span class="p">(</span><span class="n">vals</span><span class="p">)</span> <span class="o">+</span> <span class="mi">1</span><span class="p">)]</span>
+
+        <span class="k">else</span><span class="p">:</span>
+            <span class="c1"># This bit of code handles two cases:</span>
+            <span class="c1"># start_line = &lt;index&gt; and position_line = None</span>
+            <span class="c1">#    Single header line where that line is used to determine both the</span>
+            <span class="c1">#    column positions and names.</span>
+            <span class="c1"># start_line = &lt;index&gt; and position_line = &lt;index2&gt;</span>
+            <span class="c1">#    Two header lines where the first line defines the column names and</span>
+            <span class="c1">#    the second line defines the column positions</span>
+
+            <span class="k">if</span> <span class="n">position_line</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+                <span class="c1"># Define self.col_starts and self.col_ends so that the call to</span>
+                <span class="c1"># get_fixedwidth_params below will use those to find the header</span>
+                <span class="c1"># column names.  Note that get_fixedwidth_params returns Python</span>
+                <span class="c1"># slice col_ends but expects inclusive col_ends on input (for</span>
+                <span class="c1"># more intuitive user interface).</span>
+                <span class="n">line</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">get_line</span><span class="p">(</span><span class="n">lines</span><span class="p">,</span> <span class="n">position_line</span><span class="p">)</span>
+                <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="nb">set</span><span class="p">(</span><span class="n">line</span><span class="p">)</span> <span class="o">-</span> <span class="nb">set</span><span class="p">([</span><span class="bp">self</span><span class="o">.</span><span class="n">splitter</span><span class="o">.</span><span class="n">delimiter</span><span class="p">,</span> <span class="s1">&#39; &#39;</span><span class="p">]))</span> <span class="o">!=</span> <span class="mi">1</span><span class="p">:</span>
+                    <span class="k">raise</span> <span class="n">InconsistentTableError</span><span class="p">(</span><span class="s1">&#39;Position line should only contain delimiters and one other character, e.g. &quot;--- ------- ---&quot;.&#39;</span><span class="p">)</span>
+                    <span class="c1"># The line above lies. It accepts white space as well.</span>
+                    <span class="c1"># We don&#39;t want to encourage using three different</span>
+                    <span class="c1"># characters, because that can cause ambiguities, but white</span>
+                    <span class="c1"># spaces are so common everywhere that practicality beats</span>
+                    <span class="c1"># purity here.</span>
+                <span class="n">charset</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">set_of_position_line_characters</span><span class="o">.</span><span class="n">union</span><span class="p">(</span><span class="nb">set</span><span class="p">([</span><span class="bp">self</span><span class="o">.</span><span class="n">splitter</span><span class="o">.</span><span class="n">delimiter</span><span class="p">,</span> <span class="s1">&#39; &#39;</span><span class="p">]))</span>
+                <span class="k">if</span> <span class="ow">not</span> <span class="nb">set</span><span class="p">(</span><span class="n">line</span><span class="p">)</span><span class="o">.</span><span class="n">issubset</span><span class="p">(</span><span class="n">charset</span><span class="p">):</span>
+                    <span class="k">raise</span> <span class="n">InconsistentTableError</span><span class="p">(</span><span class="s1">&#39;Characters in position line must be part of </span><span class="si">{0}</span><span class="s1">&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">charset</span><span class="p">))</span>
+                <span class="n">vals</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">col_starts</span><span class="p">,</span> <span class="n">col_ends</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">get_fixedwidth_params</span><span class="p">(</span><span class="n">line</span><span class="p">)</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">col_ends</span> <span class="o">=</span> <span class="p">[</span><span class="n">x</span> <span class="o">-</span> <span class="mi">1</span> <span class="k">if</span> <span class="n">x</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="k">else</span> <span class="kc">None</span> <span class="k">for</span> <span class="n">x</span> <span class="ow">in</span> <span class="n">col_ends</span><span class="p">]</span>
+
+            <span class="c1"># Get the header column names and column positions</span>
+            <span class="n">line</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">get_line</span><span class="p">(</span><span class="n">lines</span><span class="p">,</span> <span class="n">start_line</span><span class="p">)</span>
+            <span class="n">vals</span><span class="p">,</span> <span class="n">starts</span><span class="p">,</span> <span class="n">ends</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">get_fixedwidth_params</span><span class="p">(</span><span class="n">line</span><span class="p">)</span>
+
+            <span class="bp">self</span><span class="o">.</span><span class="n">names</span> <span class="o">=</span> <span class="n">vals</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">_set_cols_from_names</span><span class="p">()</span>
+
+        <span class="c1"># Set column start and end positions.</span>
+        <span class="k">for</span> <span class="n">i</span><span class="p">,</span> <span class="n">col</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">cols</span><span class="p">):</span>
+            <span class="n">col</span><span class="o">.</span><span class="n">start</span> <span class="o">=</span> <span class="n">starts</span><span class="p">[</span><span class="n">i</span><span class="p">]</span>
+            <span class="n">col</span><span class="o">.</span><span class="n">end</span> <span class="o">=</span> <span class="n">ends</span><span class="p">[</span><span class="n">i</span><span class="p">]</span></div>
+
+<div class="viewcode-block" id="FixedWidthHeader.get_fixedwidth_params"><a class="viewcode-back" href="../../../../api/astropy.io.ascii.FixedWidthHeader.html#astropy.io.ascii.FixedWidthHeader.get_fixedwidth_params">[docs]</a>    <span class="k">def</span> <span class="nf">get_fixedwidth_params</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">line</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Split ``line`` on the delimiter and determine column values and</span>
+<span class="sd">        column start and end positions.  This might include null columns with</span>
+<span class="sd">        zero length (e.g. for ``header row = &quot;| col1 || col2 | col3 |&quot;`` or</span>
+<span class="sd">        ``header2_row = &quot;----- ------- -----&quot;``).  The null columns are</span>
+<span class="sd">        stripped out.  Returns the values between delimiters and the</span>
+<span class="sd">        corresponding start and end positions.</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        line : str</span>
+<span class="sd">            Input line</span>
+
+<span class="sd">        Returns</span>
+<span class="sd">        -------</span>
+<span class="sd">        vals : list</span>
+<span class="sd">            List of values.</span>
+<span class="sd">        starts : list</span>
+<span class="sd">            List of starting indices.</span>
+<span class="sd">        ends : list</span>
+<span class="sd">            List of ending indices.</span>
+
+<span class="sd">        &quot;&quot;&quot;</span>
+
+        <span class="c1"># If column positions are already specified then just use those.</span>
+        <span class="c1"># If neither column starts or ends are given, figure out positions</span>
+        <span class="c1"># between delimiters. Otherwise, either the starts or the ends have</span>
+        <span class="c1"># been given, so figure out whichever wasn&#39;t given.</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">col_starts</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="ow">and</span> <span class="bp">self</span><span class="o">.</span><span class="n">col_ends</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">starts</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">col_starts</span><span class="p">)</span>  <span class="c1"># could be any iterable, e.g. np.array</span>
+            <span class="n">ends</span> <span class="o">=</span> <span class="p">[</span><span class="n">x</span> <span class="o">+</span> <span class="mi">1</span> <span class="k">if</span> <span class="n">x</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="k">else</span> <span class="kc">None</span> <span class="k">for</span> <span class="n">x</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">col_ends</span><span class="p">]</span>  <span class="c1"># user supplies inclusive endpoint</span>
+            <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">starts</span><span class="p">)</span> <span class="o">!=</span> <span class="nb">len</span><span class="p">(</span><span class="n">ends</span><span class="p">):</span>
+                <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s1">&#39;Fixed width col_starts and col_ends must have the same length&#39;</span><span class="p">)</span>
+            <span class="n">vals</span> <span class="o">=</span> <span class="p">[</span><span class="n">line</span><span class="p">[</span><span class="n">start</span><span class="p">:</span><span class="n">end</span><span class="p">]</span><span class="o">.</span><span class="n">strip</span><span class="p">()</span> <span class="k">for</span> <span class="n">start</span><span class="p">,</span> <span class="n">end</span> <span class="ow">in</span> <span class="nb">zip</span><span class="p">(</span><span class="n">starts</span><span class="p">,</span> <span class="n">ends</span><span class="p">)]</span>
+        <span class="k">elif</span> <span class="bp">self</span><span class="o">.</span><span class="n">col_starts</span> <span class="ow">is</span> <span class="kc">None</span> <span class="ow">and</span> <span class="bp">self</span><span class="o">.</span><span class="n">col_ends</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="c1"># There might be a cleaner way to do this but it works...</span>
+            <span class="n">vals</span> <span class="o">=</span> <span class="n">line</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">splitter</span><span class="o">.</span><span class="n">delimiter</span><span class="p">)</span>
+            <span class="n">starts</span> <span class="o">=</span> <span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+            <span class="n">ends</span> <span class="o">=</span> <span class="p">[]</span>
+            <span class="k">for</span> <span class="n">val</span> <span class="ow">in</span> <span class="n">vals</span><span class="p">:</span>
+                <span class="k">if</span> <span class="n">val</span><span class="p">:</span>
+                    <span class="n">ends</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">starts</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span> <span class="o">+</span> <span class="nb">len</span><span class="p">(</span><span class="n">val</span><span class="p">))</span>
+                    <span class="n">starts</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">ends</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span> <span class="o">+</span> <span class="mi">1</span><span class="p">)</span>
+                <span class="k">else</span><span class="p">:</span>
+                    <span class="n">starts</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span> <span class="o">+=</span> <span class="mi">1</span>
+            <span class="n">starts</span> <span class="o">=</span> <span class="n">starts</span><span class="p">[:</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span>
+            <span class="n">vals</span> <span class="o">=</span> <span class="p">[</span><span class="n">x</span><span class="o">.</span><span class="n">strip</span><span class="p">()</span> <span class="k">for</span> <span class="n">x</span> <span class="ow">in</span> <span class="n">vals</span> <span class="k">if</span> <span class="n">x</span><span class="p">]</span>
+            <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">vals</span><span class="p">)</span> <span class="o">!=</span> <span class="nb">len</span><span class="p">(</span><span class="n">starts</span><span class="p">)</span> <span class="ow">or</span> <span class="nb">len</span><span class="p">(</span><span class="n">vals</span><span class="p">)</span> <span class="o">!=</span> <span class="nb">len</span><span class="p">(</span><span class="n">ends</span><span class="p">):</span>
+                <span class="k">raise</span> <span class="n">InconsistentTableError</span><span class="p">(</span><span class="s1">&#39;Error parsing fixed width header&#39;</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="c1"># exactly one of col_starts or col_ends is given...</span>
+            <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">col_starts</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+                <span class="n">starts</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">col_starts</span><span class="p">)</span>
+                <span class="n">ends</span> <span class="o">=</span> <span class="n">starts</span><span class="p">[</span><span class="mi">1</span><span class="p">:]</span> <span class="o">+</span> <span class="p">[</span><span class="kc">None</span><span class="p">]</span>  <span class="c1"># Assume each col ends where the next starts</span>
+            <span class="k">else</span><span class="p">:</span>  <span class="c1"># self.col_ends is not None</span>
+                <span class="n">ends</span> <span class="o">=</span> <span class="p">[</span><span class="n">x</span> <span class="o">+</span> <span class="mi">1</span> <span class="k">for</span> <span class="n">x</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">col_ends</span><span class="p">]</span>
+                <span class="n">starts</span> <span class="o">=</span> <span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">+</span> <span class="n">ends</span><span class="p">[:</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span>  <span class="c1"># Assume each col starts where the last ended</span>
+            <span class="n">vals</span> <span class="o">=</span> <span class="p">[</span><span class="n">line</span><span class="p">[</span><span class="n">start</span><span class="p">:</span><span class="n">end</span><span class="p">]</span><span class="o">.</span><span class="n">strip</span><span class="p">()</span> <span class="k">for</span> <span class="n">start</span><span class="p">,</span> <span class="n">end</span> <span class="ow">in</span> <span class="nb">zip</span><span class="p">(</span><span class="n">starts</span><span class="p">,</span> <span class="n">ends</span><span class="p">)]</span>
+
+        <span class="k">return</span> <span class="n">vals</span><span class="p">,</span> <span class="n">starts</span><span class="p">,</span> <span class="n">ends</span></div>
+
+<div class="viewcode-block" id="FixedWidthHeader.write"><a class="viewcode-back" href="../../../../api/astropy.io.ascii.FixedWidthHeader.html#astropy.io.ascii.FixedWidthHeader.write">[docs]</a>    <span class="k">def</span> <span class="nf">write</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">lines</span><span class="p">):</span>
+        <span class="c1"># Header line not written until data are formatted.  Until then it is</span>
+        <span class="c1"># not known how wide each column will be for fixed width.</span>
+        <span class="k">pass</span></div></div>
+
+
+<div class="viewcode-block" id="FixedWidthData"><a class="viewcode-back" href="../../../../api/astropy.io.ascii.FixedWidthData.html#astropy.io.ascii.FixedWidthData">[docs]</a><span class="k">class</span> <span class="nc">FixedWidthData</span><span class="p">(</span><span class="n">basic</span><span class="o">.</span><span class="n">BasicData</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Base table data reader.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">splitter_class</span> <span class="o">=</span> <span class="n">FixedWidthSplitter</span>
+    <span class="sd">&quot;&quot;&quot; Splitter class for splitting data lines into columns &quot;&quot;&quot;</span>
+
+<div class="viewcode-block" id="FixedWidthData.write"><a class="viewcode-back" href="../../../../api/astropy.io.ascii.FixedWidthData.html#astropy.io.ascii.FixedWidthData.write">[docs]</a>    <span class="k">def</span> <span class="nf">write</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">lines</span><span class="p">):</span>
+        <span class="n">vals_list</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="n">col_str_iters</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">str_vals</span><span class="p">()</span>
+        <span class="k">for</span> <span class="n">vals</span> <span class="ow">in</span> <span class="nb">zip</span><span class="p">(</span><span class="o">*</span><span class="n">col_str_iters</span><span class="p">):</span>
+            <span class="n">vals_list</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">vals</span><span class="p">)</span>
+
+        <span class="k">for</span> <span class="n">i</span><span class="p">,</span> <span class="n">col</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">cols</span><span class="p">):</span>
+            <span class="n">col</span><span class="o">.</span><span class="n">width</span> <span class="o">=</span> <span class="nb">max</span><span class="p">([</span><span class="nb">len</span><span class="p">(</span><span class="n">vals</span><span class="p">[</span><span class="n">i</span><span class="p">])</span> <span class="k">for</span> <span class="n">vals</span> <span class="ow">in</span> <span class="n">vals_list</span><span class="p">])</span>
+            <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">header</span><span class="o">.</span><span class="n">start_line</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+                <span class="n">col</span><span class="o">.</span><span class="n">width</span> <span class="o">=</span> <span class="nb">max</span><span class="p">(</span><span class="n">col</span><span class="o">.</span><span class="n">width</span><span class="p">,</span> <span class="nb">len</span><span class="p">(</span><span class="n">col</span><span class="o">.</span><span class="n">info</span><span class="o">.</span><span class="n">name</span><span class="p">))</span>
+
+        <span class="n">widths</span> <span class="o">=</span> <span class="p">[</span><span class="n">col</span><span class="o">.</span><span class="n">width</span> <span class="k">for</span> <span class="n">col</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">cols</span><span class="p">]</span>
+
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">header</span><span class="o">.</span><span class="n">start_line</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">lines</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">splitter</span><span class="o">.</span><span class="n">join</span><span class="p">([</span><span class="n">col</span><span class="o">.</span><span class="n">info</span><span class="o">.</span><span class="n">name</span> <span class="k">for</span> <span class="n">col</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">cols</span><span class="p">],</span>
+                                            <span class="n">widths</span><span class="p">))</span>
+
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">header</span><span class="o">.</span><span class="n">position_line</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">char</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">header</span><span class="o">.</span><span class="n">position_char</span>
+            <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">char</span><span class="p">)</span> <span class="o">!=</span> <span class="mi">1</span><span class="p">:</span>
+                <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s1">&#39;Position_char=&quot;</span><span class="si">{}</span><span class="s1">&quot; must be a single &#39;</span>
+                                 <span class="s1">&#39;character&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">char</span><span class="p">))</span>
+            <span class="n">vals</span> <span class="o">=</span> <span class="p">[</span><span class="n">char</span> <span class="o">*</span> <span class="n">col</span><span class="o">.</span><span class="n">width</span> <span class="k">for</span> <span class="n">col</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">cols</span><span class="p">]</span>
+            <span class="n">lines</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">splitter</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">vals</span><span class="p">,</span> <span class="n">widths</span><span class="p">))</span>
+
+        <span class="k">for</span> <span class="n">vals</span> <span class="ow">in</span> <span class="n">vals_list</span><span class="p">:</span>
+            <span class="n">lines</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">splitter</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">vals</span><span class="p">,</span> <span class="n">widths</span><span class="p">))</span>
+
+        <span class="k">return</span> <span class="n">lines</span></div></div>
+
+
+<div class="viewcode-block" id="FixedWidth"><a class="viewcode-back" href="../../../../api/astropy.io.ascii.FixedWidth.html#astropy.io.ascii.FixedWidth">[docs]</a><span class="k">class</span> <span class="nc">FixedWidth</span><span class="p">(</span><span class="n">basic</span><span class="o">.</span><span class="n">Basic</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Read or write a fixed width table with a single header line that defines column</span>
+<span class="sd">    names and positions.  Examples::</span>
+
+<span class="sd">      # Bar delimiter in header and data</span>
+
+<span class="sd">      |  Col1 |   Col2      |  Col3 |</span>
+<span class="sd">      |  1.2  | hello there |     3 |</span>
+<span class="sd">      |  2.4  | many words  |     7 |</span>
+
+<span class="sd">      # Bar delimiter in header only</span>
+
+<span class="sd">      Col1 |   Col2      | Col3</span>
+<span class="sd">      1.2    hello there    3</span>
+<span class="sd">      2.4    many words     7</span>
+
+<span class="sd">      # No delimiter with column positions specified as input</span>
+
+<span class="sd">      Col1       Col2Col3</span>
+<span class="sd">       1.2hello there   3</span>
+<span class="sd">       2.4many words    7</span>
+
+<span class="sd">    See the :ref:`fixed_width_gallery` for specific usage examples.</span>
+
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">_format_name</span> <span class="o">=</span> <span class="s1">&#39;fixed_width&#39;</span>
+    <span class="n">_description</span> <span class="o">=</span> <span class="s1">&#39;Fixed width&#39;</span>
+
+    <span class="n">header_class</span> <span class="o">=</span> <span class="n">FixedWidthHeader</span>
+    <span class="n">data_class</span> <span class="o">=</span> <span class="n">FixedWidthData</span>
+
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">col_starts</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">col_ends</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">delimiter_pad</span><span class="o">=</span><span class="s1">&#39; &#39;</span><span class="p">,</span> <span class="n">bookend</span><span class="o">=</span><span class="kc">True</span><span class="p">):</span>
+        <span class="nb">super</span><span class="p">(</span><span class="n">FixedWidth</span><span class="p">,</span> <span class="bp">self</span><span class="p">)</span><span class="o">.</span><span class="n">__init__</span><span class="p">()</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">splitter</span><span class="o">.</span><span class="n">delimiter_pad</span> <span class="o">=</span> <span class="n">delimiter_pad</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">splitter</span><span class="o">.</span><span class="n">bookend</span> <span class="o">=</span> <span class="n">bookend</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">header</span><span class="o">.</span><span class="n">col_starts</span> <span class="o">=</span> <span class="n">col_starts</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">header</span><span class="o">.</span><span class="n">col_ends</span> <span class="o">=</span> <span class="n">col_ends</span></div>
+
+
+<span class="k">class</span> <span class="nc">FixedWidthNoHeaderHeader</span><span class="p">(</span><span class="n">FixedWidthHeader</span><span class="p">):</span>
+    <span class="sd">&#39;&#39;&#39;Header reader for fixed with tables with no header line&#39;&#39;&#39;</span>
+    <span class="n">start_line</span> <span class="o">=</span> <span class="kc">None</span>
+
+
+<span class="k">class</span> <span class="nc">FixedWidthNoHeaderData</span><span class="p">(</span><span class="n">FixedWidthData</span><span class="p">):</span>
+    <span class="sd">&#39;&#39;&#39;Data reader for fixed width tables with no header line&#39;&#39;&#39;</span>
+    <span class="n">start_line</span> <span class="o">=</span> <span class="mi">0</span>
+
+
+<div class="viewcode-block" id="FixedWidthNoHeader"><a class="viewcode-back" href="../../../../api/astropy.io.ascii.FixedWidthNoHeader.html#astropy.io.ascii.FixedWidthNoHeader">[docs]</a><span class="k">class</span> <span class="nc">FixedWidthNoHeader</span><span class="p">(</span><span class="n">FixedWidth</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Read or write a fixed width table which has no header line.  Column</span>
+<span class="sd">    names are either input (``names`` keyword) or auto-generated.  Column</span>
+<span class="sd">    positions are determined either by input (``col_starts`` and ``col_stops``</span>
+<span class="sd">    keywords) or by splitting the first data line.  In the latter case a</span>
+<span class="sd">    ``delimiter`` is required to split the data line.</span>
+
+<span class="sd">    Examples::</span>
+
+<span class="sd">      # Bar delimiter in header and data</span>
+
+<span class="sd">      |  1.2  | hello there |     3 |</span>
+<span class="sd">      |  2.4  | many words  |     7 |</span>
+
+<span class="sd">      # Compact table having no delimiter and column positions specified as input</span>
+
+<span class="sd">      1.2hello there3</span>
+<span class="sd">      2.4many words 7</span>
+
+<span class="sd">    This class is just a convenience wrapper around the ``FixedWidth`` reader</span>
+<span class="sd">    but with ``header.start_line = None`` and ``data.start_line = 0``.</span>
+
+<span class="sd">    See the :ref:`fixed_width_gallery` for specific usage examples.</span>
+
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">_format_name</span> <span class="o">=</span> <span class="s1">&#39;fixed_width_no_header&#39;</span>
+    <span class="n">_description</span> <span class="o">=</span> <span class="s1">&#39;Fixed width with no header&#39;</span>
+    <span class="n">header_class</span> <span class="o">=</span> <span class="n">FixedWidthNoHeaderHeader</span>
+    <span class="n">data_class</span> <span class="o">=</span> <span class="n">FixedWidthNoHeaderData</span>
+
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">col_starts</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">col_ends</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">delimiter_pad</span><span class="o">=</span><span class="s1">&#39; &#39;</span><span class="p">,</span> <span class="n">bookend</span><span class="o">=</span><span class="kc">True</span><span class="p">):</span>
+        <span class="nb">super</span><span class="p">(</span><span class="n">FixedWidthNoHeader</span><span class="p">,</span> <span class="bp">self</span><span class="p">)</span><span class="o">.</span><span class="n">__init__</span><span class="p">(</span><span class="n">col_starts</span><span class="p">,</span> <span class="n">col_ends</span><span class="p">,</span>
+                            <span class="n">delimiter_pad</span><span class="o">=</span><span class="n">delimiter_pad</span><span class="p">,</span> <span class="n">bookend</span><span class="o">=</span><span class="n">bookend</span><span class="p">)</span></div>
+
+
+<span class="k">class</span> <span class="nc">FixedWidthTwoLineHeader</span><span class="p">(</span><span class="n">FixedWidthHeader</span><span class="p">):</span>
+    <span class="sd">&#39;&#39;&#39;Header reader for fixed width tables splitting on whitespace.</span>
+
+<span class="sd">    For fixed width tables with several header lines, there is typically</span>
+<span class="sd">    a white-space delimited format line, so splitting on white space is</span>
+<span class="sd">    needed.</span>
+<span class="sd">    &#39;&#39;&#39;</span>
+    <span class="n">splitter_class</span> <span class="o">=</span> <span class="n">DefaultSplitter</span>
+
+
+<span class="k">class</span> <span class="nc">FixedWidthTwoLineDataSplitter</span><span class="p">(</span><span class="n">FixedWidthSplitter</span><span class="p">):</span>
+    <span class="sd">&#39;&#39;&#39;Splitter for fixed width tables splitting on ``&#39; &#39;``.&#39;&#39;&#39;</span>
+    <span class="n">delimiter</span> <span class="o">=</span> <span class="s1">&#39; &#39;</span>
+
+
+<span class="k">class</span> <span class="nc">FixedWidthTwoLineData</span><span class="p">(</span><span class="n">FixedWidthData</span><span class="p">):</span>
+    <span class="sd">&#39;&#39;&#39;Data reader for fixed with tables with two header lines.&#39;&#39;&#39;</span>
+    <span class="n">splitter_class</span> <span class="o">=</span> <span class="n">FixedWidthTwoLineDataSplitter</span>
+
+
+<div class="viewcode-block" id="FixedWidthTwoLine"><a class="viewcode-back" href="../../../../api/astropy.io.ascii.FixedWidthTwoLine.html#astropy.io.ascii.FixedWidthTwoLine">[docs]</a><span class="k">class</span> <span class="nc">FixedWidthTwoLine</span><span class="p">(</span><span class="n">FixedWidth</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Read or write a fixed width table which has two header lines.  The first</span>
+<span class="sd">    header line defines the column names and the second implicitly defines the</span>
+<span class="sd">    column positions.  Examples::</span>
+
+<span class="sd">      # Typical case with column extent defined by ---- under column names.</span>
+
+<span class="sd">       col1    col2         &lt;== header_start = 0</span>
+<span class="sd">      -----  ------------   &lt;== position_line = 1, position_char = &quot;-&quot;</span>
+<span class="sd">        1     bee flies     &lt;== data_start = 2</span>
+<span class="sd">        2     fish swims</span>
+
+<span class="sd">      # Pretty-printed table</span>
+
+<span class="sd">      +------+------------+</span>
+<span class="sd">      | Col1 |   Col2     |</span>
+<span class="sd">      +------+------------+</span>
+<span class="sd">      |  1.2 | &quot;hello&quot;    |</span>
+<span class="sd">      |  2.4 | there world|</span>
+<span class="sd">      +------+------------+</span>
+
+<span class="sd">    See the :ref:`fixed_width_gallery` for specific usage examples.</span>
+
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">_format_name</span> <span class="o">=</span> <span class="s1">&#39;fixed_width_two_line&#39;</span>
+    <span class="n">_description</span> <span class="o">=</span> <span class="s1">&#39;Fixed width with second header line&#39;</span>
+    <span class="n">data_class</span> <span class="o">=</span> <span class="n">FixedWidthTwoLineData</span>
+    <span class="n">header_class</span> <span class="o">=</span> <span class="n">FixedWidthTwoLineHeader</span>
+
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">position_line</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span> <span class="n">position_char</span><span class="o">=</span><span class="s1">&#39;-&#39;</span><span class="p">,</span> <span class="n">delimiter_pad</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">bookend</span><span class="o">=</span><span class="kc">False</span><span class="p">):</span>
+        <span class="nb">super</span><span class="p">(</span><span class="n">FixedWidthTwoLine</span><span class="p">,</span> <span class="bp">self</span><span class="p">)</span><span class="o">.</span><span class="n">__init__</span><span class="p">(</span><span class="n">delimiter_pad</span><span class="o">=</span><span class="n">delimiter_pad</span><span class="p">,</span> <span class="n">bookend</span><span class="o">=</span><span class="n">bookend</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">header</span><span class="o">.</span><span class="n">position_line</span> <span class="o">=</span> <span class="n">position_line</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">header</span><span class="o">.</span><span class="n">position_char</span> <span class="o">=</span> <span class="n">position_char</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">start_line</span> <span class="o">=</span> <span class="n">position_line</span> <span class="o">+</span> <span class="mi">1</span></div>
+</pre></div>
+
+          </div>
+        </div>
+      </div>
+      <div class="sphinxsidebar" role="navigation" aria-label="main navigation">
+        <div class="sphinxsidebarwrapper"><h3>Page Contents</h3>
+
+
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+<footer class="footer">
+  <p class="pull-right"> &nbsp;
+    <a href="#">Back to Top</a></p>
+  <p>
+    &copy; Copyright 2011-2016, The Astropy Developers.<br/>
+    Created using <a href="http://sphinx.pocoo.org/">Sphinx</a> 1.5.6. &nbsp;
+    Last built 05 Jul 2017. <br/>
+  </p>
+</footer>
+  </body>
+</html>

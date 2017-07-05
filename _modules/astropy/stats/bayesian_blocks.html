@@ -1,0 +1,618 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <head>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    
+    <title>astropy.stats.bayesian_blocks &#8212; Astropy v3.0.dev19489</title>
+    
+    <link rel="stylesheet" href="../../../_static/bootstrap-astropy.css" type="text/css" />
+    <link rel="stylesheet" href="../../../_static/pygments.css" type="text/css" />
+    <link rel="stylesheet" href="../../../_static/gallery.css" type="text/css" />
+    
+    <script type="text/javascript">
+      var DOCUMENTATION_OPTIONS = {
+        URL_ROOT:    '../../../',
+        VERSION:     '3.0.dev19489',
+        COLLAPSE_INDEX: false,
+        FILE_SUFFIX: '.html',
+        HAS_SOURCE:  true,
+        SOURCELINK_SUFFIX: '.txt'
+      };
+    </script>
+    <script type="text/javascript" src="../../../_static/jquery.js"></script>
+    <script type="text/javascript" src="../../../_static/underscore.js"></script>
+    <script type="text/javascript" src="../../../_static/doctools.js"></script>
+    <script type="text/javascript" src="../../../_static/sidebar.js"></script>
+    <link rel="shortcut icon" href="../../../_static/astropy_logo.ico"/>
+    <link rel="index" title="Index" href="../../../genindex.html" />
+    <link rel="search" title="Search" href="../../../search.html" />
+<link href='https://fonts.googleapis.com/css?family=Source+Sans+Pro:200,600' rel='stylesheet' type='text/css'/>
+<script type="text/javascript" src="../../../_static/copybutton.js"></script>
+
+
+  </head>
+  <body role="document">
+<div class="topbar">
+  <a class="brand" title="Documentation Home" href="../../../index.html"><span id="logotext1">astro</span><span id="logotext2">py</span><span id="logotext3">:docs</span></a>
+  <ul>
+    <li><a class="homelink" title="Astropy Homepage" href="http://www.astropy.org"></a></li>
+    <li><a title="General Index" href="../../../genindex.html">Index</a></li>
+    <li><a title="Module Index" href="../../../py-modindex.html">Modules</a></li>
+    <li>
+      
+      
+<form action="../../../search.html" method="get">
+  <input type="text" name="q" placeholder="Search" />
+  <input type="hidden" name="check_keywords" value="yes" />
+  <input type="hidden" name="area" value="default" />
+</form>
+      
+    </li>
+  </ul>
+</div>
+
+<div class="related">
+    <h3>Navigation</h3>
+    <ul>
+      <li>
+	<a href="../../../index.html">Astropy v3.0.dev19489</a>
+	 &#187;
+      </li>
+      <li><a href="../../index.html" >Module code</a> &#187;</li>
+      <li><a href="../../astropy.html" accesskey="U">astropy</a> &#187;</li>
+      
+       
+    </ul>
+</div>
+  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          <div class="body" role="main">
+            
+  <h1>Source code for astropy.stats.bayesian_blocks</h1><div class="highlight"><pre>
+<span></span><span class="c1"># Licensed under a 3-clause BSD style license - see LICENSE.rst</span>
+
+<span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">Bayesian Blocks for Time Series Analysis</span>
+<span class="sd">========================================</span>
+
+<span class="sd">Dynamic programming algorithm for solving a piecewise-constant model for</span>
+<span class="sd">various datasets. This is based on the algorithm presented in Scargle</span>
+<span class="sd">et al 2012 [1]_. This code was ported from the astroML project [2]_.</span>
+
+<span class="sd">Applications include:</span>
+
+<span class="sd">- finding an optimal histogram with adaptive bin widths</span>
+<span class="sd">- finding optimal segmentation of time series data</span>
+<span class="sd">- detecting inflection points in the rate of event data</span>
+
+<span class="sd">The primary interface to these routines is the :func:`bayesian_blocks`</span>
+<span class="sd">function. This module provides fitness functions suitable for three types</span>
+<span class="sd">of data:</span>
+
+<span class="sd">- Irregularly-spaced event data via the :class:`Events` class</span>
+<span class="sd">- Regularly-spaced event data via the :class:`RegularEvents` class</span>
+<span class="sd">- Irregularly-spaced point measurements via the :class:`PointMeasures` class</span>
+
+<span class="sd">For more fine-tuned control over the fitness functions used, it is possible</span>
+<span class="sd">to define custom :class:`FitnessFunc` classes directly and use them with</span>
+<span class="sd">the :func:`bayesian_blocks` routine.</span>
+
+<span class="sd">One common application of the Bayesian Blocks algorithm is the determination</span>
+<span class="sd">of optimal adaptive-width histogram bins. This uses the same fitness function</span>
+<span class="sd">as for irregularly-spaced time series events. The easiest interface for</span>
+<span class="sd">creating Bayesian Blocks histograms is the :func:`astropy.stats.histogram`</span>
+<span class="sd">function.</span>
+
+<span class="sd">References</span>
+<span class="sd">----------</span>
+<span class="sd">.. [1] http://adsabs.harvard.edu/abs/2012arXiv1207.5578S</span>
+<span class="sd">.. [2] http://astroML.org/ http://github.com/astroML/astroML/</span>
+<span class="sd">&quot;&quot;&quot;</span>
+<span class="kn">from</span> <span class="nn">__future__</span> <span class="k">import</span> <span class="p">(</span><span class="n">absolute_import</span><span class="p">,</span> <span class="n">division</span><span class="p">,</span> <span class="n">print_function</span><span class="p">,</span>
+                        <span class="n">unicode_literals</span><span class="p">)</span>
+
+<span class="kn">import</span> <span class="nn">warnings</span>
+
+<span class="kn">import</span> <span class="nn">numpy</span> <span class="k">as</span> <span class="nn">np</span>
+
+<span class="kn">from</span> <span class="nn">..utils.compat.funcsigs</span> <span class="k">import</span> <span class="n">signature</span>
+<span class="kn">from</span> <span class="nn">..utils.exceptions</span> <span class="k">import</span> <span class="n">AstropyUserWarning</span>
+<span class="kn">from</span> <span class="nn">..extern.six.moves</span> <span class="k">import</span> <span class="nb">range</span>
+
+<span class="c1"># TODO: implement other fitness functions from appendix B of Scargle 2012</span>
+
+<span class="n">__all__</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;FitnessFunc&#39;</span><span class="p">,</span> <span class="s1">&#39;Events&#39;</span><span class="p">,</span> <span class="s1">&#39;RegularEvents&#39;</span><span class="p">,</span> <span class="s1">&#39;PointMeasures&#39;</span><span class="p">,</span>
+           <span class="s1">&#39;bayesian_blocks&#39;</span><span class="p">]</span>
+
+
+<div class="viewcode-block" id="bayesian_blocks"><a class="viewcode-back" href="../../../api/astropy.stats.bayesian_blocks.html#astropy.stats.bayesian_blocks">[docs]</a><span class="k">def</span> <span class="nf">bayesian_blocks</span><span class="p">(</span><span class="n">t</span><span class="p">,</span> <span class="n">x</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">sigma</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+                    <span class="n">fitness</span><span class="o">=</span><span class="s1">&#39;events&#39;</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+    <span class="sd">r&quot;&quot;&quot;Compute optimal segmentation of data with Scargle&#39;s Bayesian Blocks</span>
+
+<span class="sd">    This is a flexible implementation of the Bayesian Blocks algorithm</span>
+<span class="sd">    described in Scargle 2012 [1]_.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    t : array_like</span>
+<span class="sd">        data times (one dimensional, length N)</span>
+<span class="sd">    x : array_like (optional)</span>
+<span class="sd">        data values</span>
+<span class="sd">    sigma : array_like or float (optional)</span>
+<span class="sd">        data errors</span>
+<span class="sd">    fitness : str or object</span>
+<span class="sd">        the fitness function to use for the model.</span>
+<span class="sd">        If a string, the following options are supported:</span>
+
+<span class="sd">        - &#39;events&#39; : binned or unbinned event data.  Arguments are ``gamma``,</span>
+<span class="sd">          which gives the slope of the prior on the number of bins, or</span>
+<span class="sd">          ``ncp_prior``, which is :math:`-\ln({\tt gamma})`.</span>
+<span class="sd">        - &#39;regular_events&#39; : non-overlapping events measured at multiples of a</span>
+<span class="sd">          fundamental tick rate, ``dt``, which must be specified as an</span>
+<span class="sd">          additional argument.  Extra arguments are ``p0``, which gives the</span>
+<span class="sd">          false alarm probability to compute the prior, or ``gamma``, which</span>
+<span class="sd">          gives the slope of the prior on the number of bins, or ``ncp_prior``,</span>
+<span class="sd">          which is :math:`-\ln({\tt gamma})`.</span>
+<span class="sd">        - &#39;measures&#39; : fitness for a measured sequence with Gaussian errors.</span>
+<span class="sd">          Extra arguments are ``p0``, which gives the false alarm probability</span>
+<span class="sd">          to compute the prior, or ``gamma``, which gives the slope of the</span>
+<span class="sd">          prior on the number of bins, or ``ncp_prior``, which is</span>
+<span class="sd">          :math:`-\ln({\tt gamma})`.</span>
+
+<span class="sd">        In all three cases, if more than one of ``p0``, ``gamma``, and</span>
+<span class="sd">        ``ncp_prior`` is chosen, ``ncp_prior`` takes precedence over ``gamma``</span>
+<span class="sd">        which takes precedence over ``p0``.</span>
+
+<span class="sd">        Alternatively, the fitness parameter can be an instance of</span>
+<span class="sd">        :class:`FitnessFunc` or a subclass thereof.</span>
+
+<span class="sd">    **kwargs :</span>
+<span class="sd">        any additional keyword arguments will be passed to the specified</span>
+<span class="sd">        :class:`FitnessFunc` derived class.</span>
+
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+<span class="sd">    edges : ndarray</span>
+<span class="sd">        array containing the (N+1) edges defining the N bins</span>
+
+<span class="sd">    Examples</span>
+<span class="sd">    --------</span>
+<span class="sd">    Event data:</span>
+
+<span class="sd">    &gt;&gt;&gt; t = np.random.normal(size=100)</span>
+<span class="sd">    &gt;&gt;&gt; edges = bayesian_blocks(t, fitness=&#39;events&#39;, p0=0.01)</span>
+
+<span class="sd">    Event data with repeats:</span>
+
+<span class="sd">    &gt;&gt;&gt; t = np.random.normal(size=100)</span>
+<span class="sd">    &gt;&gt;&gt; t[80:] = t[:20]</span>
+<span class="sd">    &gt;&gt;&gt; edges = bayesian_blocks(t, fitness=&#39;events&#39;, p0=0.01)</span>
+
+<span class="sd">    Regular event data:</span>
+
+<span class="sd">    &gt;&gt;&gt; dt = 0.05</span>
+<span class="sd">    &gt;&gt;&gt; t = dt * np.arange(1000)</span>
+<span class="sd">    &gt;&gt;&gt; x = np.zeros(len(t))</span>
+<span class="sd">    &gt;&gt;&gt; x[np.random.randint(0, len(t), len(t) // 10)] = 1</span>
+<span class="sd">    &gt;&gt;&gt; edges = bayesian_blocks(t, x, fitness=&#39;regular_events&#39;, dt=dt)</span>
+
+<span class="sd">    Measured point data with errors:</span>
+
+<span class="sd">    &gt;&gt;&gt; t = 100 * np.random.random(100)</span>
+<span class="sd">    &gt;&gt;&gt; x = np.exp(-0.5 * (t - 50) ** 2)</span>
+<span class="sd">    &gt;&gt;&gt; sigma = 0.1</span>
+<span class="sd">    &gt;&gt;&gt; x_obs = np.random.normal(x, sigma)</span>
+<span class="sd">    &gt;&gt;&gt; edges = bayesian_blocks(t, x_obs, sigma, fitness=&#39;measures&#39;)</span>
+
+<span class="sd">    References</span>
+<span class="sd">    ----------</span>
+<span class="sd">    .. [1] Scargle, J et al. (2012)</span>
+<span class="sd">       http://adsabs.harvard.edu/abs/2012arXiv1207.5578S</span>
+
+<span class="sd">    See Also</span>
+<span class="sd">    --------</span>
+<span class="sd">    astropy.stats.histogram : compute a histogram using bayesian blocks</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">FITNESS_DICT</span> <span class="o">=</span> <span class="p">{</span><span class="s1">&#39;events&#39;</span><span class="p">:</span> <span class="n">Events</span><span class="p">,</span>
+                    <span class="s1">&#39;regular_events&#39;</span><span class="p">:</span> <span class="n">RegularEvents</span><span class="p">,</span>
+                    <span class="s1">&#39;measures&#39;</span><span class="p">:</span> <span class="n">PointMeasures</span><span class="p">}</span>
+    <span class="n">fitness</span> <span class="o">=</span> <span class="n">FITNESS_DICT</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">fitness</span><span class="p">,</span> <span class="n">fitness</span><span class="p">)</span>
+
+    <span class="k">if</span> <span class="nb">type</span><span class="p">(</span><span class="n">fitness</span><span class="p">)</span> <span class="ow">is</span> <span class="nb">type</span> <span class="ow">and</span> <span class="nb">issubclass</span><span class="p">(</span><span class="n">fitness</span><span class="p">,</span> <span class="n">FitnessFunc</span><span class="p">):</span>
+        <span class="n">fitfunc</span> <span class="o">=</span> <span class="n">fitness</span><span class="p">(</span><span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
+    <span class="k">elif</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">fitness</span><span class="p">,</span> <span class="n">FitnessFunc</span><span class="p">):</span>
+        <span class="n">fitfunc</span> <span class="o">=</span> <span class="n">fitness</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;fitness parameter not understood&quot;</span><span class="p">)</span>
+
+    <span class="k">return</span> <span class="n">fitfunc</span><span class="o">.</span><span class="n">fit</span><span class="p">(</span><span class="n">t</span><span class="p">,</span> <span class="n">x</span><span class="p">,</span> <span class="n">sigma</span><span class="p">)</span></div>
+
+
+<div class="viewcode-block" id="FitnessFunc"><a class="viewcode-back" href="../../../api/astropy.stats.FitnessFunc.html#astropy.stats.FitnessFunc">[docs]</a><span class="k">class</span> <span class="nc">FitnessFunc</span><span class="p">(</span><span class="nb">object</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;Base class for bayesian blocks fitness functions</span>
+
+<span class="sd">    Derived classes should overload the following method:</span>
+
+<span class="sd">    ``fitness(self, **kwargs)``:</span>
+<span class="sd">      Compute the fitness given a set of named arguments.</span>
+<span class="sd">      Arguments accepted by fitness must be among ``[T_k, N_k, a_k, b_k, c_k]``</span>
+<span class="sd">      (See Scargle2012_ for details on the meaning of these parameters).</span>
+
+<span class="sd">    Additionally, other methods may be overloaded as well:</span>
+
+<span class="sd">    ``__init__(self, **kwargs)``:</span>
+<span class="sd">      Initialize the fitness function with any parameters beyond the normal</span>
+<span class="sd">      ``p0`` and ``gamma``.</span>
+
+<span class="sd">    ``validate_input(self, t, x, sigma)``:</span>
+<span class="sd">      Enable specific checks of the input data (``t``, ``x``, ``sigma``)</span>
+<span class="sd">      to be performed prior to the fit.</span>
+
+<span class="sd">    ``compute_ncp_prior(self, N)``: If ``ncp_prior`` is not defined explicitly,</span>
+<span class="sd">      this function is called in order to define it before fitting. This may be</span>
+<span class="sd">      calculated from ``gamma``, ``p0``, or whatever method you choose.</span>
+
+<span class="sd">    ``p0_prior(self, N)``:</span>
+<span class="sd">      Specify the form of the prior given the false-alarm probability ``p0``</span>
+<span class="sd">      (See Scargle2012_ for details).</span>
+
+<span class="sd">    For examples of implemented fitness functions, see :class:`Events`,</span>
+<span class="sd">    :class:`RegularEvents`, and :class:`PointMeasures`.</span>
+
+<span class="sd">    References</span>
+<span class="sd">    ----------</span>
+<span class="sd">    .. [Scargle2012] Scargle, J et al. (2012)</span>
+<span class="sd">       http://adsabs.harvard.edu/abs/2012arXiv1207.5578S</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">p0</span><span class="o">=</span><span class="mf">0.05</span><span class="p">,</span> <span class="n">gamma</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">ncp_prior</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">p0</span> <span class="o">=</span> <span class="n">p0</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">gamma</span> <span class="o">=</span> <span class="n">gamma</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">ncp_prior</span> <span class="o">=</span> <span class="n">ncp_prior</span>
+
+<div class="viewcode-block" id="FitnessFunc.validate_input"><a class="viewcode-back" href="../../../api/astropy.stats.FitnessFunc.html#astropy.stats.FitnessFunc.validate_input">[docs]</a>    <span class="k">def</span> <span class="nf">validate_input</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">t</span><span class="p">,</span> <span class="n">x</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">sigma</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Validate inputs to the model.</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        t : array_like</span>
+<span class="sd">            times of observations</span>
+<span class="sd">        x : array_like (optional)</span>
+<span class="sd">            values observed at each time</span>
+<span class="sd">        sigma : float or array_like (optional)</span>
+<span class="sd">            errors in values x</span>
+
+<span class="sd">        Returns</span>
+<span class="sd">        -------</span>
+<span class="sd">        t, x, sigma : array_like, float or None</span>
+<span class="sd">            validated and perhaps modified versions of inputs</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="c1"># validate array input</span>
+        <span class="n">t</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span><span class="n">t</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="nb">float</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">x</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">x</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span><span class="n">x</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">sigma</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">sigma</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span><span class="n">sigma</span><span class="p">)</span>
+
+        <span class="c1"># find unique values of t</span>
+        <span class="n">t</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">(</span><span class="n">t</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">t</span><span class="o">.</span><span class="n">ndim</span> <span class="o">!=</span> <span class="mi">1</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;t must be a one-dimensional array&quot;</span><span class="p">)</span>
+        <span class="n">unq_t</span><span class="p">,</span> <span class="n">unq_ind</span><span class="p">,</span> <span class="n">unq_inv</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">unique</span><span class="p">(</span><span class="n">t</span><span class="p">,</span> <span class="n">return_index</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
+                                            <span class="n">return_inverse</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+
+        <span class="c1"># if x is not specified, x will be counts at each time</span>
+        <span class="k">if</span> <span class="n">x</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="k">if</span> <span class="n">sigma</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+                <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;If sigma is specified, x must be specified&quot;</span><span class="p">)</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="n">sigma</span> <span class="o">=</span> <span class="mi">1</span>
+
+            <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">unq_t</span><span class="p">)</span> <span class="o">==</span> <span class="nb">len</span><span class="p">(</span><span class="n">t</span><span class="p">):</span>
+                <span class="n">x</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">ones_like</span><span class="p">(</span><span class="n">t</span><span class="p">)</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="n">x</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">bincount</span><span class="p">(</span><span class="n">unq_inv</span><span class="p">)</span>
+
+            <span class="n">t</span> <span class="o">=</span> <span class="n">unq_t</span>
+
+        <span class="c1"># if x is specified, then we need to simultaneously sort t and x</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="c1"># TODO: allow broadcasted x?</span>
+            <span class="n">x</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span><span class="n">x</span><span class="p">)</span>
+            <span class="k">if</span> <span class="n">x</span><span class="o">.</span><span class="n">shape</span> <span class="ow">not</span> <span class="ow">in</span> <span class="p">[(),</span> <span class="p">(</span><span class="mi">1</span><span class="p">,),</span> <span class="p">(</span><span class="n">t</span><span class="o">.</span><span class="n">size</span><span class="p">,)]:</span>
+                <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;x does not match shape of t&quot;</span><span class="p">)</span>
+            <span class="n">x</span> <span class="o">+=</span> <span class="n">np</span><span class="o">.</span><span class="n">zeros_like</span><span class="p">(</span><span class="n">t</span><span class="p">)</span>
+
+            <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">unq_t</span><span class="p">)</span> <span class="o">!=</span> <span class="nb">len</span><span class="p">(</span><span class="n">t</span><span class="p">):</span>
+                <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;Repeated values in t not supported when &quot;</span>
+                                 <span class="s2">&quot;x is specified&quot;</span><span class="p">)</span>
+            <span class="n">t</span> <span class="o">=</span> <span class="n">unq_t</span>
+            <span class="n">x</span> <span class="o">=</span> <span class="n">x</span><span class="p">[</span><span class="n">unq_ind</span><span class="p">]</span>
+
+        <span class="c1"># verify the given sigma value</span>
+        <span class="k">if</span> <span class="n">sigma</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">sigma</span> <span class="o">=</span> <span class="mi">1</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">sigma</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span><span class="n">sigma</span><span class="p">)</span>
+            <span class="k">if</span> <span class="n">sigma</span><span class="o">.</span><span class="n">shape</span> <span class="ow">not</span> <span class="ow">in</span> <span class="p">[(),</span> <span class="p">(</span><span class="mi">1</span><span class="p">,),</span> <span class="p">(</span><span class="n">t</span><span class="o">.</span><span class="n">size</span><span class="p">,)]:</span>
+                <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s1">&#39;sigma does not match the shape of x&#39;</span><span class="p">)</span>
+
+        <span class="k">return</span> <span class="n">t</span><span class="p">,</span> <span class="n">x</span><span class="p">,</span> <span class="n">sigma</span></div>
+
+<div class="viewcode-block" id="FitnessFunc.fitness"><a class="viewcode-back" href="../../../api/astropy.stats.FitnessFunc.html#astropy.stats.FitnessFunc.fitness">[docs]</a>    <span class="k">def</span> <span class="nf">fitness</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+        <span class="k">raise</span> <span class="ne">NotImplementedError</span><span class="p">()</span></div>
+
+<div class="viewcode-block" id="FitnessFunc.p0_prior"><a class="viewcode-back" href="../../../api/astropy.stats.FitnessFunc.html#astropy.stats.FitnessFunc.p0_prior">[docs]</a>    <span class="k">def</span> <span class="nf">p0_prior</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">N</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Empirical prior, parametrized by the false alarm probability ``p0``</span>
+<span class="sd">        See  eq. 21 in Scargle (2012)</span>
+
+<span class="sd">        Note that there was an error in this equation in the original Scargle</span>
+<span class="sd">        paper (the &quot;log&quot; was missing). The following corrected form is taken</span>
+<span class="sd">        from http://arxiv.org/abs/1304.2818</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="mi">4</span> <span class="o">-</span> <span class="n">np</span><span class="o">.</span><span class="n">log</span><span class="p">(</span><span class="mf">73.53</span> <span class="o">*</span> <span class="bp">self</span><span class="o">.</span><span class="n">p0</span> <span class="o">*</span> <span class="p">(</span><span class="n">N</span> <span class="o">**</span> <span class="o">-</span><span class="mf">0.478</span><span class="p">))</span></div>
+
+    <span class="c1"># the fitness_args property will return the list of arguments accepted by</span>
+    <span class="c1"># the method fitness().  This allows more efficient computation below.</span>
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">_fitness_args</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="n">signature</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">fitness</span><span class="p">)</span><span class="o">.</span><span class="n">parameters</span><span class="o">.</span><span class="n">keys</span><span class="p">()</span>
+
+<div class="viewcode-block" id="FitnessFunc.compute_ncp_prior"><a class="viewcode-back" href="../../../api/astropy.stats.FitnessFunc.html#astropy.stats.FitnessFunc.compute_ncp_prior">[docs]</a>    <span class="k">def</span> <span class="nf">compute_ncp_prior</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">N</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        If ``ncp_prior`` is not explicitly defined, compute it from ``gamma``</span>
+<span class="sd">        or ``p0``.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">ncp_prior</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">ncp_prior</span>
+        <span class="k">elif</span> <span class="bp">self</span><span class="o">.</span><span class="n">gamma</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="k">return</span> <span class="o">-</span><span class="n">np</span><span class="o">.</span><span class="n">log</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">gamma</span><span class="p">)</span>
+        <span class="k">elif</span> <span class="bp">self</span><span class="o">.</span><span class="n">p0</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">p0_prior</span><span class="p">(</span><span class="n">N</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;``ncp_prior`` is not defined, and cannot compute &quot;</span>
+                             <span class="s2">&quot;it as neither ``gamma`` nor ``p0`` is defined.&quot;</span><span class="p">)</span></div>
+
+<div class="viewcode-block" id="FitnessFunc.fit"><a class="viewcode-back" href="../../../api/astropy.stats.FitnessFunc.html#astropy.stats.FitnessFunc.fit">[docs]</a>    <span class="k">def</span> <span class="nf">fit</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">t</span><span class="p">,</span> <span class="n">x</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">sigma</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Fit the Bayesian Blocks model given the specified fitness function.</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        t : array_like</span>
+<span class="sd">            data times (one dimensional, length N)</span>
+<span class="sd">        x : array_like (optional)</span>
+<span class="sd">            data values</span>
+<span class="sd">        sigma : array_like or float (optional)</span>
+<span class="sd">            data errors</span>
+
+<span class="sd">        Returns</span>
+<span class="sd">        -------</span>
+<span class="sd">        edges : ndarray</span>
+<span class="sd">            array containing the (M+1) edges defining the M optimal bins</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">t</span><span class="p">,</span> <span class="n">x</span><span class="p">,</span> <span class="n">sigma</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">validate_input</span><span class="p">(</span><span class="n">t</span><span class="p">,</span> <span class="n">x</span><span class="p">,</span> <span class="n">sigma</span><span class="p">)</span>
+
+        <span class="c1"># compute values needed for computation, below</span>
+        <span class="k">if</span> <span class="s1">&#39;a_k&#39;</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">_fitness_args</span><span class="p">:</span>
+            <span class="n">ak_raw</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">ones_like</span><span class="p">(</span><span class="n">x</span><span class="p">)</span> <span class="o">/</span> <span class="n">sigma</span> <span class="o">**</span> <span class="mi">2</span>
+        <span class="k">if</span> <span class="s1">&#39;b_k&#39;</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">_fitness_args</span><span class="p">:</span>
+            <span class="n">bk_raw</span> <span class="o">=</span> <span class="n">x</span> <span class="o">/</span> <span class="n">sigma</span> <span class="o">**</span> <span class="mi">2</span>
+        <span class="k">if</span> <span class="s1">&#39;c_k&#39;</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">_fitness_args</span><span class="p">:</span>
+            <span class="n">ck_raw</span> <span class="o">=</span> <span class="n">x</span> <span class="o">*</span> <span class="n">x</span> <span class="o">/</span> <span class="n">sigma</span> <span class="o">**</span> <span class="mi">2</span>
+
+        <span class="c1"># create length-(N + 1) array of cell edges</span>
+        <span class="n">edges</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">concatenate</span><span class="p">([</span><span class="n">t</span><span class="p">[:</span><span class="mi">1</span><span class="p">],</span>
+                                <span class="mf">0.5</span> <span class="o">*</span> <span class="p">(</span><span class="n">t</span><span class="p">[</span><span class="mi">1</span><span class="p">:]</span> <span class="o">+</span> <span class="n">t</span><span class="p">[:</span><span class="o">-</span><span class="mi">1</span><span class="p">]),</span>
+                                <span class="n">t</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">:]])</span>
+        <span class="n">block_length</span> <span class="o">=</span> <span class="n">t</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span> <span class="o">-</span> <span class="n">edges</span>
+
+        <span class="c1"># arrays to store the best configuration</span>
+        <span class="n">N</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="n">t</span><span class="p">)</span>
+        <span class="n">best</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">zeros</span><span class="p">(</span><span class="n">N</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="nb">float</span><span class="p">)</span>
+        <span class="n">last</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">zeros</span><span class="p">(</span><span class="n">N</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="nb">int</span><span class="p">)</span>
+
+        <span class="c1"># Compute ncp_prior if not defined</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">ncp_prior</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">ncp_prior</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">compute_ncp_prior</span><span class="p">(</span><span class="n">N</span><span class="p">)</span>
+        <span class="c1"># ----------------------------------------------------------------</span>
+        <span class="c1"># Start with first data cell; add one cell at each iteration</span>
+        <span class="c1"># ----------------------------------------------------------------</span>
+        <span class="k">for</span> <span class="n">R</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">N</span><span class="p">):</span>
+            <span class="c1"># Compute fit_vec : fitness of putative last block (end at R)</span>
+            <span class="n">kwds</span> <span class="o">=</span> <span class="p">{}</span>
+
+            <span class="c1"># T_k: width/duration of each block</span>
+            <span class="k">if</span> <span class="s1">&#39;T_k&#39;</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">_fitness_args</span><span class="p">:</span>
+                <span class="n">kwds</span><span class="p">[</span><span class="s1">&#39;T_k&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">block_length</span><span class="p">[:</span><span class="n">R</span> <span class="o">+</span> <span class="mi">1</span><span class="p">]</span> <span class="o">-</span> <span class="n">block_length</span><span class="p">[</span><span class="n">R</span> <span class="o">+</span> <span class="mi">1</span><span class="p">]</span>
+
+            <span class="c1"># N_k: number of elements in each block</span>
+            <span class="k">if</span> <span class="s1">&#39;N_k&#39;</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">_fitness_args</span><span class="p">:</span>
+                <span class="n">kwds</span><span class="p">[</span><span class="s1">&#39;N_k&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">cumsum</span><span class="p">(</span><span class="n">x</span><span class="p">[:</span><span class="n">R</span> <span class="o">+</span> <span class="mi">1</span><span class="p">][::</span><span class="o">-</span><span class="mi">1</span><span class="p">])[::</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span>
+
+            <span class="c1"># a_k: eq. 31</span>
+            <span class="k">if</span> <span class="s1">&#39;a_k&#39;</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">_fitness_args</span><span class="p">:</span>
+                <span class="n">kwds</span><span class="p">[</span><span class="s1">&#39;a_k&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="mf">0.5</span> <span class="o">*</span> <span class="n">np</span><span class="o">.</span><span class="n">cumsum</span><span class="p">(</span><span class="n">ak_raw</span><span class="p">[:</span><span class="n">R</span> <span class="o">+</span> <span class="mi">1</span><span class="p">][::</span><span class="o">-</span><span class="mi">1</span><span class="p">])[::</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span>
+
+            <span class="c1"># b_k: eq. 32</span>
+            <span class="k">if</span> <span class="s1">&#39;b_k&#39;</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">_fitness_args</span><span class="p">:</span>
+                <span class="n">kwds</span><span class="p">[</span><span class="s1">&#39;b_k&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="o">-</span> <span class="n">np</span><span class="o">.</span><span class="n">cumsum</span><span class="p">(</span><span class="n">bk_raw</span><span class="p">[:</span><span class="n">R</span> <span class="o">+</span> <span class="mi">1</span><span class="p">][::</span><span class="o">-</span><span class="mi">1</span><span class="p">])[::</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span>
+
+            <span class="c1"># c_k: eq. 33</span>
+            <span class="k">if</span> <span class="s1">&#39;c_k&#39;</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">_fitness_args</span><span class="p">:</span>
+                <span class="n">kwds</span><span class="p">[</span><span class="s1">&#39;c_k&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="mf">0.5</span> <span class="o">*</span> <span class="n">np</span><span class="o">.</span><span class="n">cumsum</span><span class="p">(</span><span class="n">ck_raw</span><span class="p">[:</span><span class="n">R</span> <span class="o">+</span> <span class="mi">1</span><span class="p">][::</span><span class="o">-</span><span class="mi">1</span><span class="p">])[::</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span>
+
+            <span class="c1"># evaluate fitness function</span>
+            <span class="n">fit_vec</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">fitness</span><span class="p">(</span><span class="o">**</span><span class="n">kwds</span><span class="p">)</span>
+
+            <span class="n">A_R</span> <span class="o">=</span> <span class="n">fit_vec</span> <span class="o">-</span> <span class="n">ncp_prior</span>
+            <span class="n">A_R</span><span class="p">[</span><span class="mi">1</span><span class="p">:]</span> <span class="o">+=</span> <span class="n">best</span><span class="p">[:</span><span class="n">R</span><span class="p">]</span>
+
+            <span class="n">i_max</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">argmax</span><span class="p">(</span><span class="n">A_R</span><span class="p">)</span>
+            <span class="n">last</span><span class="p">[</span><span class="n">R</span><span class="p">]</span> <span class="o">=</span> <span class="n">i_max</span>
+            <span class="n">best</span><span class="p">[</span><span class="n">R</span><span class="p">]</span> <span class="o">=</span> <span class="n">A_R</span><span class="p">[</span><span class="n">i_max</span><span class="p">]</span>
+
+        <span class="c1"># ----------------------------------------------------------------</span>
+        <span class="c1"># Now find changepoints by iteratively peeling off the last block</span>
+        <span class="c1"># ----------------------------------------------------------------</span>
+        <span class="n">change_points</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">zeros</span><span class="p">(</span><span class="n">N</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="nb">int</span><span class="p">)</span>
+        <span class="n">i_cp</span> <span class="o">=</span> <span class="n">N</span>
+        <span class="n">ind</span> <span class="o">=</span> <span class="n">N</span>
+        <span class="k">while</span> <span class="kc">True</span><span class="p">:</span>
+            <span class="n">i_cp</span> <span class="o">-=</span> <span class="mi">1</span>
+            <span class="n">change_points</span><span class="p">[</span><span class="n">i_cp</span><span class="p">]</span> <span class="o">=</span> <span class="n">ind</span>
+            <span class="k">if</span> <span class="n">ind</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
+                <span class="k">break</span>
+            <span class="n">ind</span> <span class="o">=</span> <span class="n">last</span><span class="p">[</span><span class="n">ind</span> <span class="o">-</span> <span class="mi">1</span><span class="p">]</span>
+        <span class="n">change_points</span> <span class="o">=</span> <span class="n">change_points</span><span class="p">[</span><span class="n">i_cp</span><span class="p">:]</span>
+
+        <span class="k">return</span> <span class="n">edges</span><span class="p">[</span><span class="n">change_points</span><span class="p">]</span></div></div>
+
+
+<div class="viewcode-block" id="Events"><a class="viewcode-back" href="../../../api/astropy.stats.Events.html#astropy.stats.Events">[docs]</a><span class="k">class</span> <span class="nc">Events</span><span class="p">(</span><span class="n">FitnessFunc</span><span class="p">):</span>
+    <span class="sd">r&quot;&quot;&quot;Bayesian blocks fitness for binned or unbinned events</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    p0 : float (optional)</span>
+<span class="sd">        False alarm probability, used to compute the prior on</span>
+<span class="sd">        :math:`N_{\rm blocks}` (see eq. 21 of Scargle 2012). For the Events</span>
+<span class="sd">        type data, ``p0`` does not seem to be an accurate representation of the</span>
+<span class="sd">        actual false alarm probability. If you are using this fitness function</span>
+<span class="sd">        for a triggering type condition, it is recommended that you run</span>
+<span class="sd">        statistical trials on signal-free noise to determine an appropriate</span>
+<span class="sd">        value of ``gamma`` or ``ncp_prior`` to use for a desired false alarm</span>
+<span class="sd">        rate.</span>
+<span class="sd">    gamma : float (optional)</span>
+<span class="sd">        If specified, then use this gamma to compute the general prior form,</span>
+<span class="sd">        :math:`p \sim {\tt gamma}^{N_{\rm blocks}}`.  If gamma is specified, p0</span>
+<span class="sd">        is ignored.</span>
+<span class="sd">    ncp_prior : float (optional)</span>
+<span class="sd">        If specified, use the value of ``ncp_prior`` to compute the prior as</span>
+<span class="sd">        above, using the definition :math:`{\tt ncp\_prior} = -\ln({\tt</span>
+<span class="sd">        gamma})`.</span>
+<span class="sd">        If ``ncp_prior`` is specified, ``gamma`` and ``p0`` is ignored.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">p0</span><span class="o">=</span><span class="mf">0.05</span><span class="p">,</span> <span class="n">gamma</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">ncp_prior</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+        <span class="k">if</span> <span class="n">p0</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="ow">and</span> <span class="n">gamma</span> <span class="ow">is</span> <span class="kc">None</span> <span class="ow">and</span> <span class="n">ncp_prior</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">warnings</span><span class="o">.</span><span class="n">warn</span><span class="p">(</span><span class="s1">&#39;p0 does not seem to accurately represent the false &#39;</span>
+                          <span class="s1">&#39;positive rate for event data. It is highly &#39;</span>
+                          <span class="s1">&#39;recommended that you run random trials on signal-&#39;</span>
+                          <span class="s1">&#39;free noise to calibrate ncp_prior to achieve a &#39;</span>
+                          <span class="s1">&#39;desired false positive rate.&#39;</span><span class="p">,</span> <span class="n">AstropyUserWarning</span><span class="p">)</span>
+        <span class="nb">super</span><span class="p">(</span><span class="n">Events</span><span class="p">,</span> <span class="bp">self</span><span class="p">)</span><span class="o">.</span><span class="n">__init__</span><span class="p">(</span><span class="n">p0</span><span class="p">,</span> <span class="n">gamma</span><span class="p">,</span> <span class="n">ncp_prior</span><span class="p">)</span>
+
+<div class="viewcode-block" id="Events.fitness"><a class="viewcode-back" href="../../../api/astropy.stats.Events.html#astropy.stats.Events.fitness">[docs]</a>    <span class="k">def</span> <span class="nf">fitness</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">N_k</span><span class="p">,</span> <span class="n">T_k</span><span class="p">):</span>
+        <span class="c1"># eq. 19 from Scargle 2012</span>
+        <span class="k">return</span> <span class="n">N_k</span> <span class="o">*</span> <span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">log</span><span class="p">(</span><span class="n">N_k</span><span class="p">)</span> <span class="o">-</span> <span class="n">np</span><span class="o">.</span><span class="n">log</span><span class="p">(</span><span class="n">T_k</span><span class="p">))</span></div>
+
+<div class="viewcode-block" id="Events.validate_input"><a class="viewcode-back" href="../../../api/astropy.stats.Events.html#astropy.stats.Events.validate_input">[docs]</a>    <span class="k">def</span> <span class="nf">validate_input</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">t</span><span class="p">,</span> <span class="n">x</span><span class="p">,</span> <span class="n">sigma</span><span class="p">):</span>
+        <span class="n">t</span><span class="p">,</span> <span class="n">x</span><span class="p">,</span> <span class="n">sigma</span> <span class="o">=</span> <span class="nb">super</span><span class="p">(</span><span class="n">Events</span><span class="p">,</span> <span class="bp">self</span><span class="p">)</span><span class="o">.</span><span class="n">validate_input</span><span class="p">(</span><span class="n">t</span><span class="p">,</span> <span class="n">x</span><span class="p">,</span> <span class="n">sigma</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">x</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="ow">and</span> <span class="n">np</span><span class="o">.</span><span class="n">any</span><span class="p">(</span><span class="n">x</span> <span class="o">%</span> <span class="mi">1</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">):</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;x must be integer counts for fitness=&#39;events&#39;&quot;</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">t</span><span class="p">,</span> <span class="n">x</span><span class="p">,</span> <span class="n">sigma</span></div></div>
+
+
+<div class="viewcode-block" id="RegularEvents"><a class="viewcode-back" href="../../../api/astropy.stats.RegularEvents.html#astropy.stats.RegularEvents">[docs]</a><span class="k">class</span> <span class="nc">RegularEvents</span><span class="p">(</span><span class="n">FitnessFunc</span><span class="p">):</span>
+    <span class="sd">r&quot;&quot;&quot;Bayesian blocks fitness for regular events</span>
+
+<span class="sd">    This is for data which has a fundamental &quot;tick&quot; length, so that all</span>
+<span class="sd">    measured values are multiples of this tick length.  In each tick, there</span>
+<span class="sd">    are either zero or one counts.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    dt : float</span>
+<span class="sd">        tick rate for data</span>
+<span class="sd">    p0 : float (optional)</span>
+<span class="sd">        False alarm probability, used to compute the prior on :math:`N_{\rm</span>
+<span class="sd">        blocks}` (see eq. 21 of Scargle 2012). If gamma is specified, p0 is</span>
+<span class="sd">        ignored.</span>
+<span class="sd">    ncp_prior : float (optional)</span>
+<span class="sd">        If specified, use the value of ``ncp_prior`` to compute the prior as</span>
+<span class="sd">        above, using the definition :math:`{\tt ncp\_prior} = -\ln({\tt</span>
+<span class="sd">        gamma})`.  If ``ncp_prior`` is specified, ``gamma`` and ``p0`` are</span>
+<span class="sd">        ignored.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">dt</span><span class="p">,</span> <span class="n">p0</span><span class="o">=</span><span class="mf">0.05</span><span class="p">,</span> <span class="n">gamma</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">ncp_prior</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">dt</span> <span class="o">=</span> <span class="n">dt</span>
+        <span class="nb">super</span><span class="p">(</span><span class="n">RegularEvents</span><span class="p">,</span> <span class="bp">self</span><span class="p">)</span><span class="o">.</span><span class="n">__init__</span><span class="p">(</span><span class="n">p0</span><span class="p">,</span> <span class="n">gamma</span><span class="p">,</span> <span class="n">ncp_prior</span><span class="p">)</span>
+
+<div class="viewcode-block" id="RegularEvents.validate_input"><a class="viewcode-back" href="../../../api/astropy.stats.RegularEvents.html#astropy.stats.RegularEvents.validate_input">[docs]</a>    <span class="k">def</span> <span class="nf">validate_input</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">t</span><span class="p">,</span> <span class="n">x</span><span class="p">,</span> <span class="n">sigma</span><span class="p">):</span>
+        <span class="n">t</span><span class="p">,</span> <span class="n">x</span><span class="p">,</span> <span class="n">sigma</span> <span class="o">=</span> <span class="nb">super</span><span class="p">(</span><span class="n">RegularEvents</span><span class="p">,</span> <span class="bp">self</span><span class="p">)</span><span class="o">.</span><span class="n">validate_input</span><span class="p">(</span><span class="n">t</span><span class="p">,</span> <span class="n">x</span><span class="p">,</span> <span class="n">sigma</span><span class="p">)</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">np</span><span class="o">.</span><span class="n">all</span><span class="p">((</span><span class="n">x</span> <span class="o">==</span> <span class="mi">0</span><span class="p">)</span> <span class="o">|</span> <span class="p">(</span><span class="n">x</span> <span class="o">==</span> <span class="mi">1</span><span class="p">)):</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;Regular events must have only 0 and 1 in x&quot;</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">t</span><span class="p">,</span> <span class="n">x</span><span class="p">,</span> <span class="n">sigma</span></div>
+
+<div class="viewcode-block" id="RegularEvents.fitness"><a class="viewcode-back" href="../../../api/astropy.stats.RegularEvents.html#astropy.stats.RegularEvents.fitness">[docs]</a>    <span class="k">def</span> <span class="nf">fitness</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">T_k</span><span class="p">,</span> <span class="n">N_k</span><span class="p">):</span>
+        <span class="c1"># Eq. 75 of Scargle 2012</span>
+        <span class="n">M_k</span> <span class="o">=</span> <span class="n">T_k</span> <span class="o">/</span> <span class="bp">self</span><span class="o">.</span><span class="n">dt</span>
+        <span class="n">N_over_M</span> <span class="o">=</span> <span class="n">N_k</span> <span class="o">/</span> <span class="n">M_k</span>
+
+        <span class="n">eps</span> <span class="o">=</span> <span class="mi">1</span><span class="n">E</span><span class="o">-</span><span class="mi">8</span>
+        <span class="k">if</span> <span class="n">np</span><span class="o">.</span><span class="n">any</span><span class="p">(</span><span class="n">N_over_M</span> <span class="o">&gt;</span> <span class="mi">1</span> <span class="o">+</span> <span class="n">eps</span><span class="p">):</span>
+            <span class="n">warnings</span><span class="o">.</span><span class="n">warn</span><span class="p">(</span><span class="s1">&#39;regular events: N/M &gt; 1.  &#39;</span>
+                          <span class="s1">&#39;Is the time step correct?&#39;</span><span class="p">,</span> <span class="n">AstropyUserWarning</span><span class="p">)</span>
+
+        <span class="n">one_m_NM</span> <span class="o">=</span> <span class="mi">1</span> <span class="o">-</span> <span class="n">N_over_M</span>
+        <span class="n">N_over_M</span><span class="p">[</span><span class="n">N_over_M</span> <span class="o">&lt;=</span> <span class="mi">0</span><span class="p">]</span> <span class="o">=</span> <span class="mi">1</span>
+        <span class="n">one_m_NM</span><span class="p">[</span><span class="n">one_m_NM</span> <span class="o">&lt;=</span> <span class="mi">0</span><span class="p">]</span> <span class="o">=</span> <span class="mi">1</span>
+
+        <span class="k">return</span> <span class="n">N_k</span> <span class="o">*</span> <span class="n">np</span><span class="o">.</span><span class="n">log</span><span class="p">(</span><span class="n">N_over_M</span><span class="p">)</span> <span class="o">+</span> <span class="p">(</span><span class="n">M_k</span> <span class="o">-</span> <span class="n">N_k</span><span class="p">)</span> <span class="o">*</span> <span class="n">np</span><span class="o">.</span><span class="n">log</span><span class="p">(</span><span class="n">one_m_NM</span><span class="p">)</span></div></div>
+
+
+<div class="viewcode-block" id="PointMeasures"><a class="viewcode-back" href="../../../api/astropy.stats.PointMeasures.html#astropy.stats.PointMeasures">[docs]</a><span class="k">class</span> <span class="nc">PointMeasures</span><span class="p">(</span><span class="n">FitnessFunc</span><span class="p">):</span>
+    <span class="sd">r&quot;&quot;&quot;Bayesian blocks fitness for point measures</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    p0 : float (optional)</span>
+<span class="sd">        False alarm probability, used to compute the prior on :math:`N_{\rm</span>
+<span class="sd">        blocks}` (see eq. 21 of Scargle 2012). If gamma is specified, p0 is</span>
+<span class="sd">        ignored.</span>
+<span class="sd">    ncp_prior : float (optional)</span>
+<span class="sd">        If specified, use the value of ``ncp_prior`` to compute the prior as</span>
+<span class="sd">        above, using the definition :math:`{\tt ncp\_prior} = -\ln({\tt</span>
+<span class="sd">        gamma})`.  If ``ncp_prior`` is specified, ``gamma`` and ``p0`` are</span>
+<span class="sd">        ignored.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">p0</span><span class="o">=</span><span class="mf">0.05</span><span class="p">,</span> <span class="n">gamma</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">ncp_prior</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+        <span class="nb">super</span><span class="p">(</span><span class="n">PointMeasures</span><span class="p">,</span> <span class="bp">self</span><span class="p">)</span><span class="o">.</span><span class="n">__init__</span><span class="p">(</span><span class="n">p0</span><span class="p">,</span> <span class="n">gamma</span><span class="p">,</span> <span class="n">ncp_prior</span><span class="p">)</span>
+
+<div class="viewcode-block" id="PointMeasures.fitness"><a class="viewcode-back" href="../../../api/astropy.stats.PointMeasures.html#astropy.stats.PointMeasures.fitness">[docs]</a>    <span class="k">def</span> <span class="nf">fitness</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">a_k</span><span class="p">,</span> <span class="n">b_k</span><span class="p">):</span>
+        <span class="c1"># eq. 41 from Scargle 2012</span>
+        <span class="k">return</span> <span class="p">(</span><span class="n">b_k</span> <span class="o">*</span> <span class="n">b_k</span><span class="p">)</span> <span class="o">/</span> <span class="p">(</span><span class="mi">4</span> <span class="o">*</span> <span class="n">a_k</span><span class="p">)</span></div>
+
+<div class="viewcode-block" id="PointMeasures.validate_input"><a class="viewcode-back" href="../../../api/astropy.stats.PointMeasures.html#astropy.stats.PointMeasures.validate_input">[docs]</a>    <span class="k">def</span> <span class="nf">validate_input</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">t</span><span class="p">,</span> <span class="n">x</span><span class="p">,</span> <span class="n">sigma</span><span class="p">):</span>
+        <span class="k">if</span> <span class="n">x</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;x must be specified for point measures&quot;</span><span class="p">)</span>
+        <span class="k">return</span> <span class="nb">super</span><span class="p">(</span><span class="n">PointMeasures</span><span class="p">,</span> <span class="bp">self</span><span class="p">)</span><span class="o">.</span><span class="n">validate_input</span><span class="p">(</span><span class="n">t</span><span class="p">,</span> <span class="n">x</span><span class="p">,</span> <span class="n">sigma</span><span class="p">)</span></div></div>
+</pre></div>
+
+          </div>
+        </div>
+      </div>
+      <div class="sphinxsidebar" role="navigation" aria-label="main navigation">
+        <div class="sphinxsidebarwrapper"><h3>Page Contents</h3>
+
+
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+<footer class="footer">
+  <p class="pull-right"> &nbsp;
+    <a href="#">Back to Top</a></p>
+  <p>
+    &copy; Copyright 2011-2016, The Astropy Developers.<br/>
+    Created using <a href="http://sphinx.pocoo.org/">Sphinx</a> 1.5.6. &nbsp;
+    Last built 05 Jul 2017. <br/>
+  </p>
+</footer>
+  </body>
+</html>

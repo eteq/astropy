@@ -1,0 +1,1368 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <head>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    
+    <title>astropy.io.fits.card &#8212; Astropy v3.0.dev19489</title>
+    
+    <link rel="stylesheet" href="../../../../_static/bootstrap-astropy.css" type="text/css" />
+    <link rel="stylesheet" href="../../../../_static/pygments.css" type="text/css" />
+    <link rel="stylesheet" href="../../../../_static/gallery.css" type="text/css" />
+    
+    <script type="text/javascript">
+      var DOCUMENTATION_OPTIONS = {
+        URL_ROOT:    '../../../../',
+        VERSION:     '3.0.dev19489',
+        COLLAPSE_INDEX: false,
+        FILE_SUFFIX: '.html',
+        HAS_SOURCE:  true,
+        SOURCELINK_SUFFIX: '.txt'
+      };
+    </script>
+    <script type="text/javascript" src="../../../../_static/jquery.js"></script>
+    <script type="text/javascript" src="../../../../_static/underscore.js"></script>
+    <script type="text/javascript" src="../../../../_static/doctools.js"></script>
+    <script type="text/javascript" src="../../../../_static/sidebar.js"></script>
+    <link rel="shortcut icon" href="../../../../_static/astropy_logo.ico"/>
+    <link rel="index" title="Index" href="../../../../genindex.html" />
+    <link rel="search" title="Search" href="../../../../search.html" />
+<link href='https://fonts.googleapis.com/css?family=Source+Sans+Pro:200,600' rel='stylesheet' type='text/css'/>
+<script type="text/javascript" src="../../../../_static/copybutton.js"></script>
+
+
+  </head>
+  <body role="document">
+<div class="topbar">
+  <a class="brand" title="Documentation Home" href="../../../../index.html"><span id="logotext1">astro</span><span id="logotext2">py</span><span id="logotext3">:docs</span></a>
+  <ul>
+    <li><a class="homelink" title="Astropy Homepage" href="http://www.astropy.org"></a></li>
+    <li><a title="General Index" href="../../../../genindex.html">Index</a></li>
+    <li><a title="Module Index" href="../../../../py-modindex.html">Modules</a></li>
+    <li>
+      
+      
+<form action="../../../../search.html" method="get">
+  <input type="text" name="q" placeholder="Search" />
+  <input type="hidden" name="check_keywords" value="yes" />
+  <input type="hidden" name="area" value="default" />
+</form>
+      
+    </li>
+  </ul>
+</div>
+
+<div class="related">
+    <h3>Navigation</h3>
+    <ul>
+      <li>
+	<a href="../../../../index.html">Astropy v3.0.dev19489</a>
+	 &#187;
+      </li>
+      <li><a href="../../../index.html" >Module code</a> &#187;</li>
+      <li><a href="../../../astropy.html" accesskey="U">astropy</a> &#187;</li>
+      
+       
+    </ul>
+</div>
+  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          <div class="body" role="main">
+            
+  <h1>Source code for astropy.io.fits.card</h1><div class="highlight"><pre>
+<span></span><span class="c1"># Licensed under a 3-clause BSD style license - see PYFITS.rst</span>
+
+<span class="kn">import</span> <span class="nn">re</span>
+<span class="kn">import</span> <span class="nn">warnings</span>
+
+<span class="kn">import</span> <span class="nn">numpy</span> <span class="k">as</span> <span class="nn">np</span>
+
+<span class="kn">from</span> <span class="nn">.util</span> <span class="k">import</span> <span class="n">_str_to_num</span><span class="p">,</span> <span class="n">_is_int</span><span class="p">,</span> <span class="n">maketrans</span><span class="p">,</span> <span class="n">translate</span><span class="p">,</span> <span class="n">_words_group</span>
+<span class="kn">from</span> <span class="nn">.verify</span> <span class="k">import</span> <span class="n">_Verify</span><span class="p">,</span> <span class="n">_ErrList</span><span class="p">,</span> <span class="n">VerifyError</span><span class="p">,</span> <span class="n">VerifyWarning</span>
+
+<span class="kn">from</span> <span class="nn">.</span> <span class="k">import</span> <span class="n">conf</span>
+<span class="kn">from</span> <span class="nn">...extern.six</span> <span class="k">import</span> <span class="n">string_types</span><span class="p">,</span> <span class="n">integer_types</span><span class="p">,</span> <span class="n">text_type</span><span class="p">,</span> <span class="n">binary_type</span>
+<span class="kn">from</span> <span class="nn">...utils.exceptions</span> <span class="k">import</span> <span class="n">AstropyUserWarning</span>
+
+
+<span class="n">__all__</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;Card&#39;</span><span class="p">,</span> <span class="s1">&#39;Undefined&#39;</span><span class="p">]</span>
+
+
+<span class="n">FIX_FP_TABLE</span> <span class="o">=</span> <span class="n">maketrans</span><span class="p">(</span><span class="s1">&#39;de&#39;</span><span class="p">,</span> <span class="s1">&#39;DE&#39;</span><span class="p">)</span>
+<span class="n">FIX_FP_TABLE2</span> <span class="o">=</span> <span class="n">maketrans</span><span class="p">(</span><span class="s1">&#39;dD&#39;</span><span class="p">,</span> <span class="s1">&#39;eE&#39;</span><span class="p">)</span>
+
+
+<span class="n">CARD_LENGTH</span> <span class="o">=</span> <span class="mi">80</span>
+<span class="n">BLANK_CARD</span> <span class="o">=</span> <span class="s1">&#39; &#39;</span> <span class="o">*</span> <span class="n">CARD_LENGTH</span>
+<span class="n">KEYWORD_LENGTH</span> <span class="o">=</span> <span class="mi">8</span>  <span class="c1"># The max length for FITS-standard keywords</span>
+
+<span class="n">VALUE_INDICATOR</span> <span class="o">=</span> <span class="s1">&#39;= &#39;</span>  <span class="c1"># The standard FITS value indicator</span>
+<span class="n">HIERARCH_VALUE_INDICATOR</span> <span class="o">=</span> <span class="s1">&#39;=&#39;</span>  <span class="c1"># HIERARCH cards may use a shortened indicator</span>
+
+
+<span class="k">class</span> <span class="nc">Undefined</span><span class="p">(</span><span class="nb">object</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;Undefined value.&quot;&quot;&quot;</span>
+
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="c1"># This __init__ is required to be here for Sphinx documentation</span>
+        <span class="k">pass</span>
+
+
+<span class="n">UNDEFINED</span> <span class="o">=</span> <span class="n">Undefined</span><span class="p">()</span>
+
+
+<div class="viewcode-block" id="Card"><a class="viewcode-back" href="../../../../io/fits/api/cards.html#astropy.io.fits.Card">[docs]</a><span class="k">class</span> <span class="nc">Card</span><span class="p">(</span><span class="n">_Verify</span><span class="p">):</span>
+
+    <span class="n">length</span> <span class="o">=</span> <span class="n">CARD_LENGTH</span>
+    <span class="sd">&quot;&quot;&quot;The length of a Card image; should always be 80 for valid FITS files.&quot;&quot;&quot;</span>
+
+    <span class="c1"># String for a FITS standard compliant (FSC) keyword.</span>
+    <span class="n">_keywd_FSC_RE</span> <span class="o">=</span> <span class="n">re</span><span class="o">.</span><span class="n">compile</span><span class="p">(</span><span class="s1">r&#39;^[A-Z0-9_-]{0,</span><span class="si">%d</span><span class="s1">}$&#39;</span> <span class="o">%</span> <span class="n">KEYWORD_LENGTH</span><span class="p">)</span>
+    <span class="c1"># This will match any printable ASCII character excluding &#39;=&#39;</span>
+    <span class="n">_keywd_hierarch_RE</span> <span class="o">=</span> <span class="n">re</span><span class="o">.</span><span class="n">compile</span><span class="p">(</span><span class="s1">r&#39;^(?:HIERARCH +)?(?:^[ -&lt;&gt;-~]+ ?)+$&#39;</span><span class="p">,</span>
+                                    <span class="n">re</span><span class="o">.</span><span class="n">I</span><span class="p">)</span>
+
+    <span class="c1"># A number sub-string, either an integer or a float in fixed or</span>
+    <span class="c1"># scientific notation.  One for FSC and one for non-FSC (NFSC) format:</span>
+    <span class="c1"># NFSC allows lower case of DE for exponent, allows space between sign,</span>
+    <span class="c1"># digits, exponent sign, and exponents</span>
+    <span class="n">_digits_FSC</span> <span class="o">=</span> <span class="s1">r&#39;(\.\d+|\d+(\.\d*)?)([DE][+-]?\d+)?&#39;</span>
+    <span class="n">_digits_NFSC</span> <span class="o">=</span> <span class="s1">r&#39;(\.\d+|\d+(\.\d*)?) *([deDE] *[+-]? *\d+)?&#39;</span>
+    <span class="n">_numr_FSC</span> <span class="o">=</span> <span class="s1">r&#39;[+-]?&#39;</span> <span class="o">+</span> <span class="n">_digits_FSC</span>
+    <span class="n">_numr_NFSC</span> <span class="o">=</span> <span class="s1">r&#39;[+-]? *&#39;</span> <span class="o">+</span> <span class="n">_digits_NFSC</span>
+
+    <span class="c1"># This regex helps delete leading zeros from numbers, otherwise</span>
+    <span class="c1"># Python might evaluate them as octal values (this is not-greedy, however,</span>
+    <span class="c1"># so it may not strip leading zeros from a float, which is fine)</span>
+    <span class="n">_number_FSC_RE</span> <span class="o">=</span> <span class="n">re</span><span class="o">.</span><span class="n">compile</span><span class="p">(</span><span class="s1">r&#39;(?P&lt;sign&gt;[+-])?0*?(?P&lt;digt&gt;</span><span class="si">{}</span><span class="s1">)&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span>
+            <span class="n">_digits_FSC</span><span class="p">))</span>
+    <span class="n">_number_NFSC_RE</span> <span class="o">=</span> <span class="n">re</span><span class="o">.</span><span class="n">compile</span><span class="p">(</span><span class="s1">r&#39;(?P&lt;sign&gt;[+-])? *0*?(?P&lt;digt&gt;</span><span class="si">{}</span><span class="s1">)&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span>
+            <span class="n">_digits_NFSC</span><span class="p">))</span>
+
+    <span class="c1"># FSC commentary card string which must contain printable ASCII characters.</span>
+    <span class="c1"># Note: \Z matches the end of the string without allowing newlines</span>
+    <span class="n">_ascii_text_re</span> <span class="o">=</span> <span class="n">re</span><span class="o">.</span><span class="n">compile</span><span class="p">(</span><span class="s1">r&#39;[ -~]*\Z&#39;</span><span class="p">)</span>
+
+    <span class="c1"># Checks for a valid value/comment string.  It returns a match object</span>
+    <span class="c1"># for a valid value/comment string.</span>
+    <span class="c1"># The valu group will return a match if a FITS string, boolean,</span>
+    <span class="c1"># number, or complex value is found, otherwise it will return</span>
+    <span class="c1"># None, meaning the keyword is undefined.  The comment field will</span>
+    <span class="c1"># return a match if the comment separator is found, though the</span>
+    <span class="c1"># comment maybe an empty string.</span>
+    <span class="n">_value_FSC_RE</span> <span class="o">=</span> <span class="n">re</span><span class="o">.</span><span class="n">compile</span><span class="p">(</span>
+        <span class="s1">r&#39;(?P&lt;valu_field&gt; *&#39;</span>
+            <span class="s1">r&#39;(?P&lt;valu&gt;&#39;</span>
+
+                <span class="c1">#  The &lt;strg&gt; regex is not correct for all cases, but</span>
+                <span class="c1">#  it comes pretty darn close.  It appears to find the</span>
+                <span class="c1">#  end of a string rather well, but will accept</span>
+                <span class="c1">#  strings with an odd number of single quotes,</span>
+                <span class="c1">#  instead of issuing an error.  The FITS standard</span>
+                <span class="c1">#  appears vague on this issue and only states that a</span>
+                <span class="c1">#  string should not end with two single quotes,</span>
+                <span class="c1">#  whereas it should not end with an even number of</span>
+                <span class="c1">#  quotes to be precise.</span>
+                <span class="c1">#</span>
+                <span class="c1">#  Note that a non-greedy match is done for a string,</span>
+                <span class="c1">#  since a greedy match will find a single-quote after</span>
+                <span class="c1">#  the comment separator resulting in an incorrect</span>
+                <span class="c1">#  match.</span>
+                <span class="s1">r&#39;</span><span class="se">\&#39;</span><span class="s1">(?P&lt;strg&gt;([ -~]+?|</span><span class="se">\&#39;\&#39;</span><span class="s1">|)) *?</span><span class="se">\&#39;</span><span class="s1">(?=$|/| )|&#39;</span>
+                <span class="s1">r&#39;(?P&lt;bool&gt;[FT])|&#39;</span>
+                <span class="s1">r&#39;(?P&lt;numr&gt;&#39;</span> <span class="o">+</span> <span class="n">_numr_FSC</span> <span class="o">+</span> <span class="s1">r&#39;)|&#39;</span>
+                <span class="s1">r&#39;(?P&lt;cplx&gt;\( *&#39;</span>
+                    <span class="s1">r&#39;(?P&lt;real&gt;&#39;</span> <span class="o">+</span> <span class="n">_numr_FSC</span> <span class="o">+</span> <span class="s1">r&#39;) *, *&#39;</span>
+                    <span class="s1">r&#39;(?P&lt;imag&gt;&#39;</span> <span class="o">+</span> <span class="n">_numr_FSC</span> <span class="o">+</span> <span class="s1">r&#39;) *\))&#39;</span>
+            <span class="s1">r&#39;)? *)&#39;</span>
+        <span class="s1">r&#39;(?P&lt;comm_field&gt;&#39;</span>
+            <span class="s1">r&#39;(?P&lt;sepr&gt;/ *)&#39;</span>
+            <span class="s1">r&#39;(?P&lt;comm&gt;[!-~][ -~]*)?&#39;</span>
+        <span class="s1">r&#39;)?$&#39;</span><span class="p">)</span>
+
+    <span class="n">_value_NFSC_RE</span> <span class="o">=</span> <span class="n">re</span><span class="o">.</span><span class="n">compile</span><span class="p">(</span>
+        <span class="s1">r&#39;(?P&lt;valu_field&gt; *&#39;</span>
+            <span class="s1">r&#39;(?P&lt;valu&gt;&#39;</span>
+                <span class="s1">r&#39;</span><span class="se">\&#39;</span><span class="s1">(?P&lt;strg&gt;([ -~]+?|</span><span class="se">\&#39;\&#39;</span><span class="s1">|) *?)</span><span class="se">\&#39;</span><span class="s1">(?=$|/| )|&#39;</span>
+                <span class="s1">r&#39;(?P&lt;bool&gt;[FT])|&#39;</span>
+                <span class="s1">r&#39;(?P&lt;numr&gt;&#39;</span> <span class="o">+</span> <span class="n">_numr_NFSC</span> <span class="o">+</span> <span class="s1">r&#39;)|&#39;</span>
+                <span class="s1">r&#39;(?P&lt;cplx&gt;\( *&#39;</span>
+                    <span class="s1">r&#39;(?P&lt;real&gt;&#39;</span> <span class="o">+</span> <span class="n">_numr_NFSC</span> <span class="o">+</span> <span class="s1">r&#39;) *, *&#39;</span>
+                    <span class="s1">r&#39;(?P&lt;imag&gt;&#39;</span> <span class="o">+</span> <span class="n">_numr_NFSC</span> <span class="o">+</span> <span class="s1">r&#39;) *\))&#39;</span>
+            <span class="s1">r&#39;)? *)&#39;</span>
+        <span class="s1">r&#39;(?P&lt;comm_field&gt;&#39;</span>
+            <span class="s1">r&#39;(?P&lt;sepr&gt;/ *)&#39;</span>
+            <span class="s1">r&#39;(?P&lt;comm&gt;(.|\n)*)&#39;</span>
+        <span class="s1">r&#39;)?$&#39;</span><span class="p">)</span>
+
+    <span class="n">_rvkc_identifier</span> <span class="o">=</span> <span class="s1">r&#39;[a-zA-Z_]\w*&#39;</span>
+    <span class="n">_rvkc_field</span> <span class="o">=</span> <span class="n">_rvkc_identifier</span> <span class="o">+</span> <span class="s1">r&#39;(\.\d+)?&#39;</span>
+    <span class="n">_rvkc_field_specifier_s</span> <span class="o">=</span> <span class="s1">r&#39;</span><span class="si">{}</span><span class="s1">(\.</span><span class="si">{}</span><span class="s1">)*&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">_rvkc_field</span><span class="p">,</span> <span class="n">_rvkc_field</span><span class="p">)</span>
+    <span class="n">_rvkc_field_specifier_val</span> <span class="o">=</span> <span class="p">(</span><span class="s1">r&#39;(?P&lt;keyword&gt;</span><span class="si">{}</span><span class="s1">): (?P&lt;val&gt;</span><span class="si">{}</span><span class="s1">)&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span>
+            <span class="n">_rvkc_field_specifier_s</span><span class="p">,</span> <span class="n">_numr_FSC</span><span class="p">))</span>
+    <span class="n">_rvkc_keyword_val</span> <span class="o">=</span> <span class="s1">r&#39;</span><span class="se">\&#39;</span><span class="s1">(?P&lt;rawval&gt;</span><span class="si">{}</span><span class="s1">)</span><span class="se">\&#39;</span><span class="s1">&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">_rvkc_field_specifier_val</span><span class="p">)</span>
+    <span class="n">_rvkc_keyword_val_comm</span> <span class="o">=</span> <span class="p">(</span><span class="s1">r&#39; *</span><span class="si">{}</span><span class="s1"> *(/ *(?P&lt;comm&gt;[ -~]*))?$&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span>
+            <span class="n">_rvkc_keyword_val</span><span class="p">))</span>
+
+    <span class="n">_rvkc_field_specifier_val_RE</span> <span class="o">=</span> <span class="n">re</span><span class="o">.</span><span class="n">compile</span><span class="p">(</span><span class="n">_rvkc_field_specifier_val</span> <span class="o">+</span> <span class="s1">&#39;$&#39;</span><span class="p">)</span>
+
+    <span class="c1"># regular expression to extract the key and the field specifier from a</span>
+    <span class="c1"># string that is being used to index into a card list that contains</span>
+    <span class="c1"># record value keyword cards (ex. &#39;DP1.AXIS.1&#39;)</span>
+    <span class="n">_rvkc_keyword_name_RE</span> <span class="o">=</span> <span class="p">(</span>
+        <span class="n">re</span><span class="o">.</span><span class="n">compile</span><span class="p">(</span><span class="s1">r&#39;(?P&lt;keyword&gt;</span><span class="si">{}</span><span class="s1">)\.(?P&lt;field_specifier&gt;</span><span class="si">{}</span><span class="s1">)$&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span>
+                <span class="n">_rvkc_identifier</span><span class="p">,</span> <span class="n">_rvkc_field_specifier_s</span><span class="p">)))</span>
+
+    <span class="c1"># regular expression to extract the field specifier and value and comment</span>
+    <span class="c1"># from the string value of a record value keyword card</span>
+    <span class="c1"># (ex &quot;&#39;AXIS.1: 1&#39; / a comment&quot;)</span>
+    <span class="n">_rvkc_keyword_val_comm_RE</span> <span class="o">=</span> <span class="n">re</span><span class="o">.</span><span class="n">compile</span><span class="p">(</span><span class="n">_rvkc_keyword_val_comm</span><span class="p">)</span>
+
+    <span class="n">_commentary_keywords</span> <span class="o">=</span> <span class="nb">set</span><span class="p">([</span><span class="s1">&#39;&#39;</span><span class="p">,</span> <span class="s1">&#39;COMMENT&#39;</span><span class="p">,</span> <span class="s1">&#39;HISTORY&#39;</span><span class="p">,</span> <span class="s1">&#39;END&#39;</span><span class="p">])</span>
+
+    <span class="c1"># The default value indicator; may be changed if required by a convention</span>
+    <span class="c1"># (namely HIERARCH cards)</span>
+    <span class="n">_value_indicator</span> <span class="o">=</span> <span class="n">VALUE_INDICATOR</span>
+
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">keyword</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">value</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">comment</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+        <span class="c1"># For backwards compatibility, support the &#39;key&#39; keyword argument:</span>
+        <span class="k">if</span> <span class="n">keyword</span> <span class="ow">is</span> <span class="kc">None</span> <span class="ow">and</span> <span class="s1">&#39;key&#39;</span> <span class="ow">in</span> <span class="n">kwargs</span><span class="p">:</span>
+            <span class="n">keyword</span> <span class="o">=</span> <span class="n">kwargs</span><span class="p">[</span><span class="s1">&#39;key&#39;</span><span class="p">]</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">_keyword</span> <span class="o">=</span> <span class="kc">None</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_value</span> <span class="o">=</span> <span class="kc">None</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_comment</span> <span class="o">=</span> <span class="kc">None</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">_image</span> <span class="o">=</span> <span class="kc">None</span>
+
+        <span class="c1"># This attribute is set to False when creating the card from a card</span>
+        <span class="c1"># image to ensure that the contents of the image get verified at some</span>
+        <span class="c1"># point</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_verified</span> <span class="o">=</span> <span class="kc">True</span>
+
+        <span class="c1"># A flag to conveniently mark whether or not this was a valid HIERARCH</span>
+        <span class="c1"># card</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_hierarch</span> <span class="o">=</span> <span class="kc">False</span>
+
+        <span class="c1"># If the card could not be parsed according the the FITS standard or</span>
+        <span class="c1"># any recognized non-standard conventions, this will be True</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_invalid</span> <span class="o">=</span> <span class="kc">False</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">_field_specifier</span> <span class="o">=</span> <span class="kc">None</span>
+
+        <span class="c1"># These are used primarily only by RVKCs</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_rawkeyword</span> <span class="o">=</span> <span class="kc">None</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_rawvalue</span> <span class="o">=</span> <span class="kc">None</span>
+
+        <span class="k">if</span> <span class="ow">not</span> <span class="p">(</span><span class="n">keyword</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="ow">and</span> <span class="n">value</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="ow">and</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">_check_if_rvkc</span><span class="p">(</span><span class="n">keyword</span><span class="p">,</span> <span class="n">value</span><span class="p">)):</span>
+            <span class="c1"># If _check_if_rvkc passes, it will handle setting the keyword and</span>
+            <span class="c1"># value</span>
+            <span class="k">if</span> <span class="n">keyword</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">keyword</span> <span class="o">=</span> <span class="n">keyword</span>
+            <span class="k">if</span> <span class="n">value</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">value</span> <span class="o">=</span> <span class="n">value</span>
+
+        <span class="k">if</span> <span class="n">comment</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">comment</span> <span class="o">=</span> <span class="n">comment</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">_modified</span> <span class="o">=</span> <span class="kc">False</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_valuestring</span> <span class="o">=</span> <span class="kc">None</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_valuemodified</span> <span class="o">=</span> <span class="kc">False</span>
+
+    <span class="k">def</span> <span class="nf">__repr__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="nb">repr</span><span class="p">((</span><span class="bp">self</span><span class="o">.</span><span class="n">keyword</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">value</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">comment</span><span class="p">))</span>
+
+    <span class="k">def</span> <span class="nf">__str__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">image</span>
+
+    <span class="k">def</span> <span class="nf">__len__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="mi">3</span>
+
+    <span class="k">def</span> <span class="nf">__getitem__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">index</span><span class="p">):</span>
+        <span class="k">return</span> <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">keyword</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">value</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">comment</span><span class="p">)[</span><span class="n">index</span><span class="p">]</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">keyword</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Returns the keyword name parsed from the card image.&quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_keyword</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_keyword</span>
+        <span class="k">elif</span> <span class="bp">self</span><span class="o">.</span><span class="n">_image</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_keyword</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_parse_keyword</span><span class="p">()</span>
+            <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_keyword</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">keyword</span> <span class="o">=</span> <span class="s1">&#39;&#39;</span>
+            <span class="k">return</span> <span class="s1">&#39;&#39;</span>
+
+    <span class="nd">@keyword</span><span class="o">.</span><span class="n">setter</span>
+    <span class="k">def</span> <span class="nf">keyword</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">keyword</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Set the key attribute; once set it cannot be modified.&quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_keyword</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">AttributeError</span><span class="p">(</span>
+                <span class="s1">&#39;Once set, the Card keyword may not be modified&#39;</span><span class="p">)</span>
+        <span class="k">elif</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">keyword</span><span class="p">,</span> <span class="n">string_types</span><span class="p">):</span>
+            <span class="c1"># Be nice and remove trailing whitespace--some FITS code always</span>
+            <span class="c1"># pads keywords out with spaces; leading whitespace, however,</span>
+            <span class="c1"># should be strictly disallowed.</span>
+            <span class="n">keyword</span> <span class="o">=</span> <span class="n">keyword</span><span class="o">.</span><span class="n">rstrip</span><span class="p">()</span>
+            <span class="n">keyword_upper</span> <span class="o">=</span> <span class="n">keyword</span><span class="o">.</span><span class="n">upper</span><span class="p">()</span>
+            <span class="k">if</span> <span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">keyword</span><span class="p">)</span> <span class="o">&lt;=</span> <span class="n">KEYWORD_LENGTH</span> <span class="ow">and</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">_keywd_FSC_RE</span><span class="o">.</span><span class="n">match</span><span class="p">(</span><span class="n">keyword_upper</span><span class="p">)):</span>
+                <span class="c1"># For keywords with length &gt; 8 they will be HIERARCH cards,</span>
+                <span class="c1"># and can have arbitrary case keywords</span>
+                <span class="k">if</span> <span class="n">keyword_upper</span> <span class="o">==</span> <span class="s1">&#39;END&#39;</span><span class="p">:</span>
+                    <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;Keyword &#39;END&#39; not allowed.&quot;</span><span class="p">)</span>
+                <span class="n">keyword</span> <span class="o">=</span> <span class="n">keyword_upper</span>
+            <span class="k">elif</span> <span class="bp">self</span><span class="o">.</span><span class="n">_keywd_hierarch_RE</span><span class="o">.</span><span class="n">match</span><span class="p">(</span><span class="n">keyword</span><span class="p">):</span>
+                <span class="c1"># In prior versions of PyFITS HIERARCH cards would only be</span>
+                <span class="c1"># created if the user-supplied keyword explicitly started with</span>
+                <span class="c1"># &#39;HIERARCH &#39;.  Now we will create them automatically for long</span>
+                <span class="c1"># keywords, but we still want to support the old behavior too;</span>
+                <span class="c1"># the old behavior makes it possible to create HEIRARCH cards</span>
+                <span class="c1"># that would otherwise be recognized as RVKCs</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">_hierarch</span> <span class="o">=</span> <span class="kc">True</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">_value_indicator</span> <span class="o">=</span> <span class="n">HIERARCH_VALUE_INDICATOR</span>
+
+                <span class="k">if</span> <span class="n">keyword_upper</span><span class="p">[:</span><span class="mi">9</span><span class="p">]</span> <span class="o">==</span> <span class="s1">&#39;HIERARCH &#39;</span><span class="p">:</span>
+                    <span class="c1"># The user explicitly asked for a HIERARCH card, so don&#39;t</span>
+                    <span class="c1"># bug them about it...</span>
+                    <span class="n">keyword</span> <span class="o">=</span> <span class="n">keyword</span><span class="p">[</span><span class="mi">9</span><span class="p">:]</span><span class="o">.</span><span class="n">strip</span><span class="p">()</span>
+                <span class="k">else</span><span class="p">:</span>
+                    <span class="c1"># We&#39;ll gladly create a HIERARCH card, but a warning is</span>
+                    <span class="c1"># also displayed</span>
+                    <span class="n">warnings</span><span class="o">.</span><span class="n">warn</span><span class="p">(</span>
+                        <span class="s1">&#39;Keyword name </span><span class="si">{!r}</span><span class="s1"> is greater than 8 characters or &#39;</span>
+                        <span class="s1">&#39;contains characters not allowed by the FITS &#39;</span>
+                        <span class="s1">&#39;standard; a HIERARCH card will be created.&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span>
+                            <span class="n">keyword</span><span class="p">),</span> <span class="n">VerifyWarning</span><span class="p">)</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s1">&#39;Illegal keyword name: </span><span class="si">{!r}</span><span class="s1">.&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">keyword</span><span class="p">))</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_keyword</span> <span class="o">=</span> <span class="n">keyword</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_modified</span> <span class="o">=</span> <span class="kc">True</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s1">&#39;Keyword name </span><span class="si">{!r}</span><span class="s1"> is not a string.&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">keyword</span><span class="p">))</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">value</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;The value associated with the keyword stored in this card.&quot;&quot;&quot;</span>
+
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">field_specifier</span><span class="p">:</span>
+            <span class="k">return</span> <span class="nb">float</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_value</span><span class="p">)</span>
+
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_value</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">value</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_value</span>
+        <span class="k">elif</span> <span class="bp">self</span><span class="o">.</span><span class="n">_valuestring</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="ow">or</span> <span class="bp">self</span><span class="o">.</span><span class="n">_image</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_value</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_parse_value</span><span class="p">()</span>
+            <span class="n">value</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_value</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_value</span> <span class="o">=</span> <span class="n">value</span> <span class="o">=</span> <span class="s1">&#39;&#39;</span>
+
+        <span class="k">if</span> <span class="n">conf</span><span class="o">.</span><span class="n">strip_header_whitespace</span> <span class="ow">and</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">value</span><span class="p">,</span> <span class="n">string_types</span><span class="p">):</span>
+            <span class="n">value</span> <span class="o">=</span> <span class="n">value</span><span class="o">.</span><span class="n">rstrip</span><span class="p">()</span>
+
+        <span class="k">return</span> <span class="n">value</span>
+
+    <span class="nd">@value</span><span class="o">.</span><span class="n">setter</span>
+    <span class="k">def</span> <span class="nf">value</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">value</span><span class="p">):</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_invalid</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
+                <span class="s1">&#39;The value of invalid/unparseable cards cannot set.  Either &#39;</span>
+                <span class="s1">&#39;delete this card from the header or replace it.&#39;</span><span class="p">)</span>
+
+        <span class="k">if</span> <span class="n">value</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">value</span> <span class="o">=</span> <span class="s1">&#39;&#39;</span>
+        <span class="n">oldvalue</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_value</span>
+        <span class="k">if</span> <span class="n">oldvalue</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">oldvalue</span> <span class="o">=</span> <span class="s1">&#39;&#39;</span>
+
+        <span class="k">if</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">value</span><span class="p">,</span> <span class="n">string_types</span> <span class="o">+</span> <span class="n">integer_types</span> <span class="o">+</span>
+                                 <span class="p">(</span><span class="nb">float</span><span class="p">,</span> <span class="nb">complex</span><span class="p">,</span> <span class="nb">bool</span><span class="p">,</span> <span class="n">Undefined</span><span class="p">,</span> <span class="n">np</span><span class="o">.</span><span class="n">floating</span><span class="p">,</span>
+                                  <span class="n">np</span><span class="o">.</span><span class="n">integer</span><span class="p">,</span> <span class="n">np</span><span class="o">.</span><span class="n">complexfloating</span><span class="p">,</span> <span class="n">np</span><span class="o">.</span><span class="n">bool_</span><span class="p">)):</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s1">&#39;Illegal value: </span><span class="si">{!r}</span><span class="s1">.&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">value</span><span class="p">))</span>
+
+        <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">value</span><span class="p">,</span> <span class="nb">float</span><span class="p">)</span> <span class="ow">and</span> <span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">isnan</span><span class="p">(</span><span class="n">value</span><span class="p">)</span> <span class="ow">or</span> <span class="n">np</span><span class="o">.</span><span class="n">isinf</span><span class="p">(</span><span class="n">value</span><span class="p">)):</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;Floating point </span><span class="si">{!r}</span><span class="s2"> values are not allowed &quot;</span>
+                             <span class="s2">&quot;in FITS headers.&quot;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">value</span><span class="p">))</span>
+
+        <span class="k">elif</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">value</span><span class="p">,</span> <span class="n">text_type</span><span class="p">):</span>
+            <span class="n">m</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_ascii_text_re</span><span class="o">.</span><span class="n">match</span><span class="p">(</span><span class="n">value</span><span class="p">)</span>
+            <span class="k">if</span> <span class="ow">not</span> <span class="n">m</span><span class="p">:</span>
+                <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
+                    <span class="s1">&#39;FITS header values must contain standard printable ASCII &#39;</span>
+                    <span class="s1">&#39;characters; </span><span class="si">{!r}</span><span class="s1"> contains characters not representable in &#39;</span>
+                    <span class="s1">&#39;ASCII or non-printable characters.&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">value</span><span class="p">))</span>
+        <span class="k">elif</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">value</span><span class="p">,</span> <span class="n">binary_type</span><span class="p">):</span>
+            <span class="c1"># Allow str, but only if they can be decoded to ASCII text; note</span>
+            <span class="c1"># this is not even allowed on Python 3 since the `bytes` type is</span>
+            <span class="c1"># not included in `six.string_types`.  Presently we simply don&#39;t</span>
+            <span class="c1"># allow bytes to be assigned to headers, as doing so would too</span>
+            <span class="c1"># easily mask potential user error</span>
+            <span class="n">valid</span> <span class="o">=</span> <span class="kc">True</span>
+            <span class="k">try</span><span class="p">:</span>
+                <span class="n">text_value</span> <span class="o">=</span> <span class="n">value</span><span class="o">.</span><span class="n">decode</span><span class="p">(</span><span class="s1">&#39;ascii&#39;</span><span class="p">)</span>
+            <span class="k">except</span> <span class="ne">UnicodeDecodeError</span><span class="p">:</span>
+                <span class="n">valid</span> <span class="o">=</span> <span class="kc">False</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="c1"># Check against the printable characters regexp as well</span>
+                <span class="n">m</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_ascii_text_re</span><span class="o">.</span><span class="n">match</span><span class="p">(</span><span class="n">text_value</span><span class="p">)</span>
+                <span class="n">valid</span> <span class="o">=</span> <span class="n">m</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span>
+
+            <span class="k">if</span> <span class="ow">not</span> <span class="n">valid</span><span class="p">:</span>
+                <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
+                    <span class="s1">&#39;FITS header values must contain standard printable ASCII &#39;</span>
+                    <span class="s1">&#39;characters; </span><span class="si">{!r}</span><span class="s1"> contains characters/bytes that do not &#39;</span>
+                    <span class="s1">&#39;represent printable characters in ASCII.&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">value</span><span class="p">))</span>
+        <span class="k">elif</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">value</span><span class="p">,</span> <span class="n">np</span><span class="o">.</span><span class="n">bool_</span><span class="p">):</span>
+            <span class="n">value</span> <span class="o">=</span> <span class="nb">bool</span><span class="p">(</span><span class="n">value</span><span class="p">)</span>
+
+        <span class="k">if</span> <span class="p">(</span><span class="n">conf</span><span class="o">.</span><span class="n">strip_header_whitespace</span> <span class="ow">and</span>
+            <span class="p">(</span><span class="nb">isinstance</span><span class="p">(</span><span class="n">oldvalue</span><span class="p">,</span> <span class="n">string_types</span><span class="p">)</span> <span class="ow">and</span>
+             <span class="nb">isinstance</span><span class="p">(</span><span class="n">value</span><span class="p">,</span> <span class="n">string_types</span><span class="p">))):</span>
+            <span class="c1"># Ignore extra whitespace when comparing the new value to the old</span>
+            <span class="n">different</span> <span class="o">=</span> <span class="n">oldvalue</span><span class="o">.</span><span class="n">rstrip</span><span class="p">()</span> <span class="o">!=</span> <span class="n">value</span><span class="o">.</span><span class="n">rstrip</span><span class="p">()</span>
+        <span class="k">elif</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">oldvalue</span><span class="p">,</span> <span class="nb">bool</span><span class="p">)</span> <span class="ow">or</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">value</span><span class="p">,</span> <span class="nb">bool</span><span class="p">):</span>
+            <span class="n">different</span> <span class="o">=</span> <span class="n">oldvalue</span> <span class="ow">is</span> <span class="ow">not</span> <span class="n">value</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">different</span> <span class="o">=</span> <span class="p">(</span><span class="n">oldvalue</span> <span class="o">!=</span> <span class="n">value</span> <span class="ow">or</span>
+                         <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">value</span><span class="p">,</span> <span class="nb">type</span><span class="p">(</span><span class="n">oldvalue</span><span class="p">)))</span>
+
+        <span class="k">if</span> <span class="n">different</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_value</span> <span class="o">=</span> <span class="n">value</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_rawvalue</span> <span class="o">=</span> <span class="kc">None</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_modified</span> <span class="o">=</span> <span class="kc">True</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_valuestring</span> <span class="o">=</span> <span class="kc">None</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_valuemodified</span> <span class="o">=</span> <span class="kc">True</span>
+            <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">field_specifier</span><span class="p">:</span>
+                <span class="k">try</span><span class="p">:</span>
+                    <span class="bp">self</span><span class="o">.</span><span class="n">_value</span> <span class="o">=</span> <span class="n">_int_or_float</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_value</span><span class="p">)</span>
+                <span class="k">except</span> <span class="ne">ValueError</span><span class="p">:</span>
+                    <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s1">&#39;value </span><span class="si">{}</span><span class="s1"> is not a float&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span>
+                            <span class="bp">self</span><span class="o">.</span><span class="n">_value</span><span class="p">))</span>
+
+    <span class="nd">@value</span><span class="o">.</span><span class="n">deleter</span>
+    <span class="k">def</span> <span class="nf">value</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_invalid</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
+                <span class="s1">&#39;The value of invalid/unparseable cards cannot deleted.  &#39;</span>
+                <span class="s1">&#39;Either delete this card from the header or replace it.&#39;</span><span class="p">)</span>
+
+        <span class="k">if</span> <span class="ow">not</span> <span class="bp">self</span><span class="o">.</span><span class="n">field_specifier</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">value</span> <span class="o">=</span> <span class="s1">&#39;&#39;</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">AttributeError</span><span class="p">(</span><span class="s1">&#39;Values cannot be deleted from record-valued &#39;</span>
+                                 <span class="s1">&#39;keyword cards&#39;</span><span class="p">)</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">rawkeyword</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;On record-valued keyword cards this is the name of the standard &lt;= 8</span>
+<span class="sd">        character FITS keyword that this RVKC is stored in.  Otherwise it is</span>
+<span class="sd">        the card&#39;s normal keyword.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_rawkeyword</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_rawkeyword</span>
+        <span class="k">elif</span> <span class="bp">self</span><span class="o">.</span><span class="n">field_specifier</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_rawkeyword</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">keyword</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="s1">&#39;.&#39;</span><span class="p">,</span> <span class="mi">1</span><span class="p">)[</span><span class="mi">0</span><span class="p">]</span>
+            <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_rawkeyword</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">keyword</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">rawvalue</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;On record-valued keyword cards this is the raw string value in</span>
+<span class="sd">        the ``&lt;field-specifier&gt;: &lt;value&gt;`` format stored in the card in order</span>
+<span class="sd">        to represent a RVKC.  Otherwise it is the card&#39;s normal value.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_rawvalue</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_rawvalue</span>
+        <span class="k">elif</span> <span class="bp">self</span><span class="o">.</span><span class="n">field_specifier</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_rawvalue</span> <span class="o">=</span> <span class="s1">&#39;</span><span class="si">{}</span><span class="s1">: </span><span class="si">{}</span><span class="s1">&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">field_specifier</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">value</span><span class="p">)</span>
+            <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_rawvalue</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">value</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">comment</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Get the comment attribute from the card image if not already set.&quot;&quot;&quot;</span>
+
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_comment</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_comment</span>
+        <span class="k">elif</span> <span class="bp">self</span><span class="o">.</span><span class="n">_image</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_comment</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_parse_comment</span><span class="p">()</span>
+            <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_comment</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">comment</span> <span class="o">=</span> <span class="s1">&#39;&#39;</span>
+            <span class="k">return</span> <span class="s1">&#39;&#39;</span>
+
+    <span class="nd">@comment</span><span class="o">.</span><span class="n">setter</span>
+    <span class="k">def</span> <span class="nf">comment</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">comment</span><span class="p">):</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_invalid</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
+                <span class="s1">&#39;The comment of invalid/unparseable cards cannot set.  Either &#39;</span>
+                <span class="s1">&#39;delete this card from the header or replace it.&#39;</span><span class="p">)</span>
+
+        <span class="k">if</span> <span class="n">comment</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">comment</span> <span class="o">=</span> <span class="s1">&#39;&#39;</span>
+
+        <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">comment</span><span class="p">,</span> <span class="n">text_type</span><span class="p">):</span>
+            <span class="n">m</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_ascii_text_re</span><span class="o">.</span><span class="n">match</span><span class="p">(</span><span class="n">comment</span><span class="p">)</span>
+            <span class="k">if</span> <span class="ow">not</span> <span class="n">m</span><span class="p">:</span>
+                <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
+                    <span class="s1">&#39;FITS header comments must contain standard printable &#39;</span>
+                    <span class="s1">&#39;ASCII characters; </span><span class="si">{!r}</span><span class="s1"> contains characters not &#39;</span>
+                    <span class="s1">&#39;representable in ASCII or non-printable characters.&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span>
+                    <span class="n">comment</span><span class="p">))</span>
+
+        <span class="n">oldcomment</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_comment</span>
+        <span class="k">if</span> <span class="n">oldcomment</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">oldcomment</span> <span class="o">=</span> <span class="s1">&#39;&#39;</span>
+        <span class="k">if</span> <span class="n">comment</span> <span class="o">!=</span> <span class="n">oldcomment</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_comment</span> <span class="o">=</span> <span class="n">comment</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_modified</span> <span class="o">=</span> <span class="kc">True</span>
+
+    <span class="nd">@comment</span><span class="o">.</span><span class="n">deleter</span>
+    <span class="k">def</span> <span class="nf">comment</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_invalid</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
+                <span class="s1">&#39;The comment of invalid/unparseable cards cannot deleted.  &#39;</span>
+                <span class="s1">&#39;Either delete this card from the header or replace it.&#39;</span><span class="p">)</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">comment</span> <span class="o">=</span> <span class="s1">&#39;&#39;</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">field_specifier</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        The field-specifier of record-valued keyword cards; always `None` on</span>
+<span class="sd">        normal cards.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+
+        <span class="c1"># Ensure that the keyword exists and has been parsed--the will set the</span>
+        <span class="c1"># internal _field_specifier attribute if this is a RVKC.</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">keyword</span><span class="p">:</span>
+            <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_field_specifier</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">return</span> <span class="kc">None</span>
+
+    <span class="nd">@field_specifier</span><span class="o">.</span><span class="n">setter</span>
+    <span class="k">def</span> <span class="nf">field_specifier</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">field_specifier</span><span class="p">):</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">field_specifier</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s1">&#39;The field-specifier may not be blank in &#39;</span>
+                             <span class="s1">&#39;record-valued keyword cards.&#39;</span><span class="p">)</span>
+        <span class="k">elif</span> <span class="ow">not</span> <span class="bp">self</span><span class="o">.</span><span class="n">field_specifier</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">AttributeError</span><span class="p">(</span><span class="s1">&#39;Cannot coerce cards to be record-valued &#39;</span>
+                                 <span class="s1">&#39;keyword cards by setting the &#39;</span>
+                                 <span class="s1">&#39;field_specifier attribute&#39;</span><span class="p">)</span>
+        <span class="k">elif</span> <span class="n">field_specifier</span> <span class="o">!=</span> <span class="bp">self</span><span class="o">.</span><span class="n">field_specifier</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_field_specifier</span> <span class="o">=</span> <span class="n">field_specifier</span>
+            <span class="c1"># The keyword need also be updated</span>
+            <span class="n">keyword</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_keyword</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="s1">&#39;.&#39;</span><span class="p">,</span> <span class="mi">1</span><span class="p">)[</span><span class="mi">0</span><span class="p">]</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_keyword</span> <span class="o">=</span> <span class="s1">&#39;.&#39;</span><span class="o">.</span><span class="n">join</span><span class="p">([</span><span class="n">keyword</span><span class="p">,</span> <span class="n">field_specifier</span><span class="p">])</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_modified</span> <span class="o">=</span> <span class="kc">True</span>
+
+    <span class="nd">@field_specifier</span><span class="o">.</span><span class="n">deleter</span>
+    <span class="k">def</span> <span class="nf">field_specifier</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">raise</span> <span class="ne">AttributeError</span><span class="p">(</span><span class="s1">&#39;The field_specifier attribute may not be &#39;</span>
+                             <span class="s1">&#39;deleted from record-valued keyword cards.&#39;</span><span class="p">)</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">image</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        The card &quot;image&quot;, that is, the 80 byte character string that represents</span>
+<span class="sd">        this card in an actual FITS header.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_image</span> <span class="ow">and</span> <span class="ow">not</span> <span class="bp">self</span><span class="o">.</span><span class="n">_verified</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">verify</span><span class="p">(</span><span class="s1">&#39;fix+warn&#39;</span><span class="p">)</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_image</span> <span class="ow">is</span> <span class="kc">None</span> <span class="ow">or</span> <span class="bp">self</span><span class="o">.</span><span class="n">_modified</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_image</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_format_image</span><span class="p">()</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_image</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">is_blank</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        `True` if the card is completely blank--that is, it has no keyword,</span>
+<span class="sd">        value, or comment.  It appears in the header as 80 spaces.</span>
+
+<span class="sd">        Returns `False` otherwise.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+
+        <span class="k">if</span> <span class="ow">not</span> <span class="bp">self</span><span class="o">.</span><span class="n">_verified</span><span class="p">:</span>
+            <span class="c1"># The card image has not been parsed yet; compare directly with the</span>
+            <span class="c1"># string representation of a blank card</span>
+            <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_image</span> <span class="o">==</span> <span class="n">BLANK_CARD</span>
+
+        <span class="c1"># If the keyword, value, and comment are all empty (for self.value</span>
+        <span class="c1"># explicitly check that it is a string value, since a blank value is</span>
+        <span class="c1"># returned as &#39;&#39;)</span>
+        <span class="k">return</span> <span class="p">(</span><span class="ow">not</span> <span class="bp">self</span><span class="o">.</span><span class="n">keyword</span> <span class="ow">and</span>
+                <span class="p">(</span><span class="nb">isinstance</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">value</span><span class="p">,</span> <span class="n">string_types</span><span class="p">)</span> <span class="ow">and</span> <span class="ow">not</span> <span class="bp">self</span><span class="o">.</span><span class="n">value</span><span class="p">)</span> <span class="ow">and</span>
+                <span class="ow">not</span> <span class="bp">self</span><span class="o">.</span><span class="n">comment</span><span class="p">)</span>
+
+    <span class="nd">@classmethod</span>
+<div class="viewcode-block" id="Card.fromstring"><a class="viewcode-back" href="../../../../io/fits/api/cards.html#astropy.io.fits.Card.fromstring">[docs]</a>    <span class="k">def</span> <span class="nf">fromstring</span><span class="p">(</span><span class="n">cls</span><span class="p">,</span> <span class="n">image</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Construct a `Card` object from a (raw) string. It will pad the string</span>
+<span class="sd">        if it is not the length of a card image (80 columns).  If the card</span>
+<span class="sd">        image is longer than 80 columns, assume it contains ``CONTINUE``</span>
+<span class="sd">        card(s).</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+
+        <span class="n">card</span> <span class="o">=</span> <span class="n">cls</span><span class="p">()</span>
+        <span class="n">card</span><span class="o">.</span><span class="n">_image</span> <span class="o">=</span> <span class="n">_pad</span><span class="p">(</span><span class="n">image</span><span class="p">)</span>
+        <span class="n">card</span><span class="o">.</span><span class="n">_verified</span> <span class="o">=</span> <span class="kc">False</span>
+        <span class="k">return</span> <span class="n">card</span></div>
+
+    <span class="nd">@classmethod</span>
+<div class="viewcode-block" id="Card.normalize_keyword"><a class="viewcode-back" href="../../../../io/fits/api/cards.html#astropy.io.fits.Card.normalize_keyword">[docs]</a>    <span class="k">def</span> <span class="nf">normalize_keyword</span><span class="p">(</span><span class="n">cls</span><span class="p">,</span> <span class="n">keyword</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        `classmethod` to convert a keyword value that may contain a</span>
+<span class="sd">        field-specifier to uppercase.  The effect is to raise the key to</span>
+<span class="sd">        uppercase and leave the field specifier in its original case.</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        key : or str</span>
+<span class="sd">            A keyword value or a ``keyword.field-specifier`` value</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+
+        <span class="c1"># Test first for the most common case: a standard FITS keyword provided</span>
+        <span class="c1"># in standard all-caps</span>
+        <span class="k">if</span> <span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">keyword</span><span class="p">)</span> <span class="o">&lt;=</span> <span class="n">KEYWORD_LENGTH</span> <span class="ow">and</span>
+                <span class="n">cls</span><span class="o">.</span><span class="n">_keywd_FSC_RE</span><span class="o">.</span><span class="n">match</span><span class="p">(</span><span class="n">keyword</span><span class="p">)):</span>
+            <span class="k">return</span> <span class="n">keyword</span>
+
+        <span class="c1"># Test if this is a record-valued keyword</span>
+        <span class="n">match</span> <span class="o">=</span> <span class="n">cls</span><span class="o">.</span><span class="n">_rvkc_keyword_name_RE</span><span class="o">.</span><span class="n">match</span><span class="p">(</span><span class="n">keyword</span><span class="p">)</span>
+
+        <span class="k">if</span> <span class="n">match</span><span class="p">:</span>
+            <span class="k">return</span> <span class="s1">&#39;.&#39;</span><span class="o">.</span><span class="n">join</span><span class="p">((</span><span class="n">match</span><span class="o">.</span><span class="n">group</span><span class="p">(</span><span class="s1">&#39;keyword&#39;</span><span class="p">)</span><span class="o">.</span><span class="n">strip</span><span class="p">()</span><span class="o">.</span><span class="n">upper</span><span class="p">(),</span>
+                             <span class="n">match</span><span class="o">.</span><span class="n">group</span><span class="p">(</span><span class="s1">&#39;field_specifier&#39;</span><span class="p">)))</span>
+        <span class="k">elif</span> <span class="nb">len</span><span class="p">(</span><span class="n">keyword</span><span class="p">)</span> <span class="o">&gt;</span> <span class="mi">9</span> <span class="ow">and</span> <span class="n">keyword</span><span class="p">[:</span><span class="mi">9</span><span class="p">]</span><span class="o">.</span><span class="n">upper</span><span class="p">()</span> <span class="o">==</span> <span class="s1">&#39;HIERARCH &#39;</span><span class="p">:</span>
+            <span class="c1"># Remove &#39;HIERARCH&#39; from HIERARCH keywords; this could lead to</span>
+            <span class="c1"># ambiguity if there is actually a keyword card containing</span>
+            <span class="c1"># &quot;HIERARCH HIERARCH&quot;, but shame on you if you do that.</span>
+            <span class="k">return</span> <span class="n">keyword</span><span class="p">[</span><span class="mi">9</span><span class="p">:]</span><span class="o">.</span><span class="n">strip</span><span class="p">()</span><span class="o">.</span><span class="n">upper</span><span class="p">()</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="c1"># A normal FITS keyword, but provided in non-standard case</span>
+            <span class="k">return</span> <span class="n">keyword</span><span class="o">.</span><span class="n">strip</span><span class="p">()</span><span class="o">.</span><span class="n">upper</span><span class="p">()</span></div>
+
+    <span class="k">def</span> <span class="nf">_check_if_rvkc</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Determine whether or not the card is a record-valued keyword card.</span>
+
+<span class="sd">        If one argument is given, that argument is treated as a full card image</span>
+<span class="sd">        and parsed as such.  If two arguments are given, the first is treated</span>
+<span class="sd">        as the card keyword (including the field-specifier if the card is</span>
+<span class="sd">        intended as a RVKC), and the second as the card value OR the first value</span>
+<span class="sd">        can be the base keyword, and the second value the &#39;field-specifier:</span>
+<span class="sd">        value&#39; string.</span>
+
+<span class="sd">        If the check passes the ._keyword, ._value, and .field_specifier</span>
+<span class="sd">        keywords are set.</span>
+
+<span class="sd">        Examples</span>
+<span class="sd">        --------</span>
+
+<span class="sd">        ::</span>
+
+<span class="sd">            self._check_if_rvkc(&#39;DP1&#39;, &#39;AXIS.1: 2&#39;)</span>
+<span class="sd">            self._check_if_rvkc(&#39;DP1.AXIS.1&#39;, 2)</span>
+<span class="sd">            self._check_if_rvkc(&#39;DP1     = AXIS.1: 2&#39;)</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">conf</span><span class="o">.</span><span class="n">enable_record_valued_keyword_cards</span><span class="p">:</span>
+            <span class="k">return</span> <span class="kc">False</span>
+
+        <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">args</span><span class="p">)</span> <span class="o">==</span> <span class="mi">1</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_check_if_rvkc_image</span><span class="p">(</span><span class="o">*</span><span class="n">args</span><span class="p">)</span>
+        <span class="k">elif</span> <span class="nb">len</span><span class="p">(</span><span class="n">args</span><span class="p">)</span> <span class="o">==</span> <span class="mi">2</span><span class="p">:</span>
+            <span class="n">keyword</span><span class="p">,</span> <span class="n">value</span> <span class="o">=</span> <span class="n">args</span>
+            <span class="k">if</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">keyword</span><span class="p">,</span> <span class="n">string_types</span><span class="p">):</span>
+                <span class="k">return</span> <span class="kc">False</span>
+            <span class="k">if</span> <span class="n">keyword</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">_commentary_keywords</span><span class="p">:</span>
+                <span class="k">return</span> <span class="kc">False</span>
+            <span class="n">match</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_rvkc_keyword_name_RE</span><span class="o">.</span><span class="n">match</span><span class="p">(</span><span class="n">keyword</span><span class="p">)</span>
+            <span class="k">if</span> <span class="n">match</span> <span class="ow">and</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">value</span><span class="p">,</span> <span class="p">(</span><span class="nb">int</span><span class="p">,</span> <span class="nb">float</span><span class="p">)):</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">_init_rvkc</span><span class="p">(</span><span class="n">match</span><span class="o">.</span><span class="n">group</span><span class="p">(</span><span class="s1">&#39;keyword&#39;</span><span class="p">),</span>
+                                <span class="n">match</span><span class="o">.</span><span class="n">group</span><span class="p">(</span><span class="s1">&#39;field_specifier&#39;</span><span class="p">),</span> <span class="kc">None</span><span class="p">,</span> <span class="n">value</span><span class="p">)</span>
+                <span class="k">return</span> <span class="kc">True</span>
+
+            <span class="c1"># Testing for &#39;: &#39; is a quick way to avoid running the full regular</span>
+            <span class="c1"># expression, speeding this up for the majority of cases</span>
+            <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">value</span><span class="p">,</span> <span class="n">string_types</span><span class="p">)</span> <span class="ow">and</span> <span class="n">value</span><span class="o">.</span><span class="n">find</span><span class="p">(</span><span class="s1">&#39;: &#39;</span><span class="p">)</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">:</span>
+                <span class="n">match</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_rvkc_field_specifier_val_RE</span><span class="o">.</span><span class="n">match</span><span class="p">(</span><span class="n">value</span><span class="p">)</span>
+                <span class="k">if</span> <span class="n">match</span> <span class="ow">and</span> <span class="bp">self</span><span class="o">.</span><span class="n">_keywd_FSC_RE</span><span class="o">.</span><span class="n">match</span><span class="p">(</span><span class="n">keyword</span><span class="p">):</span>
+                    <span class="bp">self</span><span class="o">.</span><span class="n">_init_rvkc</span><span class="p">(</span><span class="n">keyword</span><span class="p">,</span> <span class="n">match</span><span class="o">.</span><span class="n">group</span><span class="p">(</span><span class="s1">&#39;keyword&#39;</span><span class="p">),</span> <span class="n">value</span><span class="p">,</span>
+                                    <span class="n">match</span><span class="o">.</span><span class="n">group</span><span class="p">(</span><span class="s1">&#39;val&#39;</span><span class="p">))</span>
+                    <span class="k">return</span> <span class="kc">True</span>
+
+    <span class="k">def</span> <span class="nf">_check_if_rvkc_image</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Implements `Card._check_if_rvkc` for the case of an unparsed card</span>
+<span class="sd">        image.  If given one argument this is the full intact image.  If given</span>
+<span class="sd">        two arguments the card has already been split between keyword and</span>
+<span class="sd">        value+comment at the standard value indicator &#39;= &#39;.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+
+        <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">args</span><span class="p">)</span> <span class="o">==</span> <span class="mi">1</span><span class="p">:</span>
+            <span class="n">image</span> <span class="o">=</span> <span class="n">args</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+            <span class="n">eq_idx</span> <span class="o">=</span> <span class="n">image</span><span class="o">.</span><span class="n">find</span><span class="p">(</span><span class="n">VALUE_INDICATOR</span><span class="p">)</span>
+            <span class="k">if</span> <span class="n">eq_idx</span> <span class="o">&lt;</span> <span class="mi">0</span> <span class="ow">or</span> <span class="n">eq_idx</span> <span class="o">&gt;</span> <span class="mi">9</span><span class="p">:</span>
+                <span class="k">return</span> <span class="kc">False</span>
+            <span class="n">keyword</span> <span class="o">=</span> <span class="n">image</span><span class="p">[:</span><span class="n">eq_idx</span><span class="p">]</span>
+            <span class="n">rest</span> <span class="o">=</span> <span class="n">image</span><span class="p">[</span><span class="n">eq_idx</span> <span class="o">+</span> <span class="nb">len</span><span class="p">(</span><span class="n">VALUE_INDICATOR</span><span class="p">):]</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">keyword</span><span class="p">,</span> <span class="n">rest</span> <span class="o">=</span> <span class="n">args</span>
+
+        <span class="n">rest</span> <span class="o">=</span> <span class="n">rest</span><span class="o">.</span><span class="n">lstrip</span><span class="p">()</span>
+
+        <span class="c1"># This test allows us to skip running the full regular expression for</span>
+        <span class="c1"># the majority of cards that do not contain strings or that definitely</span>
+        <span class="c1"># do not contain RVKC field-specifiers; it&#39;s very much a</span>
+        <span class="c1"># micro-optimization but it does make a measurable difference</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">rest</span> <span class="ow">or</span> <span class="n">rest</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">!=</span> <span class="s2">&quot;&#39;&quot;</span> <span class="ow">or</span> <span class="n">rest</span><span class="o">.</span><span class="n">find</span><span class="p">(</span><span class="s1">&#39;: &#39;</span><span class="p">)</span> <span class="o">&lt;</span> <span class="mi">2</span><span class="p">:</span>
+            <span class="k">return</span> <span class="kc">False</span>
+
+        <span class="n">match</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_rvkc_keyword_val_comm_RE</span><span class="o">.</span><span class="n">match</span><span class="p">(</span><span class="n">rest</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">match</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_init_rvkc</span><span class="p">(</span><span class="n">keyword</span><span class="p">,</span> <span class="n">match</span><span class="o">.</span><span class="n">group</span><span class="p">(</span><span class="s1">&#39;keyword&#39;</span><span class="p">),</span>
+                            <span class="n">match</span><span class="o">.</span><span class="n">group</span><span class="p">(</span><span class="s1">&#39;rawval&#39;</span><span class="p">),</span> <span class="n">match</span><span class="o">.</span><span class="n">group</span><span class="p">(</span><span class="s1">&#39;val&#39;</span><span class="p">))</span>
+            <span class="k">return</span> <span class="kc">True</span>
+
+    <span class="k">def</span> <span class="nf">_init_rvkc</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">keyword</span><span class="p">,</span> <span class="n">field_specifier</span><span class="p">,</span> <span class="n">field</span><span class="p">,</span> <span class="n">value</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Sort of addendum to Card.__init__ to set the appropriate internal</span>
+<span class="sd">        attributes if the card was determined to be a RVKC.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+
+        <span class="n">keyword_upper</span> <span class="o">=</span> <span class="n">keyword</span><span class="o">.</span><span class="n">upper</span><span class="p">()</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_keyword</span> <span class="o">=</span> <span class="s1">&#39;.&#39;</span><span class="o">.</span><span class="n">join</span><span class="p">((</span><span class="n">keyword_upper</span><span class="p">,</span> <span class="n">field_specifier</span><span class="p">))</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_rawkeyword</span> <span class="o">=</span> <span class="n">keyword_upper</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_field_specifier</span> <span class="o">=</span> <span class="n">field_specifier</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_value</span> <span class="o">=</span> <span class="n">_int_or_float</span><span class="p">(</span><span class="n">value</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_rawvalue</span> <span class="o">=</span> <span class="n">field</span>
+
+    <span class="k">def</span> <span class="nf">_parse_keyword</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="n">keyword</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_image</span><span class="p">[:</span><span class="n">KEYWORD_LENGTH</span><span class="p">]</span><span class="o">.</span><span class="n">strip</span><span class="p">()</span>
+        <span class="n">keyword_upper</span> <span class="o">=</span> <span class="n">keyword</span><span class="o">.</span><span class="n">upper</span><span class="p">()</span>
+        <span class="n">val_ind_idx</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_image</span><span class="o">.</span><span class="n">find</span><span class="p">(</span><span class="n">VALUE_INDICATOR</span><span class="p">)</span>
+
+        <span class="n">special</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_commentary_keywords</span>
+
+        <span class="k">if</span> <span class="p">(</span><span class="mi">0</span> <span class="o">&lt;=</span> <span class="n">val_ind_idx</span> <span class="o">&lt;=</span> <span class="n">KEYWORD_LENGTH</span> <span class="ow">or</span> <span class="n">keyword_upper</span> <span class="ow">in</span> <span class="n">special</span> <span class="ow">or</span>
+                <span class="n">keyword_upper</span> <span class="o">==</span> <span class="s1">&#39;CONTINUE&#39;</span><span class="p">):</span>
+            <span class="c1"># The value indicator should appear in byte 8, but we are flexible</span>
+            <span class="c1"># and allow this to be fixed</span>
+            <span class="k">if</span> <span class="n">val_ind_idx</span> <span class="o">&gt;=</span> <span class="mi">0</span><span class="p">:</span>
+                <span class="n">keyword</span> <span class="o">=</span> <span class="n">keyword</span><span class="p">[:</span><span class="n">val_ind_idx</span><span class="p">]</span>
+                <span class="n">rest</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_image</span><span class="p">[</span><span class="n">val_ind_idx</span> <span class="o">+</span> <span class="nb">len</span><span class="p">(</span><span class="n">VALUE_INDICATOR</span><span class="p">):]</span>
+
+                <span class="c1"># So far this looks like a standard FITS keyword; check whether</span>
+                <span class="c1"># the value represents a RVKC; if so then we pass things off to</span>
+                <span class="c1"># the RVKC parser</span>
+                <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_check_if_rvkc_image</span><span class="p">(</span><span class="n">keyword</span><span class="p">,</span> <span class="n">rest</span><span class="p">):</span>
+                    <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_keyword</span>
+
+                <span class="n">keyword_upper</span> <span class="o">=</span> <span class="n">keyword_upper</span><span class="p">[:</span><span class="n">val_ind_idx</span><span class="p">]</span>
+
+            <span class="k">return</span> <span class="n">keyword_upper</span>
+        <span class="k">elif</span> <span class="p">(</span><span class="n">keyword_upper</span> <span class="o">==</span> <span class="s1">&#39;HIERARCH&#39;</span> <span class="ow">and</span> <span class="bp">self</span><span class="o">.</span><span class="n">_image</span><span class="p">[</span><span class="mi">8</span><span class="p">]</span> <span class="o">==</span> <span class="s1">&#39; &#39;</span> <span class="ow">and</span>
+              <span class="n">HIERARCH_VALUE_INDICATOR</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">_image</span><span class="p">):</span>
+            <span class="c1"># This is valid HIERARCH card as described by the HIERARCH keyword</span>
+            <span class="c1"># convention:</span>
+            <span class="c1"># http://fits.gsfc.nasa.gov/registry/hierarch_keyword.html</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_hierarch</span> <span class="o">=</span> <span class="kc">True</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_value_indicator</span> <span class="o">=</span> <span class="n">HIERARCH_VALUE_INDICATOR</span>
+            <span class="n">keyword</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_image</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="n">HIERARCH_VALUE_INDICATOR</span><span class="p">,</span> <span class="mi">1</span><span class="p">)[</span><span class="mi">0</span><span class="p">][</span><span class="mi">9</span><span class="p">:]</span>
+            <span class="k">return</span> <span class="n">keyword</span><span class="o">.</span><span class="n">strip</span><span class="p">()</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">warnings</span><span class="o">.</span><span class="n">warn</span><span class="p">(</span><span class="s1">&#39;The following header keyword is invalid or follows &#39;</span>
+                          <span class="s1">&#39;an unrecognized non-standard convention:</span><span class="se">\n</span><span class="si">{}</span><span class="s1">&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span>
+                          <span class="bp">self</span><span class="o">.</span><span class="n">_image</span><span class="p">),</span> <span class="n">AstropyUserWarning</span><span class="p">)</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_invalid</span> <span class="o">=</span> <span class="kc">True</span>
+            <span class="k">return</span> <span class="n">keyword</span>
+
+    <span class="k">def</span> <span class="nf">_parse_value</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Extract the keyword value from the card image.&quot;&quot;&quot;</span>
+
+        <span class="c1"># for commentary cards, no need to parse further</span>
+        <span class="c1"># Likewise for invalid cards</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">keyword</span><span class="o">.</span><span class="n">upper</span><span class="p">()</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">_commentary_keywords</span> <span class="ow">or</span> <span class="bp">self</span><span class="o">.</span><span class="n">_invalid</span><span class="p">:</span>
+            <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_image</span><span class="p">[</span><span class="n">KEYWORD_LENGTH</span><span class="p">:]</span><span class="o">.</span><span class="n">rstrip</span><span class="p">()</span>
+
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_check_if_rvkc</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_image</span><span class="p">):</span>
+            <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_value</span>
+
+        <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_image</span><span class="p">)</span> <span class="o">&gt;</span> <span class="bp">self</span><span class="o">.</span><span class="n">length</span><span class="p">:</span>
+            <span class="n">values</span> <span class="o">=</span> <span class="p">[]</span>
+            <span class="k">for</span> <span class="n">card</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">_itersubcards</span><span class="p">():</span>
+                <span class="n">value</span> <span class="o">=</span> <span class="n">card</span><span class="o">.</span><span class="n">value</span><span class="o">.</span><span class="n">rstrip</span><span class="p">()</span><span class="o">.</span><span class="n">replace</span><span class="p">(</span><span class="s2">&quot;&#39;&#39;&quot;</span><span class="p">,</span> <span class="s2">&quot;&#39;&quot;</span><span class="p">)</span>
+                <span class="k">if</span> <span class="n">value</span> <span class="ow">and</span> <span class="n">value</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span> <span class="o">==</span> <span class="s1">&#39;&amp;&#39;</span><span class="p">:</span>
+                    <span class="n">value</span> <span class="o">=</span> <span class="n">value</span><span class="p">[:</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span>
+                <span class="n">values</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">value</span><span class="p">)</span>
+
+            <span class="n">value</span> <span class="o">=</span> <span class="s1">&#39;&#39;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">values</span><span class="p">)</span>
+
+            <span class="bp">self</span><span class="o">.</span><span class="n">_valuestring</span> <span class="o">=</span> <span class="n">value</span>
+            <span class="k">return</span> <span class="n">value</span>
+
+        <span class="n">m</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_value_NFSC_RE</span><span class="o">.</span><span class="n">match</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_split</span><span class="p">()[</span><span class="mi">1</span><span class="p">])</span>
+
+        <span class="k">if</span> <span class="n">m</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="n">VerifyError</span><span class="p">(</span><span class="s2">&quot;Unparsable card (</span><span class="si">{}</span><span class="s2">), fix it first with &quot;</span>
+                              <span class="s2">&quot;.verify(&#39;fix&#39;).&quot;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">keyword</span><span class="p">))</span>
+
+        <span class="k">if</span> <span class="n">m</span><span class="o">.</span><span class="n">group</span><span class="p">(</span><span class="s1">&#39;bool&#39;</span><span class="p">)</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">value</span> <span class="o">=</span> <span class="n">m</span><span class="o">.</span><span class="n">group</span><span class="p">(</span><span class="s1">&#39;bool&#39;</span><span class="p">)</span> <span class="o">==</span> <span class="s1">&#39;T&#39;</span>
+        <span class="k">elif</span> <span class="n">m</span><span class="o">.</span><span class="n">group</span><span class="p">(</span><span class="s1">&#39;strg&#39;</span><span class="p">)</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">value</span> <span class="o">=</span> <span class="n">re</span><span class="o">.</span><span class="n">sub</span><span class="p">(</span><span class="s2">&quot;&#39;&#39;&quot;</span><span class="p">,</span> <span class="s2">&quot;&#39;&quot;</span><span class="p">,</span> <span class="n">m</span><span class="o">.</span><span class="n">group</span><span class="p">(</span><span class="s1">&#39;strg&#39;</span><span class="p">))</span>
+        <span class="k">elif</span> <span class="n">m</span><span class="o">.</span><span class="n">group</span><span class="p">(</span><span class="s1">&#39;numr&#39;</span><span class="p">)</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="c1">#  Check for numbers with leading 0s.</span>
+            <span class="n">numr</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_number_NFSC_RE</span><span class="o">.</span><span class="n">match</span><span class="p">(</span><span class="n">m</span><span class="o">.</span><span class="n">group</span><span class="p">(</span><span class="s1">&#39;numr&#39;</span><span class="p">))</span>
+            <span class="n">digt</span> <span class="o">=</span> <span class="n">translate</span><span class="p">(</span><span class="n">numr</span><span class="o">.</span><span class="n">group</span><span class="p">(</span><span class="s1">&#39;digt&#39;</span><span class="p">),</span> <span class="n">FIX_FP_TABLE2</span><span class="p">,</span> <span class="s1">&#39; &#39;</span><span class="p">)</span>
+            <span class="k">if</span> <span class="n">numr</span><span class="o">.</span><span class="n">group</span><span class="p">(</span><span class="s1">&#39;sign&#39;</span><span class="p">)</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+                <span class="n">sign</span> <span class="o">=</span> <span class="s1">&#39;&#39;</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="n">sign</span> <span class="o">=</span> <span class="n">numr</span><span class="o">.</span><span class="n">group</span><span class="p">(</span><span class="s1">&#39;sign&#39;</span><span class="p">)</span>
+            <span class="n">value</span> <span class="o">=</span> <span class="n">_str_to_num</span><span class="p">(</span><span class="n">sign</span> <span class="o">+</span> <span class="n">digt</span><span class="p">)</span>
+
+        <span class="k">elif</span> <span class="n">m</span><span class="o">.</span><span class="n">group</span><span class="p">(</span><span class="s1">&#39;cplx&#39;</span><span class="p">)</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="c1">#  Check for numbers with leading 0s.</span>
+            <span class="n">real</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_number_NFSC_RE</span><span class="o">.</span><span class="n">match</span><span class="p">(</span><span class="n">m</span><span class="o">.</span><span class="n">group</span><span class="p">(</span><span class="s1">&#39;real&#39;</span><span class="p">))</span>
+            <span class="n">rdigt</span> <span class="o">=</span> <span class="n">translate</span><span class="p">(</span><span class="n">real</span><span class="o">.</span><span class="n">group</span><span class="p">(</span><span class="s1">&#39;digt&#39;</span><span class="p">),</span> <span class="n">FIX_FP_TABLE2</span><span class="p">,</span> <span class="s1">&#39; &#39;</span><span class="p">)</span>
+            <span class="k">if</span> <span class="n">real</span><span class="o">.</span><span class="n">group</span><span class="p">(</span><span class="s1">&#39;sign&#39;</span><span class="p">)</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+                <span class="n">rsign</span> <span class="o">=</span> <span class="s1">&#39;&#39;</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="n">rsign</span> <span class="o">=</span> <span class="n">real</span><span class="o">.</span><span class="n">group</span><span class="p">(</span><span class="s1">&#39;sign&#39;</span><span class="p">)</span>
+            <span class="n">value</span> <span class="o">=</span> <span class="n">_str_to_num</span><span class="p">(</span><span class="n">rsign</span> <span class="o">+</span> <span class="n">rdigt</span><span class="p">)</span>
+            <span class="n">imag</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_number_NFSC_RE</span><span class="o">.</span><span class="n">match</span><span class="p">(</span><span class="n">m</span><span class="o">.</span><span class="n">group</span><span class="p">(</span><span class="s1">&#39;imag&#39;</span><span class="p">))</span>
+            <span class="n">idigt</span> <span class="o">=</span> <span class="n">translate</span><span class="p">(</span><span class="n">imag</span><span class="o">.</span><span class="n">group</span><span class="p">(</span><span class="s1">&#39;digt&#39;</span><span class="p">),</span> <span class="n">FIX_FP_TABLE2</span><span class="p">,</span> <span class="s1">&#39; &#39;</span><span class="p">)</span>
+            <span class="k">if</span> <span class="n">imag</span><span class="o">.</span><span class="n">group</span><span class="p">(</span><span class="s1">&#39;sign&#39;</span><span class="p">)</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+                <span class="n">isign</span> <span class="o">=</span> <span class="s1">&#39;&#39;</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="n">isign</span> <span class="o">=</span> <span class="n">imag</span><span class="o">.</span><span class="n">group</span><span class="p">(</span><span class="s1">&#39;sign&#39;</span><span class="p">)</span>
+            <span class="n">value</span> <span class="o">+=</span> <span class="n">_str_to_num</span><span class="p">(</span><span class="n">isign</span> <span class="o">+</span> <span class="n">idigt</span><span class="p">)</span> <span class="o">*</span> <span class="mi">1</span><span class="n">j</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">value</span> <span class="o">=</span> <span class="n">UNDEFINED</span>
+
+        <span class="k">if</span> <span class="ow">not</span> <span class="bp">self</span><span class="o">.</span><span class="n">_valuestring</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_valuestring</span> <span class="o">=</span> <span class="n">m</span><span class="o">.</span><span class="n">group</span><span class="p">(</span><span class="s1">&#39;valu&#39;</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">value</span>
+
+    <span class="k">def</span> <span class="nf">_parse_comment</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Extract the keyword value from the card image.&quot;&quot;&quot;</span>
+
+        <span class="c1"># for commentary cards, no need to parse further</span>
+        <span class="c1"># likewise for invalid/unparseable cards</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">keyword</span> <span class="ow">in</span> <span class="n">Card</span><span class="o">.</span><span class="n">_commentary_keywords</span> <span class="ow">or</span> <span class="bp">self</span><span class="o">.</span><span class="n">_invalid</span><span class="p">:</span>
+            <span class="k">return</span> <span class="s1">&#39;&#39;</span>
+
+        <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_image</span><span class="p">)</span> <span class="o">&gt;</span> <span class="bp">self</span><span class="o">.</span><span class="n">length</span><span class="p">:</span>
+            <span class="n">comments</span> <span class="o">=</span> <span class="p">[]</span>
+            <span class="k">for</span> <span class="n">card</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">_itersubcards</span><span class="p">():</span>
+                <span class="k">if</span> <span class="n">card</span><span class="o">.</span><span class="n">comment</span><span class="p">:</span>
+                    <span class="n">comments</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">card</span><span class="o">.</span><span class="n">comment</span><span class="p">)</span>
+            <span class="n">comment</span> <span class="o">=</span> <span class="s1">&#39;/ &#39;</span> <span class="o">+</span> <span class="s1">&#39; &#39;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">comments</span><span class="p">)</span><span class="o">.</span><span class="n">rstrip</span><span class="p">()</span>
+            <span class="n">m</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_value_NFSC_RE</span><span class="o">.</span><span class="n">match</span><span class="p">(</span><span class="n">comment</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">m</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_value_NFSC_RE</span><span class="o">.</span><span class="n">match</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_split</span><span class="p">()[</span><span class="mi">1</span><span class="p">])</span>
+
+        <span class="k">if</span> <span class="n">m</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">comment</span> <span class="o">=</span> <span class="n">m</span><span class="o">.</span><span class="n">group</span><span class="p">(</span><span class="s1">&#39;comm&#39;</span><span class="p">)</span>
+            <span class="k">if</span> <span class="n">comment</span><span class="p">:</span>
+                <span class="k">return</span> <span class="n">comment</span><span class="o">.</span><span class="n">rstrip</span><span class="p">()</span>
+        <span class="k">return</span> <span class="s1">&#39;&#39;</span>
+
+    <span class="k">def</span> <span class="nf">_split</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Split the card image between the keyword and the rest of the card.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_image</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="c1"># If we already have a card image, don&#39;t try to rebuild a new card</span>
+            <span class="c1"># image, which self.image would do</span>
+            <span class="n">image</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_image</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">image</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">image</span>
+
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">keyword</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">_commentary_keywords</span><span class="o">.</span><span class="n">union</span><span class="p">([</span><span class="s1">&#39;CONTINUE&#39;</span><span class="p">]):</span>
+            <span class="n">keyword</span><span class="p">,</span> <span class="n">valuecomment</span> <span class="o">=</span> <span class="n">image</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="s1">&#39; &#39;</span><span class="p">,</span> <span class="mi">1</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">try</span><span class="p">:</span>
+                <span class="n">delim_index</span> <span class="o">=</span> <span class="n">image</span><span class="o">.</span><span class="n">index</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_value_indicator</span><span class="p">)</span>
+            <span class="k">except</span> <span class="ne">ValueError</span><span class="p">:</span>
+                <span class="n">delim_index</span> <span class="o">=</span> <span class="kc">None</span>
+
+            <span class="c1"># The equal sign may not be any higher than column 10; anything</span>
+            <span class="c1"># past that must be considered part of the card value</span>
+            <span class="k">if</span> <span class="n">delim_index</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+                <span class="n">keyword</span> <span class="o">=</span> <span class="n">image</span><span class="p">[:</span><span class="n">KEYWORD_LENGTH</span><span class="p">]</span>
+                <span class="n">valuecomment</span> <span class="o">=</span> <span class="n">image</span><span class="p">[</span><span class="n">KEYWORD_LENGTH</span><span class="p">:]</span>
+            <span class="k">elif</span> <span class="n">delim_index</span> <span class="o">&gt;</span> <span class="mi">10</span> <span class="ow">and</span> <span class="n">image</span><span class="p">[:</span><span class="mi">9</span><span class="p">]</span> <span class="o">!=</span> <span class="s1">&#39;HIERARCH &#39;</span><span class="p">:</span>
+                <span class="n">keyword</span> <span class="o">=</span> <span class="n">image</span><span class="p">[:</span><span class="mi">8</span><span class="p">]</span>
+                <span class="n">valuecomment</span> <span class="o">=</span> <span class="n">image</span><span class="p">[</span><span class="mi">8</span><span class="p">:]</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="n">keyword</span><span class="p">,</span> <span class="n">valuecomment</span> <span class="o">=</span> <span class="n">image</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_value_indicator</span><span class="p">,</span> <span class="mi">1</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">keyword</span><span class="o">.</span><span class="n">strip</span><span class="p">(),</span> <span class="n">valuecomment</span><span class="o">.</span><span class="n">strip</span><span class="p">()</span>
+
+    <span class="k">def</span> <span class="nf">_fix_keyword</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">field_specifier</span><span class="p">:</span>
+            <span class="n">keyword</span><span class="p">,</span> <span class="n">field_specifier</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_keyword</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="s1">&#39;.&#39;</span><span class="p">,</span> <span class="mi">1</span><span class="p">)</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_keyword</span> <span class="o">=</span> <span class="s1">&#39;.&#39;</span><span class="o">.</span><span class="n">join</span><span class="p">([</span><span class="n">keyword</span><span class="o">.</span><span class="n">upper</span><span class="p">(),</span> <span class="n">field_specifier</span><span class="p">])</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_keyword</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_keyword</span><span class="o">.</span><span class="n">upper</span><span class="p">()</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_modified</span> <span class="o">=</span> <span class="kc">True</span>
+
+    <span class="k">def</span> <span class="nf">_fix_value</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Fix the card image for fixable non-standard compliance.&quot;&quot;&quot;</span>
+
+        <span class="n">value</span> <span class="o">=</span> <span class="kc">None</span>
+        <span class="n">keyword</span><span class="p">,</span> <span class="n">valuecomment</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_split</span><span class="p">()</span>
+        <span class="n">m</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_value_NFSC_RE</span><span class="o">.</span><span class="n">match</span><span class="p">(</span><span class="n">valuecomment</span><span class="p">)</span>
+
+        <span class="c1"># for the unparsable case</span>
+        <span class="k">if</span> <span class="n">m</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="k">try</span><span class="p">:</span>
+                <span class="n">value</span><span class="p">,</span> <span class="n">comment</span> <span class="o">=</span> <span class="n">valuecomment</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="s1">&#39;/&#39;</span><span class="p">,</span> <span class="mi">1</span><span class="p">)</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">value</span> <span class="o">=</span> <span class="n">value</span><span class="o">.</span><span class="n">strip</span><span class="p">()</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">comment</span> <span class="o">=</span> <span class="n">comment</span><span class="o">.</span><span class="n">strip</span><span class="p">()</span>
+            <span class="k">except</span> <span class="p">(</span><span class="ne">ValueError</span><span class="p">,</span> <span class="ne">IndexError</span><span class="p">):</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">value</span> <span class="o">=</span> <span class="n">valuecomment</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_valuestring</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_value</span>
+            <span class="k">return</span>
+        <span class="k">elif</span> <span class="n">m</span><span class="o">.</span><span class="n">group</span><span class="p">(</span><span class="s1">&#39;numr&#39;</span><span class="p">)</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">numr</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_number_NFSC_RE</span><span class="o">.</span><span class="n">match</span><span class="p">(</span><span class="n">m</span><span class="o">.</span><span class="n">group</span><span class="p">(</span><span class="s1">&#39;numr&#39;</span><span class="p">))</span>
+            <span class="n">value</span> <span class="o">=</span> <span class="n">translate</span><span class="p">(</span><span class="n">numr</span><span class="o">.</span><span class="n">group</span><span class="p">(</span><span class="s1">&#39;digt&#39;</span><span class="p">),</span> <span class="n">FIX_FP_TABLE</span><span class="p">,</span> <span class="s1">&#39; &#39;</span><span class="p">)</span>
+            <span class="k">if</span> <span class="n">numr</span><span class="o">.</span><span class="n">group</span><span class="p">(</span><span class="s1">&#39;sign&#39;</span><span class="p">)</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+                <span class="n">value</span> <span class="o">=</span> <span class="n">numr</span><span class="o">.</span><span class="n">group</span><span class="p">(</span><span class="s1">&#39;sign&#39;</span><span class="p">)</span> <span class="o">+</span> <span class="n">value</span>
+
+        <span class="k">elif</span> <span class="n">m</span><span class="o">.</span><span class="n">group</span><span class="p">(</span><span class="s1">&#39;cplx&#39;</span><span class="p">)</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">real</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_number_NFSC_RE</span><span class="o">.</span><span class="n">match</span><span class="p">(</span><span class="n">m</span><span class="o">.</span><span class="n">group</span><span class="p">(</span><span class="s1">&#39;real&#39;</span><span class="p">))</span>
+            <span class="n">rdigt</span> <span class="o">=</span> <span class="n">translate</span><span class="p">(</span><span class="n">real</span><span class="o">.</span><span class="n">group</span><span class="p">(</span><span class="s1">&#39;digt&#39;</span><span class="p">),</span> <span class="n">FIX_FP_TABLE</span><span class="p">,</span> <span class="s1">&#39; &#39;</span><span class="p">)</span>
+            <span class="k">if</span> <span class="n">real</span><span class="o">.</span><span class="n">group</span><span class="p">(</span><span class="s1">&#39;sign&#39;</span><span class="p">)</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+                <span class="n">rdigt</span> <span class="o">=</span> <span class="n">real</span><span class="o">.</span><span class="n">group</span><span class="p">(</span><span class="s1">&#39;sign&#39;</span><span class="p">)</span> <span class="o">+</span> <span class="n">rdigt</span>
+
+            <span class="n">imag</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_number_NFSC_RE</span><span class="o">.</span><span class="n">match</span><span class="p">(</span><span class="n">m</span><span class="o">.</span><span class="n">group</span><span class="p">(</span><span class="s1">&#39;imag&#39;</span><span class="p">))</span>
+            <span class="n">idigt</span> <span class="o">=</span> <span class="n">translate</span><span class="p">(</span><span class="n">imag</span><span class="o">.</span><span class="n">group</span><span class="p">(</span><span class="s1">&#39;digt&#39;</span><span class="p">),</span> <span class="n">FIX_FP_TABLE</span><span class="p">,</span> <span class="s1">&#39; &#39;</span><span class="p">)</span>
+            <span class="k">if</span> <span class="n">imag</span><span class="o">.</span><span class="n">group</span><span class="p">(</span><span class="s1">&#39;sign&#39;</span><span class="p">)</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+                <span class="n">idigt</span> <span class="o">=</span> <span class="n">imag</span><span class="o">.</span><span class="n">group</span><span class="p">(</span><span class="s1">&#39;sign&#39;</span><span class="p">)</span> <span class="o">+</span> <span class="n">idigt</span>
+            <span class="n">value</span> <span class="o">=</span> <span class="s1">&#39;(</span><span class="si">{}</span><span class="s1">, </span><span class="si">{}</span><span class="s1">)&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">rdigt</span><span class="p">,</span> <span class="n">idigt</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_valuestring</span> <span class="o">=</span> <span class="n">value</span>
+        <span class="c1"># The value itself has not been modified, but its serialized</span>
+        <span class="c1"># representation (as stored in self._valuestring) has been changed, so</span>
+        <span class="c1"># still set this card as having been modified (see ticket #137)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_modified</span> <span class="o">=</span> <span class="kc">True</span>
+
+    <span class="k">def</span> <span class="nf">_format_keyword</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">keyword</span><span class="p">:</span>
+            <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">field_specifier</span><span class="p">:</span>
+                <span class="k">return</span> <span class="s1">&#39;{:</span><span class="si">{len}</span><span class="s1">}&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">keyword</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="s1">&#39;.&#39;</span><span class="p">,</span> <span class="mi">1</span><span class="p">)[</span><span class="mi">0</span><span class="p">],</span>
+                                          <span class="nb">len</span><span class="o">=</span><span class="n">KEYWORD_LENGTH</span><span class="p">)</span>
+            <span class="k">elif</span> <span class="bp">self</span><span class="o">.</span><span class="n">_hierarch</span><span class="p">:</span>
+                <span class="k">return</span> <span class="s1">&#39;HIERARCH </span><span class="si">{}</span><span class="s1"> &#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">keyword</span><span class="p">)</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="k">return</span> <span class="s1">&#39;{:</span><span class="si">{len}</span><span class="s1">}&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">keyword</span><span class="p">,</span> <span class="nb">len</span><span class="o">=</span><span class="n">KEYWORD_LENGTH</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">return</span> <span class="s1">&#39; &#39;</span> <span class="o">*</span> <span class="n">KEYWORD_LENGTH</span>
+
+    <span class="k">def</span> <span class="nf">_format_value</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="c1"># value string</span>
+        <span class="n">float_types</span> <span class="o">=</span> <span class="p">(</span><span class="nb">float</span><span class="p">,</span> <span class="n">np</span><span class="o">.</span><span class="n">floating</span><span class="p">,</span> <span class="nb">complex</span><span class="p">,</span> <span class="n">np</span><span class="o">.</span><span class="n">complexfloating</span><span class="p">)</span>
+
+        <span class="c1"># Force the value to be parsed out first</span>
+        <span class="n">value</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">value</span>
+        <span class="c1"># But work with the underlying raw value instead (to preserve</span>
+        <span class="c1"># whitespace, for now...)</span>
+        <span class="n">value</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_value</span>
+
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">keyword</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">_commentary_keywords</span><span class="p">:</span>
+            <span class="c1"># The value of a commentary card must be just a raw unprocessed</span>
+            <span class="c1"># string</span>
+            <span class="n">value</span> <span class="o">=</span> <span class="nb">str</span><span class="p">(</span><span class="n">value</span><span class="p">)</span>
+        <span class="k">elif</span> <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_valuestring</span> <span class="ow">and</span> <span class="ow">not</span> <span class="bp">self</span><span class="o">.</span><span class="n">_valuemodified</span> <span class="ow">and</span>
+              <span class="nb">isinstance</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">value</span><span class="p">,</span> <span class="n">float_types</span><span class="p">)):</span>
+            <span class="c1"># Keep the existing formatting for float/complex numbers</span>
+            <span class="n">value</span> <span class="o">=</span> <span class="s1">&#39;</span><span class="si">{:&gt;20}</span><span class="s1">&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_valuestring</span><span class="p">)</span>
+        <span class="k">elif</span> <span class="bp">self</span><span class="o">.</span><span class="n">field_specifier</span><span class="p">:</span>
+            <span class="n">value</span> <span class="o">=</span> <span class="n">_format_value</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_value</span><span class="p">)</span><span class="o">.</span><span class="n">strip</span><span class="p">()</span>
+            <span class="n">value</span> <span class="o">=</span> <span class="s2">&quot;&#39;</span><span class="si">{}</span><span class="s2">: </span><span class="si">{}</span><span class="s2">&#39;&quot;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">field_specifier</span><span class="p">,</span> <span class="n">value</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">value</span> <span class="o">=</span> <span class="n">_format_value</span><span class="p">(</span><span class="n">value</span><span class="p">)</span>
+
+        <span class="c1"># For HIERARCH cards the value should be shortened to conserve space</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="bp">self</span><span class="o">.</span><span class="n">field_specifier</span> <span class="ow">and</span> <span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">keyword</span><span class="p">)</span> <span class="o">&gt;</span> <span class="n">KEYWORD_LENGTH</span><span class="p">:</span>
+            <span class="n">value</span> <span class="o">=</span> <span class="n">value</span><span class="o">.</span><span class="n">strip</span><span class="p">()</span>
+
+        <span class="k">return</span> <span class="n">value</span>
+
+    <span class="k">def</span> <span class="nf">_format_comment</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="bp">self</span><span class="o">.</span><span class="n">comment</span><span class="p">:</span>
+            <span class="k">return</span> <span class="s1">&#39;&#39;</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">return</span> <span class="s1">&#39; / </span><span class="si">{}</span><span class="s1">&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_comment</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">_format_image</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="n">keyword</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_format_keyword</span><span class="p">()</span>
+
+        <span class="n">value</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_format_value</span><span class="p">()</span>
+        <span class="n">is_commentary</span> <span class="o">=</span> <span class="n">keyword</span><span class="o">.</span><span class="n">strip</span><span class="p">()</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">_commentary_keywords</span>
+        <span class="k">if</span> <span class="n">is_commentary</span><span class="p">:</span>
+            <span class="n">comment</span> <span class="o">=</span> <span class="s1">&#39;&#39;</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">comment</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_format_comment</span><span class="p">()</span>
+
+        <span class="c1"># equal sign string</span>
+        <span class="c1"># by default use the standard value indicator even for HIERARCH cards;</span>
+        <span class="c1"># later we may abbreviate it if necessary</span>
+        <span class="n">delimiter</span> <span class="o">=</span> <span class="n">VALUE_INDICATOR</span>
+        <span class="k">if</span> <span class="n">is_commentary</span><span class="p">:</span>
+            <span class="n">delimiter</span> <span class="o">=</span> <span class="s1">&#39;&#39;</span>
+
+        <span class="c1"># put all parts together</span>
+        <span class="n">output</span> <span class="o">=</span> <span class="s1">&#39;&#39;</span><span class="o">.</span><span class="n">join</span><span class="p">([</span><span class="n">keyword</span><span class="p">,</span> <span class="n">delimiter</span><span class="p">,</span> <span class="n">value</span><span class="p">,</span> <span class="n">comment</span><span class="p">])</span>
+
+        <span class="c1"># For HIERARCH cards we can save a bit of space if necessary by</span>
+        <span class="c1"># removing the space between the keyword and the equals sign; I&#39;m</span>
+        <span class="c1"># guessing this is part of the HIEARCH card specification</span>
+        <span class="n">keywordvalue_length</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="n">keyword</span><span class="p">)</span> <span class="o">+</span> <span class="nb">len</span><span class="p">(</span><span class="n">delimiter</span><span class="p">)</span> <span class="o">+</span> <span class="nb">len</span><span class="p">(</span><span class="n">value</span><span class="p">)</span>
+        <span class="k">if</span> <span class="p">(</span><span class="n">keywordvalue_length</span> <span class="o">&gt;</span> <span class="bp">self</span><span class="o">.</span><span class="n">length</span> <span class="ow">and</span>
+                <span class="n">keyword</span><span class="o">.</span><span class="n">startswith</span><span class="p">(</span><span class="s1">&#39;HIERARCH&#39;</span><span class="p">)):</span>
+            <span class="k">if</span> <span class="p">(</span><span class="n">keywordvalue_length</span> <span class="o">==</span> <span class="bp">self</span><span class="o">.</span><span class="n">length</span> <span class="o">+</span> <span class="mi">1</span> <span class="ow">and</span> <span class="n">keyword</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span> <span class="o">==</span> <span class="s1">&#39; &#39;</span><span class="p">):</span>
+                <span class="n">output</span> <span class="o">=</span> <span class="s1">&#39;&#39;</span><span class="o">.</span><span class="n">join</span><span class="p">([</span><span class="n">keyword</span><span class="p">[:</span><span class="o">-</span><span class="mi">1</span><span class="p">],</span> <span class="n">delimiter</span><span class="p">,</span> <span class="n">value</span><span class="p">,</span> <span class="n">comment</span><span class="p">])</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="c1"># I guess the HIERARCH card spec is incompatible with CONTINUE</span>
+                <span class="c1"># cards</span>
+                <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s1">&#39;The header keyword </span><span class="si">{!r}</span><span class="s1"> with its value is &#39;</span>
+                                 <span class="s1">&#39;too long&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">keyword</span><span class="p">))</span>
+
+        <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">output</span><span class="p">)</span> <span class="o">&lt;=</span> <span class="bp">self</span><span class="o">.</span><span class="n">length</span><span class="p">:</span>
+            <span class="n">output</span> <span class="o">=</span> <span class="s1">&#39;</span><span class="si">{:80}</span><span class="s1">&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">output</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="c1"># longstring case (CONTINUE card)</span>
+            <span class="c1"># try not to use CONTINUE if the string value can fit in one line.</span>
+            <span class="c1"># Instead, just truncate the comment</span>
+            <span class="k">if</span> <span class="p">(</span><span class="nb">isinstance</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">value</span><span class="p">,</span> <span class="n">string_types</span><span class="p">)</span> <span class="ow">and</span>
+                <span class="nb">len</span><span class="p">(</span><span class="n">value</span><span class="p">)</span> <span class="o">&gt;</span> <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">length</span> <span class="o">-</span> <span class="mi">10</span><span class="p">)):</span>
+                <span class="n">output</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_format_long_image</span><span class="p">()</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="n">warnings</span><span class="o">.</span><span class="n">warn</span><span class="p">(</span><span class="s1">&#39;Card is too long, comment will be truncated.&#39;</span><span class="p">,</span>
+                              <span class="n">VerifyWarning</span><span class="p">)</span>
+                <span class="n">output</span> <span class="o">=</span> <span class="n">output</span><span class="p">[:</span><span class="n">Card</span><span class="o">.</span><span class="n">length</span><span class="p">]</span>
+        <span class="k">return</span> <span class="n">output</span>
+
+    <span class="k">def</span> <span class="nf">_format_long_image</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Break up long string value/comment into ``CONTINUE`` cards.</span>
+<span class="sd">        This is a primitive implementation: it will put the value</span>
+<span class="sd">        string in one block and the comment string in another.  Also,</span>
+<span class="sd">        it does not break at the blank space between words.  So it may</span>
+<span class="sd">        not look pretty.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">keyword</span> <span class="ow">in</span> <span class="n">Card</span><span class="o">.</span><span class="n">_commentary_keywords</span><span class="p">:</span>
+            <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_format_long_commentary_image</span><span class="p">()</span>
+
+        <span class="n">value_length</span> <span class="o">=</span> <span class="mi">67</span>
+        <span class="n">comment_length</span> <span class="o">=</span> <span class="mi">64</span>
+        <span class="n">output</span> <span class="o">=</span> <span class="p">[]</span>
+
+        <span class="c1"># do the value string</span>
+        <span class="n">value</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_value</span><span class="o">.</span><span class="n">replace</span><span class="p">(</span><span class="s2">&quot;&#39;&quot;</span><span class="p">,</span> <span class="s2">&quot;&#39;&#39;&quot;</span><span class="p">)</span>
+        <span class="n">words</span> <span class="o">=</span> <span class="n">_words_group</span><span class="p">(</span><span class="n">value</span><span class="p">,</span> <span class="n">value_length</span><span class="p">)</span>
+        <span class="k">for</span> <span class="n">idx</span><span class="p">,</span> <span class="n">word</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="n">words</span><span class="p">):</span>
+            <span class="k">if</span> <span class="n">idx</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
+                <span class="n">headstr</span> <span class="o">=</span> <span class="s1">&#39;{:</span><span class="si">{len}</span><span class="s1">}= &#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">keyword</span><span class="p">,</span> <span class="nb">len</span><span class="o">=</span><span class="n">KEYWORD_LENGTH</span><span class="p">)</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="n">headstr</span> <span class="o">=</span> <span class="s1">&#39;CONTINUE  &#39;</span>
+
+            <span class="c1"># If this is the final CONTINUE remove the &#39;&amp;&#39;</span>
+            <span class="k">if</span> <span class="ow">not</span> <span class="bp">self</span><span class="o">.</span><span class="n">comment</span> <span class="ow">and</span> <span class="n">idx</span> <span class="o">==</span> <span class="nb">len</span><span class="p">(</span><span class="n">words</span><span class="p">)</span> <span class="o">-</span> <span class="mi">1</span><span class="p">:</span>
+                <span class="n">value_format</span> <span class="o">=</span> <span class="s2">&quot;&#39;</span><span class="si">{}</span><span class="s2">&#39;&quot;</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="n">value_format</span> <span class="o">=</span> <span class="s2">&quot;&#39;</span><span class="si">{}</span><span class="s2">&amp;&#39;&quot;</span>
+
+            <span class="n">value</span> <span class="o">=</span> <span class="n">value_format</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">word</span><span class="p">)</span>
+
+            <span class="n">output</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="s1">&#39;</span><span class="si">{:80}</span><span class="s1">&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">headstr</span> <span class="o">+</span> <span class="n">value</span><span class="p">))</span>
+
+        <span class="c1"># do the comment string</span>
+        <span class="n">comment_format</span> <span class="o">=</span> <span class="s2">&quot;</span><span class="si">{}</span><span class="s2">&quot;</span>
+
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">comment</span><span class="p">:</span>
+            <span class="n">words</span> <span class="o">=</span> <span class="n">_words_group</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">comment</span><span class="p">,</span> <span class="n">comment_length</span><span class="p">)</span>
+            <span class="k">for</span> <span class="n">idx</span><span class="p">,</span> <span class="n">word</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="n">words</span><span class="p">):</span>
+                <span class="c1"># If this is the final CONTINUE remove the &#39;&amp;&#39;</span>
+                <span class="k">if</span> <span class="n">idx</span> <span class="o">==</span> <span class="nb">len</span><span class="p">(</span><span class="n">words</span><span class="p">)</span> <span class="o">-</span> <span class="mi">1</span><span class="p">:</span>
+                    <span class="n">headstr</span> <span class="o">=</span> <span class="s2">&quot;CONTINUE  &#39;&#39; / &quot;</span>
+                <span class="k">else</span><span class="p">:</span>
+                    <span class="n">headstr</span> <span class="o">=</span> <span class="s2">&quot;CONTINUE  &#39;&amp;&#39; / &quot;</span>
+
+                <span class="n">comment</span> <span class="o">=</span> <span class="n">headstr</span> <span class="o">+</span> <span class="n">comment_format</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">word</span><span class="p">)</span>
+                <span class="n">output</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="s1">&#39;</span><span class="si">{:80}</span><span class="s1">&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">comment</span><span class="p">))</span>
+
+        <span class="k">return</span> <span class="s1">&#39;&#39;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">output</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">_format_long_commentary_image</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        If a commentary card&#39;s value is too long to fit on a single card, this</span>
+<span class="sd">        will render the card as multiple consecutive commentary card of the</span>
+<span class="sd">        same type.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+
+        <span class="n">maxlen</span> <span class="o">=</span> <span class="n">Card</span><span class="o">.</span><span class="n">length</span> <span class="o">-</span> <span class="n">KEYWORD_LENGTH</span>
+        <span class="n">value</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_format_value</span><span class="p">()</span>
+        <span class="n">output</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="n">idx</span> <span class="o">=</span> <span class="mi">0</span>
+        <span class="k">while</span> <span class="n">idx</span> <span class="o">&lt;</span> <span class="nb">len</span><span class="p">(</span><span class="n">value</span><span class="p">):</span>
+            <span class="n">output</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="nb">str</span><span class="p">(</span><span class="n">Card</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">keyword</span><span class="p">,</span> <span class="n">value</span><span class="p">[</span><span class="n">idx</span><span class="p">:</span><span class="n">idx</span> <span class="o">+</span> <span class="n">maxlen</span><span class="p">])))</span>
+            <span class="n">idx</span> <span class="o">+=</span> <span class="n">maxlen</span>
+        <span class="k">return</span> <span class="s1">&#39;&#39;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">output</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">_verify</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">option</span><span class="o">=</span><span class="s1">&#39;warn&#39;</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_verified</span> <span class="o">=</span> <span class="kc">True</span>
+
+        <span class="n">errs</span> <span class="o">=</span> <span class="n">_ErrList</span><span class="p">([])</span>
+        <span class="n">fix_text</span> <span class="o">=</span> <span class="p">(</span><span class="s1">&#39;Fixed </span><span class="si">{!r}</span><span class="s1"> card to meet the FITS &#39;</span>
+                    <span class="s1">&#39;standard.&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">keyword</span><span class="p">))</span>
+
+        <span class="c1"># Don&#39;t try to verify cards that already don&#39;t meet any recognizable</span>
+        <span class="c1"># standard</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_invalid</span><span class="p">:</span>
+            <span class="k">return</span> <span class="n">errs</span>
+
+        <span class="c1"># verify the equal sign position</span>
+        <span class="k">if</span> <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">keyword</span> <span class="ow">not</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">_commentary_keywords</span> <span class="ow">and</span>
+            <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_image</span> <span class="ow">and</span> <span class="bp">self</span><span class="o">.</span><span class="n">_image</span><span class="p">[:</span><span class="mi">9</span><span class="p">]</span><span class="o">.</span><span class="n">upper</span><span class="p">()</span> <span class="o">!=</span> <span class="s1">&#39;HIERARCH &#39;</span> <span class="ow">and</span>
+             <span class="bp">self</span><span class="o">.</span><span class="n">_image</span><span class="o">.</span><span class="n">find</span><span class="p">(</span><span class="s1">&#39;=&#39;</span><span class="p">)</span> <span class="o">!=</span> <span class="mi">8</span><span class="p">)):</span>
+            <span class="n">errs</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">run_option</span><span class="p">(</span>
+                <span class="n">option</span><span class="p">,</span>
+                <span class="n">err_text</span><span class="o">=</span><span class="s1">&#39;Card </span><span class="si">{!r}</span><span class="s1"> is not FITS standard (equal sign not &#39;</span>
+                         <span class="s1">&#39;at column 8).&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">keyword</span><span class="p">),</span>
+                <span class="n">fix_text</span><span class="o">=</span><span class="n">fix_text</span><span class="p">,</span>
+                <span class="n">fix</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">_fix_value</span><span class="p">))</span>
+
+        <span class="c1"># verify the key, it is never fixable</span>
+        <span class="c1"># always fix silently the case where &quot;=&quot; is before column 9,</span>
+        <span class="c1"># since there is no way to communicate back to the _keys.</span>
+        <span class="k">if</span> <span class="p">((</span><span class="bp">self</span><span class="o">.</span><span class="n">_image</span> <span class="ow">and</span> <span class="bp">self</span><span class="o">.</span><span class="n">_image</span><span class="p">[:</span><span class="mi">8</span><span class="p">]</span><span class="o">.</span><span class="n">upper</span><span class="p">()</span> <span class="o">==</span> <span class="s1">&#39;HIERARCH&#39;</span><span class="p">)</span> <span class="ow">or</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">_hierarch</span><span class="p">):</span>
+            <span class="k">pass</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_image</span><span class="p">:</span>
+                <span class="c1"># PyFITS will auto-uppercase any standard keyword, so lowercase</span>
+                <span class="c1"># keywords can only occur if they came from the wild</span>
+                <span class="n">keyword</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_split</span><span class="p">()[</span><span class="mi">0</span><span class="p">]</span>
+                <span class="k">if</span> <span class="n">keyword</span> <span class="o">!=</span> <span class="n">keyword</span><span class="o">.</span><span class="n">upper</span><span class="p">():</span>
+                    <span class="c1"># Keyword should be uppercase unless it&#39;s a HIERARCH card</span>
+                    <span class="n">errs</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">run_option</span><span class="p">(</span>
+                        <span class="n">option</span><span class="p">,</span>
+                        <span class="n">err_text</span><span class="o">=</span><span class="s1">&#39;Card keyword </span><span class="si">{!r}</span><span class="s1"> is not upper case.&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span>
+                                  <span class="n">keyword</span><span class="p">),</span>
+                        <span class="n">fix_text</span><span class="o">=</span><span class="n">fix_text</span><span class="p">,</span>
+                        <span class="n">fix</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">_fix_keyword</span><span class="p">))</span>
+
+            <span class="n">keyword</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">keyword</span>
+            <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">field_specifier</span><span class="p">:</span>
+                <span class="n">keyword</span> <span class="o">=</span> <span class="n">keyword</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="s1">&#39;.&#39;</span><span class="p">,</span> <span class="mi">1</span><span class="p">)[</span><span class="mi">0</span><span class="p">]</span>
+
+            <span class="k">if</span> <span class="ow">not</span> <span class="bp">self</span><span class="o">.</span><span class="n">_keywd_FSC_RE</span><span class="o">.</span><span class="n">match</span><span class="p">(</span><span class="n">keyword</span><span class="p">):</span>
+                <span class="n">errs</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">run_option</span><span class="p">(</span>
+                    <span class="n">option</span><span class="p">,</span>
+                    <span class="n">err_text</span><span class="o">=</span><span class="s1">&#39;Illegal keyword name </span><span class="si">{!r}</span><span class="s1">&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">keyword</span><span class="p">),</span>
+                    <span class="n">fixable</span><span class="o">=</span><span class="kc">False</span><span class="p">))</span>
+
+        <span class="c1"># verify the value, it may be fixable</span>
+        <span class="n">keyword</span><span class="p">,</span> <span class="n">valuecomment</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_split</span><span class="p">()</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">keyword</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">_commentary_keywords</span><span class="p">:</span>
+            <span class="c1"># For commentary keywords all that needs to be ensured is that it</span>
+            <span class="c1"># contains only printable ASCII characters</span>
+            <span class="k">if</span> <span class="ow">not</span> <span class="bp">self</span><span class="o">.</span><span class="n">_ascii_text_re</span><span class="o">.</span><span class="n">match</span><span class="p">(</span><span class="n">valuecomment</span><span class="p">):</span>
+                <span class="n">errs</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">run_option</span><span class="p">(</span>
+                    <span class="n">option</span><span class="p">,</span>
+                    <span class="n">err_text</span><span class="o">=</span><span class="s1">&#39;Unprintable string </span><span class="si">{!r}</span><span class="s1">; commentary cards may &#39;</span>
+                             <span class="s1">&#39;only contain printable ASCII characters&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span>
+                             <span class="n">valuecomment</span><span class="p">),</span>
+                    <span class="n">fixable</span><span class="o">=</span><span class="kc">False</span><span class="p">))</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">m</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_value_FSC_RE</span><span class="o">.</span><span class="n">match</span><span class="p">(</span><span class="n">valuecomment</span><span class="p">)</span>
+            <span class="k">if</span> <span class="ow">not</span> <span class="n">m</span><span class="p">:</span>
+                <span class="n">errs</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">run_option</span><span class="p">(</span>
+                    <span class="n">option</span><span class="p">,</span>
+                    <span class="n">err_text</span><span class="o">=</span><span class="s1">&#39;Card </span><span class="si">{!r}</span><span class="s1"> is not FITS standard (invalid value &#39;</span>
+                             <span class="s1">&#39;string: </span><span class="si">{!r}</span><span class="s1">).&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">keyword</span><span class="p">,</span> <span class="n">valuecomment</span><span class="p">),</span>
+                    <span class="n">fix_text</span><span class="o">=</span><span class="n">fix_text</span><span class="p">,</span>
+                    <span class="n">fix</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">_fix_value</span><span class="p">))</span>
+
+        <span class="c1"># verify the comment (string), it is never fixable</span>
+        <span class="n">m</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_value_NFSC_RE</span><span class="o">.</span><span class="n">match</span><span class="p">(</span><span class="n">valuecomment</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">m</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">comment</span> <span class="o">=</span> <span class="n">m</span><span class="o">.</span><span class="n">group</span><span class="p">(</span><span class="s1">&#39;comm&#39;</span><span class="p">)</span>
+            <span class="k">if</span> <span class="n">comment</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+                <span class="k">if</span> <span class="ow">not</span> <span class="bp">self</span><span class="o">.</span><span class="n">_ascii_text_re</span><span class="o">.</span><span class="n">match</span><span class="p">(</span><span class="n">comment</span><span class="p">):</span>
+                    <span class="n">errs</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">run_option</span><span class="p">(</span>
+                        <span class="n">option</span><span class="p">,</span>
+                        <span class="n">err_text</span><span class="o">=</span><span class="p">(</span><span class="s1">&#39;Unprintable string </span><span class="si">{!r}</span><span class="s1">; header comments &#39;</span>
+                                  <span class="s1">&#39;may only contain printable ASCII &#39;</span>
+                                  <span class="s1">&#39;characters&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">comment</span><span class="p">)),</span>
+                        <span class="n">fixable</span><span class="o">=</span><span class="kc">False</span><span class="p">))</span>
+
+        <span class="k">return</span> <span class="n">errs</span>
+
+    <span class="k">def</span> <span class="nf">_itersubcards</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        If the card image is greater than 80 characters, it should consist of a</span>
+<span class="sd">        normal card followed by one or more CONTINUE card.  This method returns</span>
+<span class="sd">        the subcards that make up this logical card.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+
+        <span class="n">ncards</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_image</span><span class="p">)</span> <span class="o">//</span> <span class="n">Card</span><span class="o">.</span><span class="n">length</span>
+
+        <span class="k">for</span> <span class="n">idx</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="n">Card</span><span class="o">.</span><span class="n">length</span> <span class="o">*</span> <span class="n">ncards</span><span class="p">,</span> <span class="n">Card</span><span class="o">.</span><span class="n">length</span><span class="p">):</span>
+            <span class="n">card</span> <span class="o">=</span> <span class="n">Card</span><span class="o">.</span><span class="n">fromstring</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_image</span><span class="p">[</span><span class="n">idx</span><span class="p">:</span><span class="n">idx</span> <span class="o">+</span> <span class="n">Card</span><span class="o">.</span><span class="n">length</span><span class="p">])</span>
+            <span class="k">if</span> <span class="n">idx</span> <span class="o">&gt;</span> <span class="mi">0</span> <span class="ow">and</span> <span class="n">card</span><span class="o">.</span><span class="n">keyword</span><span class="o">.</span><span class="n">upper</span><span class="p">()</span> <span class="o">!=</span> <span class="s1">&#39;CONTINUE&#39;</span><span class="p">:</span>
+                <span class="k">raise</span> <span class="n">VerifyError</span><span class="p">(</span>
+                        <span class="s1">&#39;Long card images must have CONTINUE cards after &#39;</span>
+                        <span class="s1">&#39;the first card.&#39;</span><span class="p">)</span>
+
+            <span class="k">if</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">card</span><span class="o">.</span><span class="n">value</span><span class="p">,</span> <span class="nb">str</span><span class="p">):</span>
+                <span class="k">raise</span> <span class="n">VerifyError</span><span class="p">(</span><span class="s1">&#39;CONTINUE cards must have string values.&#39;</span><span class="p">)</span>
+
+            <span class="k">yield</span> <span class="n">card</span></div>
+
+
+<span class="k">def</span> <span class="nf">_int_or_float</span><span class="p">(</span><span class="n">s</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Converts an a string to an int if possible, or to a float.</span>
+
+<span class="sd">    If the string is neither a string or a float a value error is raised.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">s</span><span class="p">,</span> <span class="nb">float</span><span class="p">):</span>
+        <span class="c1"># Already a float so just pass through</span>
+        <span class="k">return</span> <span class="n">s</span>
+
+    <span class="k">try</span><span class="p">:</span>
+        <span class="k">return</span> <span class="nb">int</span><span class="p">(</span><span class="n">s</span><span class="p">)</span>
+    <span class="k">except</span> <span class="p">(</span><span class="ne">ValueError</span><span class="p">,</span> <span class="ne">TypeError</span><span class="p">):</span>
+        <span class="k">try</span><span class="p">:</span>
+            <span class="k">return</span> <span class="nb">float</span><span class="p">(</span><span class="n">s</span><span class="p">)</span>
+        <span class="k">except</span> <span class="p">(</span><span class="ne">ValueError</span><span class="p">,</span> <span class="ne">TypeError</span><span class="p">)</span> <span class="k">as</span> <span class="n">e</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="nb">str</span><span class="p">(</span><span class="n">e</span><span class="p">))</span>
+
+
+<span class="k">def</span> <span class="nf">_format_value</span><span class="p">(</span><span class="n">value</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Converts a card value to its appropriate string representation as</span>
+<span class="sd">    defined by the FITS format.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="c1"># string value should occupies at least 8 columns, unless it is</span>
+    <span class="c1"># a null string</span>
+    <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">value</span><span class="p">,</span> <span class="n">string_types</span><span class="p">):</span>
+        <span class="k">if</span> <span class="n">value</span> <span class="o">==</span> <span class="s1">&#39;&#39;</span><span class="p">:</span>
+            <span class="k">return</span> <span class="s2">&quot;&#39;&#39;&quot;</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">exp_val_str</span> <span class="o">=</span> <span class="n">value</span><span class="o">.</span><span class="n">replace</span><span class="p">(</span><span class="s2">&quot;&#39;&quot;</span><span class="p">,</span> <span class="s2">&quot;&#39;&#39;&quot;</span><span class="p">)</span>
+            <span class="n">val_str</span> <span class="o">=</span> <span class="s2">&quot;&#39;</span><span class="si">{:8}</span><span class="s2">&#39;&quot;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">exp_val_str</span><span class="p">)</span>
+            <span class="k">return</span> <span class="s1">&#39;</span><span class="si">{:20}</span><span class="s1">&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">val_str</span><span class="p">)</span>
+
+    <span class="c1"># must be before int checking since bool is also int</span>
+    <span class="k">elif</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">value</span><span class="p">,</span> <span class="p">(</span><span class="nb">bool</span><span class="p">,</span> <span class="n">np</span><span class="o">.</span><span class="n">bool_</span><span class="p">)):</span>
+        <span class="k">return</span> <span class="s1">&#39;</span><span class="si">{:&gt;20}</span><span class="s1">&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="nb">repr</span><span class="p">(</span><span class="n">value</span><span class="p">)[</span><span class="mi">0</span><span class="p">])</span>  <span class="c1"># T or F</span>
+
+    <span class="k">elif</span> <span class="n">_is_int</span><span class="p">(</span><span class="n">value</span><span class="p">):</span>
+        <span class="k">return</span> <span class="s1">&#39;</span><span class="si">{:&gt;20d}</span><span class="s1">&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">value</span><span class="p">)</span>
+
+    <span class="k">elif</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">value</span><span class="p">,</span> <span class="p">(</span><span class="nb">float</span><span class="p">,</span> <span class="n">np</span><span class="o">.</span><span class="n">floating</span><span class="p">)):</span>
+        <span class="k">return</span> <span class="s1">&#39;</span><span class="si">{:&gt;20}</span><span class="s1">&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">_format_float</span><span class="p">(</span><span class="n">value</span><span class="p">))</span>
+
+    <span class="k">elif</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">value</span><span class="p">,</span> <span class="p">(</span><span class="nb">complex</span><span class="p">,</span> <span class="n">np</span><span class="o">.</span><span class="n">complexfloating</span><span class="p">)):</span>
+        <span class="n">val_str</span> <span class="o">=</span> <span class="s1">&#39;(</span><span class="si">{}</span><span class="s1">, </span><span class="si">{}</span><span class="s1">)&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">_format_float</span><span class="p">(</span><span class="n">value</span><span class="o">.</span><span class="n">real</span><span class="p">),</span>
+                                    <span class="n">_format_float</span><span class="p">(</span><span class="n">value</span><span class="o">.</span><span class="n">imag</span><span class="p">))</span>
+        <span class="k">return</span> <span class="s1">&#39;</span><span class="si">{:&gt;20}</span><span class="s1">&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">val_str</span><span class="p">)</span>
+
+    <span class="k">elif</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">value</span><span class="p">,</span> <span class="n">Undefined</span><span class="p">):</span>
+        <span class="k">return</span> <span class="s1">&#39;&#39;</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="k">return</span> <span class="s1">&#39;&#39;</span>
+
+
+<span class="k">def</span> <span class="nf">_format_float</span><span class="p">(</span><span class="n">value</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;Format a floating number to make sure it gets the decimal point.&quot;&quot;&quot;</span>
+
+    <span class="n">value_str</span> <span class="o">=</span> <span class="s1">&#39;</span><span class="si">{:.16G}</span><span class="s1">&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">value</span><span class="p">)</span>
+    <span class="k">if</span> <span class="s1">&#39;.&#39;</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">value_str</span> <span class="ow">and</span> <span class="s1">&#39;E&#39;</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">value_str</span><span class="p">:</span>
+        <span class="n">value_str</span> <span class="o">+=</span> <span class="s1">&#39;.0&#39;</span>
+    <span class="k">elif</span> <span class="s1">&#39;E&#39;</span> <span class="ow">in</span> <span class="n">value_str</span><span class="p">:</span>
+        <span class="c1"># On some Windows builds of Python (and possibly other platforms?) the</span>
+        <span class="c1"># exponent is zero-padded out to, it seems, three digits.  Normalize</span>
+        <span class="c1"># the format to pad only to two digits.</span>
+        <span class="n">significand</span><span class="p">,</span> <span class="n">exponent</span> <span class="o">=</span> <span class="n">value_str</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="s1">&#39;E&#39;</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">exponent</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="ow">in</span> <span class="p">(</span><span class="s1">&#39;+&#39;</span><span class="p">,</span> <span class="s1">&#39;-&#39;</span><span class="p">):</span>
+            <span class="n">sign</span> <span class="o">=</span> <span class="n">exponent</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+            <span class="n">exponent</span> <span class="o">=</span> <span class="n">exponent</span><span class="p">[</span><span class="mi">1</span><span class="p">:]</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">sign</span> <span class="o">=</span> <span class="s1">&#39;&#39;</span>
+        <span class="n">value_str</span> <span class="o">=</span> <span class="s1">&#39;</span><span class="si">{}</span><span class="s1">E</span><span class="si">{}{:02d}</span><span class="s1">&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">significand</span><span class="p">,</span> <span class="n">sign</span><span class="p">,</span> <span class="nb">int</span><span class="p">(</span><span class="n">exponent</span><span class="p">))</span>
+
+    <span class="c1"># Limit the value string to at most 20 characters.</span>
+    <span class="n">str_len</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="n">value_str</span><span class="p">)</span>
+
+    <span class="k">if</span> <span class="n">str_len</span> <span class="o">&gt;</span> <span class="mi">20</span><span class="p">:</span>
+        <span class="n">idx</span> <span class="o">=</span> <span class="n">value_str</span><span class="o">.</span><span class="n">find</span><span class="p">(</span><span class="s1">&#39;E&#39;</span><span class="p">)</span>
+
+        <span class="k">if</span> <span class="n">idx</span> <span class="o">&lt;</span> <span class="mi">0</span><span class="p">:</span>
+            <span class="n">value_str</span> <span class="o">=</span> <span class="n">value_str</span><span class="p">[:</span><span class="mi">20</span><span class="p">]</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">value_str</span> <span class="o">=</span> <span class="n">value_str</span><span class="p">[:</span><span class="mi">20</span> <span class="o">-</span> <span class="p">(</span><span class="n">str_len</span> <span class="o">-</span> <span class="n">idx</span><span class="p">)]</span> <span class="o">+</span> <span class="n">value_str</span><span class="p">[</span><span class="n">idx</span><span class="p">:]</span>
+
+    <span class="k">return</span> <span class="n">value_str</span>
+
+
+<span class="k">def</span> <span class="nf">_pad</span><span class="p">(</span><span class="nb">input</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;Pad blank space to the input string to be multiple of 80.&quot;&quot;&quot;</span>
+
+    <span class="n">_len</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="nb">input</span><span class="p">)</span>
+    <span class="k">if</span> <span class="n">_len</span> <span class="o">==</span> <span class="n">Card</span><span class="o">.</span><span class="n">length</span><span class="p">:</span>
+        <span class="k">return</span> <span class="nb">input</span>
+    <span class="k">elif</span> <span class="n">_len</span> <span class="o">&gt;</span> <span class="n">Card</span><span class="o">.</span><span class="n">length</span><span class="p">:</span>
+        <span class="n">strlen</span> <span class="o">=</span> <span class="n">_len</span> <span class="o">%</span> <span class="n">Card</span><span class="o">.</span><span class="n">length</span>
+        <span class="k">if</span> <span class="n">strlen</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
+            <span class="k">return</span> <span class="nb">input</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">return</span> <span class="nb">input</span> <span class="o">+</span> <span class="s1">&#39; &#39;</span> <span class="o">*</span> <span class="p">(</span><span class="n">Card</span><span class="o">.</span><span class="n">length</span> <span class="o">-</span> <span class="n">strlen</span><span class="p">)</span>
+
+    <span class="c1"># minimum length is 80</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="n">strlen</span> <span class="o">=</span> <span class="n">_len</span> <span class="o">%</span> <span class="n">Card</span><span class="o">.</span><span class="n">length</span>
+        <span class="k">return</span> <span class="nb">input</span> <span class="o">+</span> <span class="s1">&#39; &#39;</span> <span class="o">*</span> <span class="p">(</span><span class="n">Card</span><span class="o">.</span><span class="n">length</span> <span class="o">-</span> <span class="n">strlen</span><span class="p">)</span>
+</pre></div>
+
+          </div>
+        </div>
+      </div>
+      <div class="sphinxsidebar" role="navigation" aria-label="main navigation">
+        <div class="sphinxsidebarwrapper"><h3>Page Contents</h3>
+
+
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+<footer class="footer">
+  <p class="pull-right"> &nbsp;
+    <a href="#">Back to Top</a></p>
+  <p>
+    &copy; Copyright 2011-2016, The Astropy Developers.<br/>
+    Created using <a href="http://sphinx.pocoo.org/">Sphinx</a> 1.5.6. &nbsp;
+    Last built 05 Jul 2017. <br/>
+  </p>
+</footer>
+  </body>
+</html>

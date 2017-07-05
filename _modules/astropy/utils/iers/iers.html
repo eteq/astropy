@@ -1,0 +1,816 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <head>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    
+    <title>astropy.utils.iers.iers &#8212; Astropy v3.0.dev19489</title>
+    
+    <link rel="stylesheet" href="../../../../_static/bootstrap-astropy.css" type="text/css" />
+    <link rel="stylesheet" href="../../../../_static/pygments.css" type="text/css" />
+    <link rel="stylesheet" href="../../../../_static/gallery.css" type="text/css" />
+    
+    <script type="text/javascript">
+      var DOCUMENTATION_OPTIONS = {
+        URL_ROOT:    '../../../../',
+        VERSION:     '3.0.dev19489',
+        COLLAPSE_INDEX: false,
+        FILE_SUFFIX: '.html',
+        HAS_SOURCE:  true,
+        SOURCELINK_SUFFIX: '.txt'
+      };
+    </script>
+    <script type="text/javascript" src="../../../../_static/jquery.js"></script>
+    <script type="text/javascript" src="../../../../_static/underscore.js"></script>
+    <script type="text/javascript" src="../../../../_static/doctools.js"></script>
+    <script type="text/javascript" src="../../../../_static/sidebar.js"></script>
+    <link rel="shortcut icon" href="../../../../_static/astropy_logo.ico"/>
+    <link rel="index" title="Index" href="../../../../genindex.html" />
+    <link rel="search" title="Search" href="../../../../search.html" />
+<link href='https://fonts.googleapis.com/css?family=Source+Sans+Pro:200,600' rel='stylesheet' type='text/css'/>
+<script type="text/javascript" src="../../../../_static/copybutton.js"></script>
+
+
+  </head>
+  <body role="document">
+<div class="topbar">
+  <a class="brand" title="Documentation Home" href="../../../../index.html"><span id="logotext1">astro</span><span id="logotext2">py</span><span id="logotext3">:docs</span></a>
+  <ul>
+    <li><a class="homelink" title="Astropy Homepage" href="http://www.astropy.org"></a></li>
+    <li><a title="General Index" href="../../../../genindex.html">Index</a></li>
+    <li><a title="Module Index" href="../../../../py-modindex.html">Modules</a></li>
+    <li>
+      
+      
+<form action="../../../../search.html" method="get">
+  <input type="text" name="q" placeholder="Search" />
+  <input type="hidden" name="check_keywords" value="yes" />
+  <input type="hidden" name="area" value="default" />
+</form>
+      
+    </li>
+  </ul>
+</div>
+
+<div class="related">
+    <h3>Navigation</h3>
+    <ul>
+      <li>
+	<a href="../../../../index.html">Astropy v3.0.dev19489</a>
+	 &#187;
+      </li>
+      <li><a href="../../../index.html" >Module code</a> &#187;</li>
+      <li><a href="../../../astropy.html" accesskey="U">astropy</a> &#187;</li>
+      
+       
+    </ul>
+</div>
+  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          <div class="body" role="main">
+            
+  <h1>Source code for astropy.utils.iers.iers</h1><div class="highlight"><pre>
+<span></span><span class="c1"># Licensed under a 3-clause BSD style license - see LICENSE.rst</span>
+<span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">The astropy.utils.iers package provides access to the tables provided by</span>
+<span class="sd">the International Earth Rotation and Reference Systems Service, in</span>
+<span class="sd">particular allowing interpolation of published UT1-UTC values for given</span>
+<span class="sd">times.  These are used in `astropy.time` to provide UT1 values.  The polar</span>
+<span class="sd">motions are also used for determining earth orientation for</span>
+<span class="sd">celestial-to-terrestrial coordinate transformations</span>
+<span class="sd">(in `astropy.coordinates`).</span>
+<span class="sd">&quot;&quot;&quot;</span>
+<span class="kn">from</span> <span class="nn">__future__</span> <span class="k">import</span> <span class="p">(</span><span class="n">absolute_import</span><span class="p">,</span> <span class="n">division</span><span class="p">,</span> <span class="n">print_function</span><span class="p">,</span>
+                        <span class="n">unicode_literals</span><span class="p">)</span>
+
+<span class="kn">from</span> <span class="nn">warnings</span> <span class="k">import</span> <span class="n">warn</span>
+
+<span class="k">try</span><span class="p">:</span>
+    <span class="kn">from</span> <span class="nn">urlparse</span> <span class="k">import</span> <span class="n">urlparse</span>
+<span class="k">except</span> <span class="ne">ImportError</span><span class="p">:</span>
+    <span class="kn">from</span> <span class="nn">urllib.parse</span> <span class="k">import</span> <span class="n">urlparse</span>
+
+<span class="kn">import</span> <span class="nn">numpy</span> <span class="k">as</span> <span class="nn">np</span>
+
+<span class="kn">from</span> <span class="nn">...</span> <span class="k">import</span> <span class="n">config</span> <span class="k">as</span> <span class="n">_config</span>
+<span class="kn">from</span> <span class="nn">...</span> <span class="k">import</span> <span class="n">units</span> <span class="k">as</span> <span class="n">u</span>
+<span class="kn">from</span> <span class="nn">...table</span> <span class="k">import</span> <span class="n">Table</span><span class="p">,</span> <span class="n">QTable</span>
+<span class="kn">from</span> <span class="nn">...utils.data</span> <span class="k">import</span> <span class="n">get_pkg_data_filename</span><span class="p">,</span> <span class="n">clear_download_cache</span>
+<span class="kn">from</span> <span class="nn">...</span> <span class="k">import</span> <span class="n">utils</span>
+<span class="kn">from</span> <span class="nn">...utils.exceptions</span> <span class="k">import</span> <span class="n">AstropyWarning</span>
+<span class="kn">from</span> <span class="nn">...tests</span> <span class="k">import</span> <span class="n">disable_internet</span>
+
+<span class="n">__all__</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;Conf&#39;</span><span class="p">,</span> <span class="s1">&#39;conf&#39;</span><span class="p">,</span>
+           <span class="s1">&#39;IERS&#39;</span><span class="p">,</span> <span class="s1">&#39;IERS_B&#39;</span><span class="p">,</span> <span class="s1">&#39;IERS_A&#39;</span><span class="p">,</span> <span class="s1">&#39;IERS_Auto&#39;</span><span class="p">,</span>
+           <span class="s1">&#39;FROM_IERS_B&#39;</span><span class="p">,</span> <span class="s1">&#39;FROM_IERS_A&#39;</span><span class="p">,</span> <span class="s1">&#39;FROM_IERS_A_PREDICTION&#39;</span><span class="p">,</span>
+           <span class="s1">&#39;TIME_BEFORE_IERS_RANGE&#39;</span><span class="p">,</span> <span class="s1">&#39;TIME_BEYOND_IERS_RANGE&#39;</span><span class="p">,</span>
+           <span class="s1">&#39;IERS_A_FILE&#39;</span><span class="p">,</span> <span class="s1">&#39;IERS_A_URL&#39;</span><span class="p">,</span> <span class="s1">&#39;IERS_A_README&#39;</span><span class="p">,</span>
+           <span class="s1">&#39;IERS_B_FILE&#39;</span><span class="p">,</span> <span class="s1">&#39;IERS_B_URL&#39;</span><span class="p">,</span> <span class="s1">&#39;IERS_B_README&#39;</span><span class="p">,</span>
+           <span class="s1">&#39;IERSRangeError&#39;</span><span class="p">,</span> <span class="s1">&#39;IERSStaleWarning&#39;</span><span class="p">]</span>
+
+<span class="c1"># IERS-A default file name, URL, and ReadMe with content description</span>
+<span class="n">IERS_A_FILE</span> <span class="o">=</span> <span class="s1">&#39;finals2000A.all&#39;</span>
+<span class="n">IERS_A_URL</span> <span class="o">=</span> <span class="s1">&#39;http://maia.usno.navy.mil/ser7/finals2000A.all&#39;</span>
+<span class="n">IERS_A_README</span> <span class="o">=</span> <span class="n">get_pkg_data_filename</span><span class="p">(</span><span class="s1">&#39;data/ReadMe.finals2000A&#39;</span><span class="p">)</span>
+
+<span class="c1"># IERS-B default file name, URL, and ReadMe with content description</span>
+<span class="n">IERS_B_FILE</span> <span class="o">=</span> <span class="n">get_pkg_data_filename</span><span class="p">(</span><span class="s1">&#39;data/eopc04_IAU2000.62-now&#39;</span><span class="p">)</span>
+<span class="n">IERS_B_URL</span> <span class="o">=</span> <span class="s1">&#39;http://hpiers.obspm.fr/iers/eop/eopc04/eopc04_IAU2000.62-now&#39;</span>
+<span class="n">IERS_B_README</span> <span class="o">=</span> <span class="n">get_pkg_data_filename</span><span class="p">(</span><span class="s1">&#39;data/ReadMe.eopc04_IAU2000&#39;</span><span class="p">)</span>
+
+<span class="c1"># Status/source values returned by IERS.ut1_utc</span>
+<span class="n">FROM_IERS_B</span> <span class="o">=</span> <span class="mi">0</span>
+<span class="n">FROM_IERS_A</span> <span class="o">=</span> <span class="mi">1</span>
+<span class="n">FROM_IERS_A_PREDICTION</span> <span class="o">=</span> <span class="mi">2</span>
+<span class="n">TIME_BEFORE_IERS_RANGE</span> <span class="o">=</span> <span class="o">-</span><span class="mi">1</span>
+<span class="n">TIME_BEYOND_IERS_RANGE</span> <span class="o">=</span> <span class="o">-</span><span class="mi">2</span>
+
+<span class="n">MJD_ZERO</span> <span class="o">=</span> <span class="mf">2400000.5</span>
+
+<span class="n">INTERPOLATE_ERROR</span> <span class="o">=</span> <span class="s2">&quot;&quot;&quot;</span><span class="se">\</span>
+<span class="s2">interpolating from IERS_Auto using predictive values that are more</span>
+<span class="s2">than </span><span class="si">{}</span><span class="s2"> days old.</span>
+
+<span class="s2">Normally you should not see this error because this class</span>
+<span class="s2">automatically downloads the latest IERS-A table.  Perhaps you are</span>
+<span class="s2">offline?  If you understand what you are doing then this error can be</span>
+<span class="s2">suppressed by setting the auto_max_age configuration variable to</span>
+<span class="s2">``None``:</span>
+
+<span class="s2">  from astropy.utils.iers import conf</span>
+<span class="s2">  conf.auto_max_age = None</span>
+<span class="s2">&quot;&quot;&quot;</span>
+
+
+<span class="k">def</span> <span class="nf">download_file</span><span class="p">(</span><span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Overload astropy.utils.data.download_file within iers module to use a</span>
+<span class="sd">    custom (longer) wait time.  This just passes through ``*args`` and</span>
+<span class="sd">    ``**kwargs`` after temporarily setting the download_file remote timeout to</span>
+<span class="sd">    the local ``iers.conf.remote_timeout`` value.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">with</span> <span class="n">utils</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">conf</span><span class="o">.</span><span class="n">set_temp</span><span class="p">(</span><span class="s1">&#39;remote_timeout&#39;</span><span class="p">,</span> <span class="n">conf</span><span class="o">.</span><span class="n">remote_timeout</span><span class="p">):</span>
+        <span class="k">return</span> <span class="n">utils</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">download_file</span><span class="p">(</span><span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
+
+
+<div class="viewcode-block" id="IERSStaleWarning"><a class="viewcode-back" href="../../../../api/astropy.utils.iers.IERSStaleWarning.html#astropy.utils.iers.IERSStaleWarning">[docs]</a><span class="k">class</span> <span class="nc">IERSStaleWarning</span><span class="p">(</span><span class="n">AstropyWarning</span><span class="p">):</span>
+    <span class="k">pass</span></div>
+
+
+<div class="viewcode-block" id="Conf"><a class="viewcode-back" href="../../../../api/astropy.utils.iers.Conf.html#astropy.utils.iers.Conf">[docs]</a><span class="k">class</span> <span class="nc">Conf</span><span class="p">(</span><span class="n">_config</span><span class="o">.</span><span class="n">ConfigNamespace</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Configuration parameters for `astropy.utils.iers`.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">auto_download</span> <span class="o">=</span> <span class="n">_config</span><span class="o">.</span><span class="n">ConfigItem</span><span class="p">(</span>
+        <span class="kc">True</span><span class="p">,</span>
+        <span class="s1">&#39;Enable auto-downloading of the latest IERS data.  If set to False &#39;</span>
+        <span class="s1">&#39;then the local IERS-B file will be used by default. Default is True.&#39;</span><span class="p">)</span>
+    <span class="n">auto_max_age</span> <span class="o">=</span> <span class="n">_config</span><span class="o">.</span><span class="n">ConfigItem</span><span class="p">(</span>
+        <span class="mf">30.0</span><span class="p">,</span>
+        <span class="s1">&#39;Maximum age (days) of predictive data before auto-downloading. Default is 30.&#39;</span><span class="p">)</span>
+    <span class="n">iers_auto_url</span> <span class="o">=</span> <span class="n">_config</span><span class="o">.</span><span class="n">ConfigItem</span><span class="p">(</span>
+        <span class="n">IERS_A_URL</span><span class="p">,</span>
+        <span class="s1">&#39;URL for auto-downloading IERS file data.&#39;</span><span class="p">)</span>
+    <span class="n">remote_timeout</span> <span class="o">=</span> <span class="n">_config</span><span class="o">.</span><span class="n">ConfigItem</span><span class="p">(</span>
+        <span class="mf">10.0</span><span class="p">,</span>
+        <span class="s1">&#39;Remote timeout downloading IERS file data (seconds).&#39;</span><span class="p">)</span></div>
+
+
+<span class="n">conf</span> <span class="o">=</span> <span class="n">Conf</span><span class="p">()</span>
+
+<span class="c1"># If internet is off for testing then do not download.  This</span>
+<span class="c1"># makes most tests fall back to using the built-in IERS-B table.</span>
+<span class="n">conf</span><span class="o">.</span><span class="n">auto_download</span> <span class="o">&amp;=</span> <span class="ow">not</span> <span class="n">disable_internet</span><span class="o">.</span><span class="n">INTERNET_OFF</span>
+
+
+<div class="viewcode-block" id="IERSRangeError"><a class="viewcode-back" href="../../../../api/astropy.utils.iers.IERSRangeError.html#astropy.utils.iers.IERSRangeError">[docs]</a><span class="k">class</span> <span class="nc">IERSRangeError</span><span class="p">(</span><span class="ne">IndexError</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Any error for when dates are outside of the valid range for IERS</span>
+<span class="sd">    &quot;&quot;&quot;</span></div>
+
+
+<div class="viewcode-block" id="IERS"><a class="viewcode-back" href="../../../../api/astropy.utils.iers.IERS.html#astropy.utils.iers.IERS">[docs]</a><span class="k">class</span> <span class="nc">IERS</span><span class="p">(</span><span class="n">QTable</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;Generic IERS table class, defining interpolation functions.</span>
+
+<span class="sd">    Sub-classed from `astropy.table.QTable`.  The table should hold columns</span>
+<span class="sd">    &#39;MJD&#39;, &#39;UT1_UTC&#39;, and &#39;PM_x&#39;/&#39;PM_y&#39;.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="n">iers_table</span> <span class="o">=</span> <span class="kc">None</span>
+
+    <span class="nd">@classmethod</span>
+<div class="viewcode-block" id="IERS.open"><a class="viewcode-back" href="../../../../api/astropy.utils.iers.IERS.html#astropy.utils.iers.IERS.open">[docs]</a>    <span class="k">def</span> <span class="nf">open</span><span class="p">(</span><span class="n">cls</span><span class="p">,</span> <span class="n">file</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">cache</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Open an IERS table, reading it from a file if not loaded before.</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        file : str or None</span>
+<span class="sd">            full local or network path to the ascii file holding IERS data,</span>
+<span class="sd">            for passing on to the ``read`` class methods (further optional</span>
+<span class="sd">            arguments that are available for some IERS subclasses can be added).</span>
+<span class="sd">            If None, use the default location from the ``read`` class method.</span>
+<span class="sd">        cache : bool</span>
+<span class="sd">            Whether to use cache. Defaults to False, since IERS files</span>
+<span class="sd">            are regularly updated.</span>
+
+<span class="sd">        Returns</span>
+<span class="sd">        -------</span>
+<span class="sd">        An IERS table class instance</span>
+
+<span class="sd">        Notes</span>
+<span class="sd">        -----</span>
+<span class="sd">        On the first call in a session, the table will be memoized (in the</span>
+<span class="sd">        ``iers_table`` class attribute), and further calls to ``open`` will</span>
+<span class="sd">        return this stored table if ``file=None`` (the default).</span>
+
+<span class="sd">        If a table needs to be re-read from disk, pass on an explicit file</span>
+<span class="sd">        location or use the (sub-class) close method and re-open.</span>
+
+<span class="sd">        If the location is a network location it is first downloaded via</span>
+<span class="sd">        download_file.</span>
+
+<span class="sd">        For the IERS class itself, an IERS_B sub-class instance is opened.</span>
+
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="n">file</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="ow">or</span> <span class="n">cls</span><span class="o">.</span><span class="n">iers_table</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="k">if</span> <span class="n">file</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+                <span class="k">if</span> <span class="n">urlparse</span><span class="p">(</span><span class="n">file</span><span class="p">)</span><span class="o">.</span><span class="n">netloc</span><span class="p">:</span>
+                    <span class="n">kwargs</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="n">file</span><span class="o">=</span><span class="n">download_file</span><span class="p">(</span><span class="n">file</span><span class="p">,</span> <span class="n">cache</span><span class="o">=</span><span class="n">cache</span><span class="p">))</span>
+                <span class="k">else</span><span class="p">:</span>
+                    <span class="n">kwargs</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="n">file</span><span class="o">=</span><span class="n">file</span><span class="p">)</span>
+            <span class="n">cls</span><span class="o">.</span><span class="n">iers_table</span> <span class="o">=</span> <span class="n">cls</span><span class="o">.</span><span class="n">read</span><span class="p">(</span><span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">cls</span><span class="o">.</span><span class="n">iers_table</span></div>
+
+    <span class="nd">@classmethod</span>
+<div class="viewcode-block" id="IERS.close"><a class="viewcode-back" href="../../../../api/astropy.utils.iers.IERS.html#astropy.utils.iers.IERS.close">[docs]</a>    <span class="k">def</span> <span class="nf">close</span><span class="p">(</span><span class="n">cls</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Remove the IERS table from the class.</span>
+
+<span class="sd">        This allows the table to be re-read from disk during one&#39;s session</span>
+<span class="sd">        (e.g., if one finds it is out of date and has updated the file).</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">cls</span><span class="o">.</span><span class="n">iers_table</span> <span class="o">=</span> <span class="kc">None</span></div>
+
+<div class="viewcode-block" id="IERS.mjd_utc"><a class="viewcode-back" href="../../../../api/astropy.utils.iers.IERS.html#astropy.utils.iers.IERS.mjd_utc">[docs]</a>    <span class="k">def</span> <span class="nf">mjd_utc</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">jd1</span><span class="p">,</span> <span class="n">jd2</span><span class="o">=</span><span class="mf">0.</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Turn a time to MJD, returning integer and fractional parts.</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        jd1 : float, array, or Time</span>
+<span class="sd">            first part of two-part JD, or Time object</span>
+<span class="sd">        jd2 : float or array, optional</span>
+<span class="sd">            second part of two-part JD.</span>
+<span class="sd">            Default is 0., ignored if jd1 is `~astropy.time.Time`.</span>
+<span class="sd">        Returns</span>
+<span class="sd">        -------</span>
+<span class="sd">        mjd : float or array</span>
+<span class="sd">            integer part of MJD</span>
+<span class="sd">        utc : float or array</span>
+<span class="sd">            fractional part of MJD</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">try</span><span class="p">:</span>  <span class="c1"># see if this is a Time object</span>
+            <span class="n">jd1</span><span class="p">,</span> <span class="n">jd2</span> <span class="o">=</span> <span class="n">jd1</span><span class="o">.</span><span class="n">utc</span><span class="o">.</span><span class="n">jd1</span><span class="p">,</span> <span class="n">jd1</span><span class="o">.</span><span class="n">utc</span><span class="o">.</span><span class="n">jd2</span>
+        <span class="k">except</span> <span class="ne">Exception</span><span class="p">:</span>
+            <span class="k">pass</span>
+        <span class="n">mjd</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">floor</span><span class="p">(</span><span class="n">jd1</span> <span class="o">-</span> <span class="n">MJD_ZERO</span> <span class="o">+</span> <span class="n">jd2</span><span class="p">)</span>
+        <span class="n">utc</span> <span class="o">=</span> <span class="n">jd1</span> <span class="o">-</span> <span class="p">(</span><span class="n">MJD_ZERO</span><span class="o">+</span><span class="n">mjd</span><span class="p">)</span> <span class="o">+</span> <span class="n">jd2</span>
+        <span class="k">return</span> <span class="n">mjd</span><span class="p">,</span> <span class="n">utc</span></div>
+
+<div class="viewcode-block" id="IERS.ut1_utc"><a class="viewcode-back" href="../../../../api/astropy.utils.iers.IERS.html#astropy.utils.iers.IERS.ut1_utc">[docs]</a>    <span class="k">def</span> <span class="nf">ut1_utc</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">jd1</span><span class="p">,</span> <span class="n">jd2</span><span class="o">=</span><span class="mf">0.</span><span class="p">,</span> <span class="n">return_status</span><span class="o">=</span><span class="kc">False</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Interpolate UT1-UTC corrections in IERS Table for given dates.</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        jd1 : float, float array, or Time object</span>
+<span class="sd">            first part of two-part JD, or Time object</span>
+<span class="sd">        jd2 : float or float array, optional</span>
+<span class="sd">            second part of two-part JD.</span>
+<span class="sd">            Default is 0., ignored if jd1 is `~astropy.time.Time`.</span>
+<span class="sd">        return_status : bool</span>
+<span class="sd">            Whether to return status values.  If False (default),</span>
+<span class="sd">            raise ``IERSRangeError`` if any time is out of the range covered</span>
+<span class="sd">            by the IERS table.</span>
+
+<span class="sd">        Returns</span>
+<span class="sd">        -------</span>
+<span class="sd">        ut1_utc : float or float array</span>
+<span class="sd">            UT1-UTC, interpolated in IERS Table</span>
+<span class="sd">        status : int or int array</span>
+<span class="sd">            Status values (if ``return_status``=``True``)::</span>
+<span class="sd">            ``iers.FROM_IERS_B``</span>
+<span class="sd">            ``iers.FROM_IERS_A``</span>
+<span class="sd">            ``iers.FROM_IERS_A_PREDICTION``</span>
+<span class="sd">            ``iers.TIME_BEFORE_IERS_RANGE``</span>
+<span class="sd">            ``iers.TIME_BEYOND_IERS_RANGE``</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_interpolate</span><span class="p">(</span><span class="n">jd1</span><span class="p">,</span> <span class="n">jd2</span><span class="p">,</span> <span class="p">[</span><span class="s1">&#39;UT1_UTC&#39;</span><span class="p">],</span>
+                                 <span class="bp">self</span><span class="o">.</span><span class="n">ut1_utc_source</span> <span class="k">if</span> <span class="n">return_status</span> <span class="k">else</span> <span class="kc">None</span><span class="p">)</span></div>
+
+<div class="viewcode-block" id="IERS.pm_xy"><a class="viewcode-back" href="../../../../api/astropy.utils.iers.IERS.html#astropy.utils.iers.IERS.pm_xy">[docs]</a>    <span class="k">def</span> <span class="nf">pm_xy</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">jd1</span><span class="p">,</span> <span class="n">jd2</span><span class="o">=</span><span class="mf">0.</span><span class="p">,</span> <span class="n">return_status</span><span class="o">=</span><span class="kc">False</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Interpolate polar motions from IERS Table for given dates.</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        jd1 : float, float array, or Time object</span>
+<span class="sd">            first part of two-part JD, or Time object</span>
+<span class="sd">        jd2 : float or float array, optional</span>
+<span class="sd">            second part of two-part JD.</span>
+<span class="sd">            Default is 0., ignored if jd1 is `~astropy.time.Time`.</span>
+<span class="sd">        return_status : bool</span>
+<span class="sd">            Whether to return status values.  If False (default),</span>
+<span class="sd">            raise ``IERSRangeError`` if any time is out of the range covered</span>
+<span class="sd">            by the IERS table.</span>
+
+<span class="sd">        Returns</span>
+<span class="sd">        -------</span>
+<span class="sd">        PM_x : Quantity with angle units</span>
+<span class="sd">            x component of polar motion for the requested times</span>
+<span class="sd">        PM_y : Quantity with angle units</span>
+<span class="sd">            y component of polar motion for the requested times</span>
+<span class="sd">        status : int or int array</span>
+<span class="sd">            Status values (if ``return_status``=``True``)::</span>
+<span class="sd">            ``iers.FROM_IERS_B``</span>
+<span class="sd">            ``iers.FROM_IERS_A``</span>
+<span class="sd">            ``iers.FROM_IERS_A_PREDICTION``</span>
+<span class="sd">            ``iers.TIME_BEFORE_IERS_RANGE``</span>
+<span class="sd">            ``iers.TIME_BEYOND_IERS_RANGE``</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_interpolate</span><span class="p">(</span><span class="n">jd1</span><span class="p">,</span> <span class="n">jd2</span><span class="p">,</span> <span class="p">[</span><span class="s1">&#39;PM_x&#39;</span><span class="p">,</span> <span class="s1">&#39;PM_y&#39;</span><span class="p">],</span>
+                                 <span class="bp">self</span><span class="o">.</span><span class="n">pm_source</span> <span class="k">if</span> <span class="n">return_status</span> <span class="k">else</span> <span class="kc">None</span><span class="p">)</span></div>
+
+    <span class="k">def</span> <span class="nf">_check_interpolate_indices</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">indices_orig</span><span class="p">,</span> <span class="n">indices_clipped</span><span class="p">,</span> <span class="n">max_input_mjd</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Check that the indices from interpolation match those after clipping</span>
+<span class="sd">        to the valid table range.  This method gets overridden in the IERS_Auto</span>
+<span class="sd">        class because it has different requirements.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="n">np</span><span class="o">.</span><span class="n">any</span><span class="p">(</span><span class="n">indices_orig</span> <span class="o">!=</span> <span class="n">indices_clipped</span><span class="p">):</span>
+            <span class="k">raise</span> <span class="n">IERSRangeError</span><span class="p">(</span><span class="s1">&#39;(some) times are outside of range covered &#39;</span>
+                                 <span class="s1">&#39;by IERS table.&#39;</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">_interpolate</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">jd1</span><span class="p">,</span> <span class="n">jd2</span><span class="p">,</span> <span class="n">columns</span><span class="p">,</span> <span class="n">source</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+        <span class="n">mjd</span><span class="p">,</span> <span class="n">utc</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">mjd_utc</span><span class="p">(</span><span class="n">jd1</span><span class="p">,</span> <span class="n">jd2</span><span class="p">)</span>
+        <span class="c1"># enforce array</span>
+        <span class="n">is_scalar</span> <span class="o">=</span> <span class="ow">not</span> <span class="nb">hasattr</span><span class="p">(</span><span class="n">mjd</span><span class="p">,</span> <span class="s1">&#39;__array__&#39;</span><span class="p">)</span> <span class="ow">or</span> <span class="n">mjd</span><span class="o">.</span><span class="n">ndim</span> <span class="o">==</span> <span class="mi">0</span>
+        <span class="k">if</span> <span class="n">is_scalar</span><span class="p">:</span>
+            <span class="n">mjd</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">([</span><span class="n">mjd</span><span class="p">])</span>
+            <span class="n">utc</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">([</span><span class="n">utc</span><span class="p">])</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">_refresh_table_as_needed</span><span class="p">(</span><span class="n">mjd</span><span class="p">)</span>
+
+        <span class="c1"># For typical format, will always find a match (since MJD are integer)</span>
+        <span class="c1"># hence, important to define which side we will be; this ensures</span>
+        <span class="c1"># self[&#39;MJD&#39;][i-1]&lt;=mjd&lt;self[&#39;MJD&#39;][i]</span>
+        <span class="n">i</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">searchsorted</span><span class="p">(</span><span class="bp">self</span><span class="p">[</span><span class="s1">&#39;MJD&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">value</span><span class="p">,</span> <span class="n">mjd</span><span class="p">,</span> <span class="n">side</span><span class="o">=</span><span class="s1">&#39;right&#39;</span><span class="p">)</span>
+
+        <span class="c1"># Get index to MJD at or just below given mjd, clipping to ensure we</span>
+        <span class="c1"># stay in range of table (status will be set below for those outside)</span>
+        <span class="n">i1</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">clip</span><span class="p">(</span><span class="n">i</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-</span> <span class="mi">1</span><span class="p">)</span>
+        <span class="n">i0</span> <span class="o">=</span> <span class="n">i1</span> <span class="o">-</span> <span class="mi">1</span>
+        <span class="n">mjd_0</span><span class="p">,</span> <span class="n">mjd_1</span> <span class="o">=</span> <span class="bp">self</span><span class="p">[</span><span class="s1">&#39;MJD&#39;</span><span class="p">][</span><span class="n">i0</span><span class="p">]</span><span class="o">.</span><span class="n">value</span><span class="p">,</span> <span class="bp">self</span><span class="p">[</span><span class="s1">&#39;MJD&#39;</span><span class="p">][</span><span class="n">i1</span><span class="p">]</span><span class="o">.</span><span class="n">value</span>
+        <span class="n">results</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="k">for</span> <span class="n">column</span> <span class="ow">in</span> <span class="n">columns</span><span class="p">:</span>
+            <span class="n">val_0</span><span class="p">,</span> <span class="n">val_1</span> <span class="o">=</span> <span class="bp">self</span><span class="p">[</span><span class="n">column</span><span class="p">][</span><span class="n">i0</span><span class="p">],</span> <span class="bp">self</span><span class="p">[</span><span class="n">column</span><span class="p">][</span><span class="n">i1</span><span class="p">]</span>
+            <span class="n">d_val</span> <span class="o">=</span> <span class="n">val_1</span> <span class="o">-</span> <span class="n">val_0</span>
+            <span class="k">if</span> <span class="n">column</span> <span class="o">==</span> <span class="s1">&#39;UT1_UTC&#39;</span><span class="p">:</span>
+                <span class="c1"># Check &amp; correct for possible leap second (correcting diff.,</span>
+                <span class="c1"># not 1st point, since jump can only happen right at 2nd point)</span>
+                <span class="n">d_val</span> <span class="o">-=</span> <span class="n">d_val</span><span class="o">.</span><span class="n">round</span><span class="p">()</span>
+            <span class="c1"># Linearly interpolate (which is what TEMPO does for UT1-UTC, but</span>
+            <span class="c1"># may want to follow IERS gazette #13 for more precise</span>
+            <span class="c1"># interpolation and correction for tidal effects;</span>
+            <span class="c1"># http://maia.usno.navy.mil/iers-gaz13)</span>
+            <span class="n">val</span> <span class="o">=</span> <span class="n">val_0</span> <span class="o">+</span> <span class="p">(</span><span class="n">mjd</span> <span class="o">-</span> <span class="n">mjd_0</span> <span class="o">+</span> <span class="n">utc</span><span class="p">)</span> <span class="o">/</span> <span class="p">(</span><span class="n">mjd_1</span> <span class="o">-</span> <span class="n">mjd_0</span><span class="p">)</span> <span class="o">*</span> <span class="n">d_val</span>
+
+            <span class="c1"># Do not extrapolate outside range, instead just propagate last values.</span>
+            <span class="n">val</span><span class="p">[</span><span class="n">i</span> <span class="o">==</span> <span class="mi">0</span><span class="p">]</span> <span class="o">=</span> <span class="bp">self</span><span class="p">[</span><span class="n">column</span><span class="p">][</span><span class="mi">0</span><span class="p">]</span>
+            <span class="n">val</span><span class="p">[</span><span class="n">i</span> <span class="o">==</span> <span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="p">)]</span> <span class="o">=</span> <span class="bp">self</span><span class="p">[</span><span class="n">column</span><span class="p">][</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span>
+
+            <span class="k">if</span> <span class="n">is_scalar</span><span class="p">:</span>
+                <span class="n">val</span> <span class="o">=</span> <span class="n">val</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+
+            <span class="n">results</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">val</span><span class="p">)</span>
+
+        <span class="k">if</span> <span class="n">source</span><span class="p">:</span>
+            <span class="c1"># Set status to source, using the routine passed in.</span>
+            <span class="n">status</span> <span class="o">=</span> <span class="n">source</span><span class="p">(</span><span class="n">i1</span><span class="p">)</span>
+            <span class="c1"># Check for out of range</span>
+            <span class="n">status</span><span class="p">[</span><span class="n">i</span> <span class="o">==</span> <span class="mi">0</span><span class="p">]</span> <span class="o">=</span> <span class="n">TIME_BEFORE_IERS_RANGE</span>
+            <span class="n">status</span><span class="p">[</span><span class="n">i</span> <span class="o">==</span> <span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="p">)]</span> <span class="o">=</span> <span class="n">TIME_BEYOND_IERS_RANGE</span>
+            <span class="k">if</span> <span class="n">is_scalar</span><span class="p">:</span>
+                <span class="n">status</span> <span class="o">=</span> <span class="n">status</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+            <span class="n">results</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">status</span><span class="p">)</span>
+            <span class="k">return</span> <span class="n">results</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_check_interpolate_indices</span><span class="p">(</span><span class="n">i1</span><span class="p">,</span> <span class="n">i</span><span class="p">,</span> <span class="n">np</span><span class="o">.</span><span class="n">max</span><span class="p">(</span><span class="n">mjd</span><span class="p">))</span>
+            <span class="k">return</span> <span class="n">results</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">results</span><span class="p">)</span> <span class="o">==</span> <span class="mi">1</span> <span class="k">else</span> <span class="n">results</span>
+
+    <span class="k">def</span> <span class="nf">_refresh_table_as_needed</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">mjd</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Potentially update the IERS table in place depending on the requested</span>
+<span class="sd">        time values in ``mdj`` and the time span of the table.  The base behavior</span>
+<span class="sd">        is not to update the table.  ``IERS_Auto`` overrides this method.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">pass</span>
+
+<div class="viewcode-block" id="IERS.ut1_utc_source"><a class="viewcode-back" href="../../../../api/astropy.utils.iers.IERS.html#astropy.utils.iers.IERS.ut1_utc_source">[docs]</a>    <span class="k">def</span> <span class="nf">ut1_utc_source</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">i</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Source for UT1-UTC.  To be overridden by subclass.&quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="n">np</span><span class="o">.</span><span class="n">zeros_like</span><span class="p">(</span><span class="n">i</span><span class="p">)</span></div>
+
+<div class="viewcode-block" id="IERS.pm_source"><a class="viewcode-back" href="../../../../api/astropy.utils.iers.IERS.html#astropy.utils.iers.IERS.pm_source">[docs]</a>    <span class="k">def</span> <span class="nf">pm_source</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">i</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Source for polar motion.  To be overridden by subclass.&quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="n">np</span><span class="o">.</span><span class="n">zeros_like</span><span class="p">(</span><span class="n">i</span><span class="p">)</span></div>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">time_now</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Property to provide the current time, but also allow for explicitly setting</span>
+<span class="sd">        the _time_now attribute for testing purposes.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="kn">from</span> <span class="nn">astropy.time</span> <span class="k">import</span> <span class="n">Time</span>
+        <span class="k">try</span><span class="p">:</span>
+            <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_time_now</span>
+        <span class="k">except</span> <span class="ne">Exception</span><span class="p">:</span>
+            <span class="k">return</span> <span class="n">Time</span><span class="o">.</span><span class="n">now</span><span class="p">()</span></div>
+
+
+<div class="viewcode-block" id="IERS_A"><a class="viewcode-back" href="../../../../api/astropy.utils.iers.IERS_A.html#astropy.utils.iers.IERS_A">[docs]</a><span class="k">class</span> <span class="nc">IERS_A</span><span class="p">(</span><span class="n">IERS</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;IERS Table class targeted to IERS A, provided by USNO.</span>
+
+<span class="sd">    These include rapid turnaround and predicted times.</span>
+<span class="sd">    See http://maia.usno.navy.mil/</span>
+
+<span class="sd">    Notes</span>
+<span class="sd">    -----</span>
+<span class="sd">    The IERS A file is not part of astropy.  It can be downloaded from</span>
+<span class="sd">    ``iers.IERS_A_URL``.  See ``iers.__doc__`` for instructions on how to use</span>
+<span class="sd">    it in ``Time``, etc.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="n">iers_table</span> <span class="o">=</span> <span class="kc">None</span>
+
+    <span class="nd">@classmethod</span>
+    <span class="k">def</span> <span class="nf">_combine_a_b_columns</span><span class="p">(</span><span class="n">cls</span><span class="p">,</span> <span class="n">iers_a</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Return a new table with appropriate combination of IERS_A and B columns.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="c1"># IERS A has some rows at the end that hold nothing but dates &amp; MJD</span>
+        <span class="c1"># presumably to be filled later.  Exclude those a priori -- there</span>
+        <span class="c1"># should at least be a predicted UT1-UTC and PM!</span>
+        <span class="n">table</span> <span class="o">=</span> <span class="n">iers_a</span><span class="p">[</span><span class="o">~</span><span class="n">iers_a</span><span class="p">[</span><span class="s1">&#39;UT1_UTC_A&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">mask</span> <span class="o">&amp;</span>
+                       <span class="o">~</span><span class="n">iers_a</span><span class="p">[</span><span class="s1">&#39;PolPMFlag_A&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">mask</span><span class="p">]</span>
+
+        <span class="c1"># This does nothing for IERS_A, but allows IERS_Auto to ensure the</span>
+        <span class="c1"># IERS B values in the table are consistent with the true ones.</span>
+        <span class="n">table</span> <span class="o">=</span> <span class="n">cls</span><span class="o">.</span><span class="n">_substitute_iers_b</span><span class="p">(</span><span class="n">table</span><span class="p">)</span>
+
+        <span class="c1"># Run np.where on the data from the table columns, since in numpy 1.9</span>
+        <span class="c1"># it otherwise returns an only partially initialized column.</span>
+        <span class="n">table</span><span class="p">[</span><span class="s1">&#39;UT1_UTC&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">where</span><span class="p">(</span><span class="n">table</span><span class="p">[</span><span class="s1">&#39;UT1_UTC_B&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">mask</span><span class="p">,</span>
+                                    <span class="n">table</span><span class="p">[</span><span class="s1">&#39;UT1_UTC_A&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">data</span><span class="p">,</span>
+                                    <span class="n">table</span><span class="p">[</span><span class="s1">&#39;UT1_UTC_B&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">data</span><span class="p">)</span>
+        <span class="c1"># Ensure the unit is correct, for later column conversion to Quantity.</span>
+        <span class="n">table</span><span class="p">[</span><span class="s1">&#39;UT1_UTC&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">unit</span> <span class="o">=</span> <span class="n">table</span><span class="p">[</span><span class="s1">&#39;UT1_UTC_A&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">unit</span>
+        <span class="n">table</span><span class="p">[</span><span class="s1">&#39;UT1Flag&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">where</span><span class="p">(</span><span class="n">table</span><span class="p">[</span><span class="s1">&#39;UT1_UTC_B&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">mask</span><span class="p">,</span>
+                                    <span class="n">table</span><span class="p">[</span><span class="s1">&#39;UT1Flag_A&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">data</span><span class="p">,</span>
+                                    <span class="s1">&#39;B&#39;</span><span class="p">)</span>
+        <span class="c1"># Repeat for polar motions.</span>
+        <span class="n">table</span><span class="p">[</span><span class="s1">&#39;PM_x&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">where</span><span class="p">(</span><span class="n">table</span><span class="p">[</span><span class="s1">&#39;PM_X_B&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">mask</span><span class="p">,</span>
+                                 <span class="n">table</span><span class="p">[</span><span class="s1">&#39;PM_x_A&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">data</span><span class="p">,</span>
+                                 <span class="n">table</span><span class="p">[</span><span class="s1">&#39;PM_X_B&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">data</span><span class="p">)</span>
+        <span class="n">table</span><span class="p">[</span><span class="s1">&#39;PM_x&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">unit</span> <span class="o">=</span> <span class="n">table</span><span class="p">[</span><span class="s1">&#39;PM_x_A&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">unit</span>
+        <span class="n">table</span><span class="p">[</span><span class="s1">&#39;PM_y&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">where</span><span class="p">(</span><span class="n">table</span><span class="p">[</span><span class="s1">&#39;PM_Y_B&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">mask</span><span class="p">,</span>
+                                 <span class="n">table</span><span class="p">[</span><span class="s1">&#39;PM_y_A&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">data</span><span class="p">,</span>
+                                 <span class="n">table</span><span class="p">[</span><span class="s1">&#39;PM_Y_B&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">data</span><span class="p">)</span>
+        <span class="n">table</span><span class="p">[</span><span class="s1">&#39;PM_y&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">unit</span> <span class="o">=</span> <span class="n">table</span><span class="p">[</span><span class="s1">&#39;PM_y_A&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">unit</span>
+        <span class="n">table</span><span class="p">[</span><span class="s1">&#39;PolPMFlag&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">where</span><span class="p">(</span><span class="n">table</span><span class="p">[</span><span class="s1">&#39;PM_X_B&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">mask</span><span class="p">,</span>
+                                      <span class="n">table</span><span class="p">[</span><span class="s1">&#39;PolPMFlag_A&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">data</span><span class="p">,</span>
+                                      <span class="s1">&#39;B&#39;</span><span class="p">)</span>
+
+        <span class="c1"># Get the table index for the first row that has predictive values</span>
+        <span class="c1"># PolPMFlag_A  IERS (I) or Prediction (P) flag for</span>
+        <span class="c1">#              Bull. A polar motion values</span>
+        <span class="c1"># UT1Flag_A    IERS (I) or Prediction (P) flag for</span>
+        <span class="c1">#              Bull. A UT1-UTC values</span>
+        <span class="n">is_predictive</span> <span class="o">=</span> <span class="p">(</span><span class="n">table</span><span class="p">[</span><span class="s1">&#39;UT1Flag_A&#39;</span><span class="p">]</span> <span class="o">==</span> <span class="s1">&#39;P&#39;</span><span class="p">)</span> <span class="o">|</span> <span class="p">(</span><span class="n">table</span><span class="p">[</span><span class="s1">&#39;PolPMFlag_A&#39;</span><span class="p">]</span> <span class="o">==</span> <span class="s1">&#39;P&#39;</span><span class="p">)</span>
+        <span class="n">table</span><span class="o">.</span><span class="n">meta</span><span class="p">[</span><span class="s1">&#39;predictive_index&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">min</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">flatnonzero</span><span class="p">(</span><span class="n">is_predictive</span><span class="p">))</span>
+        <span class="n">table</span><span class="o">.</span><span class="n">meta</span><span class="p">[</span><span class="s1">&#39;predictive_mjd&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">table</span><span class="p">[</span><span class="s1">&#39;MJD&#39;</span><span class="p">][</span><span class="n">table</span><span class="o">.</span><span class="n">meta</span><span class="p">[</span><span class="s1">&#39;predictive_index&#39;</span><span class="p">]]</span>
+
+        <span class="k">return</span> <span class="n">table</span>
+
+    <span class="nd">@classmethod</span>
+    <span class="k">def</span> <span class="nf">_substitute_iers_b</span><span class="p">(</span><span class="n">cls</span><span class="p">,</span> <span class="n">table</span><span class="p">):</span>
+        <span class="c1"># See documentation in IERS_Auto.</span>
+        <span class="k">return</span> <span class="n">table</span>
+
+    <span class="nd">@classmethod</span>
+<div class="viewcode-block" id="IERS_A.read"><a class="viewcode-back" href="../../../../api/astropy.utils.iers.IERS_A.html#astropy.utils.iers.IERS_A.read">[docs]</a>    <span class="k">def</span> <span class="nf">read</span><span class="p">(</span><span class="n">cls</span><span class="p">,</span> <span class="n">file</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">readme</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Read IERS-A table from a finals2000a.* file provided by USNO.</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        file : str</span>
+<span class="sd">            full path to ascii file holding IERS-A data.</span>
+<span class="sd">            Defaults to ``iers.IERS_A_FILE``.</span>
+<span class="sd">        readme : str</span>
+<span class="sd">            full path to ascii file holding CDS-style readme.</span>
+<span class="sd">            Defaults to package version, ``iers.IERS_A_README``.</span>
+
+<span class="sd">        Returns</span>
+<span class="sd">        -------</span>
+<span class="sd">        ``IERS_A`` class instance</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="n">file</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">file</span> <span class="o">=</span> <span class="n">IERS_A_FILE</span>
+        <span class="k">if</span> <span class="n">readme</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">readme</span> <span class="o">=</span> <span class="n">IERS_A_README</span>
+
+        <span class="c1"># Read in as a regular Table, including possible masked columns.</span>
+        <span class="c1"># Columns will be filled and converted to Quantity in cls.__init__.</span>
+        <span class="n">iers_a</span> <span class="o">=</span> <span class="n">Table</span><span class="o">.</span><span class="n">read</span><span class="p">(</span><span class="n">file</span><span class="p">,</span> <span class="nb">format</span><span class="o">=</span><span class="s1">&#39;cds&#39;</span><span class="p">,</span> <span class="n">readme</span><span class="o">=</span><span class="n">readme</span><span class="p">)</span>
+
+        <span class="c1"># Combine the A and B data for UT1-UTC and PM columns</span>
+        <span class="n">table</span> <span class="o">=</span> <span class="n">cls</span><span class="o">.</span><span class="n">_combine_a_b_columns</span><span class="p">(</span><span class="n">iers_a</span><span class="p">)</span>
+        <span class="n">table</span><span class="o">.</span><span class="n">meta</span><span class="p">[</span><span class="s1">&#39;data_path&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">file</span>
+        <span class="n">table</span><span class="o">.</span><span class="n">meta</span><span class="p">[</span><span class="s1">&#39;readme_path&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">readme</span>
+
+        <span class="c1"># Fill any masked values, and convert to a QTable.</span>
+        <span class="k">return</span> <span class="n">cls</span><span class="p">(</span><span class="n">table</span><span class="o">.</span><span class="n">filled</span><span class="p">())</span></div>
+
+<div class="viewcode-block" id="IERS_A.ut1_utc_source"><a class="viewcode-back" href="../../../../api/astropy.utils.iers.IERS_A.html#astropy.utils.iers.IERS_A.ut1_utc_source">[docs]</a>    <span class="k">def</span> <span class="nf">ut1_utc_source</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">i</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Set UT1-UTC source flag for entries in IERS table&quot;&quot;&quot;</span>
+        <span class="n">ut1flag</span> <span class="o">=</span> <span class="bp">self</span><span class="p">[</span><span class="s1">&#39;UT1Flag&#39;</span><span class="p">][</span><span class="n">i</span><span class="p">]</span>
+        <span class="n">source</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">ones_like</span><span class="p">(</span><span class="n">i</span><span class="p">)</span> <span class="o">*</span> <span class="n">FROM_IERS_B</span>
+        <span class="n">source</span><span class="p">[</span><span class="n">ut1flag</span> <span class="o">==</span> <span class="s1">&#39;I&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">FROM_IERS_A</span>
+        <span class="n">source</span><span class="p">[</span><span class="n">ut1flag</span> <span class="o">==</span> <span class="s1">&#39;P&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">FROM_IERS_A_PREDICTION</span>
+        <span class="k">return</span> <span class="n">source</span></div>
+
+<div class="viewcode-block" id="IERS_A.pm_source"><a class="viewcode-back" href="../../../../api/astropy.utils.iers.IERS_A.html#astropy.utils.iers.IERS_A.pm_source">[docs]</a>    <span class="k">def</span> <span class="nf">pm_source</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">i</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Set polar motion source flag for entries in IERS table&quot;&quot;&quot;</span>
+        <span class="n">pmflag</span> <span class="o">=</span> <span class="bp">self</span><span class="p">[</span><span class="s1">&#39;PolPMFlag&#39;</span><span class="p">][</span><span class="n">i</span><span class="p">]</span>
+        <span class="n">source</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">ones_like</span><span class="p">(</span><span class="n">i</span><span class="p">)</span> <span class="o">*</span> <span class="n">FROM_IERS_B</span>
+        <span class="n">source</span><span class="p">[</span><span class="n">pmflag</span> <span class="o">==</span> <span class="s1">&#39;I&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">FROM_IERS_A</span>
+        <span class="n">source</span><span class="p">[</span><span class="n">pmflag</span> <span class="o">==</span> <span class="s1">&#39;P&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">FROM_IERS_A_PREDICTION</span>
+        <span class="k">return</span> <span class="n">source</span></div></div>
+
+
+<div class="viewcode-block" id="IERS_B"><a class="viewcode-back" href="../../../../api/astropy.utils.iers.IERS_B.html#astropy.utils.iers.IERS_B">[docs]</a><span class="k">class</span> <span class="nc">IERS_B</span><span class="p">(</span><span class="n">IERS</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;IERS Table class targeted to IERS B, provided by IERS itself.</span>
+
+<span class="sd">    These are final values; see http://www.iers.org/</span>
+
+<span class="sd">    Notes</span>
+<span class="sd">    -----</span>
+<span class="sd">    If the package IERS B file (```iers.IERS_B_FILE``) is out of date, a new</span>
+<span class="sd">    version can be downloaded from ``iers.IERS_B_URL``.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="n">iers_table</span> <span class="o">=</span> <span class="kc">None</span>
+
+    <span class="nd">@classmethod</span>
+<div class="viewcode-block" id="IERS_B.read"><a class="viewcode-back" href="../../../../api/astropy.utils.iers.IERS_B.html#astropy.utils.iers.IERS_B.read">[docs]</a>    <span class="k">def</span> <span class="nf">read</span><span class="p">(</span><span class="n">cls</span><span class="p">,</span> <span class="n">file</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">readme</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">data_start</span><span class="o">=</span><span class="mi">14</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Read IERS-B table from a eopc04_iau2000.* file provided by IERS.</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        file : str</span>
+<span class="sd">            full path to ascii file holding IERS-B data.</span>
+<span class="sd">            Defaults to package version, ``iers.IERS_B_FILE``.</span>
+<span class="sd">        readme : str</span>
+<span class="sd">            full path to ascii file holding CDS-style readme.</span>
+<span class="sd">            Defaults to package version, ``iers.IERS_B_README``.</span>
+<span class="sd">        data_start : int</span>
+<span class="sd">            starting row. Default is 14, appropriate for standard IERS files.</span>
+
+<span class="sd">        Returns</span>
+<span class="sd">        -------</span>
+<span class="sd">        ``IERS_B`` class instance</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="n">file</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">file</span> <span class="o">=</span> <span class="n">IERS_B_FILE</span>
+        <span class="k">if</span> <span class="n">readme</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">readme</span> <span class="o">=</span> <span class="n">IERS_B_README</span>
+
+        <span class="c1"># Read in as a regular Table, including possible masked columns.</span>
+        <span class="c1"># Columns will be filled and converted to Quantity in cls.__init__.</span>
+        <span class="n">iers_b</span> <span class="o">=</span> <span class="n">Table</span><span class="o">.</span><span class="n">read</span><span class="p">(</span><span class="n">file</span><span class="p">,</span> <span class="nb">format</span><span class="o">=</span><span class="s1">&#39;cds&#39;</span><span class="p">,</span> <span class="n">readme</span><span class="o">=</span><span class="n">readme</span><span class="p">,</span>
+                            <span class="n">data_start</span><span class="o">=</span><span class="n">data_start</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">cls</span><span class="p">(</span><span class="n">iers_b</span><span class="o">.</span><span class="n">filled</span><span class="p">())</span></div>
+
+<div class="viewcode-block" id="IERS_B.ut1_utc_source"><a class="viewcode-back" href="../../../../api/astropy.utils.iers.IERS_B.html#astropy.utils.iers.IERS_B.ut1_utc_source">[docs]</a>    <span class="k">def</span> <span class="nf">ut1_utc_source</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">i</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Set UT1-UTC source flag for entries in IERS table&quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="n">np</span><span class="o">.</span><span class="n">ones_like</span><span class="p">(</span><span class="n">i</span><span class="p">)</span> <span class="o">*</span> <span class="n">FROM_IERS_B</span></div>
+
+<div class="viewcode-block" id="IERS_B.pm_source"><a class="viewcode-back" href="../../../../api/astropy.utils.iers.IERS_B.html#astropy.utils.iers.IERS_B.pm_source">[docs]</a>    <span class="k">def</span> <span class="nf">pm_source</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">i</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Set PM source flag for entries in IERS table&quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="n">np</span><span class="o">.</span><span class="n">ones_like</span><span class="p">(</span><span class="n">i</span><span class="p">)</span> <span class="o">*</span> <span class="n">FROM_IERS_B</span></div></div>
+
+
+<div class="viewcode-block" id="IERS_Auto"><a class="viewcode-back" href="../../../../api/astropy.utils.iers.IERS_Auto.html#astropy.utils.iers.IERS_Auto">[docs]</a><span class="k">class</span> <span class="nc">IERS_Auto</span><span class="p">(</span><span class="n">IERS_A</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Provide most-recent IERS data and automatically handle downloading</span>
+<span class="sd">    of updated values as necessary.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">iers_table</span> <span class="o">=</span> <span class="kc">None</span>
+
+    <span class="nd">@classmethod</span>
+<div class="viewcode-block" id="IERS_Auto.open"><a class="viewcode-back" href="../../../../api/astropy.utils.iers.IERS_Auto.html#astropy.utils.iers.IERS_Auto.open">[docs]</a>    <span class="k">def</span> <span class="nf">open</span><span class="p">(</span><span class="n">cls</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;If the configuration setting ``astropy.utils.iers.conf.auto_download``</span>
+<span class="sd">        is set to True (default), then open a recent version of the IERS-A</span>
+<span class="sd">        table with predictions for UT1-UTC and polar motion out to</span>
+<span class="sd">        approximately one year from now.  If the available version of this file</span>
+<span class="sd">        is older than ``astropy.utils.iers.conf.auto_max_age`` days old</span>
+<span class="sd">        (or non-existent) then it will be downloaded over the network and cached.</span>
+
+<span class="sd">        If the configuration setting ``astropy.utils.iers.conf.auto_download``</span>
+<span class="sd">        is set to False then ``astropy.utils.iers.IERS()`` is returned.  This</span>
+<span class="sd">        is normally the IERS-B table that is supplied with astropy.</span>
+
+<span class="sd">        On the first call in a session, the table will be memoized (in the</span>
+<span class="sd">        ``iers_table`` class attribute), and further calls to ``open`` will</span>
+<span class="sd">        return this stored table.</span>
+
+<span class="sd">        Returns</span>
+<span class="sd">        -------</span>
+<span class="sd">        `~astropy.table.QTable` instance with IERS (Earth rotation) data columns</span>
+
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">conf</span><span class="o">.</span><span class="n">auto_download</span><span class="p">:</span>
+            <span class="n">cls</span><span class="o">.</span><span class="n">iers_table</span> <span class="o">=</span> <span class="n">IERS</span><span class="o">.</span><span class="n">open</span><span class="p">()</span>
+            <span class="k">return</span> <span class="n">cls</span><span class="o">.</span><span class="n">iers_table</span>
+
+        <span class="k">if</span> <span class="n">cls</span><span class="o">.</span><span class="n">iers_table</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+
+            <span class="c1"># If the URL has changed, we need to redownload the file, so we</span>
+            <span class="c1"># should ignore the internally cached version.</span>
+
+            <span class="k">if</span> <span class="n">cls</span><span class="o">.</span><span class="n">iers_table</span><span class="o">.</span><span class="n">meta</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;data_url&#39;</span><span class="p">)</span> <span class="o">==</span> <span class="n">conf</span><span class="o">.</span><span class="n">iers_auto_url</span><span class="p">:</span>
+                <span class="k">return</span> <span class="n">cls</span><span class="o">.</span><span class="n">iers_table</span>
+
+        <span class="k">try</span><span class="p">:</span>
+            <span class="n">filename</span> <span class="o">=</span> <span class="n">download_file</span><span class="p">(</span><span class="n">conf</span><span class="o">.</span><span class="n">iers_auto_url</span><span class="p">,</span> <span class="n">cache</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+        <span class="k">except</span> <span class="ne">Exception</span> <span class="k">as</span> <span class="n">err</span><span class="p">:</span>
+            <span class="c1"># Issue a warning here, perhaps user is offline.  An exception</span>
+            <span class="c1"># will be raised downstream when actually trying to interpolate</span>
+            <span class="c1"># predictive values.</span>
+            <span class="n">warn</span><span class="p">(</span><span class="n">AstropyWarning</span><span class="p">(</span><span class="s1">&#39;failed to download </span><span class="si">{}</span><span class="s1">, using local IERS-B: </span><span class="si">{}</span><span class="s1">&#39;</span>
+                                <span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">conf</span><span class="o">.</span><span class="n">iers_auto_url</span><span class="p">,</span> <span class="nb">str</span><span class="p">(</span><span class="n">err</span><span class="p">))))</span>
+            <span class="n">cls</span><span class="o">.</span><span class="n">iers_table</span> <span class="o">=</span> <span class="n">IERS</span><span class="o">.</span><span class="n">open</span><span class="p">()</span>
+            <span class="k">return</span> <span class="n">cls</span><span class="o">.</span><span class="n">iers_table</span>
+
+        <span class="n">cls</span><span class="o">.</span><span class="n">iers_table</span> <span class="o">=</span> <span class="n">cls</span><span class="o">.</span><span class="n">read</span><span class="p">(</span><span class="n">file</span><span class="o">=</span><span class="n">filename</span><span class="p">)</span>
+        <span class="n">cls</span><span class="o">.</span><span class="n">iers_table</span><span class="o">.</span><span class="n">meta</span><span class="p">[</span><span class="s1">&#39;data_url&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="nb">str</span><span class="p">(</span><span class="n">conf</span><span class="o">.</span><span class="n">iers_auto_url</span><span class="p">)</span>
+
+        <span class="k">return</span> <span class="n">cls</span><span class="o">.</span><span class="n">iers_table</span></div>
+
+    <span class="k">def</span> <span class="nf">_check_interpolate_indices</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">indices_orig</span><span class="p">,</span> <span class="n">indices_clipped</span><span class="p">,</span> <span class="n">max_input_mjd</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Check that the indices from interpolation match those after clipping to the</span>
+<span class="sd">        valid table range.  The IERS_Auto class is exempted as long as it has</span>
+<span class="sd">        sufficiently recent available data so the clipped interpolation is</span>
+<span class="sd">        always within the confidence bounds of current Earth rotation</span>
+<span class="sd">        knowledge.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">predictive_mjd</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">meta</span><span class="p">[</span><span class="s1">&#39;predictive_mjd&#39;</span><span class="p">]</span>
+
+        <span class="c1"># See explanation in _refresh_table_as_needed for these conditions</span>
+        <span class="n">auto_max_age</span> <span class="o">=</span> <span class="p">(</span><span class="n">conf</span><span class="o">.</span><span class="n">auto_max_age</span> <span class="k">if</span> <span class="n">conf</span><span class="o">.</span><span class="n">auto_max_age</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span>
+                        <span class="k">else</span> <span class="n">np</span><span class="o">.</span><span class="n">finfo</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">float</span><span class="p">)</span><span class="o">.</span><span class="n">max</span><span class="p">)</span>
+        <span class="k">if</span> <span class="p">(</span><span class="n">max_input_mjd</span> <span class="o">&gt;</span> <span class="n">predictive_mjd</span> <span class="ow">and</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">time_now</span><span class="o">.</span><span class="n">mjd</span> <span class="o">-</span> <span class="n">predictive_mjd</span> <span class="o">&gt;</span> <span class="n">auto_max_age</span><span class="p">):</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="n">INTERPOLATE_ERROR</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">_refresh_table_as_needed</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">mjd</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Potentially update the IERS table in place depending on the requested</span>
+<span class="sd">        time values in ``mjd`` and the time span of the table.</span>
+
+<span class="sd">        For IERS_Auto the behavior is that the table is refreshed from the IERS</span>
+<span class="sd">        server if both the following apply:</span>
+
+<span class="sd">        - Any of the requested IERS values are predictive.  The IERS-A table</span>
+<span class="sd">          contains predictive data out for a year after the available</span>
+<span class="sd">          definitive values.</span>
+<span class="sd">        - The first predictive values are at least ``conf.auto_max_age days`` old.</span>
+<span class="sd">          In other words the IERS-A table was created by IERS long enough</span>
+<span class="sd">          ago that it can be considered stale for predictions.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">max_input_mjd</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">max</span><span class="p">(</span><span class="n">mjd</span><span class="p">)</span>
+        <span class="n">now_mjd</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">time_now</span><span class="o">.</span><span class="n">mjd</span>
+
+        <span class="c1"># IERS-A table contains predictive data out for a year after</span>
+        <span class="c1"># the available definitive values.</span>
+        <span class="n">fpi</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">meta</span><span class="p">[</span><span class="s1">&#39;predictive_index&#39;</span><span class="p">]</span>
+        <span class="n">predictive_mjd</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">meta</span><span class="p">[</span><span class="s1">&#39;predictive_mjd&#39;</span><span class="p">]</span>
+
+        <span class="c1"># Update table in place if necessary</span>
+        <span class="n">auto_max_age</span> <span class="o">=</span> <span class="p">(</span><span class="n">conf</span><span class="o">.</span><span class="n">auto_max_age</span> <span class="k">if</span> <span class="n">conf</span><span class="o">.</span><span class="n">auto_max_age</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span>
+                        <span class="k">else</span> <span class="n">np</span><span class="o">.</span><span class="n">finfo</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">float</span><span class="p">)</span><span class="o">.</span><span class="n">max</span><span class="p">)</span>
+
+        <span class="c1"># If auto_max_age is smaller than IERS update time then repeated downloads may</span>
+        <span class="c1"># occur without getting updated values (giving a IERSStaleWarning).</span>
+        <span class="k">if</span> <span class="n">auto_max_age</span> <span class="o">&lt;</span> <span class="mi">10</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s1">&#39;IERS auto_max_age configuration value must be larger than 10 days&#39;</span><span class="p">)</span>
+
+        <span class="k">if</span> <span class="p">(</span><span class="n">max_input_mjd</span> <span class="o">&gt;</span> <span class="n">predictive_mjd</span> <span class="ow">and</span>
+               <span class="n">now_mjd</span> <span class="o">-</span> <span class="n">predictive_mjd</span> <span class="o">&gt;</span> <span class="n">auto_max_age</span><span class="p">):</span>
+
+            <span class="c1"># Get the latest version</span>
+            <span class="k">try</span><span class="p">:</span>
+                <span class="n">clear_download_cache</span><span class="p">(</span><span class="n">conf</span><span class="o">.</span><span class="n">iers_auto_url</span><span class="p">)</span>
+                <span class="n">filename</span> <span class="o">=</span> <span class="n">download_file</span><span class="p">(</span><span class="n">conf</span><span class="o">.</span><span class="n">iers_auto_url</span><span class="p">,</span> <span class="n">cache</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+            <span class="k">except</span> <span class="ne">Exception</span> <span class="k">as</span> <span class="n">err</span><span class="p">:</span>
+                <span class="c1"># Issue a warning here, perhaps user is offline.  An exception</span>
+                <span class="c1"># will be raised downstream when actually trying to interpolate</span>
+                <span class="c1"># predictive values.</span>
+                <span class="n">warn</span><span class="p">(</span><span class="n">AstropyWarning</span><span class="p">(</span><span class="s1">&#39;failed to download </span><span class="si">{}</span><span class="s1">: </span><span class="si">{}</span><span class="s1">.</span><span class="se">\n</span><span class="s1">A coordinate or time-related &#39;</span>
+                                    <span class="s1">&#39;calculation might be compromised or fail because the dates are &#39;</span>
+                                    <span class="s1">&#39;not covered by the available IERS file.  See the &#39;</span>
+                                    <span class="s1">&#39;&quot;IERS data access&quot; section of the astropy documentation &#39;</span>
+                                    <span class="s1">&#39;for additional information on working offline.&#39;</span>
+                                    <span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">conf</span><span class="o">.</span><span class="n">iers_auto_url</span><span class="p">,</span> <span class="nb">str</span><span class="p">(</span><span class="n">err</span><span class="p">))))</span>
+                <span class="k">return</span>
+
+            <span class="n">new_table</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">__class__</span><span class="o">.</span><span class="n">read</span><span class="p">(</span><span class="n">file</span><span class="o">=</span><span class="n">filename</span><span class="p">)</span>
+
+            <span class="c1"># New table has new values?</span>
+            <span class="k">if</span> <span class="n">new_table</span><span class="p">[</span><span class="s1">&#39;MJD&#39;</span><span class="p">][</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span> <span class="o">&gt;</span> <span class="bp">self</span><span class="p">[</span><span class="s1">&#39;MJD&#39;</span><span class="p">][</span><span class="o">-</span><span class="mi">1</span><span class="p">]:</span>
+                <span class="c1"># Replace *replace* current values from the first predictive index through</span>
+                <span class="c1"># the end of the current table.  This replacement is much faster than just</span>
+                <span class="c1"># deleting all rows and then using add_row for the whole duration.</span>
+                <span class="n">new_fpi</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">searchsorted</span><span class="p">(</span><span class="n">new_table</span><span class="p">[</span><span class="s1">&#39;MJD&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">value</span><span class="p">,</span> <span class="n">predictive_mjd</span><span class="p">,</span> <span class="n">side</span><span class="o">=</span><span class="s1">&#39;right&#39;</span><span class="p">)</span>
+                <span class="n">n_replace</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-</span> <span class="n">fpi</span>
+                <span class="bp">self</span><span class="p">[</span><span class="n">fpi</span><span class="p">:]</span> <span class="o">=</span> <span class="n">new_table</span><span class="p">[</span><span class="n">new_fpi</span><span class="p">:</span><span class="n">new_fpi</span> <span class="o">+</span> <span class="n">n_replace</span><span class="p">]</span>
+
+                <span class="c1"># Sanity check for continuity</span>
+                <span class="k">if</span> <span class="n">new_table</span><span class="p">[</span><span class="s1">&#39;MJD&#39;</span><span class="p">][</span><span class="n">new_fpi</span> <span class="o">+</span> <span class="n">n_replace</span><span class="p">]</span> <span class="o">-</span> <span class="bp">self</span><span class="p">[</span><span class="s1">&#39;MJD&#39;</span><span class="p">][</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span> <span class="o">!=</span> <span class="mf">1.0</span> <span class="o">*</span> <span class="n">u</span><span class="o">.</span><span class="n">d</span><span class="p">:</span>
+                    <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s1">&#39;unexpected gap in MJD when refreshing IERS table&#39;</span><span class="p">)</span>
+
+                <span class="c1"># Now add new rows in place</span>
+                <span class="k">for</span> <span class="n">row</span> <span class="ow">in</span> <span class="n">new_table</span><span class="p">[</span><span class="n">new_fpi</span> <span class="o">+</span> <span class="n">n_replace</span><span class="p">:]:</span>
+                    <span class="bp">self</span><span class="o">.</span><span class="n">add_row</span><span class="p">(</span><span class="n">row</span><span class="p">)</span>
+
+                <span class="bp">self</span><span class="o">.</span><span class="n">meta</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="n">new_table</span><span class="o">.</span><span class="n">meta</span><span class="p">)</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="n">warn</span><span class="p">(</span><span class="n">IERSStaleWarning</span><span class="p">(</span>
+                    <span class="s1">&#39;IERS_Auto predictive values are older than </span><span class="si">{}</span><span class="s1"> days but downloading &#39;</span>
+                    <span class="s1">&#39;the latest table did not find newer values&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">conf</span><span class="o">.</span><span class="n">auto_max_age</span><span class="p">)))</span>
+
+    <span class="nd">@classmethod</span>
+    <span class="k">def</span> <span class="nf">_substitute_iers_b</span><span class="p">(</span><span class="n">cls</span><span class="p">,</span> <span class="n">table</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Substitute IERS B values with those from a real IERS B table.</span>
+
+<span class="sd">        IERS-A has IERS-B values included, but for reasons unknown these</span>
+<span class="sd">        do not match the latest IERS-B values (see comments in #4436).</span>
+<span class="sd">        Here, we use the bundled astropy IERS-B table to overwrite the values</span>
+<span class="sd">        in the downloaded IERS-A table.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">iers_b</span> <span class="o">=</span> <span class="n">IERS_B</span><span class="o">.</span><span class="n">open</span><span class="p">()</span>
+        <span class="c1"># Substitute IERS-B values for existing B values in IERS-A table</span>
+        <span class="n">mjd_b</span> <span class="o">=</span> <span class="n">table</span><span class="p">[</span><span class="s1">&#39;MJD&#39;</span><span class="p">][</span><span class="o">~</span><span class="n">table</span><span class="p">[</span><span class="s1">&#39;UT1_UTC_B&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">mask</span><span class="p">]</span>
+        <span class="n">i0</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">searchsorted</span><span class="p">(</span><span class="n">iers_b</span><span class="p">[</span><span class="s1">&#39;MJD&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">value</span><span class="p">,</span> <span class="n">mjd_b</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="n">side</span><span class="o">=</span><span class="s1">&#39;left&#39;</span><span class="p">)</span>
+        <span class="n">i1</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">searchsorted</span><span class="p">(</span><span class="n">iers_b</span><span class="p">[</span><span class="s1">&#39;MJD&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">value</span><span class="p">,</span> <span class="n">mjd_b</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">],</span> <span class="n">side</span><span class="o">=</span><span class="s1">&#39;right&#39;</span><span class="p">)</span>
+        <span class="n">iers_b</span> <span class="o">=</span> <span class="n">iers_b</span><span class="p">[</span><span class="n">i0</span><span class="p">:</span><span class="n">i1</span><span class="p">]</span>
+        <span class="n">n_iers_b</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="n">iers_b</span><span class="p">)</span>
+        <span class="c1"># If there is overlap then replace IERS-A values from available IERS-B</span>
+        <span class="k">if</span> <span class="n">n_iers_b</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">:</span>
+            <span class="c1"># Sanity check that we are overwriting the correct values</span>
+            <span class="k">if</span> <span class="ow">not</span> <span class="n">np</span><span class="o">.</span><span class="n">allclose</span><span class="p">(</span><span class="n">table</span><span class="p">[</span><span class="s1">&#39;MJD&#39;</span><span class="p">][:</span><span class="n">n_iers_b</span><span class="p">],</span> <span class="n">iers_b</span><span class="p">[</span><span class="s1">&#39;MJD&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">value</span><span class="p">):</span>
+                <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s1">&#39;unexpected mismatch when copying &#39;</span>
+                                 <span class="s1">&#39;IERS-B values into IERS-A table.&#39;</span><span class="p">)</span>
+            <span class="c1"># Finally do the overwrite</span>
+            <span class="n">table</span><span class="p">[</span><span class="s1">&#39;UT1_UTC_B&#39;</span><span class="p">][:</span><span class="n">n_iers_b</span><span class="p">]</span> <span class="o">=</span> <span class="n">iers_b</span><span class="p">[</span><span class="s1">&#39;UT1_UTC&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">value</span>
+            <span class="n">table</span><span class="p">[</span><span class="s1">&#39;PM_X_B&#39;</span><span class="p">][:</span><span class="n">n_iers_b</span><span class="p">]</span> <span class="o">=</span> <span class="n">iers_b</span><span class="p">[</span><span class="s1">&#39;PM_x&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">value</span>
+            <span class="n">table</span><span class="p">[</span><span class="s1">&#39;PM_Y_B&#39;</span><span class="p">][:</span><span class="n">n_iers_b</span><span class="p">]</span> <span class="o">=</span> <span class="n">iers_b</span><span class="p">[</span><span class="s1">&#39;PM_y&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">value</span>
+
+        <span class="k">return</span> <span class="n">table</span></div>
+
+
+<span class="c1"># by default for IERS class, read IERS-B table</span>
+<span class="n">IERS</span><span class="o">.</span><span class="n">read</span> <span class="o">=</span> <span class="n">IERS_B</span><span class="o">.</span><span class="n">read</span>
+</pre></div>
+
+          </div>
+        </div>
+      </div>
+      <div class="sphinxsidebar" role="navigation" aria-label="main navigation">
+        <div class="sphinxsidebarwrapper"><h3>Page Contents</h3>
+
+
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+<footer class="footer">
+  <p class="pull-right"> &nbsp;
+    <a href="#">Back to Top</a></p>
+  <p>
+    &copy; Copyright 2011-2016, The Astropy Developers.<br/>
+    Created using <a href="http://sphinx.pocoo.org/">Sphinx</a> 1.5.6. &nbsp;
+    Last built 05 Jul 2017. <br/>
+  </p>
+</footer>
+  </body>
+</html>

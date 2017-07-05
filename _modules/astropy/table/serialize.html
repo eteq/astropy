@@ -1,0 +1,313 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <head>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    
+    <title>astropy.table.serialize &#8212; Astropy v3.0.dev19489</title>
+    
+    <link rel="stylesheet" href="../../../_static/bootstrap-astropy.css" type="text/css" />
+    <link rel="stylesheet" href="../../../_static/pygments.css" type="text/css" />
+    <link rel="stylesheet" href="../../../_static/gallery.css" type="text/css" />
+    
+    <script type="text/javascript">
+      var DOCUMENTATION_OPTIONS = {
+        URL_ROOT:    '../../../',
+        VERSION:     '3.0.dev19489',
+        COLLAPSE_INDEX: false,
+        FILE_SUFFIX: '.html',
+        HAS_SOURCE:  true,
+        SOURCELINK_SUFFIX: '.txt'
+      };
+    </script>
+    <script type="text/javascript" src="../../../_static/jquery.js"></script>
+    <script type="text/javascript" src="../../../_static/underscore.js"></script>
+    <script type="text/javascript" src="../../../_static/doctools.js"></script>
+    <script type="text/javascript" src="../../../_static/sidebar.js"></script>
+    <link rel="shortcut icon" href="../../../_static/astropy_logo.ico"/>
+    <link rel="index" title="Index" href="../../../genindex.html" />
+    <link rel="search" title="Search" href="../../../search.html" />
+<link href='https://fonts.googleapis.com/css?family=Source+Sans+Pro:200,600' rel='stylesheet' type='text/css'/>
+<script type="text/javascript" src="../../../_static/copybutton.js"></script>
+
+
+  </head>
+  <body role="document">
+<div class="topbar">
+  <a class="brand" title="Documentation Home" href="../../../index.html"><span id="logotext1">astro</span><span id="logotext2">py</span><span id="logotext3">:docs</span></a>
+  <ul>
+    <li><a class="homelink" title="Astropy Homepage" href="http://www.astropy.org"></a></li>
+    <li><a title="General Index" href="../../../genindex.html">Index</a></li>
+    <li><a title="Module Index" href="../../../py-modindex.html">Modules</a></li>
+    <li>
+      
+      
+<form action="../../../search.html" method="get">
+  <input type="text" name="q" placeholder="Search" />
+  <input type="hidden" name="check_keywords" value="yes" />
+  <input type="hidden" name="area" value="default" />
+</form>
+      
+    </li>
+  </ul>
+</div>
+
+<div class="related">
+    <h3>Navigation</h3>
+    <ul>
+      <li>
+	<a href="../../../index.html">Astropy v3.0.dev19489</a>
+	 &#187;
+      </li>
+      <li><a href="../../index.html" >Module code</a> &#187;</li>
+      <li><a href="../../astropy.html" >astropy</a> &#187;</li>
+      <li><a href="../table.html" accesskey="U">astropy.table</a> &#187;</li>
+      
+       
+    </ul>
+</div>
+  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          <div class="body" role="main">
+            
+  <h1>Source code for astropy.table.serialize</h1><div class="highlight"><pre>
+<span></span><span class="kn">from</span> <span class="nn">importlib</span> <span class="k">import</span> <span class="n">import_module</span>
+<span class="kn">import</span> <span class="nn">re</span>
+<span class="kn">from</span> <span class="nn">copy</span> <span class="k">import</span> <span class="n">deepcopy</span>
+
+<span class="kn">from</span> <span class="nn">..utils.data_info</span> <span class="k">import</span> <span class="n">MixinInfo</span>
+<span class="kn">from</span> <span class="nn">.column</span> <span class="k">import</span> <span class="n">Column</span>
+<span class="kn">from</span> <span class="nn">.table</span> <span class="k">import</span> <span class="n">Table</span><span class="p">,</span> <span class="n">QTable</span><span class="p">,</span> <span class="n">has_info_class</span>
+<span class="kn">from</span> <span class="nn">..units.quantity</span> <span class="k">import</span> <span class="n">QuantityInfo</span>
+
+
+<span class="n">__construct_mixin_classes</span> <span class="o">=</span> <span class="p">(</span><span class="s1">&#39;astropy.time.core.Time&#39;</span><span class="p">,</span>
+                             <span class="s1">&#39;astropy.time.core.TimeDelta&#39;</span><span class="p">,</span>
+                             <span class="s1">&#39;astropy.units.quantity.Quantity&#39;</span><span class="p">,</span>
+                             <span class="s1">&#39;astropy.coordinates.angles.Latitude&#39;</span><span class="p">,</span>
+                             <span class="s1">&#39;astropy.coordinates.angles.Longitude&#39;</span><span class="p">,</span>
+                             <span class="s1">&#39;astropy.coordinates.angles.Angle&#39;</span><span class="p">,</span>
+                             <span class="s1">&#39;astropy.coordinates.distances.Distance&#39;</span><span class="p">,</span>
+                             <span class="s1">&#39;astropy.coordinates.earth.EarthLocation&#39;</span><span class="p">,</span>
+                             <span class="s1">&#39;astropy.coordinates.sky_coordinate.SkyCoord&#39;</span><span class="p">,</span>
+                             <span class="s1">&#39;astropy.table.table.NdarrayMixin&#39;</span><span class="p">)</span>
+
+
+<div class="viewcode-block" id="SerializedColumn"><a class="viewcode-back" href="../../../api/astropy.table.SerializedColumn.html#astropy.table.SerializedColumn">[docs]</a><span class="k">class</span> <span class="nc">SerializedColumn</span><span class="p">(</span><span class="nb">dict</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Subclass of dict that is a used in the representation to contain the name</span>
+<span class="sd">    (and possible other info) for a mixin attribute (either primary data or an</span>
+<span class="sd">    array-like attribute) that is serialized as a column in the table.</span>
+
+<span class="sd">    Normally contains the single key ``name`` with the name of the column in the</span>
+<span class="sd">    table.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">pass</span></div>
+
+
+<span class="k">def</span> <span class="nf">_represent_mixin_as_column</span><span class="p">(</span><span class="n">col</span><span class="p">,</span> <span class="n">name</span><span class="p">,</span> <span class="n">new_cols</span><span class="p">,</span> <span class="n">mixin_cols</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;Convert a mixin column to a plain columns or a set of mixin columns.&quot;&quot;&quot;</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="n">has_info_class</span><span class="p">(</span><span class="n">col</span><span class="p">,</span> <span class="n">MixinInfo</span><span class="p">):</span>
+        <span class="n">new_cols</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">col</span><span class="p">)</span>
+        <span class="k">return</span>
+
+    <span class="c1"># Subtlety here is handling mixin info attributes.  The basic list of such</span>
+    <span class="c1"># attributes is: &#39;name&#39;, &#39;unit&#39;, &#39;dtype&#39;, &#39;format&#39;, &#39;description&#39;, &#39;meta&#39;.</span>
+    <span class="c1"># - name: handled directly [DON&#39;T store]</span>
+    <span class="c1"># - unit: DON&#39;T store if this is a parent attribute</span>
+    <span class="c1"># - dtype: captured in plain Column if relevant [DON&#39;T store]</span>
+    <span class="c1"># - format: possibly irrelevant but settable post-object creation [DO store]</span>
+    <span class="c1"># - description: DO store</span>
+    <span class="c1"># - meta: DO store</span>
+    <span class="n">info</span> <span class="o">=</span> <span class="p">{}</span>
+    <span class="k">for</span> <span class="n">attr</span><span class="p">,</span> <span class="n">nontrivial</span><span class="p">,</span> <span class="n">xform</span> <span class="ow">in</span> <span class="p">((</span><span class="s1">&#39;unit&#39;</span><span class="p">,</span> <span class="k">lambda</span> <span class="n">x</span><span class="p">:</span> <span class="n">x</span> <span class="ow">not</span> <span class="ow">in</span> <span class="p">(</span><span class="kc">None</span><span class="p">,</span> <span class="s1">&#39;&#39;</span><span class="p">),</span> <span class="nb">str</span><span class="p">),</span>
+                                    <span class="p">(</span><span class="s1">&#39;format&#39;</span><span class="p">,</span> <span class="k">lambda</span> <span class="n">x</span><span class="p">:</span> <span class="n">x</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">,</span> <span class="kc">None</span><span class="p">),</span>
+                                    <span class="p">(</span><span class="s1">&#39;description&#39;</span><span class="p">,</span> <span class="k">lambda</span> <span class="n">x</span><span class="p">:</span> <span class="n">x</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">,</span> <span class="kc">None</span><span class="p">),</span>
+                                    <span class="p">(</span><span class="s1">&#39;meta&#39;</span><span class="p">,</span> <span class="k">lambda</span> <span class="n">x</span><span class="p">:</span> <span class="n">x</span><span class="p">,</span> <span class="kc">None</span><span class="p">)):</span>
+        <span class="n">col_attr</span> <span class="o">=</span> <span class="nb">getattr</span><span class="p">(</span><span class="n">col</span><span class="o">.</span><span class="n">info</span><span class="p">,</span> <span class="n">attr</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">nontrivial</span><span class="p">(</span><span class="n">col_attr</span><span class="p">):</span>
+            <span class="n">info</span><span class="p">[</span><span class="n">attr</span><span class="p">]</span> <span class="o">=</span> <span class="n">xform</span><span class="p">(</span><span class="n">col_attr</span><span class="p">)</span> <span class="k">if</span> <span class="n">xform</span> <span class="k">else</span> <span class="n">col_attr</span>
+
+    <span class="n">obj_attrs</span> <span class="o">=</span> <span class="n">col</span><span class="o">.</span><span class="n">info</span><span class="o">.</span><span class="n">_represent_as_dict</span><span class="p">()</span>
+    <span class="n">ordered_keys</span> <span class="o">=</span> <span class="n">col</span><span class="o">.</span><span class="n">info</span><span class="o">.</span><span class="n">_represent_as_dict_attrs</span>
+
+    <span class="n">data_attrs</span> <span class="o">=</span> <span class="p">[</span><span class="n">key</span> <span class="k">for</span> <span class="n">key</span> <span class="ow">in</span> <span class="n">ordered_keys</span> <span class="k">if</span> <span class="n">key</span> <span class="ow">in</span> <span class="n">obj_attrs</span> <span class="ow">and</span>
+                  <span class="nb">getattr</span><span class="p">(</span><span class="n">obj_attrs</span><span class="p">[</span><span class="n">key</span><span class="p">],</span> <span class="s1">&#39;shape&#39;</span><span class="p">,</span> <span class="p">())[:</span><span class="mi">1</span><span class="p">]</span> <span class="o">==</span> <span class="n">col</span><span class="o">.</span><span class="n">shape</span><span class="p">[:</span><span class="mi">1</span><span class="p">]]</span>
+
+    <span class="k">for</span> <span class="n">data_attr</span> <span class="ow">in</span> <span class="n">data_attrs</span><span class="p">:</span>
+        <span class="n">data</span> <span class="o">=</span> <span class="n">obj_attrs</span><span class="p">[</span><span class="n">data_attr</span><span class="p">]</span>
+        <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">data_attrs</span><span class="p">)</span> <span class="o">==</span> <span class="mi">1</span> <span class="ow">and</span> <span class="ow">not</span> <span class="n">has_info_class</span><span class="p">(</span><span class="n">data</span><span class="p">,</span> <span class="n">MixinInfo</span><span class="p">):</span>
+            <span class="c1"># For one non-mixin attribute, we need only one serialized column.</span>
+            <span class="c1"># We can store info there, and keep the column name as is.</span>
+            <span class="n">new_cols</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">Column</span><span class="p">(</span><span class="n">data</span><span class="p">,</span> <span class="n">name</span><span class="o">=</span><span class="n">name</span><span class="p">,</span> <span class="o">**</span><span class="n">info</span><span class="p">))</span>
+            <span class="n">obj_attrs</span><span class="p">[</span><span class="n">data_attr</span><span class="p">]</span> <span class="o">=</span> <span class="n">SerializedColumn</span><span class="p">({</span><span class="s1">&#39;name&#39;</span><span class="p">:</span> <span class="n">name</span><span class="p">})</span>
+            <span class="c1"># Remove attributes that are already on the serialized column.</span>
+            <span class="k">for</span> <span class="n">attr</span> <span class="ow">in</span> <span class="n">info</span><span class="p">:</span>
+                <span class="k">if</span> <span class="n">attr</span> <span class="ow">in</span> <span class="n">obj_attrs</span><span class="p">:</span>
+                    <span class="k">del</span> <span class="n">obj_attrs</span><span class="p">[</span><span class="n">attr</span><span class="p">]</span>
+
+        <span class="k">else</span><span class="p">:</span>
+            <span class="c1"># New column name combines the old name and attribute</span>
+            <span class="c1"># (e.g. skycoord.ra, skycoord.dec).</span>
+            <span class="n">new_name</span> <span class="o">=</span> <span class="n">name</span> <span class="o">+</span> <span class="s1">&#39;.&#39;</span> <span class="o">+</span> <span class="n">data_attr</span>
+            <span class="c1"># TODO masking, MaskedColumn</span>
+            <span class="k">if</span> <span class="ow">not</span> <span class="n">has_info_class</span><span class="p">(</span><span class="n">data</span><span class="p">,</span> <span class="n">MixinInfo</span><span class="p">):</span>
+                <span class="n">new_cols</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">Column</span><span class="p">(</span><span class="n">data</span><span class="p">,</span> <span class="n">name</span><span class="o">=</span><span class="n">new_name</span><span class="p">))</span>
+                <span class="n">obj_attrs</span><span class="p">[</span><span class="n">data_attr</span><span class="p">]</span> <span class="o">=</span> <span class="n">SerializedColumn</span><span class="p">({</span><span class="s1">&#39;name&#39;</span><span class="p">:</span> <span class="n">new_name</span><span class="p">})</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="c1"># recurse. This will define obj_attrs[new_name].</span>
+                <span class="n">_represent_mixin_as_column</span><span class="p">(</span><span class="n">data</span><span class="p">,</span> <span class="n">new_name</span><span class="p">,</span> <span class="n">new_cols</span><span class="p">,</span> <span class="n">obj_attrs</span><span class="p">)</span>
+                <span class="n">obj_attrs</span><span class="p">[</span><span class="n">data_attr</span><span class="p">]</span> <span class="o">=</span> <span class="n">SerializedColumn</span><span class="p">(</span><span class="n">obj_attrs</span><span class="o">.</span><span class="n">pop</span><span class="p">(</span><span class="n">new_name</span><span class="p">))</span>
+
+            <span class="c1"># Strip out from info any attributes defined by the parent</span>
+            <span class="k">for</span> <span class="n">attr</span> <span class="ow">in</span> <span class="n">col</span><span class="o">.</span><span class="n">info</span><span class="o">.</span><span class="n">attrs_from_parent</span><span class="p">:</span>
+                <span class="k">if</span> <span class="n">attr</span> <span class="ow">in</span> <span class="n">info</span><span class="p">:</span>
+                    <span class="k">del</span> <span class="n">info</span><span class="p">[</span><span class="n">attr</span><span class="p">]</span>
+
+            <span class="k">if</span> <span class="n">info</span><span class="p">:</span>
+                <span class="n">obj_attrs</span><span class="p">[</span><span class="s1">&#39;__info__&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">info</span>
+
+    <span class="c1"># Store the fully qualified class name</span>
+    <span class="n">obj_attrs</span><span class="p">[</span><span class="s1">&#39;__class__&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">col</span><span class="o">.</span><span class="n">__module__</span> <span class="o">+</span> <span class="s1">&#39;.&#39;</span> <span class="o">+</span> <span class="n">col</span><span class="o">.</span><span class="n">__class__</span><span class="o">.</span><span class="n">__name__</span>
+
+    <span class="n">mixin_cols</span><span class="p">[</span><span class="n">name</span><span class="p">]</span> <span class="o">=</span> <span class="n">obj_attrs</span>
+
+
+<span class="k">def</span> <span class="nf">_represent_mixins_as_columns</span><span class="p">(</span><span class="n">tbl</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Convert any mixin columns to plain Column or MaskedColumn and</span>
+<span class="sd">    return a new table.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="n">tbl</span><span class="o">.</span><span class="n">has_mixin_columns</span><span class="p">:</span>
+        <span class="k">return</span> <span class="n">tbl</span>
+
+    <span class="n">mixin_cols</span> <span class="o">=</span> <span class="p">{}</span>
+
+    <span class="n">new_cols</span> <span class="o">=</span> <span class="p">[]</span>
+
+    <span class="k">for</span> <span class="n">col</span> <span class="ow">in</span> <span class="n">tbl</span><span class="o">.</span><span class="n">itercols</span><span class="p">():</span>
+        <span class="n">_represent_mixin_as_column</span><span class="p">(</span><span class="n">col</span><span class="p">,</span> <span class="n">col</span><span class="o">.</span><span class="n">info</span><span class="o">.</span><span class="n">name</span><span class="p">,</span> <span class="n">new_cols</span><span class="p">,</span> <span class="n">mixin_cols</span><span class="p">)</span>
+
+    <span class="n">meta</span> <span class="o">=</span> <span class="n">deepcopy</span><span class="p">(</span><span class="n">tbl</span><span class="o">.</span><span class="n">meta</span><span class="p">)</span>
+    <span class="n">meta</span><span class="p">[</span><span class="s1">&#39;__serialized_columns__&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">mixin_cols</span>
+    <span class="n">out</span> <span class="o">=</span> <span class="n">Table</span><span class="p">(</span><span class="n">new_cols</span><span class="p">,</span> <span class="n">meta</span><span class="o">=</span><span class="n">meta</span><span class="p">,</span> <span class="n">copy</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
+
+    <span class="k">return</span> <span class="n">out</span>
+
+
+<span class="k">def</span> <span class="nf">_construct_mixin_from_obj_attrs_and_info</span><span class="p">(</span><span class="n">obj_attrs</span><span class="p">,</span> <span class="n">info</span><span class="p">):</span>
+    <span class="n">cls_full_name</span> <span class="o">=</span> <span class="n">obj_attrs</span><span class="o">.</span><span class="n">pop</span><span class="p">(</span><span class="s1">&#39;__class__&#39;</span><span class="p">)</span>
+
+    <span class="c1"># If this is a supported class then import the class and run</span>
+    <span class="c1"># the _construct_from_col method.  Prevent accidentally running</span>
+    <span class="c1"># untrusted code by only importing known astropy classes.</span>
+    <span class="k">if</span> <span class="n">cls_full_name</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">__construct_mixin_classes</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s1">&#39;unsupported class for construct </span><span class="si">{}</span><span class="s1">&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">cls_full_name</span><span class="p">))</span>
+
+    <span class="n">mod_name</span><span class="p">,</span> <span class="n">cls_name</span> <span class="o">=</span> <span class="n">re</span><span class="o">.</span><span class="n">match</span><span class="p">(</span><span class="s1">r&#39;(.+)\.(\w+)&#39;</span><span class="p">,</span> <span class="n">cls_full_name</span><span class="p">)</span><span class="o">.</span><span class="n">groups</span><span class="p">()</span>
+    <span class="n">module</span> <span class="o">=</span> <span class="n">import_module</span><span class="p">(</span><span class="n">mod_name</span><span class="p">)</span>
+    <span class="n">cls</span> <span class="o">=</span> <span class="nb">getattr</span><span class="p">(</span><span class="n">module</span><span class="p">,</span> <span class="n">cls_name</span><span class="p">)</span>
+    <span class="k">for</span> <span class="n">attr</span><span class="p">,</span> <span class="n">value</span> <span class="ow">in</span> <span class="n">info</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
+        <span class="k">if</span> <span class="n">attr</span> <span class="ow">in</span> <span class="n">cls</span><span class="o">.</span><span class="n">info</span><span class="o">.</span><span class="n">attrs_from_parent</span><span class="p">:</span>
+            <span class="n">obj_attrs</span><span class="p">[</span><span class="n">attr</span><span class="p">]</span> <span class="o">=</span> <span class="n">value</span>
+    <span class="n">mixin</span> <span class="o">=</span> <span class="n">cls</span><span class="o">.</span><span class="n">info</span><span class="o">.</span><span class="n">_construct_from_dict</span><span class="p">(</span><span class="n">obj_attrs</span><span class="p">)</span>
+    <span class="k">for</span> <span class="n">attr</span><span class="p">,</span> <span class="n">value</span> <span class="ow">in</span> <span class="n">info</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
+        <span class="k">if</span> <span class="n">attr</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">obj_attrs</span><span class="p">:</span>
+            <span class="nb">setattr</span><span class="p">(</span><span class="n">mixin</span><span class="o">.</span><span class="n">info</span><span class="p">,</span> <span class="n">attr</span><span class="p">,</span> <span class="n">value</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">mixin</span>
+
+
+<span class="k">def</span> <span class="nf">_construct_mixin_from_columns</span><span class="p">(</span><span class="n">new_name</span><span class="p">,</span> <span class="n">obj_attrs</span><span class="p">,</span> <span class="n">out</span><span class="p">):</span>
+    <span class="n">data_attrs_map</span> <span class="o">=</span> <span class="p">{}</span>
+    <span class="k">for</span> <span class="n">name</span><span class="p">,</span> <span class="n">val</span> <span class="ow">in</span> <span class="n">obj_attrs</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
+        <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">val</span><span class="p">,</span> <span class="n">SerializedColumn</span><span class="p">):</span>
+            <span class="k">if</span> <span class="s1">&#39;name&#39;</span> <span class="ow">in</span> <span class="n">val</span><span class="p">:</span>
+                <span class="n">data_attrs_map</span><span class="p">[</span><span class="n">val</span><span class="p">[</span><span class="s1">&#39;name&#39;</span><span class="p">]]</span> <span class="o">=</span> <span class="n">name</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="n">_construct_mixin_from_columns</span><span class="p">(</span><span class="n">name</span><span class="p">,</span> <span class="n">val</span><span class="p">,</span> <span class="n">out</span><span class="p">)</span>
+                <span class="n">data_attrs_map</span><span class="p">[</span><span class="n">name</span><span class="p">]</span> <span class="o">=</span> <span class="n">name</span>
+
+    <span class="k">for</span> <span class="n">name</span> <span class="ow">in</span> <span class="n">data_attrs_map</span><span class="o">.</span><span class="n">values</span><span class="p">():</span>
+        <span class="k">del</span> <span class="n">obj_attrs</span><span class="p">[</span><span class="n">name</span><span class="p">]</span>
+
+    <span class="c1"># Get the index where to add new column</span>
+    <span class="n">idx</span> <span class="o">=</span> <span class="nb">min</span><span class="p">(</span><span class="n">out</span><span class="o">.</span><span class="n">colnames</span><span class="o">.</span><span class="n">index</span><span class="p">(</span><span class="n">name</span><span class="p">)</span> <span class="k">for</span> <span class="n">name</span> <span class="ow">in</span> <span class="n">data_attrs_map</span><span class="p">)</span>
+
+    <span class="c1"># Name is the column name in the table (e.g. &quot;coord.ra&quot;) and</span>
+    <span class="c1"># data_attr is the object attribute name  (e.g. &quot;ra&quot;).  A different</span>
+    <span class="c1"># example would be a formatted time object that would have (e.g.)</span>
+    <span class="c1"># &quot;time_col&quot; and &quot;value&quot;, respectively.</span>
+    <span class="k">for</span> <span class="n">name</span><span class="p">,</span> <span class="n">data_attr</span> <span class="ow">in</span> <span class="n">data_attrs_map</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
+        <span class="n">col</span> <span class="o">=</span> <span class="n">out</span><span class="p">[</span><span class="n">name</span><span class="p">]</span>
+        <span class="n">obj_attrs</span><span class="p">[</span><span class="n">data_attr</span><span class="p">]</span> <span class="o">=</span> <span class="n">col</span>
+        <span class="k">del</span> <span class="n">out</span><span class="p">[</span><span class="n">name</span><span class="p">]</span>
+
+    <span class="n">info</span> <span class="o">=</span> <span class="n">obj_attrs</span><span class="o">.</span><span class="n">pop</span><span class="p">(</span><span class="s1">&#39;__info__&#39;</span><span class="p">,</span> <span class="p">{})</span>
+    <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">data_attrs_map</span><span class="p">)</span> <span class="o">==</span> <span class="mi">1</span><span class="p">:</span>
+        <span class="c1"># col is the first and only serialized column; in that case, use info</span>
+        <span class="c1"># stored on the column.</span>
+        <span class="k">for</span> <span class="n">attr</span><span class="p">,</span> <span class="n">nontrivial</span> <span class="ow">in</span> <span class="p">((</span><span class="s1">&#39;unit&#39;</span><span class="p">,</span> <span class="k">lambda</span> <span class="n">x</span><span class="p">:</span> <span class="n">x</span> <span class="ow">not</span> <span class="ow">in</span> <span class="p">(</span><span class="kc">None</span><span class="p">,</span> <span class="s1">&#39;&#39;</span><span class="p">)),</span>
+                                 <span class="p">(</span><span class="s1">&#39;format&#39;</span><span class="p">,</span> <span class="k">lambda</span> <span class="n">x</span><span class="p">:</span> <span class="n">x</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">),</span>
+                                 <span class="p">(</span><span class="s1">&#39;description&#39;</span><span class="p">,</span> <span class="k">lambda</span> <span class="n">x</span><span class="p">:</span> <span class="n">x</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">),</span>
+                                 <span class="p">(</span><span class="s1">&#39;meta&#39;</span><span class="p">,</span> <span class="k">lambda</span> <span class="n">x</span><span class="p">:</span> <span class="n">x</span><span class="p">)):</span>
+            <span class="n">col_attr</span> <span class="o">=</span> <span class="nb">getattr</span><span class="p">(</span><span class="n">col</span><span class="o">.</span><span class="n">info</span><span class="p">,</span> <span class="n">attr</span><span class="p">)</span>
+            <span class="k">if</span> <span class="n">nontrivial</span><span class="p">(</span><span class="n">col_attr</span><span class="p">):</span>
+                <span class="n">info</span><span class="p">[</span><span class="n">attr</span><span class="p">]</span> <span class="o">=</span> <span class="n">col_attr</span>
+
+    <span class="n">info</span><span class="p">[</span><span class="s1">&#39;name&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">new_name</span>
+    <span class="n">col</span> <span class="o">=</span> <span class="n">_construct_mixin_from_obj_attrs_and_info</span><span class="p">(</span><span class="n">obj_attrs</span><span class="p">,</span> <span class="n">info</span><span class="p">)</span>
+    <span class="n">out</span><span class="o">.</span><span class="n">add_column</span><span class="p">(</span><span class="n">col</span><span class="p">,</span> <span class="n">index</span><span class="o">=</span><span class="n">idx</span><span class="p">)</span>
+
+
+<span class="k">def</span> <span class="nf">_construct_mixins_from_columns</span><span class="p">(</span><span class="n">tbl</span><span class="p">):</span>
+    <span class="k">if</span> <span class="s1">&#39;__serialized_columns__&#39;</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">tbl</span><span class="o">.</span><span class="n">meta</span><span class="p">:</span>
+        <span class="k">return</span> <span class="n">tbl</span>
+
+    <span class="c1"># Don&#39;t know final output class but assume QTable so no columns get</span>
+    <span class="c1"># downgraded.</span>
+    <span class="n">out</span> <span class="o">=</span> <span class="n">QTable</span><span class="p">(</span><span class="n">tbl</span><span class="p">,</span> <span class="n">copy</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
+
+    <span class="n">mixin_cols</span> <span class="o">=</span> <span class="n">out</span><span class="o">.</span><span class="n">meta</span><span class="o">.</span><span class="n">pop</span><span class="p">(</span><span class="s1">&#39;__serialized_columns__&#39;</span><span class="p">)</span>
+
+    <span class="k">for</span> <span class="n">new_name</span><span class="p">,</span> <span class="n">obj_attrs</span> <span class="ow">in</span> <span class="n">mixin_cols</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
+        <span class="n">_construct_mixin_from_columns</span><span class="p">(</span><span class="n">new_name</span><span class="p">,</span> <span class="n">obj_attrs</span><span class="p">,</span> <span class="n">out</span><span class="p">)</span>
+
+    <span class="c1"># If no quantity subclasses are in the output then output as Table.</span>
+    <span class="c1"># For instance ascii.read(file, format=&#39;ecsv&#39;) doesn&#39;t specify an</span>
+    <span class="c1"># output class and should return the minimal table class that</span>
+    <span class="c1"># represents the table file.</span>
+    <span class="n">has_quantities</span> <span class="o">=</span> <span class="nb">any</span><span class="p">(</span><span class="nb">isinstance</span><span class="p">(</span><span class="n">col</span><span class="o">.</span><span class="n">info</span><span class="p">,</span> <span class="n">QuantityInfo</span><span class="p">)</span>
+                         <span class="k">for</span> <span class="n">col</span> <span class="ow">in</span> <span class="n">out</span><span class="o">.</span><span class="n">itercols</span><span class="p">())</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="n">has_quantities</span><span class="p">:</span>
+        <span class="n">out</span> <span class="o">=</span> <span class="n">Table</span><span class="p">(</span><span class="n">out</span><span class="p">,</span> <span class="n">copy</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
+
+    <span class="k">return</span> <span class="n">out</span>
+</pre></div>
+
+          </div>
+        </div>
+      </div>
+      <div class="sphinxsidebar" role="navigation" aria-label="main navigation">
+        <div class="sphinxsidebarwrapper"><h3>Page Contents</h3>
+
+
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+<footer class="footer">
+  <p class="pull-right"> &nbsp;
+    <a href="#">Back to Top</a></p>
+  <p>
+    &copy; Copyright 2011-2016, The Astropy Developers.<br/>
+    Created using <a href="http://sphinx.pocoo.org/">Sphinx</a> 1.5.6. &nbsp;
+    Last built 05 Jul 2017. <br/>
+  </p>
+</footer>
+  </body>
+</html>

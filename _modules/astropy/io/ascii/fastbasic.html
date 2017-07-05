@@ -1,0 +1,447 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <head>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    
+    <title>astropy.io.ascii.fastbasic &#8212; Astropy v3.0.dev19489</title>
+    
+    <link rel="stylesheet" href="../../../../_static/bootstrap-astropy.css" type="text/css" />
+    <link rel="stylesheet" href="../../../../_static/pygments.css" type="text/css" />
+    <link rel="stylesheet" href="../../../../_static/gallery.css" type="text/css" />
+    
+    <script type="text/javascript">
+      var DOCUMENTATION_OPTIONS = {
+        URL_ROOT:    '../../../../',
+        VERSION:     '3.0.dev19489',
+        COLLAPSE_INDEX: false,
+        FILE_SUFFIX: '.html',
+        HAS_SOURCE:  true,
+        SOURCELINK_SUFFIX: '.txt'
+      };
+    </script>
+    <script type="text/javascript" src="../../../../_static/jquery.js"></script>
+    <script type="text/javascript" src="../../../../_static/underscore.js"></script>
+    <script type="text/javascript" src="../../../../_static/doctools.js"></script>
+    <script type="text/javascript" src="../../../../_static/sidebar.js"></script>
+    <link rel="shortcut icon" href="../../../../_static/astropy_logo.ico"/>
+    <link rel="index" title="Index" href="../../../../genindex.html" />
+    <link rel="search" title="Search" href="../../../../search.html" />
+<link href='https://fonts.googleapis.com/css?family=Source+Sans+Pro:200,600' rel='stylesheet' type='text/css'/>
+<script type="text/javascript" src="../../../../_static/copybutton.js"></script>
+
+
+  </head>
+  <body role="document">
+<div class="topbar">
+  <a class="brand" title="Documentation Home" href="../../../../index.html"><span id="logotext1">astro</span><span id="logotext2">py</span><span id="logotext3">:docs</span></a>
+  <ul>
+    <li><a class="homelink" title="Astropy Homepage" href="http://www.astropy.org"></a></li>
+    <li><a title="General Index" href="../../../../genindex.html">Index</a></li>
+    <li><a title="Module Index" href="../../../../py-modindex.html">Modules</a></li>
+    <li>
+      
+      
+<form action="../../../../search.html" method="get">
+  <input type="text" name="q" placeholder="Search" />
+  <input type="hidden" name="check_keywords" value="yes" />
+  <input type="hidden" name="area" value="default" />
+</form>
+      
+    </li>
+  </ul>
+</div>
+
+<div class="related">
+    <h3>Navigation</h3>
+    <ul>
+      <li>
+	<a href="../../../../index.html">Astropy v3.0.dev19489</a>
+	 &#187;
+      </li>
+      <li><a href="../../../index.html" >Module code</a> &#187;</li>
+      <li><a href="../../../astropy.html" accesskey="U">astropy</a> &#187;</li>
+      
+       
+    </ul>
+</div>
+  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          <div class="body" role="main">
+            
+  <h1>Source code for astropy.io.ascii.fastbasic</h1><div class="highlight"><pre>
+<span></span><span class="c1"># Licensed under a 3-clause BSD style license - see LICENSE.rst</span>
+
+<span class="kn">import</span> <span class="nn">re</span>
+<span class="kn">from</span> <span class="nn">collections</span> <span class="k">import</span> <span class="n">OrderedDict</span>
+
+<span class="kn">from</span> <span class="nn">.</span> <span class="k">import</span> <span class="n">core</span>
+<span class="kn">from</span> <span class="nn">...extern</span> <span class="k">import</span> <span class="n">six</span>
+<span class="kn">from</span> <span class="nn">...table</span> <span class="k">import</span> <span class="n">Table</span>
+<span class="kn">from</span> <span class="nn">.</span> <span class="k">import</span> <span class="n">cparser</span>
+<span class="kn">from</span> <span class="nn">...extern.six.moves</span> <span class="k">import</span> <span class="nb">zip</span>
+<span class="kn">from</span> <span class="nn">...utils</span> <span class="k">import</span> <span class="n">set_locale</span>
+
+
+<span class="nd">@six</span><span class="o">.</span><span class="n">add_metaclass</span><span class="p">(</span><span class="n">core</span><span class="o">.</span><span class="n">MetaBaseReader</span><span class="p">)</span>
+<div class="viewcode-block" id="FastBasic"><a class="viewcode-back" href="../../../../api/astropy.io.ascii.FastBasic.html#astropy.io.ascii.FastBasic">[docs]</a><span class="k">class</span> <span class="nc">FastBasic</span><span class="p">(</span><span class="nb">object</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    This class is intended to handle the same format addressed by the</span>
+<span class="sd">    ordinary :class:`Basic` writer, but it acts as a wrapper for underlying C</span>
+<span class="sd">    code and is therefore much faster. Unlike the other ASCII readers and</span>
+<span class="sd">    writers, this class is not very extensible and is restricted</span>
+<span class="sd">    by optimization requirements.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">_format_name</span> <span class="o">=</span> <span class="s1">&#39;fast_basic&#39;</span>
+    <span class="n">_description</span> <span class="o">=</span> <span class="s1">&#39;Basic table with custom delimiter using the fast C engine&#39;</span>
+    <span class="n">_fast</span> <span class="o">=</span> <span class="kc">True</span>
+    <span class="n">fill_extra_cols</span> <span class="o">=</span> <span class="kc">False</span>
+    <span class="n">guessing</span> <span class="o">=</span> <span class="kc">False</span>
+    <span class="n">strict_names</span> <span class="o">=</span> <span class="kc">False</span>
+
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">default_kwargs</span><span class="o">=</span><span class="p">{},</span> <span class="o">**</span><span class="n">user_kwargs</span><span class="p">):</span>
+        <span class="c1"># Make sure user does not set header_start to None for a reader</span>
+        <span class="c1"># that expects a non-None value (i.e. a number &gt;= 0).  This mimics</span>
+        <span class="c1"># what happens in the Basic reader.</span>
+        <span class="k">if</span> <span class="p">(</span><span class="n">default_kwargs</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;header_start&#39;</span><span class="p">,</span> <span class="mi">0</span><span class="p">)</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="ow">and</span>
+                <span class="n">user_kwargs</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;header_start&#39;</span><span class="p">,</span> <span class="mi">0</span><span class="p">)</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">):</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s1">&#39;header_start cannot be set to None for this Reader&#39;</span><span class="p">)</span>
+
+        <span class="n">kwargs</span> <span class="o">=</span> <span class="n">default_kwargs</span><span class="o">.</span><span class="n">copy</span><span class="p">()</span>
+        <span class="n">kwargs</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="n">user_kwargs</span><span class="p">)</span>  <span class="c1"># user kwargs take precedence over defaults</span>
+        <span class="n">delimiter</span> <span class="o">=</span> <span class="n">kwargs</span><span class="o">.</span><span class="n">pop</span><span class="p">(</span><span class="s1">&#39;delimiter&#39;</span><span class="p">,</span> <span class="s1">&#39; &#39;</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">delimiter</span> <span class="o">=</span> <span class="nb">str</span><span class="p">(</span><span class="n">delimiter</span><span class="p">)</span> <span class="k">if</span> <span class="n">delimiter</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="k">else</span> <span class="kc">None</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">write_comment</span> <span class="o">=</span> <span class="n">kwargs</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;comment&#39;</span><span class="p">,</span> <span class="s1">&#39;# &#39;</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">comment</span> <span class="o">=</span> <span class="n">kwargs</span><span class="o">.</span><span class="n">pop</span><span class="p">(</span><span class="s1">&#39;comment&#39;</span><span class="p">,</span> <span class="s1">&#39;#&#39;</span><span class="p">)</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">comment</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">comment</span> <span class="o">=</span> <span class="nb">str</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">comment</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">quotechar</span> <span class="o">=</span> <span class="nb">str</span><span class="p">(</span><span class="n">kwargs</span><span class="o">.</span><span class="n">pop</span><span class="p">(</span><span class="s1">&#39;quotechar&#39;</span><span class="p">,</span> <span class="s1">&#39;&quot;&#39;</span><span class="p">))</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">header_start</span> <span class="o">=</span> <span class="n">kwargs</span><span class="o">.</span><span class="n">pop</span><span class="p">(</span><span class="s1">&#39;header_start&#39;</span><span class="p">,</span> <span class="mi">0</span><span class="p">)</span>
+        <span class="c1"># If data_start is not specified, start reading</span>
+        <span class="c1"># data right after the header line</span>
+        <span class="n">data_start_default</span> <span class="o">=</span> <span class="n">user_kwargs</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;data_start&#39;</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">header_start</span> <span class="o">+</span>
+                                    <span class="mi">1</span> <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">header_start</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="k">else</span> <span class="mi">1</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">data_start</span> <span class="o">=</span> <span class="n">kwargs</span><span class="o">.</span><span class="n">pop</span><span class="p">(</span><span class="s1">&#39;data_start&#39;</span><span class="p">,</span> <span class="n">data_start_default</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">kwargs</span> <span class="o">=</span> <span class="n">kwargs</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">strip_whitespace_lines</span> <span class="o">=</span> <span class="kc">True</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">strip_whitespace_fields</span> <span class="o">=</span> <span class="kc">True</span>
+
+    <span class="k">def</span> <span class="nf">_read_header</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="c1"># Use the tokenizer by default -- this method</span>
+        <span class="c1"># can be overridden for specialized headers</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">engine</span><span class="o">.</span><span class="n">read_header</span><span class="p">()</span>
+
+<div class="viewcode-block" id="FastBasic.read"><a class="viewcode-back" href="../../../../api/astropy.io.ascii.FastBasic.html#astropy.io.ascii.FastBasic.read">[docs]</a>    <span class="k">def</span> <span class="nf">read</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">table</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Read input data (file-like object, filename, list of strings, or</span>
+<span class="sd">        single string) into a Table and return the result.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">comment</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="ow">and</span> <span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">comment</span><span class="p">)</span> <span class="o">!=</span> <span class="mi">1</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="n">core</span><span class="o">.</span><span class="n">ParameterError</span><span class="p">(</span><span class="s2">&quot;The C reader does not support a comment regex&quot;</span><span class="p">)</span>
+        <span class="k">elif</span> <span class="bp">self</span><span class="o">.</span><span class="n">data_start</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="n">core</span><span class="o">.</span><span class="n">ParameterError</span><span class="p">(</span><span class="s2">&quot;The C reader does not allow data_start to be None&quot;</span><span class="p">)</span>
+        <span class="k">elif</span> <span class="bp">self</span><span class="o">.</span><span class="n">header_start</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="ow">and</span> <span class="bp">self</span><span class="o">.</span><span class="n">header_start</span> <span class="o">&lt;</span> <span class="mi">0</span> <span class="ow">and</span> \
+             <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">FastCommentedHeader</span><span class="p">):</span>
+            <span class="k">raise</span> <span class="n">core</span><span class="o">.</span><span class="n">ParameterError</span><span class="p">(</span><span class="s2">&quot;The C reader does not allow header_start to be &quot;</span>
+                                      <span class="s2">&quot;negative except for commented-header files&quot;</span><span class="p">)</span>
+        <span class="k">elif</span> <span class="bp">self</span><span class="o">.</span><span class="n">data_start</span> <span class="o">&lt;</span> <span class="mi">0</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="n">core</span><span class="o">.</span><span class="n">ParameterError</span><span class="p">(</span><span class="s2">&quot;The C reader does not allow data_start to be negative&quot;</span><span class="p">)</span>
+        <span class="k">elif</span> <span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">delimiter</span><span class="p">)</span> <span class="o">!=</span> <span class="mi">1</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="n">core</span><span class="o">.</span><span class="n">ParameterError</span><span class="p">(</span><span class="s2">&quot;The C reader only supports 1-char delimiters&quot;</span><span class="p">)</span>
+        <span class="k">elif</span> <span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">quotechar</span><span class="p">)</span> <span class="o">!=</span> <span class="mi">1</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="n">core</span><span class="o">.</span><span class="n">ParameterError</span><span class="p">(</span><span class="s2">&quot;The C reader only supports a length-1 quote character&quot;</span><span class="p">)</span>
+        <span class="k">elif</span> <span class="s1">&#39;converters&#39;</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">kwargs</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="n">core</span><span class="o">.</span><span class="n">ParameterError</span><span class="p">(</span><span class="s2">&quot;The C reader does not support passing &quot;</span>
+                                      <span class="s2">&quot;specialized converters&quot;</span><span class="p">)</span>
+        <span class="k">elif</span> <span class="s1">&#39;encoding&#39;</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">kwargs</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="n">core</span><span class="o">.</span><span class="n">ParameterError</span><span class="p">(</span><span class="s2">&quot;The C reader does not use the encoding parameter&quot;</span><span class="p">)</span>
+        <span class="k">elif</span> <span class="s1">&#39;Outputter&#39;</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">kwargs</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="n">core</span><span class="o">.</span><span class="n">ParameterError</span><span class="p">(</span><span class="s2">&quot;The C reader does not use the Outputter parameter&quot;</span><span class="p">)</span>
+        <span class="k">elif</span> <span class="s1">&#39;Inputter&#39;</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">kwargs</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="n">core</span><span class="o">.</span><span class="n">ParameterError</span><span class="p">(</span><span class="s2">&quot;The C reader does not use the Inputter parameter&quot;</span><span class="p">)</span>
+        <span class="k">elif</span> <span class="s1">&#39;data_Splitter&#39;</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">kwargs</span> <span class="ow">or</span> <span class="s1">&#39;header_Splitter&#39;</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">kwargs</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="n">core</span><span class="o">.</span><span class="n">ParameterError</span><span class="p">(</span><span class="s2">&quot;The C reader does not use a Splitter class&quot;</span><span class="p">)</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">strict_names</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">kwargs</span><span class="o">.</span><span class="n">pop</span><span class="p">(</span><span class="s1">&#39;strict_names&#39;</span><span class="p">,</span> <span class="kc">False</span><span class="p">)</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">engine</span> <span class="o">=</span> <span class="n">cparser</span><span class="o">.</span><span class="n">CParser</span><span class="p">(</span><span class="n">table</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">strip_whitespace_lines</span><span class="p">,</span>
+                                      <span class="bp">self</span><span class="o">.</span><span class="n">strip_whitespace_fields</span><span class="p">,</span>
+                                      <span class="n">delimiter</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">delimiter</span><span class="p">,</span>
+                                      <span class="n">header_start</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">header_start</span><span class="p">,</span>
+                                      <span class="n">comment</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">comment</span><span class="p">,</span>
+                                      <span class="n">quotechar</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">quotechar</span><span class="p">,</span>
+                                      <span class="n">data_start</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">data_start</span><span class="p">,</span>
+                                      <span class="n">fill_extra_cols</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">fill_extra_cols</span><span class="p">,</span>
+                                      <span class="o">**</span><span class="bp">self</span><span class="o">.</span><span class="n">kwargs</span><span class="p">)</span>
+        <span class="n">conversion_info</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_read_header</span><span class="p">()</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">check_header</span><span class="p">()</span>
+        <span class="k">if</span> <span class="n">conversion_info</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">try_int</span><span class="p">,</span> <span class="n">try_float</span><span class="p">,</span> <span class="n">try_string</span> <span class="o">=</span> <span class="n">conversion_info</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">try_int</span> <span class="o">=</span> <span class="p">{}</span>
+            <span class="n">try_float</span> <span class="o">=</span> <span class="p">{}</span>
+            <span class="n">try_string</span> <span class="o">=</span> <span class="p">{}</span>
+
+        <span class="k">with</span> <span class="n">set_locale</span><span class="p">(</span><span class="s1">&#39;C&#39;</span><span class="p">):</span>
+            <span class="n">data</span><span class="p">,</span> <span class="n">comments</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">engine</span><span class="o">.</span><span class="n">read</span><span class="p">(</span><span class="n">try_int</span><span class="p">,</span> <span class="n">try_float</span><span class="p">,</span> <span class="n">try_string</span><span class="p">)</span>
+
+        <span class="n">meta</span> <span class="o">=</span> <span class="n">OrderedDict</span><span class="p">()</span>
+        <span class="k">if</span> <span class="n">comments</span><span class="p">:</span>
+            <span class="n">meta</span><span class="p">[</span><span class="s1">&#39;comments&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">comments</span>
+        <span class="k">return</span> <span class="n">Table</span><span class="p">(</span><span class="n">data</span><span class="p">,</span> <span class="n">names</span><span class="o">=</span><span class="nb">list</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">engine</span><span class="o">.</span><span class="n">get_names</span><span class="p">()),</span> <span class="n">meta</span><span class="o">=</span><span class="n">meta</span><span class="p">)</span></div>
+
+<div class="viewcode-block" id="FastBasic.check_header"><a class="viewcode-back" href="../../../../api/astropy.io.ascii.FastBasic.html#astropy.io.ascii.FastBasic.check_header">[docs]</a>    <span class="k">def</span> <span class="nf">check_header</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="n">names</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">engine</span><span class="o">.</span><span class="n">get_header_names</span><span class="p">()</span> <span class="ow">or</span> <span class="bp">self</span><span class="o">.</span><span class="n">engine</span><span class="o">.</span><span class="n">get_names</span><span class="p">()</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">strict_names</span><span class="p">:</span>
+            <span class="c1"># Impose strict requirements on column names (normally used in guessing)</span>
+            <span class="n">bads</span> <span class="o">=</span> <span class="p">[</span><span class="s2">&quot; &quot;</span><span class="p">,</span> <span class="s2">&quot;,&quot;</span><span class="p">,</span> <span class="s2">&quot;|&quot;</span><span class="p">,</span> <span class="s2">&quot;</span><span class="se">\t</span><span class="s2">&quot;</span><span class="p">,</span> <span class="s2">&quot;&#39;&quot;</span><span class="p">,</span> <span class="s1">&#39;&quot;&#39;</span><span class="p">]</span>
+            <span class="k">for</span> <span class="n">name</span> <span class="ow">in</span> <span class="n">names</span><span class="p">:</span>
+                <span class="k">if</span> <span class="p">(</span><span class="n">core</span><span class="o">.</span><span class="n">_is_number</span><span class="p">(</span><span class="n">name</span><span class="p">)</span> <span class="ow">or</span>
+                    <span class="nb">len</span><span class="p">(</span><span class="n">name</span><span class="p">)</span> <span class="o">==</span> <span class="mi">0</span> <span class="ow">or</span>
+                    <span class="n">name</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="ow">in</span> <span class="n">bads</span> <span class="ow">or</span>
+                    <span class="n">name</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span> <span class="ow">in</span> <span class="n">bads</span><span class="p">):</span>
+                    <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s1">&#39;Column name </span><span class="si">{0!r}</span><span class="s1"> does not meet strict name requirements&#39;</span>
+                                     <span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">name</span><span class="p">))</span>
+        <span class="c1"># When guessing require at least two columns</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">guessing</span> <span class="ow">and</span> <span class="nb">len</span><span class="p">(</span><span class="n">names</span><span class="p">)</span> <span class="o">&lt;=</span> <span class="mi">1</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s1">&#39;Strict name guessing requires at least two columns&#39;</span><span class="p">)</span></div>
+
+<div class="viewcode-block" id="FastBasic.write"><a class="viewcode-back" href="../../../../api/astropy.io.ascii.FastBasic.html#astropy.io.ascii.FastBasic.write">[docs]</a>    <span class="k">def</span> <span class="nf">write</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">table</span><span class="p">,</span> <span class="n">output</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Use a fast Cython method to write table data to output,</span>
+<span class="sd">        where output is a filename or file-like object.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_write</span><span class="p">(</span><span class="n">table</span><span class="p">,</span> <span class="n">output</span><span class="p">,</span> <span class="p">{})</span></div>
+
+    <span class="k">def</span> <span class="nf">_write</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">table</span><span class="p">,</span> <span class="n">output</span><span class="p">,</span> <span class="n">default_kwargs</span><span class="p">,</span>
+               <span class="n">header_output</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">output_types</span><span class="o">=</span><span class="kc">False</span><span class="p">):</span>
+
+        <span class="n">write_kwargs</span> <span class="o">=</span> <span class="p">{</span><span class="s1">&#39;delimiter&#39;</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">delimiter</span><span class="p">,</span>
+                         <span class="s1">&#39;quotechar&#39;</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">quotechar</span><span class="p">,</span>
+                         <span class="s1">&#39;strip_whitespace&#39;</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">strip_whitespace_fields</span><span class="p">,</span>
+                         <span class="s1">&#39;comment&#39;</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">write_comment</span>
+                         <span class="p">}</span>
+        <span class="n">write_kwargs</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="n">default_kwargs</span><span class="p">)</span>
+        <span class="c1"># user kwargs take precedence over default kwargs</span>
+        <span class="n">write_kwargs</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">kwargs</span><span class="p">)</span>
+        <span class="n">writer</span> <span class="o">=</span> <span class="n">cparser</span><span class="o">.</span><span class="n">FastWriter</span><span class="p">(</span><span class="n">table</span><span class="p">,</span> <span class="o">**</span><span class="n">write_kwargs</span><span class="p">)</span>
+        <span class="n">writer</span><span class="o">.</span><span class="n">write</span><span class="p">(</span><span class="n">output</span><span class="p">,</span> <span class="n">header_output</span><span class="p">,</span> <span class="n">output_types</span><span class="p">)</span></div>
+
+
+<div class="viewcode-block" id="FastCsv"><a class="viewcode-back" href="../../../../api/astropy.io.ascii.FastCsv.html#astropy.io.ascii.FastCsv">[docs]</a><span class="k">class</span> <span class="nc">FastCsv</span><span class="p">(</span><span class="n">FastBasic</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    A faster version of the ordinary :class:`Csv` writer that uses the</span>
+<span class="sd">    optimized C parsing engine. Note that this reader will append empty</span>
+<span class="sd">    field values to the end of any row with not enough columns, while</span>
+<span class="sd">    :class:`FastBasic` simply raises an error.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">_format_name</span> <span class="o">=</span> <span class="s1">&#39;fast_csv&#39;</span>
+    <span class="n">_description</span> <span class="o">=</span> <span class="s1">&#39;Comma-separated values table using the fast C engine&#39;</span>
+    <span class="n">_fast</span> <span class="o">=</span> <span class="kc">True</span>
+    <span class="n">fill_extra_cols</span> <span class="o">=</span> <span class="kc">True</span>
+
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+        <span class="nb">super</span><span class="p">(</span><span class="n">FastCsv</span><span class="p">,</span> <span class="bp">self</span><span class="p">)</span><span class="o">.</span><span class="n">__init__</span><span class="p">({</span><span class="s1">&#39;delimiter&#39;</span><span class="p">:</span> <span class="s1">&#39;,&#39;</span><span class="p">,</span> <span class="s1">&#39;comment&#39;</span><span class="p">:</span> <span class="kc">None</span><span class="p">},</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
+
+<div class="viewcode-block" id="FastCsv.write"><a class="viewcode-back" href="../../../../api/astropy.io.ascii.FastCsv.html#astropy.io.ascii.FastCsv.write">[docs]</a>    <span class="k">def</span> <span class="nf">write</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">table</span><span class="p">,</span> <span class="n">output</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Override the default write method of `FastBasic` to</span>
+<span class="sd">        output masked values as empty fields.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_write</span><span class="p">(</span><span class="n">table</span><span class="p">,</span> <span class="n">output</span><span class="p">,</span> <span class="p">{</span><span class="s1">&#39;fill_values&#39;</span><span class="p">:</span> <span class="p">[(</span><span class="n">core</span><span class="o">.</span><span class="n">masked</span><span class="p">,</span> <span class="s1">&#39;&#39;</span><span class="p">)]})</span></div></div>
+
+
+<div class="viewcode-block" id="FastTab"><a class="viewcode-back" href="../../../../api/astropy.io.ascii.FastTab.html#astropy.io.ascii.FastTab">[docs]</a><span class="k">class</span> <span class="nc">FastTab</span><span class="p">(</span><span class="n">FastBasic</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    A faster version of the ordinary :class:`Tab` reader that uses</span>
+<span class="sd">    the optimized C parsing engine.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">_format_name</span> <span class="o">=</span> <span class="s1">&#39;fast_tab&#39;</span>
+    <span class="n">_description</span> <span class="o">=</span> <span class="s1">&#39;Tab-separated values table using the fast C engine&#39;</span>
+    <span class="n">_fast</span> <span class="o">=</span> <span class="kc">True</span>
+
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+        <span class="nb">super</span><span class="p">(</span><span class="n">FastTab</span><span class="p">,</span> <span class="bp">self</span><span class="p">)</span><span class="o">.</span><span class="n">__init__</span><span class="p">({</span><span class="s1">&#39;delimiter&#39;</span><span class="p">:</span> <span class="s1">&#39;</span><span class="se">\t</span><span class="s1">&#39;</span><span class="p">},</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">strip_whitespace_lines</span> <span class="o">=</span> <span class="kc">False</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">strip_whitespace_fields</span> <span class="o">=</span> <span class="kc">False</span></div>
+
+
+<div class="viewcode-block" id="FastNoHeader"><a class="viewcode-back" href="../../../../api/astropy.io.ascii.FastNoHeader.html#astropy.io.ascii.FastNoHeader">[docs]</a><span class="k">class</span> <span class="nc">FastNoHeader</span><span class="p">(</span><span class="n">FastBasic</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    This class uses the fast C engine to read tables with no header line. If</span>
+<span class="sd">    the names parameter is unspecified, the columns will be autonamed with</span>
+<span class="sd">    &quot;col{}&quot;.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">_format_name</span> <span class="o">=</span> <span class="s1">&#39;fast_no_header&#39;</span>
+    <span class="n">_description</span> <span class="o">=</span> <span class="s1">&#39;Basic table with no headers using the fast C engine&#39;</span>
+    <span class="n">_fast</span> <span class="o">=</span> <span class="kc">True</span>
+
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+        <span class="nb">super</span><span class="p">(</span><span class="n">FastNoHeader</span><span class="p">,</span> <span class="bp">self</span><span class="p">)</span><span class="o">.</span><span class="n">__init__</span><span class="p">({</span><span class="s1">&#39;header_start&#39;</span><span class="p">:</span> <span class="kc">None</span><span class="p">,</span> <span class="s1">&#39;data_start&#39;</span><span class="p">:</span> <span class="mi">0</span><span class="p">},</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
+
+<div class="viewcode-block" id="FastNoHeader.write"><a class="viewcode-back" href="../../../../api/astropy.io.ascii.FastNoHeader.html#astropy.io.ascii.FastNoHeader.write">[docs]</a>    <span class="k">def</span> <span class="nf">write</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">table</span><span class="p">,</span> <span class="n">output</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Override the default writing behavior in `FastBasic` so</span>
+<span class="sd">        that columns names are not included in output.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_write</span><span class="p">(</span><span class="n">table</span><span class="p">,</span> <span class="n">output</span><span class="p">,</span> <span class="p">{},</span> <span class="n">header_output</span><span class="o">=</span><span class="kc">None</span><span class="p">)</span></div></div>
+
+
+<div class="viewcode-block" id="FastCommentedHeader"><a class="viewcode-back" href="../../../../api/astropy.io.ascii.FastCommentedHeader.html#astropy.io.ascii.FastCommentedHeader">[docs]</a><span class="k">class</span> <span class="nc">FastCommentedHeader</span><span class="p">(</span><span class="n">FastBasic</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    A faster version of the :class:`CommentedHeader` reader, which looks for</span>
+<span class="sd">    column names in a commented line. ``header_start`` denotes the index of</span>
+<span class="sd">    the header line among all commented lines and is 0 by default.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">_format_name</span> <span class="o">=</span> <span class="s1">&#39;fast_commented_header&#39;</span>
+    <span class="n">_description</span> <span class="o">=</span> <span class="s1">&#39;Columns name in a commented line using the fast C engine&#39;</span>
+    <span class="n">_fast</span> <span class="o">=</span> <span class="kc">True</span>
+
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+        <span class="nb">super</span><span class="p">(</span><span class="n">FastCommentedHeader</span><span class="p">,</span> <span class="bp">self</span><span class="p">)</span><span class="o">.</span><span class="n">__init__</span><span class="p">({},</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
+        <span class="c1"># Mimic CommentedHeader&#39;s behavior in which data_start</span>
+        <span class="c1"># is relative to header_start if unspecified; see #2692</span>
+        <span class="k">if</span> <span class="s1">&#39;data_start&#39;</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">kwargs</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">data_start</span> <span class="o">=</span> <span class="mi">0</span>
+
+<div class="viewcode-block" id="FastCommentedHeader.read"><a class="viewcode-back" href="../../../../api/astropy.io.ascii.FastCommentedHeader.html#astropy.io.ascii.FastCommentedHeader.read">[docs]</a>    <span class="k">def</span> <span class="nf">read</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">table</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Read input data (file-like object, filename, list of strings, or</span>
+<span class="sd">        single string) into a Table and return the result.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">out</span> <span class="o">=</span> <span class="nb">super</span><span class="p">(</span><span class="n">FastCommentedHeader</span><span class="p">,</span> <span class="bp">self</span><span class="p">)</span><span class="o">.</span><span class="n">read</span><span class="p">(</span><span class="n">table</span><span class="p">)</span>
+
+        <span class="c1"># Strip off first comment since this is the header line for</span>
+        <span class="c1"># commented_header format.</span>
+        <span class="k">if</span> <span class="s1">&#39;comments&#39;</span> <span class="ow">in</span> <span class="n">out</span><span class="o">.</span><span class="n">meta</span><span class="p">:</span>
+            <span class="n">out</span><span class="o">.</span><span class="n">meta</span><span class="p">[</span><span class="s1">&#39;comments&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">out</span><span class="o">.</span><span class="n">meta</span><span class="p">[</span><span class="s1">&#39;comments&#39;</span><span class="p">][</span><span class="mi">1</span><span class="p">:]</span>
+            <span class="k">if</span> <span class="ow">not</span> <span class="n">out</span><span class="o">.</span><span class="n">meta</span><span class="p">[</span><span class="s1">&#39;comments&#39;</span><span class="p">]:</span>
+                <span class="k">del</span> <span class="n">out</span><span class="o">.</span><span class="n">meta</span><span class="p">[</span><span class="s1">&#39;comments&#39;</span><span class="p">]</span>
+
+        <span class="k">return</span> <span class="n">out</span></div>
+
+    <span class="k">def</span> <span class="nf">_read_header</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="n">tmp</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">engine</span><span class="o">.</span><span class="n">source</span>
+        <span class="n">commented_lines</span> <span class="o">=</span> <span class="p">[]</span>
+
+        <span class="k">for</span> <span class="n">line</span> <span class="ow">in</span> <span class="n">tmp</span><span class="o">.</span><span class="n">splitlines</span><span class="p">():</span>
+            <span class="n">line</span> <span class="o">=</span> <span class="n">line</span><span class="o">.</span><span class="n">lstrip</span><span class="p">()</span>
+            <span class="k">if</span> <span class="n">line</span> <span class="ow">and</span> <span class="n">line</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">==</span> <span class="bp">self</span><span class="o">.</span><span class="n">comment</span><span class="p">:</span>  <span class="c1"># line begins with a comment</span>
+                <span class="n">commented_lines</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">line</span><span class="p">[</span><span class="mi">1</span><span class="p">:])</span>
+                <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">commented_lines</span><span class="p">)</span> <span class="o">==</span> <span class="bp">self</span><span class="o">.</span><span class="n">header_start</span> <span class="o">+</span> <span class="mi">1</span><span class="p">:</span>
+                    <span class="k">break</span>
+
+        <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">commented_lines</span><span class="p">)</span> <span class="o">&lt;=</span> <span class="bp">self</span><span class="o">.</span><span class="n">header_start</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="n">cparser</span><span class="o">.</span><span class="n">CParserError</span><span class="p">(</span><span class="s1">&#39;not enough commented lines&#39;</span><span class="p">)</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">engine</span><span class="o">.</span><span class="n">setup_tokenizer</span><span class="p">([</span><span class="n">commented_lines</span><span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">header_start</span><span class="p">]])</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">engine</span><span class="o">.</span><span class="n">header_start</span> <span class="o">=</span> <span class="mi">0</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">engine</span><span class="o">.</span><span class="n">read_header</span><span class="p">()</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">engine</span><span class="o">.</span><span class="n">setup_tokenizer</span><span class="p">(</span><span class="n">tmp</span><span class="p">)</span>
+
+<div class="viewcode-block" id="FastCommentedHeader.write"><a class="viewcode-back" href="../../../../api/astropy.io.ascii.FastCommentedHeader.html#astropy.io.ascii.FastCommentedHeader.write">[docs]</a>    <span class="k">def</span> <span class="nf">write</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">table</span><span class="p">,</span> <span class="n">output</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Override the default writing behavior in `FastBasic` so</span>
+<span class="sd">        that column names are commented.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_write</span><span class="p">(</span><span class="n">table</span><span class="p">,</span> <span class="n">output</span><span class="p">,</span> <span class="p">{},</span> <span class="n">header_output</span><span class="o">=</span><span class="s1">&#39;comment&#39;</span><span class="p">)</span></div></div>
+
+
+<div class="viewcode-block" id="FastRdb"><a class="viewcode-back" href="../../../../api/astropy.io.ascii.FastRdb.html#astropy.io.ascii.FastRdb">[docs]</a><span class="k">class</span> <span class="nc">FastRdb</span><span class="p">(</span><span class="n">FastBasic</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    A faster version of the :class:`Rdb` reader. This format is similar to</span>
+<span class="sd">    tab-delimited, but it also contains a header line after the column</span>
+<span class="sd">    name line denoting the type of each column (N for numeric, S for string).</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">_format_name</span> <span class="o">=</span> <span class="s1">&#39;fast_rdb&#39;</span>
+    <span class="n">_description</span> <span class="o">=</span> <span class="s1">&#39;Tab-separated with a type definition header line&#39;</span>
+    <span class="n">_fast</span> <span class="o">=</span> <span class="kc">True</span>
+
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+        <span class="nb">super</span><span class="p">(</span><span class="n">FastRdb</span><span class="p">,</span> <span class="bp">self</span><span class="p">)</span><span class="o">.</span><span class="n">__init__</span><span class="p">({</span><span class="s1">&#39;delimiter&#39;</span><span class="p">:</span> <span class="s1">&#39;</span><span class="se">\t</span><span class="s1">&#39;</span><span class="p">,</span> <span class="s1">&#39;data_start&#39;</span><span class="p">:</span> <span class="mi">2</span><span class="p">},</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">strip_whitespace_lines</span> <span class="o">=</span> <span class="kc">False</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">strip_whitespace_fields</span> <span class="o">=</span> <span class="kc">False</span>
+
+    <span class="k">def</span> <span class="nf">_read_header</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="n">tmp</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">engine</span><span class="o">.</span><span class="n">source</span>
+        <span class="n">line1</span> <span class="o">=</span> <span class="s1">&#39;&#39;</span>
+        <span class="n">line2</span> <span class="o">=</span> <span class="s1">&#39;&#39;</span>
+        <span class="k">for</span> <span class="n">line</span> <span class="ow">in</span> <span class="n">tmp</span><span class="o">.</span><span class="n">splitlines</span><span class="p">():</span>
+            <span class="c1"># valid non-comment line</span>
+            <span class="k">if</span> <span class="ow">not</span> <span class="n">line1</span> <span class="ow">and</span> <span class="n">line</span><span class="o">.</span><span class="n">strip</span><span class="p">()</span> <span class="ow">and</span> <span class="n">line</span><span class="o">.</span><span class="n">lstrip</span><span class="p">()[</span><span class="mi">0</span><span class="p">]</span> <span class="o">!=</span> <span class="bp">self</span><span class="o">.</span><span class="n">comment</span><span class="p">:</span>
+                <span class="n">line1</span> <span class="o">=</span> <span class="n">line</span>
+            <span class="k">elif</span> <span class="ow">not</span> <span class="n">line2</span> <span class="ow">and</span> <span class="n">line</span><span class="o">.</span><span class="n">strip</span><span class="p">()</span> <span class="ow">and</span> <span class="n">line</span><span class="o">.</span><span class="n">lstrip</span><span class="p">()[</span><span class="mi">0</span><span class="p">]</span> <span class="o">!=</span> <span class="bp">self</span><span class="o">.</span><span class="n">comment</span><span class="p">:</span>
+                <span class="n">line2</span> <span class="o">=</span> <span class="n">line</span>
+                <span class="k">break</span>
+        <span class="k">else</span><span class="p">:</span>  <span class="c1"># less than 2 lines in table</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s1">&#39;RDB header requires 2 lines&#39;</span><span class="p">)</span>
+
+        <span class="c1"># tokenize the two header lines separately</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">engine</span><span class="o">.</span><span class="n">setup_tokenizer</span><span class="p">([</span><span class="n">line2</span><span class="p">])</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">engine</span><span class="o">.</span><span class="n">header_start</span> <span class="o">=</span> <span class="mi">0</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">engine</span><span class="o">.</span><span class="n">read_header</span><span class="p">()</span>
+        <span class="n">types</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">engine</span><span class="o">.</span><span class="n">get_names</span><span class="p">()</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">engine</span><span class="o">.</span><span class="n">setup_tokenizer</span><span class="p">([</span><span class="n">line1</span><span class="p">])</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">engine</span><span class="o">.</span><span class="n">set_names</span><span class="p">([])</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">engine</span><span class="o">.</span><span class="n">read_header</span><span class="p">()</span>
+
+        <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">engine</span><span class="o">.</span><span class="n">get_names</span><span class="p">())</span> <span class="o">!=</span> <span class="nb">len</span><span class="p">(</span><span class="n">types</span><span class="p">):</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s1">&#39;RDB header mismatch between number of &#39;</span>
+                             <span class="s1">&#39;column names and column types&#39;</span><span class="p">)</span>
+
+        <span class="k">if</span> <span class="nb">any</span><span class="p">(</span><span class="ow">not</span> <span class="n">re</span><span class="o">.</span><span class="n">match</span><span class="p">(</span><span class="s1">r&#39;\d*(N|S)$&#39;</span><span class="p">,</span> <span class="n">x</span><span class="p">,</span> <span class="n">re</span><span class="o">.</span><span class="n">IGNORECASE</span><span class="p">)</span> <span class="k">for</span> <span class="n">x</span> <span class="ow">in</span> <span class="n">types</span><span class="p">):</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s1">&#39;RDB type definitions do not all match &#39;</span>
+                             <span class="s1">&#39;[num](N|S): </span><span class="si">{0}</span><span class="s1">&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">types</span><span class="p">))</span>
+
+        <span class="n">try_int</span> <span class="o">=</span> <span class="p">{}</span>
+        <span class="n">try_float</span> <span class="o">=</span> <span class="p">{}</span>
+        <span class="n">try_string</span> <span class="o">=</span> <span class="p">{}</span>
+
+        <span class="k">for</span> <span class="n">name</span><span class="p">,</span> <span class="n">col_type</span> <span class="ow">in</span> <span class="nb">zip</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">engine</span><span class="o">.</span><span class="n">get_names</span><span class="p">(),</span> <span class="n">types</span><span class="p">):</span>
+            <span class="k">if</span> <span class="n">col_type</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span><span class="o">.</span><span class="n">lower</span><span class="p">()</span> <span class="o">==</span> <span class="s1">&#39;s&#39;</span><span class="p">:</span>
+                <span class="n">try_int</span><span class="p">[</span><span class="n">name</span><span class="p">]</span> <span class="o">=</span> <span class="mi">0</span>
+                <span class="n">try_float</span><span class="p">[</span><span class="n">name</span><span class="p">]</span> <span class="o">=</span> <span class="mi">0</span>
+                <span class="n">try_string</span><span class="p">[</span><span class="n">name</span><span class="p">]</span> <span class="o">=</span> <span class="mi">1</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="n">try_int</span><span class="p">[</span><span class="n">name</span><span class="p">]</span> <span class="o">=</span> <span class="mi">1</span>
+                <span class="n">try_float</span><span class="p">[</span><span class="n">name</span><span class="p">]</span> <span class="o">=</span> <span class="mi">1</span>
+                <span class="n">try_string</span><span class="p">[</span><span class="n">name</span><span class="p">]</span> <span class="o">=</span> <span class="mi">0</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">engine</span><span class="o">.</span><span class="n">setup_tokenizer</span><span class="p">(</span><span class="n">tmp</span><span class="p">)</span>
+        <span class="k">return</span> <span class="p">(</span><span class="n">try_int</span><span class="p">,</span> <span class="n">try_float</span><span class="p">,</span> <span class="n">try_string</span><span class="p">)</span>
+
+<div class="viewcode-block" id="FastRdb.write"><a class="viewcode-back" href="../../../../api/astropy.io.ascii.FastRdb.html#astropy.io.ascii.FastRdb.write">[docs]</a>    <span class="k">def</span> <span class="nf">write</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">table</span><span class="p">,</span> <span class="n">output</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Override the default writing behavior in `FastBasic` to</span>
+<span class="sd">        output a line with column types after the column name line.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_write</span><span class="p">(</span><span class="n">table</span><span class="p">,</span> <span class="n">output</span><span class="p">,</span> <span class="p">{},</span> <span class="n">output_types</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span></div></div>
+</pre></div>
+
+          </div>
+        </div>
+      </div>
+      <div class="sphinxsidebar" role="navigation" aria-label="main navigation">
+        <div class="sphinxsidebarwrapper"><h3>Page Contents</h3>
+
+
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+<footer class="footer">
+  <p class="pull-right"> &nbsp;
+    <a href="#">Back to Top</a></p>
+  <p>
+    &copy; Copyright 2011-2016, The Astropy Developers.<br/>
+    Created using <a href="http://sphinx.pocoo.org/">Sphinx</a> 1.5.6. &nbsp;
+    Last built 05 Jul 2017. <br/>
+  </p>
+</footer>
+  </body>
+</html>

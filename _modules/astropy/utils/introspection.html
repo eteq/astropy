@@ -1,0 +1,515 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <head>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    
+    <title>astropy.utils.introspection &#8212; Astropy v3.0.dev19489</title>
+    
+    <link rel="stylesheet" href="../../../_static/bootstrap-astropy.css" type="text/css" />
+    <link rel="stylesheet" href="../../../_static/pygments.css" type="text/css" />
+    <link rel="stylesheet" href="../../../_static/gallery.css" type="text/css" />
+    
+    <script type="text/javascript">
+      var DOCUMENTATION_OPTIONS = {
+        URL_ROOT:    '../../../',
+        VERSION:     '3.0.dev19489',
+        COLLAPSE_INDEX: false,
+        FILE_SUFFIX: '.html',
+        HAS_SOURCE:  true,
+        SOURCELINK_SUFFIX: '.txt'
+      };
+    </script>
+    <script type="text/javascript" src="../../../_static/jquery.js"></script>
+    <script type="text/javascript" src="../../../_static/underscore.js"></script>
+    <script type="text/javascript" src="../../../_static/doctools.js"></script>
+    <script type="text/javascript" src="../../../_static/sidebar.js"></script>
+    <link rel="shortcut icon" href="../../../_static/astropy_logo.ico"/>
+    <link rel="index" title="Index" href="../../../genindex.html" />
+    <link rel="search" title="Search" href="../../../search.html" />
+<link href='https://fonts.googleapis.com/css?family=Source+Sans+Pro:200,600' rel='stylesheet' type='text/css'/>
+<script type="text/javascript" src="../../../_static/copybutton.js"></script>
+
+
+  </head>
+  <body role="document">
+<div class="topbar">
+  <a class="brand" title="Documentation Home" href="../../../index.html"><span id="logotext1">astro</span><span id="logotext2">py</span><span id="logotext3">:docs</span></a>
+  <ul>
+    <li><a class="homelink" title="Astropy Homepage" href="http://www.astropy.org"></a></li>
+    <li><a title="General Index" href="../../../genindex.html">Index</a></li>
+    <li><a title="Module Index" href="../../../py-modindex.html">Modules</a></li>
+    <li>
+      
+      
+<form action="../../../search.html" method="get">
+  <input type="text" name="q" placeholder="Search" />
+  <input type="hidden" name="check_keywords" value="yes" />
+  <input type="hidden" name="area" value="default" />
+</form>
+      
+    </li>
+  </ul>
+</div>
+
+<div class="related">
+    <h3>Navigation</h3>
+    <ul>
+      <li>
+	<a href="../../../index.html">Astropy v3.0.dev19489</a>
+	 &#187;
+      </li>
+      <li><a href="../../index.html" >Module code</a> &#187;</li>
+      <li><a href="../../astropy.html" accesskey="U">astropy</a> &#187;</li>
+      
+       
+    </ul>
+</div>
+  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          <div class="body" role="main">
+            
+  <h1>Source code for astropy.utils.introspection</h1><div class="highlight"><pre>
+<span></span><span class="c1"># -*- coding: utf-8 -*-</span>
+<span class="c1"># Licensed under a 3-clause BSD style license - see LICENSE.rst</span>
+<span class="sd">&quot;&quot;&quot;Functions related to Python runtime introspection.&quot;&quot;&quot;</span>
+
+
+<span class="kn">from</span> <span class="nn">__future__</span> <span class="k">import</span> <span class="p">(</span><span class="n">absolute_import</span><span class="p">,</span> <span class="n">division</span><span class="p">,</span> <span class="n">print_function</span><span class="p">,</span>
+                        <span class="n">unicode_literals</span><span class="p">)</span>
+
+
+<span class="kn">import</span> <span class="nn">inspect</span>
+<span class="kn">import</span> <span class="nn">re</span>
+<span class="kn">import</span> <span class="nn">types</span>
+
+<span class="kn">from</span> <span class="nn">..extern</span> <span class="k">import</span> <span class="n">six</span>
+<span class="kn">from</span> <span class="nn">..extern.six.moves</span> <span class="k">import</span> <span class="nb">range</span><span class="p">,</span> <span class="nb">zip</span>
+
+
+<span class="n">__all__</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;resolve_name&#39;</span><span class="p">,</span> <span class="s1">&#39;minversion&#39;</span><span class="p">,</span> <span class="s1">&#39;find_current_module&#39;</span><span class="p">,</span>
+           <span class="s1">&#39;isinstancemethod&#39;</span><span class="p">]</span>
+
+
+<span class="n">__doctest_skip__</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;find_current_module&#39;</span><span class="p">]</span>
+
+
+<div class="viewcode-block" id="resolve_name"><a class="viewcode-back" href="../../../api/astropy.utils.introspection.resolve_name.html#astropy.utils.introspection.resolve_name">[docs]</a><span class="k">def</span> <span class="nf">resolve_name</span><span class="p">(</span><span class="n">name</span><span class="p">,</span> <span class="o">*</span><span class="n">additional_parts</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;Resolve a name like ``module.object`` to an object and return it.</span>
+
+<span class="sd">    This ends up working like ``from module import object`` but is easier</span>
+<span class="sd">    to deal with than the `__import__` builtin and supports digging into</span>
+<span class="sd">    submodules.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+
+<span class="sd">    name : `str`</span>
+<span class="sd">        A dotted path to a Python object--that is, the name of a function,</span>
+<span class="sd">        class, or other object in a module with the full path to that module,</span>
+<span class="sd">        including parent modules, separated by dots.  Also known as the fully</span>
+<span class="sd">        qualified name of the object.</span>
+
+<span class="sd">    additional_parts : iterable, optional</span>
+<span class="sd">        If more than one positional arguments are given, those arguments are</span>
+<span class="sd">        automatically dotted together with ``name``.</span>
+
+<span class="sd">    Examples</span>
+<span class="sd">    --------</span>
+
+<span class="sd">    &gt;&gt;&gt; resolve_name(&#39;astropy.utils.introspection.resolve_name&#39;)</span>
+<span class="sd">    &lt;function resolve_name at 0x...&gt;</span>
+<span class="sd">    &gt;&gt;&gt; resolve_name(&#39;astropy&#39;, &#39;utils&#39;, &#39;introspection&#39;, &#39;resolve_name&#39;)</span>
+<span class="sd">    &lt;function resolve_name at 0x...&gt;</span>
+
+<span class="sd">    Raises</span>
+<span class="sd">    ------</span>
+<span class="sd">    `ImportError`</span>
+<span class="sd">        If the module or named object is not found.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="n">additional_parts</span> <span class="o">=</span> <span class="s1">&#39;.&#39;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">additional_parts</span><span class="p">)</span>
+
+    <span class="k">if</span> <span class="n">additional_parts</span><span class="p">:</span>
+        <span class="n">name</span> <span class="o">=</span> <span class="n">name</span> <span class="o">+</span> <span class="s1">&#39;.&#39;</span> <span class="o">+</span> <span class="n">additional_parts</span>
+
+    <span class="c1"># Note: On python 2 these must be str objects and not unicode</span>
+    <span class="n">parts</span> <span class="o">=</span> <span class="p">[</span><span class="nb">str</span><span class="p">(</span><span class="n">part</span><span class="p">)</span> <span class="k">for</span> <span class="n">part</span> <span class="ow">in</span> <span class="n">name</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="s1">&#39;.&#39;</span><span class="p">)]</span>
+
+    <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">parts</span><span class="p">)</span> <span class="o">==</span> <span class="mi">1</span><span class="p">:</span>
+        <span class="c1"># No dots in the name--just a straight up module import</span>
+        <span class="n">cursor</span> <span class="o">=</span> <span class="mi">1</span>
+        <span class="n">fromlist</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="n">cursor</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="n">parts</span><span class="p">)</span> <span class="o">-</span> <span class="mi">1</span>
+        <span class="n">fromlist</span> <span class="o">=</span> <span class="p">[</span><span class="n">parts</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">]]</span>
+
+    <span class="n">module_name</span> <span class="o">=</span> <span class="n">parts</span><span class="p">[:</span><span class="n">cursor</span><span class="p">]</span>
+
+    <span class="k">while</span> <span class="n">cursor</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">:</span>
+        <span class="k">try</span><span class="p">:</span>
+            <span class="n">ret</span> <span class="o">=</span> <span class="nb">__import__</span><span class="p">(</span><span class="nb">str</span><span class="p">(</span><span class="s1">&#39;.&#39;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">module_name</span><span class="p">)),</span> <span class="n">fromlist</span><span class="o">=</span><span class="n">fromlist</span><span class="p">)</span>
+            <span class="k">break</span>
+        <span class="k">except</span> <span class="ne">ImportError</span><span class="p">:</span>
+            <span class="k">if</span> <span class="n">cursor</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
+                <span class="k">raise</span>
+            <span class="n">cursor</span> <span class="o">-=</span> <span class="mi">1</span>
+            <span class="n">module_name</span> <span class="o">=</span> <span class="n">parts</span><span class="p">[:</span><span class="n">cursor</span><span class="p">]</span>
+            <span class="n">fromlist</span> <span class="o">=</span> <span class="p">[</span><span class="n">parts</span><span class="p">[</span><span class="n">cursor</span><span class="p">]]</span>
+            <span class="n">ret</span> <span class="o">=</span> <span class="s1">&#39;&#39;</span>
+
+    <span class="k">for</span> <span class="n">part</span> <span class="ow">in</span> <span class="n">parts</span><span class="p">[</span><span class="n">cursor</span><span class="p">:]:</span>
+        <span class="k">try</span><span class="p">:</span>
+            <span class="n">ret</span> <span class="o">=</span> <span class="nb">getattr</span><span class="p">(</span><span class="n">ret</span><span class="p">,</span> <span class="n">part</span><span class="p">)</span>
+        <span class="k">except</span> <span class="ne">AttributeError</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">ImportError</span><span class="p">(</span><span class="n">name</span><span class="p">)</span>
+
+    <span class="k">return</span> <span class="n">ret</span></div>
+
+
+<div class="viewcode-block" id="minversion"><a class="viewcode-back" href="../../../api/astropy.utils.introspection.minversion.html#astropy.utils.introspection.minversion">[docs]</a><span class="k">def</span> <span class="nf">minversion</span><span class="p">(</span><span class="n">module</span><span class="p">,</span> <span class="n">version</span><span class="p">,</span> <span class="n">inclusive</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">version_path</span><span class="o">=</span><span class="s1">&#39;__version__&#39;</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Returns `True` if the specified Python module satisfies a minimum version</span>
+<span class="sd">    requirement, and `False` if not.</span>
+
+<span class="sd">    By default this uses `pkg_resources.parse_version` to do the version</span>
+<span class="sd">    comparison if available.  Otherwise it falls back on</span>
+<span class="sd">    `distutils.version.LooseVersion`.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+
+<span class="sd">    module : module or `str`</span>
+<span class="sd">        An imported module of which to check the version, or the name of</span>
+<span class="sd">        that module (in which case an import of that module is attempted--</span>
+<span class="sd">        if this fails `False` is returned).</span>
+
+<span class="sd">    version : `str`</span>
+<span class="sd">        The version as a string that this module must have at a minimum (e.g.</span>
+<span class="sd">        ``&#39;0.12&#39;``).</span>
+
+<span class="sd">    inclusive : `bool`</span>
+<span class="sd">        The specified version meets the requirement inclusively (i.e. ``&gt;=``)</span>
+<span class="sd">        as opposed to strictly greater than (default: `True`).</span>
+
+<span class="sd">    version_path : `str`</span>
+<span class="sd">        A dotted attribute path to follow in the module for the version.</span>
+<span class="sd">        Defaults to just ``&#39;__version__&#39;``, which should work for most Python</span>
+<span class="sd">        modules.</span>
+
+<span class="sd">    Examples</span>
+<span class="sd">    --------</span>
+
+<span class="sd">    &gt;&gt;&gt; import astropy</span>
+<span class="sd">    &gt;&gt;&gt; minversion(astropy, &#39;0.4.4&#39;)</span>
+<span class="sd">    True</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">module</span><span class="p">,</span> <span class="n">types</span><span class="o">.</span><span class="n">ModuleType</span><span class="p">):</span>
+        <span class="n">module_name</span> <span class="o">=</span> <span class="n">module</span><span class="o">.</span><span class="n">__name__</span>
+    <span class="k">elif</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">module</span><span class="p">,</span> <span class="n">six</span><span class="o">.</span><span class="n">string_types</span><span class="p">):</span>
+        <span class="n">module_name</span> <span class="o">=</span> <span class="n">module</span>
+        <span class="k">try</span><span class="p">:</span>
+            <span class="n">module</span> <span class="o">=</span> <span class="n">resolve_name</span><span class="p">(</span><span class="n">module_name</span><span class="p">)</span>
+        <span class="k">except</span> <span class="ne">ImportError</span><span class="p">:</span>
+            <span class="k">return</span> <span class="kc">False</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s1">&#39;module argument must be an actual imported &#39;</span>
+                         <span class="s1">&#39;module, or the import name of the module; &#39;</span>
+                         <span class="s1">&#39;got </span><span class="si">{0!r}</span><span class="s1">&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">module</span><span class="p">))</span>
+
+    <span class="k">if</span> <span class="s1">&#39;.&#39;</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">version_path</span><span class="p">:</span>
+        <span class="n">have_version</span> <span class="o">=</span> <span class="nb">getattr</span><span class="p">(</span><span class="n">module</span><span class="p">,</span> <span class="n">version_path</span><span class="p">)</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="n">have_version</span> <span class="o">=</span> <span class="n">resolve_name</span><span class="p">(</span><span class="n">module</span><span class="o">.</span><span class="n">__name__</span><span class="p">,</span> <span class="n">version_path</span><span class="p">)</span>
+
+    <span class="k">try</span><span class="p">:</span>
+        <span class="kn">from</span> <span class="nn">pkg_resources</span> <span class="k">import</span> <span class="n">parse_version</span>
+    <span class="k">except</span> <span class="ne">ImportError</span><span class="p">:</span>
+        <span class="kn">from</span> <span class="nn">distutils.version</span> <span class="k">import</span> <span class="n">LooseVersion</span> <span class="k">as</span> <span class="n">parse_version</span>
+        <span class="c1"># LooseVersion raises a TypeError when strings like dev, rc1 are part</span>
+        <span class="c1"># of the version number. Match the dotted numbers only. Regex taken</span>
+        <span class="c1"># from PEP440, https://www.python.org/dev/peps/pep-0440/, Appendix B</span>
+        <span class="n">expr</span> <span class="o">=</span> <span class="s1">&#39;^([1-9]</span><span class="se">\\</span><span class="s1">d*!)?(0|[1-9]</span><span class="se">\\</span><span class="s1">d*)(</span><span class="se">\\</span><span class="s1">.(0|[1-9]</span><span class="se">\\</span><span class="s1">d*))*&#39;</span>
+        <span class="n">m</span> <span class="o">=</span> <span class="n">re</span><span class="o">.</span><span class="n">match</span><span class="p">(</span><span class="n">expr</span><span class="p">,</span> <span class="n">version</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">m</span><span class="p">:</span>
+            <span class="n">version</span> <span class="o">=</span> <span class="n">m</span><span class="o">.</span><span class="n">group</span><span class="p">(</span><span class="mi">0</span><span class="p">)</span>
+
+    <span class="k">if</span> <span class="n">inclusive</span><span class="p">:</span>
+        <span class="k">return</span> <span class="n">parse_version</span><span class="p">(</span><span class="n">have_version</span><span class="p">)</span> <span class="o">&gt;=</span> <span class="n">parse_version</span><span class="p">(</span><span class="n">version</span><span class="p">)</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="k">return</span> <span class="n">parse_version</span><span class="p">(</span><span class="n">have_version</span><span class="p">)</span> <span class="o">&gt;</span> <span class="n">parse_version</span><span class="p">(</span><span class="n">version</span><span class="p">)</span></div>
+
+
+<div class="viewcode-block" id="find_current_module"><a class="viewcode-back" href="../../../api/astropy.utils.introspection.find_current_module.html#astropy.utils.introspection.find_current_module">[docs]</a><span class="k">def</span> <span class="nf">find_current_module</span><span class="p">(</span><span class="n">depth</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span> <span class="n">finddiff</span><span class="o">=</span><span class="kc">False</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Determines the module/package from which this function is called.</span>
+
+<span class="sd">    This function has two modes, determined by the ``finddiff`` option. it</span>
+<span class="sd">    will either simply go the requested number of frames up the call</span>
+<span class="sd">    stack (if ``finddiff`` is False), or it will go up the call stack until</span>
+<span class="sd">    it reaches a module that is *not* in a specified set.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    depth : int</span>
+<span class="sd">        Specifies how far back to go in the call stack (0-indexed, so that</span>
+<span class="sd">        passing in 0 gives back `astropy.utils.misc`).</span>
+<span class="sd">    finddiff : bool or list</span>
+<span class="sd">        If False, the returned ``mod`` will just be ``depth`` frames up from</span>
+<span class="sd">        the current frame. Otherwise, the function will start at a frame</span>
+<span class="sd">        ``depth`` up from current, and continue up the call stack to the</span>
+<span class="sd">        first module that is *different* from those in the provided list.</span>
+<span class="sd">        In this case, ``finddiff`` can be a list of modules or modules</span>
+<span class="sd">        names. Alternatively, it can be True, which will use the module</span>
+<span class="sd">        ``depth`` call stack frames up as the module the returned module</span>
+<span class="sd">        most be different from.</span>
+
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+<span class="sd">    mod : module or None</span>
+<span class="sd">        The module object or None if the package cannot be found. The name of</span>
+<span class="sd">        the module is available as the ``__name__`` attribute of the returned</span>
+<span class="sd">        object (if it isn&#39;t None).</span>
+
+<span class="sd">    Raises</span>
+<span class="sd">    ------</span>
+<span class="sd">    ValueError</span>
+<span class="sd">        If ``finddiff`` is a list with an invalid entry.</span>
+
+<span class="sd">    Examples</span>
+<span class="sd">    --------</span>
+<span class="sd">    The examples below assume that there are two modules in a package named</span>
+<span class="sd">    ``pkg``. ``mod1.py``::</span>
+
+<span class="sd">        def find1():</span>
+<span class="sd">            from astropy.utils import find_current_module</span>
+<span class="sd">            print find_current_module(1).__name__</span>
+<span class="sd">        def find2():</span>
+<span class="sd">            from astropy.utils import find_current_module</span>
+<span class="sd">            cmod = find_current_module(2)</span>
+<span class="sd">            if cmod is None:</span>
+<span class="sd">                print &#39;None&#39;</span>
+<span class="sd">            else:</span>
+<span class="sd">                print cmod.__name__</span>
+<span class="sd">        def find_diff():</span>
+<span class="sd">            from astropy.utils import find_current_module</span>
+<span class="sd">            print find_current_module(0,True).__name__</span>
+
+<span class="sd">    ``mod2.py``::</span>
+
+<span class="sd">        def find():</span>
+<span class="sd">            from .mod1 import find2</span>
+<span class="sd">            find2()</span>
+
+<span class="sd">    With these modules in place, the following occurs::</span>
+
+<span class="sd">        &gt;&gt;&gt; from pkg import mod1, mod2</span>
+<span class="sd">        &gt;&gt;&gt; from astropy.utils import find_current_module</span>
+<span class="sd">        &gt;&gt;&gt; mod1.find1()</span>
+<span class="sd">        pkg.mod1</span>
+<span class="sd">        &gt;&gt;&gt; mod1.find2()</span>
+<span class="sd">        None</span>
+<span class="sd">        &gt;&gt;&gt; mod2.find()</span>
+<span class="sd">        pkg.mod2</span>
+<span class="sd">        &gt;&gt;&gt; find_current_module(0)</span>
+<span class="sd">        &lt;module &#39;astropy.utils.misc&#39; from &#39;astropy/utils/misc.py&#39;&gt;</span>
+<span class="sd">        &gt;&gt;&gt; mod1.find_diff()</span>
+<span class="sd">        pkg.mod1</span>
+
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="n">frm</span> <span class="o">=</span> <span class="n">inspect</span><span class="o">.</span><span class="n">currentframe</span><span class="p">()</span>
+    <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">depth</span><span class="p">):</span>
+        <span class="n">frm</span> <span class="o">=</span> <span class="n">frm</span><span class="o">.</span><span class="n">f_back</span>
+        <span class="k">if</span> <span class="n">frm</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="k">return</span> <span class="kc">None</span>
+
+    <span class="k">if</span> <span class="n">finddiff</span><span class="p">:</span>
+        <span class="n">currmod</span> <span class="o">=</span> <span class="n">inspect</span><span class="o">.</span><span class="n">getmodule</span><span class="p">(</span><span class="n">frm</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">finddiff</span> <span class="ow">is</span> <span class="kc">True</span><span class="p">:</span>
+            <span class="n">diffmods</span> <span class="o">=</span> <span class="p">[</span><span class="n">currmod</span><span class="p">]</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">diffmods</span> <span class="o">=</span> <span class="p">[]</span>
+            <span class="k">for</span> <span class="n">fd</span> <span class="ow">in</span> <span class="n">finddiff</span><span class="p">:</span>
+                <span class="k">if</span> <span class="n">inspect</span><span class="o">.</span><span class="n">ismodule</span><span class="p">(</span><span class="n">fd</span><span class="p">):</span>
+                    <span class="n">diffmods</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">fd</span><span class="p">)</span>
+                <span class="k">elif</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">fd</span><span class="p">,</span> <span class="n">six</span><span class="o">.</span><span class="n">string_types</span><span class="p">):</span>
+                    <span class="n">diffmods</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="nb">__import__</span><span class="p">(</span><span class="n">fd</span><span class="p">))</span>
+                <span class="k">elif</span> <span class="n">fd</span> <span class="ow">is</span> <span class="kc">True</span><span class="p">:</span>
+                    <span class="n">diffmods</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">currmod</span><span class="p">)</span>
+                <span class="k">else</span><span class="p">:</span>
+                    <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s1">&#39;invalid entry in finddiff&#39;</span><span class="p">)</span>
+
+        <span class="k">while</span> <span class="n">frm</span><span class="p">:</span>
+            <span class="n">frmb</span> <span class="o">=</span> <span class="n">frm</span><span class="o">.</span><span class="n">f_back</span>
+            <span class="n">modb</span> <span class="o">=</span> <span class="n">inspect</span><span class="o">.</span><span class="n">getmodule</span><span class="p">(</span><span class="n">frmb</span><span class="p">)</span>
+            <span class="k">if</span> <span class="n">modb</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">diffmods</span><span class="p">:</span>
+                <span class="k">return</span> <span class="n">modb</span>
+            <span class="n">frm</span> <span class="o">=</span> <span class="n">frmb</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="k">return</span> <span class="n">inspect</span><span class="o">.</span><span class="n">getmodule</span><span class="p">(</span><span class="n">frm</span><span class="p">)</span></div>
+
+
+<span class="k">def</span> <span class="nf">find_mod_objs</span><span class="p">(</span><span class="n">modname</span><span class="p">,</span> <span class="n">onlylocals</span><span class="o">=</span><span class="kc">False</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot; Returns all the public attributes of a module referenced by name.</span>
+
+<span class="sd">    .. note::</span>
+<span class="sd">        The returned list *not* include subpackages or modules of</span>
+<span class="sd">        ``modname``, nor does it include private attributes (those that</span>
+<span class="sd">        begin with &#39;_&#39; or are not in `__all__`).</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    modname : str</span>
+<span class="sd">        The name of the module to search.</span>
+<span class="sd">    onlylocals : bool or list of str</span>
+<span class="sd">        If `True`, only attributes that are either members of ``modname`` OR</span>
+<span class="sd">        one of its modules or subpackages will be included. If it is a list</span>
+<span class="sd">        of strings, those specify the possible packages that will be</span>
+<span class="sd">        considered &quot;local&quot;.</span>
+
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+<span class="sd">    localnames : list of str</span>
+<span class="sd">        A list of the names of the attributes as they are named in the</span>
+<span class="sd">        module ``modname`` .</span>
+<span class="sd">    fqnames : list of str</span>
+<span class="sd">        A list of the full qualified names of the attributes (e.g.,</span>
+<span class="sd">        ``astropy.utils.introspection.find_mod_objs``). For attributes that are</span>
+<span class="sd">        simple variables, this is based on the local name, but for functions or</span>
+<span class="sd">        classes it can be different if they are actually defined elsewhere and</span>
+<span class="sd">        just referenced in ``modname``.</span>
+<span class="sd">    objs : list of objects</span>
+<span class="sd">        A list of the actual attributes themselves (in the same order as</span>
+<span class="sd">        the other arguments)</span>
+
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="n">mod</span> <span class="o">=</span> <span class="n">resolve_name</span><span class="p">(</span><span class="n">modname</span><span class="p">)</span>
+
+    <span class="k">if</span> <span class="nb">hasattr</span><span class="p">(</span><span class="n">mod</span><span class="p">,</span> <span class="s1">&#39;__all__&#39;</span><span class="p">):</span>
+        <span class="n">pkgitems</span> <span class="o">=</span> <span class="p">[(</span><span class="n">k</span><span class="p">,</span> <span class="n">mod</span><span class="o">.</span><span class="n">__dict__</span><span class="p">[</span><span class="n">k</span><span class="p">])</span> <span class="k">for</span> <span class="n">k</span> <span class="ow">in</span> <span class="n">mod</span><span class="o">.</span><span class="n">__all__</span><span class="p">]</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="n">pkgitems</span> <span class="o">=</span> <span class="p">[(</span><span class="n">k</span><span class="p">,</span> <span class="n">mod</span><span class="o">.</span><span class="n">__dict__</span><span class="p">[</span><span class="n">k</span><span class="p">])</span> <span class="k">for</span> <span class="n">k</span> <span class="ow">in</span> <span class="nb">dir</span><span class="p">(</span><span class="n">mod</span><span class="p">)</span> <span class="k">if</span> <span class="n">k</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">!=</span> <span class="s1">&#39;_&#39;</span><span class="p">]</span>
+
+    <span class="c1"># filter out modules and pull the names and objs out</span>
+    <span class="n">ismodule</span> <span class="o">=</span> <span class="n">inspect</span><span class="o">.</span><span class="n">ismodule</span>
+    <span class="n">localnames</span> <span class="o">=</span> <span class="p">[</span><span class="n">k</span> <span class="k">for</span> <span class="n">k</span><span class="p">,</span> <span class="n">v</span> <span class="ow">in</span> <span class="n">pkgitems</span> <span class="k">if</span> <span class="ow">not</span> <span class="n">ismodule</span><span class="p">(</span><span class="n">v</span><span class="p">)]</span>
+    <span class="n">objs</span> <span class="o">=</span> <span class="p">[</span><span class="n">v</span> <span class="k">for</span> <span class="n">k</span><span class="p">,</span> <span class="n">v</span> <span class="ow">in</span> <span class="n">pkgitems</span> <span class="k">if</span> <span class="ow">not</span> <span class="n">ismodule</span><span class="p">(</span><span class="n">v</span><span class="p">)]</span>
+
+    <span class="c1"># fully qualified names can be determined from the object&#39;s module</span>
+    <span class="n">fqnames</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="k">for</span> <span class="n">obj</span><span class="p">,</span> <span class="n">lnm</span> <span class="ow">in</span> <span class="nb">zip</span><span class="p">(</span><span class="n">objs</span><span class="p">,</span> <span class="n">localnames</span><span class="p">):</span>
+        <span class="k">if</span> <span class="nb">hasattr</span><span class="p">(</span><span class="n">obj</span><span class="p">,</span> <span class="s1">&#39;__module__&#39;</span><span class="p">)</span> <span class="ow">and</span> <span class="nb">hasattr</span><span class="p">(</span><span class="n">obj</span><span class="p">,</span> <span class="s1">&#39;__name__&#39;</span><span class="p">):</span>
+            <span class="n">fqnames</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">obj</span><span class="o">.</span><span class="n">__module__</span> <span class="o">+</span> <span class="s1">&#39;.&#39;</span> <span class="o">+</span> <span class="n">obj</span><span class="o">.</span><span class="n">__name__</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">fqnames</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">modname</span> <span class="o">+</span> <span class="s1">&#39;.&#39;</span> <span class="o">+</span> <span class="n">lnm</span><span class="p">)</span>
+
+    <span class="k">if</span> <span class="n">onlylocals</span><span class="p">:</span>
+        <span class="k">if</span> <span class="n">onlylocals</span> <span class="ow">is</span> <span class="kc">True</span><span class="p">:</span>
+            <span class="n">onlylocals</span> <span class="o">=</span> <span class="p">[</span><span class="n">modname</span><span class="p">]</span>
+        <span class="n">valids</span> <span class="o">=</span> <span class="p">[</span><span class="nb">any</span><span class="p">(</span><span class="n">fqn</span><span class="o">.</span><span class="n">startswith</span><span class="p">(</span><span class="n">nm</span><span class="p">)</span> <span class="k">for</span> <span class="n">nm</span> <span class="ow">in</span> <span class="n">onlylocals</span><span class="p">)</span> <span class="k">for</span> <span class="n">fqn</span> <span class="ow">in</span> <span class="n">fqnames</span><span class="p">]</span>
+        <span class="n">localnames</span> <span class="o">=</span> <span class="p">[</span><span class="n">e</span> <span class="k">for</span> <span class="n">i</span><span class="p">,</span> <span class="n">e</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="n">localnames</span><span class="p">)</span> <span class="k">if</span> <span class="n">valids</span><span class="p">[</span><span class="n">i</span><span class="p">]]</span>
+        <span class="n">fqnames</span> <span class="o">=</span> <span class="p">[</span><span class="n">e</span> <span class="k">for</span> <span class="n">i</span><span class="p">,</span> <span class="n">e</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="n">fqnames</span><span class="p">)</span> <span class="k">if</span> <span class="n">valids</span><span class="p">[</span><span class="n">i</span><span class="p">]]</span>
+        <span class="n">objs</span> <span class="o">=</span> <span class="p">[</span><span class="n">e</span> <span class="k">for</span> <span class="n">i</span><span class="p">,</span> <span class="n">e</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="n">objs</span><span class="p">)</span> <span class="k">if</span> <span class="n">valids</span><span class="p">[</span><span class="n">i</span><span class="p">]]</span>
+
+    <span class="k">return</span> <span class="n">localnames</span><span class="p">,</span> <span class="n">fqnames</span><span class="p">,</span> <span class="n">objs</span>
+
+
+<span class="c1"># Note: I would have preferred call this is_instancemethod, but this naming is</span>
+<span class="c1"># for consistency with other functions in the `inspect` module</span>
+<div class="viewcode-block" id="isinstancemethod"><a class="viewcode-back" href="../../../api/astropy.utils.introspection.isinstancemethod.html#astropy.utils.introspection.isinstancemethod">[docs]</a><span class="k">def</span> <span class="nf">isinstancemethod</span><span class="p">(</span><span class="n">cls</span><span class="p">,</span> <span class="n">obj</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Returns `True` if the given object is an instance method of the class</span>
+<span class="sd">    it is defined on (as opposed to a `staticmethod` or a `classmethod`).</span>
+
+<span class="sd">    This requires both the class the object is a member of as well as the</span>
+<span class="sd">    object itself in order to make this determination.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    cls : `type`</span>
+<span class="sd">        The class on which this method was defined.</span>
+<span class="sd">    obj : `object`</span>
+<span class="sd">        A member of the provided class (the membership is not checked directly,</span>
+<span class="sd">        but this function will always return `False` if the given object is not</span>
+<span class="sd">        a member of the given class).</span>
+
+<span class="sd">    Examples</span>
+<span class="sd">    --------</span>
+<span class="sd">    &gt;&gt;&gt; from astropy.extern import six</span>
+<span class="sd">    &gt;&gt;&gt; class MetaClass(type):</span>
+<span class="sd">    ...     def a_classmethod(cls): pass</span>
+<span class="sd">    ...</span>
+<span class="sd">    &gt;&gt;&gt; @six.add_metaclass(MetaClass)</span>
+<span class="sd">    ... class MyClass(object):</span>
+<span class="sd">    ...     __metaclass__ = MetaClass</span>
+<span class="sd">    ...     def an_instancemethod(self): pass</span>
+<span class="sd">    ...     @classmethod</span>
+<span class="sd">    ...     def another_classmethod(cls): pass</span>
+<span class="sd">    ...     @staticmethod</span>
+<span class="sd">    ...     def a_staticmethod(): pass</span>
+<span class="sd">    ...</span>
+<span class="sd">    &gt;&gt;&gt; isinstancemethod(MyClass, MyClass.a_classmethod)</span>
+<span class="sd">    False</span>
+<span class="sd">    &gt;&gt;&gt; isinstancemethod(MyClass, MyClass.another_classmethod)</span>
+<span class="sd">    False</span>
+<span class="sd">    &gt;&gt;&gt; isinstancemethod(MyClass, MyClass.a_staticmethod)</span>
+<span class="sd">    False</span>
+<span class="sd">    &gt;&gt;&gt; isinstancemethod(MyClass, MyClass.an_instancemethod)</span>
+<span class="sd">    True</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="k">return</span> <span class="n">_isinstancemethod</span><span class="p">(</span><span class="n">cls</span><span class="p">,</span> <span class="n">obj</span><span class="p">)</span></div>
+
+
+<span class="k">if</span> <span class="ow">not</span> <span class="n">six</span><span class="o">.</span><span class="n">PY2</span><span class="p">:</span>
+    <span class="k">def</span> <span class="nf">_isinstancemethod</span><span class="p">(</span><span class="n">cls</span><span class="p">,</span> <span class="n">obj</span><span class="p">):</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">obj</span><span class="p">,</span> <span class="n">types</span><span class="o">.</span><span class="n">FunctionType</span><span class="p">):</span>
+            <span class="k">return</span> <span class="kc">False</span>
+
+        <span class="c1"># Unfortunately it seems the easiest way to get to the original</span>
+        <span class="c1"># staticmethod object is to look in the class&#39;s __dict__, though we</span>
+        <span class="c1"># also need to look up the MRO in case the method is not in the given</span>
+        <span class="c1"># class&#39;s dict</span>
+        <span class="n">name</span> <span class="o">=</span> <span class="n">obj</span><span class="o">.</span><span class="n">__name__</span>
+        <span class="k">for</span> <span class="n">basecls</span> <span class="ow">in</span> <span class="n">cls</span><span class="o">.</span><span class="n">mro</span><span class="p">():</span>  <span class="c1"># This includes cls</span>
+            <span class="k">if</span> <span class="n">name</span> <span class="ow">in</span> <span class="n">basecls</span><span class="o">.</span><span class="n">__dict__</span><span class="p">:</span>
+                <span class="k">return</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">basecls</span><span class="o">.</span><span class="n">__dict__</span><span class="p">[</span><span class="n">name</span><span class="p">],</span> <span class="nb">staticmethod</span><span class="p">)</span>
+
+        <span class="c1"># This shouldn&#39;t happen, though this is the most sensible response if</span>
+        <span class="c1"># it does.</span>
+        <span class="k">raise</span> <span class="ne">AttributeError</span><span class="p">(</span><span class="n">name</span><span class="p">)</span>
+<span class="k">else</span><span class="p">:</span>
+    <span class="k">def</span> <span class="nf">_isinstancemethod</span><span class="p">(</span><span class="n">cls</span><span class="p">,</span> <span class="n">obj</span><span class="p">):</span>
+        <span class="k">return</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">obj</span><span class="p">,</span> <span class="n">types</span><span class="o">.</span><span class="n">MethodType</span><span class="p">)</span> <span class="ow">and</span> <span class="n">obj</span><span class="o">.</span><span class="n">im_class</span> <span class="ow">is</span> <span class="n">cls</span>
+</pre></div>
+
+          </div>
+        </div>
+      </div>
+      <div class="sphinxsidebar" role="navigation" aria-label="main navigation">
+        <div class="sphinxsidebarwrapper"><h3>Page Contents</h3>
+
+
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+<footer class="footer">
+  <p class="pull-right"> &nbsp;
+    <a href="#">Back to Top</a></p>
+  <p>
+    &copy; Copyright 2011-2016, The Astropy Developers.<br/>
+    Created using <a href="http://sphinx.pocoo.org/">Sphinx</a> 1.5.6. &nbsp;
+    Last built 05 Jul 2017. <br/>
+  </p>
+</footer>
+  </body>
+</html>

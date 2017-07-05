@@ -1,0 +1,593 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <head>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    
+    <title>astropy.coordinates.frame_attributes &#8212; Astropy v3.0.dev19489</title>
+    
+    <link rel="stylesheet" href="../../../_static/bootstrap-astropy.css" type="text/css" />
+    <link rel="stylesheet" href="../../../_static/pygments.css" type="text/css" />
+    <link rel="stylesheet" href="../../../_static/gallery.css" type="text/css" />
+    
+    <script type="text/javascript">
+      var DOCUMENTATION_OPTIONS = {
+        URL_ROOT:    '../../../',
+        VERSION:     '3.0.dev19489',
+        COLLAPSE_INDEX: false,
+        FILE_SUFFIX: '.html',
+        HAS_SOURCE:  true,
+        SOURCELINK_SUFFIX: '.txt'
+      };
+    </script>
+    <script type="text/javascript" src="../../../_static/jquery.js"></script>
+    <script type="text/javascript" src="../../../_static/underscore.js"></script>
+    <script type="text/javascript" src="../../../_static/doctools.js"></script>
+    <script type="text/javascript" src="../../../_static/sidebar.js"></script>
+    <link rel="shortcut icon" href="../../../_static/astropy_logo.ico"/>
+    <link rel="index" title="Index" href="../../../genindex.html" />
+    <link rel="search" title="Search" href="../../../search.html" />
+<link href='https://fonts.googleapis.com/css?family=Source+Sans+Pro:200,600' rel='stylesheet' type='text/css'/>
+<script type="text/javascript" src="../../../_static/copybutton.js"></script>
+
+
+  </head>
+  <body role="document">
+<div class="topbar">
+  <a class="brand" title="Documentation Home" href="../../../index.html"><span id="logotext1">astro</span><span id="logotext2">py</span><span id="logotext3">:docs</span></a>
+  <ul>
+    <li><a class="homelink" title="Astropy Homepage" href="http://www.astropy.org"></a></li>
+    <li><a title="General Index" href="../../../genindex.html">Index</a></li>
+    <li><a title="Module Index" href="../../../py-modindex.html">Modules</a></li>
+    <li>
+      
+      
+<form action="../../../search.html" method="get">
+  <input type="text" name="q" placeholder="Search" />
+  <input type="hidden" name="check_keywords" value="yes" />
+  <input type="hidden" name="area" value="default" />
+</form>
+      
+    </li>
+  </ul>
+</div>
+
+<div class="related">
+    <h3>Navigation</h3>
+    <ul>
+      <li>
+	<a href="../../../index.html">Astropy v3.0.dev19489</a>
+	 &#187;
+      </li>
+      <li><a href="../../index.html" >Module code</a> &#187;</li>
+      <li><a href="../../astropy.html" accesskey="U">astropy</a> &#187;</li>
+      
+       
+    </ul>
+</div>
+  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          <div class="body" role="main">
+            
+  <h1>Source code for astropy.coordinates.frame_attributes</h1><div class="highlight"><pre>
+<span></span><span class="c1"># -*- coding: utf-8 -*-</span>
+<span class="c1"># Licensed under a 3-clause BSD style license - see LICENSE.rst</span>
+
+<span class="kn">from</span> <span class="nn">__future__</span> <span class="k">import</span> <span class="p">(</span><span class="n">absolute_import</span><span class="p">,</span> <span class="n">unicode_literals</span><span class="p">,</span> <span class="n">division</span><span class="p">,</span>
+                        <span class="n">print_function</span><span class="p">)</span>
+
+<span class="c1"># Dependencies</span>
+<span class="kn">import</span> <span class="nn">numpy</span> <span class="k">as</span> <span class="nn">np</span>
+
+<span class="c1"># Project</span>
+<span class="kn">from</span> <span class="nn">..</span> <span class="k">import</span> <span class="n">units</span> <span class="k">as</span> <span class="n">u</span>
+<span class="kn">from</span> <span class="nn">..utils.compat.numpy</span> <span class="k">import</span> <span class="n">broadcast_to</span> <span class="k">as</span> <span class="n">np_broadcast_to</span>
+<span class="kn">from</span> <span class="nn">..utils</span> <span class="k">import</span> <span class="n">OrderedDescriptor</span><span class="p">,</span> <span class="n">ShapedLikeNDArray</span>
+
+<span class="n">__all__</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;FrameAttribute&#39;</span><span class="p">,</span> <span class="s1">&#39;TimeFrameAttribute&#39;</span><span class="p">,</span> <span class="s1">&#39;QuantityFrameAttribute&#39;</span><span class="p">,</span>
+           <span class="s1">&#39;EarthLocationAttribute&#39;</span><span class="p">,</span> <span class="s1">&#39;CoordinateAttribute&#39;</span><span class="p">,</span>
+           <span class="s1">&#39;CartesianRepresentationFrameAttribute&#39;</span><span class="p">,</span>
+           <span class="s1">&#39;DifferentialFrameAttribute&#39;</span><span class="p">]</span>
+
+
+<div class="viewcode-block" id="FrameAttribute"><a class="viewcode-back" href="../../../api/astropy.coordinates.FrameAttribute.html#astropy.coordinates.FrameAttribute">[docs]</a><span class="k">class</span> <span class="nc">FrameAttribute</span><span class="p">(</span><span class="n">OrderedDescriptor</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;A non-mutable data descriptor to hold a frame attribute.</span>
+
+<span class="sd">    This class must be used to define frame attributes (e.g. ``equinox`` or</span>
+<span class="sd">    ``obstime``) that are included in a frame class definition.</span>
+
+<span class="sd">    Examples</span>
+<span class="sd">    --------</span>
+<span class="sd">    The `~astropy.coordinates.FK4` class uses the following class attributes::</span>
+
+<span class="sd">      class FK4(BaseCoordinateFrame):</span>
+<span class="sd">          equinox = TimeFrameAttribute(default=_EQUINOX_B1950)</span>
+<span class="sd">          obstime = TimeFrameAttribute(default=None,</span>
+<span class="sd">                                       secondary_attribute=&#39;equinox&#39;)</span>
+
+<span class="sd">    This means that ``equinox`` and ``obstime`` are available to be set as</span>
+<span class="sd">    keyword arguments when creating an ``FK4`` class instance and are then</span>
+<span class="sd">    accessible as instance attributes.  The instance value for the attribute</span>
+<span class="sd">    must be stored in ``&#39;_&#39; + &lt;attribute_name&gt;`` by the frame ``__init__``</span>
+<span class="sd">    method.</span>
+
+<span class="sd">    Note in this example that ``equinox`` and ``obstime`` are time attributes</span>
+<span class="sd">    and use the ``TimeAttributeFrame`` class.  This subclass overrides the</span>
+<span class="sd">    ``convert_input`` method to validate and convert inputs into a ``Time``</span>
+<span class="sd">    object.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    default : object</span>
+<span class="sd">        Default value for the attribute if not provided</span>
+<span class="sd">    secondary_attribute : str</span>
+<span class="sd">        Name of a secondary instance attribute which supplies the value if</span>
+<span class="sd">        ``default is None`` and no value was supplied during initialization.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="n">_class_attribute_</span> <span class="o">=</span> <span class="s1">&#39;frame_attributes&#39;</span>
+    <span class="n">_name_attribute_</span> <span class="o">=</span> <span class="s1">&#39;name&#39;</span>
+    <span class="n">name</span> <span class="o">=</span> <span class="s1">&#39;&lt;unbound&gt;&#39;</span>
+
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">default</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">secondary_attribute</span><span class="o">=</span><span class="s1">&#39;&#39;</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">default</span> <span class="o">=</span> <span class="n">default</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">secondary_attribute</span> <span class="o">=</span> <span class="n">secondary_attribute</span>
+        <span class="nb">super</span><span class="p">(</span><span class="n">FrameAttribute</span><span class="p">,</span> <span class="bp">self</span><span class="p">)</span><span class="o">.</span><span class="n">__init__</span><span class="p">()</span>
+
+<div class="viewcode-block" id="FrameAttribute.convert_input"><a class="viewcode-back" href="../../../api/astropy.coordinates.FrameAttribute.html#astropy.coordinates.FrameAttribute.convert_input">[docs]</a>    <span class="k">def</span> <span class="nf">convert_input</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">value</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Validate the input ``value`` and convert to expected attribute class.</span>
+
+<span class="sd">        The base method here does nothing, but subclasses can implement this</span>
+<span class="sd">        as needed.  The method should catch any internal exceptions and raise</span>
+<span class="sd">        ValueError with an informative message.</span>
+
+<span class="sd">        The method returns the validated input along with a boolean that</span>
+<span class="sd">        indicates whether the input value was actually converted.  If the input</span>
+<span class="sd">        value was already the correct type then the ``converted`` return value</span>
+<span class="sd">        should be ``False``.</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        value : object</span>
+<span class="sd">            Input value to be converted.</span>
+
+<span class="sd">        Returns</span>
+<span class="sd">        -------</span>
+<span class="sd">        output_value</span>
+<span class="sd">            The ``value`` converted to the correct type (or just ``value`` if</span>
+<span class="sd">            ``converted`` is False)</span>
+<span class="sd">        converted : bool</span>
+<span class="sd">            True if the conversion was actually performed, False otherwise.</span>
+
+<span class="sd">        Raises</span>
+<span class="sd">        ------</span>
+<span class="sd">        ValueError</span>
+<span class="sd">            If the input is not valid for this attribute.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="n">value</span><span class="p">,</span> <span class="kc">False</span></div>
+
+    <span class="k">def</span> <span class="nf">__get__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">instance</span><span class="p">,</span> <span class="n">frame_cls</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+        <span class="k">if</span> <span class="n">instance</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">out</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">default</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">out</span> <span class="o">=</span> <span class="nb">getattr</span><span class="p">(</span><span class="n">instance</span><span class="p">,</span> <span class="s1">&#39;_&#39;</span> <span class="o">+</span> <span class="bp">self</span><span class="o">.</span><span class="n">name</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">default</span><span class="p">)</span>
+            <span class="k">if</span> <span class="n">out</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+                <span class="n">out</span> <span class="o">=</span> <span class="nb">getattr</span><span class="p">(</span><span class="n">instance</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">secondary_attribute</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">default</span><span class="p">)</span>
+
+        <span class="n">out</span><span class="p">,</span> <span class="n">converted</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">convert_input</span><span class="p">(</span><span class="n">out</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">instance</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">instance_shape</span> <span class="o">=</span> <span class="nb">getattr</span><span class="p">(</span><span class="n">instance</span><span class="p">,</span> <span class="s1">&#39;shape&#39;</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span>
+            <span class="k">if</span> <span class="n">instance_shape</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="ow">and</span> <span class="p">(</span><span class="nb">getattr</span><span class="p">(</span><span class="n">out</span><span class="p">,</span> <span class="s1">&#39;size&#39;</span><span class="p">,</span> <span class="mi">1</span><span class="p">)</span> <span class="o">&gt;</span> <span class="mi">1</span> <span class="ow">and</span>
+                                               <span class="n">out</span><span class="o">.</span><span class="n">shape</span> <span class="o">!=</span> <span class="n">instance_shape</span><span class="p">):</span>
+                <span class="c1"># If the shapes do not match, try broadcasting.</span>
+                <span class="k">try</span><span class="p">:</span>
+                    <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">out</span><span class="p">,</span> <span class="n">ShapedLikeNDArray</span><span class="p">):</span>
+                        <span class="n">out</span> <span class="o">=</span> <span class="n">out</span><span class="o">.</span><span class="n">_apply</span><span class="p">(</span><span class="n">np_broadcast_to</span><span class="p">,</span> <span class="n">shape</span><span class="o">=</span><span class="n">instance_shape</span><span class="p">,</span>
+                                         <span class="n">subok</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+                    <span class="k">else</span><span class="p">:</span>
+                        <span class="n">out</span> <span class="o">=</span> <span class="n">np_broadcast_to</span><span class="p">(</span><span class="n">out</span><span class="p">,</span> <span class="n">instance_shape</span><span class="p">,</span> <span class="n">subok</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+                <span class="k">except</span> <span class="ne">ValueError</span><span class="p">:</span>
+                    <span class="c1"># raise more informative exception.</span>
+                    <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
+                        <span class="s2">&quot;attribute </span><span class="si">{0}</span><span class="s2"> should be scalar or have shape </span><span class="si">{1}</span><span class="s2">, &quot;</span>
+                        <span class="s2">&quot;but is has shape </span><span class="si">{2}</span><span class="s2"> and could not be broadcast.&quot;</span>
+                        <span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">name</span><span class="p">,</span> <span class="n">instance_shape</span><span class="p">,</span> <span class="n">out</span><span class="o">.</span><span class="n">shape</span><span class="p">))</span>
+
+                <span class="n">converted</span> <span class="o">=</span> <span class="kc">True</span>
+
+            <span class="k">if</span> <span class="n">converted</span><span class="p">:</span>
+                <span class="nb">setattr</span><span class="p">(</span><span class="n">instance</span><span class="p">,</span> <span class="s1">&#39;_&#39;</span> <span class="o">+</span> <span class="bp">self</span><span class="o">.</span><span class="n">name</span><span class="p">,</span> <span class="n">out</span><span class="p">)</span>
+
+        <span class="k">return</span> <span class="n">out</span>
+
+    <span class="k">def</span> <span class="nf">__set__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">instance</span><span class="p">,</span> <span class="n">val</span><span class="p">):</span>
+        <span class="k">raise</span> <span class="ne">AttributeError</span><span class="p">(</span><span class="s1">&#39;Cannot set frame attribute&#39;</span><span class="p">)</span></div>
+
+
+<div class="viewcode-block" id="TimeFrameAttribute"><a class="viewcode-back" href="../../../api/astropy.coordinates.TimeFrameAttribute.html#astropy.coordinates.TimeFrameAttribute">[docs]</a><span class="k">class</span> <span class="nc">TimeFrameAttribute</span><span class="p">(</span><span class="n">FrameAttribute</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Frame attribute descriptor for quantities that are Time objects.</span>
+<span class="sd">    See the `~astropy.coordinates.FrameAttribute` API doc for further</span>
+<span class="sd">    information.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    default : object</span>
+<span class="sd">        Default value for the attribute if not provided</span>
+<span class="sd">    secondary_attribute : str</span>
+<span class="sd">        Name of a secondary instance attribute which supplies the value if</span>
+<span class="sd">        ``default is None`` and no value was supplied during initialization.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+<div class="viewcode-block" id="TimeFrameAttribute.convert_input"><a class="viewcode-back" href="../../../api/astropy.coordinates.TimeFrameAttribute.html#astropy.coordinates.TimeFrameAttribute.convert_input">[docs]</a>    <span class="k">def</span> <span class="nf">convert_input</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">value</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Convert input value to a Time object and validate by running through</span>
+<span class="sd">        the Time constructor.  Also check that the input was a scalar.</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        value : object</span>
+<span class="sd">            Input value to be converted.</span>
+
+<span class="sd">        Returns</span>
+<span class="sd">        -------</span>
+<span class="sd">        out, converted : correctly-typed object, boolean</span>
+<span class="sd">            Tuple consisting of the correctly-typed object and a boolean which</span>
+<span class="sd">            indicates if conversion was actually performed.</span>
+
+<span class="sd">        Raises</span>
+<span class="sd">        ------</span>
+<span class="sd">        ValueError</span>
+<span class="sd">            If the input is not valid for this attribute.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+
+        <span class="kn">from</span> <span class="nn">..time</span> <span class="k">import</span> <span class="n">Time</span>
+
+        <span class="k">if</span> <span class="n">value</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="k">return</span> <span class="kc">None</span><span class="p">,</span> <span class="kc">False</span>
+
+        <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">value</span><span class="p">,</span> <span class="n">Time</span><span class="p">):</span>
+            <span class="n">out</span> <span class="o">=</span> <span class="n">value</span>
+            <span class="n">converted</span> <span class="o">=</span> <span class="kc">False</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">try</span><span class="p">:</span>
+                <span class="n">out</span> <span class="o">=</span> <span class="n">Time</span><span class="p">(</span><span class="n">value</span><span class="p">)</span>
+            <span class="k">except</span> <span class="ne">Exception</span> <span class="k">as</span> <span class="n">err</span><span class="p">:</span>
+                <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
+                    <span class="s1">&#39;Invalid time input </span><span class="si">{0}</span><span class="s1">=</span><span class="si">{1!r}</span><span class="se">\n</span><span class="si">{2}</span><span class="s1">&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">name</span><span class="p">,</span>
+                                                               <span class="n">value</span><span class="p">,</span> <span class="n">err</span><span class="p">))</span>
+            <span class="n">converted</span> <span class="o">=</span> <span class="kc">True</span>
+
+        <span class="k">return</span> <span class="n">out</span><span class="p">,</span> <span class="n">converted</span></div></div>
+
+
+<div class="viewcode-block" id="CartesianRepresentationFrameAttribute"><a class="viewcode-back" href="../../../api/astropy.coordinates.CartesianRepresentationFrameAttribute.html#astropy.coordinates.CartesianRepresentationFrameAttribute">[docs]</a><span class="k">class</span> <span class="nc">CartesianRepresentationFrameAttribute</span><span class="p">(</span><span class="n">FrameAttribute</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    A frame attribute that is a CartesianRepresentation with specified units.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    default : object</span>
+<span class="sd">        Default value for the attribute if not provided</span>
+<span class="sd">    secondary_attribute : str</span>
+<span class="sd">        Name of a secondary instance attribute which supplies the value if</span>
+<span class="sd">        ``default is None`` and no value was supplied during initialization.</span>
+<span class="sd">    unit : unit object or None</span>
+<span class="sd">        Name of a unit that the input will be converted into. If None, no</span>
+<span class="sd">        unit-checking or conversion is performed</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">default</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">secondary_attribute</span><span class="o">=</span><span class="s1">&#39;&#39;</span><span class="p">,</span> <span class="n">unit</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+        <span class="nb">super</span><span class="p">(</span><span class="n">CartesianRepresentationFrameAttribute</span><span class="p">,</span> <span class="bp">self</span><span class="p">)</span><span class="o">.</span><span class="n">__init__</span><span class="p">(</span><span class="n">default</span><span class="p">,</span> <span class="n">secondary_attribute</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">unit</span> <span class="o">=</span> <span class="n">unit</span>
+
+<div class="viewcode-block" id="CartesianRepresentationFrameAttribute.convert_input"><a class="viewcode-back" href="../../../api/astropy.coordinates.CartesianRepresentationFrameAttribute.html#astropy.coordinates.CartesianRepresentationFrameAttribute.convert_input">[docs]</a>    <span class="k">def</span> <span class="nf">convert_input</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">value</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Checks that the input is a CartesianRepresentation with the correct</span>
+<span class="sd">        unit, or the special value ``[0, 0, 0]``.</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        value : object</span>
+<span class="sd">            Input value to be converted.</span>
+
+<span class="sd">        Returns</span>
+<span class="sd">        -------</span>
+<span class="sd">        out, converted : correctly-typed object, boolean</span>
+<span class="sd">            Tuple consisting of the correctly-typed object and a boolean which</span>
+<span class="sd">            indicates if conversion was actually performed.</span>
+
+<span class="sd">        Raises</span>
+<span class="sd">        ------</span>
+<span class="sd">        ValueError</span>
+<span class="sd">            If the input is not valid for this attribute.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+
+        <span class="k">if</span> <span class="p">(</span><span class="nb">isinstance</span><span class="p">(</span><span class="n">value</span><span class="p">,</span> <span class="nb">list</span><span class="p">)</span> <span class="ow">and</span> <span class="nb">len</span><span class="p">(</span><span class="n">value</span><span class="p">)</span> <span class="o">==</span> <span class="mi">3</span> <span class="ow">and</span>
+                <span class="nb">all</span><span class="p">(</span><span class="n">v</span> <span class="o">==</span> <span class="mi">0</span> <span class="k">for</span> <span class="n">v</span> <span class="ow">in</span> <span class="n">value</span><span class="p">)</span> <span class="ow">and</span> <span class="bp">self</span><span class="o">.</span><span class="n">unit</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">):</span>
+            <span class="k">return</span> <span class="n">CartesianRepresentation</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">zeros</span><span class="p">(</span><span class="mi">3</span><span class="p">)</span> <span class="o">*</span> <span class="bp">self</span><span class="o">.</span><span class="n">unit</span><span class="p">),</span> <span class="kc">True</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="c1"># is it a CartesianRepresentation with correct unit?</span>
+            <span class="k">if</span> <span class="nb">hasattr</span><span class="p">(</span><span class="n">value</span><span class="p">,</span> <span class="s1">&#39;xyz&#39;</span><span class="p">)</span> <span class="ow">and</span> <span class="n">value</span><span class="o">.</span><span class="n">xyz</span><span class="o">.</span><span class="n">unit</span> <span class="o">==</span> <span class="bp">self</span><span class="o">.</span><span class="n">unit</span><span class="p">:</span>
+                <span class="k">return</span> <span class="n">value</span><span class="p">,</span> <span class="kc">False</span>
+
+            <span class="n">converted</span> <span class="o">=</span> <span class="kc">True</span>
+            <span class="c1"># if it&#39;s a CartesianRepresentation, get the xyz Quantity</span>
+            <span class="n">value</span> <span class="o">=</span> <span class="nb">getattr</span><span class="p">(</span><span class="n">value</span><span class="p">,</span> <span class="s1">&#39;xyz&#39;</span><span class="p">,</span> <span class="n">value</span><span class="p">)</span>
+            <span class="k">if</span> <span class="ow">not</span> <span class="nb">hasattr</span><span class="p">(</span><span class="n">value</span><span class="p">,</span> <span class="s1">&#39;unit&#39;</span><span class="p">):</span>
+                <span class="k">raise</span> <span class="ne">TypeError</span><span class="p">(</span><span class="s1">&#39;tried to set a CartesianRepresentationFrameAttribute with &#39;</span>
+                                <span class="s1">&#39;something that does not have a unit.&#39;</span><span class="p">)</span>
+
+            <span class="n">value</span> <span class="o">=</span> <span class="n">value</span><span class="o">.</span><span class="n">to</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">unit</span><span class="p">)</span>
+
+            <span class="c1"># now try and make a CartesianRepresentation.</span>
+            <span class="n">cartrep</span> <span class="o">=</span> <span class="n">CartesianRepresentation</span><span class="p">(</span><span class="n">value</span><span class="p">,</span> <span class="n">copy</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
+            <span class="k">return</span> <span class="n">cartrep</span><span class="p">,</span> <span class="n">converted</span></div></div>
+
+
+<div class="viewcode-block" id="QuantityFrameAttribute"><a class="viewcode-back" href="../../../api/astropy.coordinates.QuantityFrameAttribute.html#astropy.coordinates.QuantityFrameAttribute">[docs]</a><span class="k">class</span> <span class="nc">QuantityFrameAttribute</span><span class="p">(</span><span class="n">FrameAttribute</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    A frame attribute that is a quantity with specified units and shape</span>
+<span class="sd">    (optionally).</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    default : object</span>
+<span class="sd">        Default value for the attribute if not provided</span>
+<span class="sd">    secondary_attribute : str</span>
+<span class="sd">        Name of a secondary instance attribute which supplies the value if</span>
+<span class="sd">        ``default is None`` and no value was supplied during initialization.</span>
+<span class="sd">    unit : unit object or None</span>
+<span class="sd">        Name of a unit that the input will be converted into. If None, no</span>
+<span class="sd">        unit-checking or conversion is performed</span>
+<span class="sd">    shape : tuple or None</span>
+<span class="sd">        If given, specifies the shape the attribute must be</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">default</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">secondary_attribute</span><span class="o">=</span><span class="s1">&#39;&#39;</span><span class="p">,</span> <span class="n">unit</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">shape</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+        <span class="nb">super</span><span class="p">(</span><span class="n">QuantityFrameAttribute</span><span class="p">,</span> <span class="bp">self</span><span class="p">)</span><span class="o">.</span><span class="n">__init__</span><span class="p">(</span><span class="n">default</span><span class="p">,</span> <span class="n">secondary_attribute</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">unit</span> <span class="o">=</span> <span class="n">unit</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">shape</span> <span class="o">=</span> <span class="n">shape</span>
+
+<div class="viewcode-block" id="QuantityFrameAttribute.convert_input"><a class="viewcode-back" href="../../../api/astropy.coordinates.QuantityFrameAttribute.html#astropy.coordinates.QuantityFrameAttribute.convert_input">[docs]</a>    <span class="k">def</span> <span class="nf">convert_input</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">value</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Checks that the input is a Quantity with the necessary units (or the</span>
+<span class="sd">        special value ``0``).</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        value : object</span>
+<span class="sd">            Input value to be converted.</span>
+
+<span class="sd">        Returns</span>
+<span class="sd">        -------</span>
+<span class="sd">        out, converted : correctly-typed object, boolean</span>
+<span class="sd">            Tuple consisting of the correctly-typed object and a boolean which</span>
+<span class="sd">            indicates if conversion was actually performed.</span>
+
+<span class="sd">        Raises</span>
+<span class="sd">        ------</span>
+<span class="sd">        ValueError</span>
+<span class="sd">            If the input is not valid for this attribute.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="n">np</span><span class="o">.</span><span class="n">all</span><span class="p">(</span><span class="n">value</span> <span class="o">==</span> <span class="mi">0</span><span class="p">)</span> <span class="ow">and</span> <span class="bp">self</span><span class="o">.</span><span class="n">unit</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="k">return</span> <span class="n">u</span><span class="o">.</span><span class="n">Quantity</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">zeros</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">shape</span><span class="p">),</span> <span class="bp">self</span><span class="o">.</span><span class="n">unit</span><span class="p">),</span> <span class="kc">True</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">if</span> <span class="ow">not</span> <span class="nb">hasattr</span><span class="p">(</span><span class="n">value</span><span class="p">,</span> <span class="s1">&#39;unit&#39;</span><span class="p">):</span>
+                <span class="k">raise</span> <span class="ne">TypeError</span><span class="p">(</span><span class="s1">&#39;Tried to set a QuantityFrameAttribute with &#39;</span>
+                                <span class="s1">&#39;something that does not have a unit.&#39;</span><span class="p">)</span>
+            <span class="n">oldvalue</span> <span class="o">=</span> <span class="n">value</span>
+            <span class="n">value</span> <span class="o">=</span> <span class="n">u</span><span class="o">.</span><span class="n">Quantity</span><span class="p">(</span><span class="n">oldvalue</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">unit</span><span class="p">,</span> <span class="n">copy</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
+            <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">shape</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="ow">and</span> <span class="n">value</span><span class="o">.</span><span class="n">shape</span> <span class="o">!=</span> <span class="bp">self</span><span class="o">.</span><span class="n">shape</span><span class="p">:</span>
+                <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s1">&#39;The provided value has shape &quot;</span><span class="si">{0}</span><span class="s1">&quot;, but &#39;</span>
+                                 <span class="s1">&#39;should have shape &quot;</span><span class="si">{1}</span><span class="s1">&quot;&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">value</span><span class="o">.</span><span class="n">shape</span><span class="p">,</span>
+                                                                  <span class="bp">self</span><span class="o">.</span><span class="n">shape</span><span class="p">))</span>
+            <span class="n">converted</span> <span class="o">=</span> <span class="n">oldvalue</span> <span class="ow">is</span> <span class="ow">not</span> <span class="n">value</span>
+            <span class="k">return</span> <span class="n">value</span><span class="p">,</span> <span class="n">converted</span></div></div>
+
+
+<div class="viewcode-block" id="EarthLocationAttribute"><a class="viewcode-back" href="../../../api/astropy.coordinates.EarthLocationAttribute.html#astropy.coordinates.EarthLocationAttribute">[docs]</a><span class="k">class</span> <span class="nc">EarthLocationAttribute</span><span class="p">(</span><span class="n">FrameAttribute</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    A frame attribute that can act as a `~astropy.coordinates.EarthLocation`.</span>
+<span class="sd">    It can be created as anything that can be transformed to the</span>
+<span class="sd">    `~astropy.coordinates.ITRS` frame, but always presents as an `EarthLocation`</span>
+<span class="sd">    when accessed after creation.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    default : object</span>
+<span class="sd">        Default value for the attribute if not provided</span>
+<span class="sd">    secondary_attribute : str</span>
+<span class="sd">        Name of a secondary instance attribute which supplies the value if</span>
+<span class="sd">        ``default is None`` and no value was supplied during initialization.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+<div class="viewcode-block" id="EarthLocationAttribute.convert_input"><a class="viewcode-back" href="../../../api/astropy.coordinates.EarthLocationAttribute.html#astropy.coordinates.EarthLocationAttribute.convert_input">[docs]</a>    <span class="k">def</span> <span class="nf">convert_input</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">value</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Checks that the input is a Quantity with the necessary units (or the</span>
+<span class="sd">        special value ``0``).</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        value : object</span>
+<span class="sd">            Input value to be converted.</span>
+
+<span class="sd">        Returns</span>
+<span class="sd">        -------</span>
+<span class="sd">        out, converted : correctly-typed object, boolean</span>
+<span class="sd">            Tuple consisting of the correctly-typed object and a boolean which</span>
+<span class="sd">            indicates if conversion was actually performed.</span>
+
+<span class="sd">        Raises</span>
+<span class="sd">        ------</span>
+<span class="sd">        ValueError</span>
+<span class="sd">            If the input is not valid for this attribute.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+
+        <span class="k">if</span> <span class="n">value</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="k">return</span> <span class="kc">None</span><span class="p">,</span> <span class="kc">False</span>
+        <span class="k">elif</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">value</span><span class="p">,</span> <span class="n">EarthLocation</span><span class="p">):</span>
+            <span class="k">return</span> <span class="n">value</span><span class="p">,</span> <span class="kc">False</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="c1"># we have to do the import here because of some tricky circular deps</span>
+            <span class="kn">from</span> <span class="nn">.builtin_frames</span> <span class="k">import</span> <span class="n">ITRS</span>
+
+            <span class="k">if</span> <span class="ow">not</span> <span class="nb">hasattr</span><span class="p">(</span><span class="n">value</span><span class="p">,</span> <span class="s1">&#39;transform_to&#39;</span><span class="p">):</span>
+                <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s1">&#39;&quot;</span><span class="si">{0}</span><span class="s1">&quot; was passed into an &#39;</span>
+                                 <span class="s1">&#39;EarthLocationAttribute, but it does not have &#39;</span>
+                                 <span class="s1">&#39;&quot;transform_to&quot; method&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">value</span><span class="p">))</span>
+            <span class="n">itrsobj</span> <span class="o">=</span> <span class="n">value</span><span class="o">.</span><span class="n">transform_to</span><span class="p">(</span><span class="n">ITRS</span><span class="p">)</span>
+            <span class="k">return</span> <span class="n">itrsobj</span><span class="o">.</span><span class="n">earth_location</span><span class="p">,</span> <span class="kc">True</span></div></div>
+
+
+<div class="viewcode-block" id="CoordinateAttribute"><a class="viewcode-back" href="../../../api/astropy.coordinates.CoordinateAttribute.html#astropy.coordinates.CoordinateAttribute">[docs]</a><span class="k">class</span> <span class="nc">CoordinateAttribute</span><span class="p">(</span><span class="n">FrameAttribute</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    A frame attribute which is a coordinate object. It can be given as a</span>
+<span class="sd">    low-level frame class *or* a `~astropy.coordinates.SkyCoord`, but will</span>
+<span class="sd">    always be converted to the low-level frame class when accessed.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    frame : a coordinate frame class</span>
+<span class="sd">        The type of frame this attribute can be</span>
+<span class="sd">    default : object</span>
+<span class="sd">        Default value for the attribute if not provided</span>
+<span class="sd">    secondary_attribute : str</span>
+<span class="sd">        Name of a secondary instance attribute which supplies the value if</span>
+<span class="sd">        ``default is None`` and no value was supplied during initialization.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">frame</span><span class="p">,</span> <span class="n">default</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">secondary_attribute</span><span class="o">=</span><span class="s1">&#39;&#39;</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_frame</span> <span class="o">=</span> <span class="n">frame</span>
+        <span class="nb">super</span><span class="p">(</span><span class="n">CoordinateAttribute</span><span class="p">,</span> <span class="bp">self</span><span class="p">)</span><span class="o">.</span><span class="n">__init__</span><span class="p">(</span><span class="n">default</span><span class="p">,</span> <span class="n">secondary_attribute</span><span class="p">)</span>
+
+<div class="viewcode-block" id="CoordinateAttribute.convert_input"><a class="viewcode-back" href="../../../api/astropy.coordinates.CoordinateAttribute.html#astropy.coordinates.CoordinateAttribute.convert_input">[docs]</a>    <span class="k">def</span> <span class="nf">convert_input</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">value</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Checks that the input is a SkyCoord with the necessary units (or the</span>
+<span class="sd">        special value ``None``).</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        value : object</span>
+<span class="sd">            Input value to be converted.</span>
+
+<span class="sd">        Returns</span>
+<span class="sd">        -------</span>
+<span class="sd">        out, converted : correctly-typed object, boolean</span>
+<span class="sd">            Tuple consisting of the correctly-typed object and a boolean which</span>
+<span class="sd">            indicates if conversion was actually performed.</span>
+
+<span class="sd">        Raises</span>
+<span class="sd">        ------</span>
+<span class="sd">        ValueError</span>
+<span class="sd">            If the input is not valid for this attribute.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="n">value</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="k">return</span> <span class="kc">None</span><span class="p">,</span> <span class="kc">False</span>
+        <span class="k">elif</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">value</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">_frame</span><span class="p">):</span>
+            <span class="k">return</span> <span class="n">value</span><span class="p">,</span> <span class="kc">False</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">if</span> <span class="ow">not</span> <span class="nb">hasattr</span><span class="p">(</span><span class="n">value</span><span class="p">,</span> <span class="s1">&#39;transform_to&#39;</span><span class="p">):</span>
+                <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s1">&#39;&quot;</span><span class="si">{0}</span><span class="s1">&quot; was passed into a &#39;</span>
+                                 <span class="s1">&#39;CoordinateAttribute, but it does not have &#39;</span>
+                                 <span class="s1">&#39;&quot;transform_to&quot; method&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">value</span><span class="p">))</span>
+            <span class="n">transformedobj</span> <span class="o">=</span> <span class="n">value</span><span class="o">.</span><span class="n">transform_to</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_frame</span><span class="p">)</span>
+            <span class="k">if</span> <span class="nb">hasattr</span><span class="p">(</span><span class="n">transformedobj</span><span class="p">,</span> <span class="s1">&#39;frame&#39;</span><span class="p">):</span>
+                <span class="n">transformedobj</span> <span class="o">=</span> <span class="n">transformedobj</span><span class="o">.</span><span class="n">frame</span>
+            <span class="k">return</span> <span class="n">transformedobj</span><span class="p">,</span> <span class="kc">True</span></div></div>
+
+
+<div class="viewcode-block" id="DifferentialFrameAttribute"><a class="viewcode-back" href="../../../api/astropy.coordinates.DifferentialFrameAttribute.html#astropy.coordinates.DifferentialFrameAttribute">[docs]</a><span class="k">class</span> <span class="nc">DifferentialFrameAttribute</span><span class="p">(</span><span class="n">FrameAttribute</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;A frame attribute which is a differential instance.</span>
+
+<span class="sd">    The optional ``allowed_classes`` argument allows specifying a restricted</span>
+<span class="sd">    set of valid differential classes to check the input against. Otherwise,</span>
+<span class="sd">    any `~astropy.coordinates.BaseDifferential` subclass instance is valid.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    default : object</span>
+<span class="sd">        Default value for the attribute if not provided</span>
+<span class="sd">    allowed_classes : tuple, optional</span>
+<span class="sd">        A list of allowed differential classes for this attribute to have.</span>
+<span class="sd">    secondary_attribute : str</span>
+<span class="sd">        Name of a secondary instance attribute which supplies the value if</span>
+<span class="sd">        ``default is None`` and no value was supplied during initialization.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">default</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">allowed_classes</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+                 <span class="n">secondary_attribute</span><span class="o">=</span><span class="s1">&#39;&#39;</span><span class="p">):</span>
+
+        <span class="k">if</span> <span class="n">allowed_classes</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">allowed_classes</span> <span class="o">=</span> <span class="nb">tuple</span><span class="p">(</span><span class="n">allowed_classes</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">allowed_classes</span> <span class="o">=</span> <span class="n">BaseDifferential</span>
+
+        <span class="nb">super</span><span class="p">(</span><span class="n">DifferentialFrameAttribute</span><span class="p">,</span> <span class="bp">self</span><span class="p">)</span><span class="o">.</span><span class="n">__init__</span><span class="p">(</span><span class="n">default</span><span class="p">,</span>
+                                                         <span class="n">secondary_attribute</span><span class="p">)</span>
+
+<div class="viewcode-block" id="DifferentialFrameAttribute.convert_input"><a class="viewcode-back" href="../../../api/astropy.coordinates.DifferentialFrameAttribute.html#astropy.coordinates.DifferentialFrameAttribute.convert_input">[docs]</a>    <span class="k">def</span> <span class="nf">convert_input</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">value</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Checks that the input is a differential object and is one of the</span>
+<span class="sd">        allowed class types.</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        value : object</span>
+<span class="sd">            Input value.</span>
+
+<span class="sd">        Returns</span>
+<span class="sd">        -------</span>
+<span class="sd">        out, converted : correctly-typed object, boolean</span>
+<span class="sd">            Tuple consisting of the correctly-typed object and a boolean which</span>
+<span class="sd">            indicates if conversion was actually performed.</span>
+
+<span class="sd">        Raises</span>
+<span class="sd">        ------</span>
+<span class="sd">        ValueError</span>
+<span class="sd">            If the input is not valid for this attribute.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+
+        <span class="k">if</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">value</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">allowed_classes</span><span class="p">):</span>
+            <span class="k">raise</span> <span class="ne">TypeError</span><span class="p">(</span><span class="s1">&#39;Tried to set a DifferentialFrameAttribute with &#39;</span>
+                            <span class="s1">&#39;an unsupported Differential type </span><span class="si">{0}</span><span class="s1">. Allowed &#39;</span>
+                            <span class="s1">&#39;classes are: </span><span class="si">{1}</span><span class="s1">&#39;</span>
+                            <span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">value</span><span class="o">.</span><span class="n">__class__</span><span class="p">,</span>
+                                    <span class="bp">self</span><span class="o">.</span><span class="n">allowed_classes</span><span class="p">))</span>
+
+        <span class="k">return</span> <span class="n">value</span><span class="p">,</span> <span class="kc">True</span></div></div>
+
+
+<span class="c1"># do this here to prevent a series of complicated circular imports</span>
+<span class="kn">from</span> <span class="nn">.earth</span> <span class="k">import</span> <span class="n">EarthLocation</span>
+<span class="kn">from</span> <span class="nn">.representation</span> <span class="k">import</span> <span class="n">CartesianRepresentation</span><span class="p">,</span> <span class="n">BaseDifferential</span>
+</pre></div>
+
+          </div>
+        </div>
+      </div>
+      <div class="sphinxsidebar" role="navigation" aria-label="main navigation">
+        <div class="sphinxsidebarwrapper"><h3>Page Contents</h3>
+
+
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+<footer class="footer">
+  <p class="pull-right"> &nbsp;
+    <a href="#">Back to Top</a></p>
+  <p>
+    &copy; Copyright 2011-2016, The Astropy Developers.<br/>
+    Created using <a href="http://sphinx.pocoo.org/">Sphinx</a> 1.5.6. &nbsp;
+    Last built 05 Jul 2017. <br/>
+  </p>
+</footer>
+  </body>
+</html>

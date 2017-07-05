@@ -1,0 +1,475 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <head>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    
+    <title>FITS Headers &#8212; Astropy v3.0.dev19489</title>
+    
+    <link rel="stylesheet" href="../../../_static/bootstrap-astropy.css" type="text/css" />
+    <link rel="stylesheet" href="../../../_static/pygments.css" type="text/css" />
+    <link rel="stylesheet" href="../../../_static/gallery.css" type="text/css" />
+    
+    <script type="text/javascript">
+      var DOCUMENTATION_OPTIONS = {
+        URL_ROOT:    '../../../',
+        VERSION:     '3.0.dev19489',
+        COLLAPSE_INDEX: false,
+        FILE_SUFFIX: '.html',
+        HAS_SOURCE:  true,
+        SOURCELINK_SUFFIX: '.txt'
+      };
+    </script>
+    <script type="text/javascript" src="../../../_static/jquery.js"></script>
+    <script type="text/javascript" src="../../../_static/underscore.js"></script>
+    <script type="text/javascript" src="../../../_static/doctools.js"></script>
+    <script type="text/javascript" src="../../../_static/sidebar.js"></script>
+    <link rel="shortcut icon" href="../../../_static/astropy_logo.ico"/>
+    <link rel="index" title="Index" href="../../../genindex.html" />
+    <link rel="search" title="Search" href="../../../search.html" />
+    <link rel="next" title="Image Data" href="image.html" />
+    <link rel="prev" title="FITS File handling (astropy.io.fits)" href="../index.html" />
+<link href='https://fonts.googleapis.com/css?family=Source+Sans+Pro:200,600' rel='stylesheet' type='text/css'/>
+<script type="text/javascript" src="../../../_static/copybutton.js"></script>
+
+
+  </head>
+  <body role="document">
+<div class="topbar">
+  <a class="brand" title="Documentation Home" href="../../../index.html"><span id="logotext1">astro</span><span id="logotext2">py</span><span id="logotext3">:docs</span></a>
+  <ul>
+    <li><a class="homelink" title="Astropy Homepage" href="http://www.astropy.org"></a></li>
+    <li><a title="General Index" href="../../../genindex.html">Index</a></li>
+    <li><a title="Module Index" href="../../../py-modindex.html">Modules</a></li>
+    <li>
+      
+      
+<form action="../../../search.html" method="get">
+  <input type="text" name="q" placeholder="Search" />
+  <input type="hidden" name="check_keywords" value="yes" />
+  <input type="hidden" name="area" value="default" />
+</form>
+      
+    </li>
+  </ul>
+</div>
+
+<div class="related">
+    <h3>Navigation</h3>
+    <ul>
+      <li class="right">
+	<a href="image.html" title="Image Data">
+	  next &raquo;
+	</a>
+      </li>
+      <li class="right">
+	<a href="../index.html" title="FITS File handling (astropy.io.fits)">
+	  &laquo; previous
+	</a>
+	 |
+      </li>
+      <li>
+	<a href="../../../index.html">Astropy v3.0.dev19489</a>
+	 &#187;
+      </li>
+      <li><a href="../index.html" accesskey="U">FITS File handling (<code class="docutils literal"><span class="pre">astropy.io.fits</span></code>)</a> &#187;</li>
+      
+      <li>FITS Headers</li> 
+    </ul>
+</div>
+  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          <div class="body" role="main">
+            
+  <div class="section" id="fits-headers">
+<h1>FITS Headers<a class="headerlink" href="#fits-headers" title="Permalink to this headline">¶</a></h1>
+<p>In the next three chapters, more detailed information as well as examples will
+be explained for manipulating FITS headers, image/array data, and table data
+respectively.</p>
+<div class="section" id="header-of-an-hdu">
+<h2>Header of an HDU<a class="headerlink" href="#header-of-an-hdu" title="Permalink to this headline">¶</a></h2>
+<p>Every HDU normally has two components: header and data. In Astropy these two
+components are accessed through the two attributes of the HDU,
+<code class="docutils literal"><span class="pre">hdu.header</span></code> and <code class="docutils literal"><span class="pre">hdu.data</span></code>.</p>
+<p>While an HDU may have empty data, i.e. the <code class="docutils literal"><span class="pre">.data</span></code> attribute is <a class="reference external" href="https://docs.python.org/3/library/constants.html#None" title="(in Python v3.6)"><code class="xref py py-obj docutils literal"><span class="pre">None</span></code></a>, any
+HDU will always have a header. When an HDU is created with a constructor, e.g.
+<code class="docutils literal"><span class="pre">hdu</span> <span class="pre">=</span> <span class="pre">PrimaryHDU(data,</span> <span class="pre">header)</span></code>, the user may supply the header value from
+an existing HDU&#8217;s header and the data value from  a numpy array. If the
+defaults (None) are used, the new HDU will have the minimal required keywords
+for an HDU of that type:</p>
+<div class="highlight-default"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="n">hdu</span> <span class="o">=</span> <span class="n">fits</span><span class="o">.</span><span class="n">PrimaryHDU</span><span class="p">()</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">hdu</span><span class="o">.</span><span class="n">header</span>  <span class="c1"># show the all of the header cards</span>
+<span class="go">SIMPLE = T / conforms to FITS standard</span>
+<span class="go">BITPIX = 8 / array data type</span>
+<span class="go">NAXIS  = 0 / number of array dimensions</span>
+<span class="go">EXTEND = T</span>
+</pre></div>
+</div>
+<p>A user can use any header and any data to construct a new HDU. Astropy will
+strip any keywords that describe the data structure leaving only your
+informational keywords.  Later it will add back in the required structural
+keywords for compatibility with the new HDU and any data added to it.  So, a
+user can use a table HDU&#8217;s header to construct an image HDU and vice versa. The
+constructor will also ensure the data type and dimension information in the
+header agree with the data.</p>
+</div>
+<div class="section" id="the-header-attribute">
+<h2>The Header Attribute<a class="headerlink" href="#the-header-attribute" title="Permalink to this headline">¶</a></h2>
+<div class="section" id="value-access-updating-and-creating">
+<h3>Value Access, Updating, and Creating<a class="headerlink" href="#value-access-updating-and-creating" title="Permalink to this headline">¶</a></h3>
+<p>As shown in the <a class="reference internal" href="../index.html#tutorial"><span class="std std-ref">Getting Started</span></a> tutorial, keyword values can
+be accessed via keyword name or index of an HDU&#8217;s header attribute. You can
+also use the wildcard character <code class="docutils literal"><span class="pre">*</span></code> to get the keyword value pairs that match
+your search string. Here is a quick summary:</p>
+<div class="highlight-default"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="n">hdulist</span> <span class="o">=</span> <span class="n">fits</span><span class="o">.</span><span class="n">open</span><span class="p">(</span><span class="s1">&#39;input.fits&#39;</span><span class="p">)</span>  <span class="c1"># open a FITS file</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">prihdr</span> <span class="o">=</span> <span class="n">hdulist</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">header</span>  <span class="c1"># the primary HDU header</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="nb">print</span><span class="p">(</span><span class="n">prihdr</span><span class="p">[</span><span class="mi">3</span><span class="p">])</span>            <span class="c1"># get the 4th keyword&#39;s value</span>
+<span class="go">10</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">prihdr</span><span class="p">[</span><span class="mi">3</span><span class="p">]</span> <span class="o">=</span> <span class="mi">20</span>  <span class="c1"># change its value</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">prihdr</span><span class="p">[</span><span class="s1">&#39;DARKCORR&#39;</span><span class="p">]</span>  <span class="c1"># get the value of the keyword &#39;darkcorr&#39;</span>
+<span class="go">&#39;OMIT&#39;</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">prihdr</span><span class="p">[</span><span class="s1">&#39;DARKCOR*&#39;</span><span class="p">]</span>  <span class="c1"># get keyword values using wildcard matching</span>
+<span class="go">DARKCORR= &#39;OMIT    &#39;           / Subtract dark image</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">prihdr</span><span class="p">[</span><span class="s1">&#39;darkcorr&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="s1">&#39;PERFORM&#39;</span>  <span class="c1"># change darkcorr&#39;s value</span>
+</pre></div>
+</div>
+<p>Keyword names are case-insensitive except in a few special cases (see the
+sections on HIERARCH card and record-valued cards). Thus, <code class="docutils literal"><span class="pre">prihdr['abc']</span></code>,
+<code class="docutils literal"><span class="pre">prihdr['ABC']</span></code>, or <code class="docutils literal"><span class="pre">prihdr['aBc']</span></code> are all equivalent.</p>
+<p>Like with Python&#8217;s <a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#dict" title="(in Python v3.6)"><code class="xref py py-class docutils literal"><span class="pre">dict</span></code></a> type, new keywords can also be added to the
+header using assignment syntax:</p>
+<div class="highlight-default"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="s1">&#39;DARKCORR&#39;</span> <span class="ow">in</span> <span class="n">header</span>  <span class="c1"># Check for existence</span>
+<span class="go">False</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">header</span><span class="p">[</span><span class="s1">&#39;DARKCORR&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="s1">&#39;OMIT&#39;</span>  <span class="c1"># Add a new DARKCORR keyword</span>
+</pre></div>
+</div>
+<p>You can also add a new value <em>and</em> comment by assigning them as a tuple:</p>
+<div class="highlight-default"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="n">header</span><span class="p">[</span><span class="s1">&#39;DARKCORR&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="p">(</span><span class="s1">&#39;OMIT&#39;</span><span class="p">,</span> <span class="s1">&#39;Dark Image Subtraction&#39;</span><span class="p">)</span>
+</pre></div>
+</div>
+<div class="admonition note">
+<p class="first admonition-title">Note</p>
+<p>An important point to note when adding new keywords to a header is that by
+default they are not appended <em>immediately</em> to the end of the file.
+Rather, they are appended to the last non-commentary keyword.  This is in
+order to support the common use case of always having all HISTORY keywords
+grouped together at the end of a header.  A new non-commentary keyword will
+be added at the end of the existing keywords, but before any
+HISTORY/COMMENT keywords at the end of the header.</p>
+<p>There are a couple of ways to override this functionality:</p>
+<ul class="last">
+<li><p class="first">Use the <a class="reference internal" href="../api/headers.html#astropy.io.fits.Header.append" title="astropy.io.fits.Header.append"><code class="xref py py-meth docutils literal"><span class="pre">Header.append()</span></code></a> method with the <code class="docutils literal"><span class="pre">end=True</span></code> argument:</p>
+<div class="highlight-default"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="n">header</span><span class="o">.</span><span class="n">append</span><span class="p">((</span><span class="s1">&#39;DARKCORR&#39;</span><span class="p">,</span> <span class="s1">&#39;OMIT&#39;</span><span class="p">,</span> <span class="s1">&#39;Dark Image Subtraction&#39;</span><span class="p">),</span>
+<span class="go">                  end=True)</span>
+</pre></div>
+</div>
+<p>This forces the new keyword to be added at the actual end of the header.</p>
+</li>
+<li><p class="first">The <a class="reference internal" href="../api/headers.html#astropy.io.fits.Header.insert" title="astropy.io.fits.Header.insert"><code class="xref py py-meth docutils literal"><span class="pre">Header.insert()</span></code></a> method will always insert a new keyword exactly
+where you ask for it:</p>
+<div class="highlight-default"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="n">header</span><span class="o">.</span><span class="n">insert</span><span class="p">(</span><span class="mi">20</span><span class="p">,</span> <span class="p">(</span><span class="s1">&#39;DARKCORR&#39;</span><span class="p">,</span> <span class="s1">&#39;OMIT&#39;</span><span class="p">,</span> <span class="s1">&#39;Dark Image Subtraction&#39;</span><span class="p">))</span>
+</pre></div>
+</div>
+<p>This inserts the DARKCORR keyword before the 20th keyword in the header
+no matter what it is.</p>
+</li>
+</ul>
+</div>
+<p>A keyword (and its corresponding card) can be deleted using the same index/name
+syntax:</p>
+<div class="highlight-default"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="k">del</span> <span class="n">prihdr</span><span class="p">[</span><span class="mi">3</span><span class="p">]</span>      <span class="c1"># delete the 2nd keyword</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="k">del</span> <span class="n">prihdr</span><span class="p">[</span><span class="s1">&#39;abc&#39;</span><span class="p">]</span>  <span class="c1"># get the value of the keyword &#39;abc&#39;</span>
+</pre></div>
+</div>
+<p>Note that, like a regular Python list, the indexing updates after each delete,
+so if <code class="docutils literal"><span class="pre">del</span> <span class="pre">prihdr[3]</span></code> is done two times in a row, the 4th and 5th keywords
+are removed from the original header.  Likewise, <code class="docutils literal"><span class="pre">del</span> <span class="pre">prihdr[-1]</span></code> will delete
+the last card in the header.</p>
+<p>It is also possible to delete an entire range of cards using the slice syntax:</p>
+<div class="highlight-default"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="k">del</span> <span class="n">prihdr</span><span class="p">[</span><span class="mi">3</span><span class="p">:</span><span class="mi">5</span><span class="p">]</span>
+</pre></div>
+</div>
+<p>The method <a class="reference internal" href="../api/headers.html#astropy.io.fits.Header.set" title="astropy.io.fits.Header.set"><code class="xref py py-meth docutils literal"><span class="pre">Header.set()</span></code></a> is another way to update they value or comment
+associated with an existing keyword, or to create a new keyword.  Most of its
+functionality can be duplicated with the dict-like syntax shown above.  But in
+some cases it might be more clear.  It also has the advantage of allowing one
+to either move cards within the header, or specify the location of a new card
+relative to existing cards:</p>
+<div class="highlight-default"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="n">prihdr</span><span class="o">.</span><span class="n">set</span><span class="p">(</span><span class="s1">&#39;target&#39;</span><span class="p">,</span> <span class="s1">&#39;NGC1234&#39;</span><span class="p">,</span> <span class="s1">&#39;target name&#39;</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="c1"># place the next new keyword before the &#39;TARGET&#39; keyword</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">prihdr</span><span class="o">.</span><span class="n">set</span><span class="p">(</span><span class="s1">&#39;newkey&#39;</span><span class="p">,</span> <span class="mi">666</span><span class="p">,</span> <span class="n">before</span><span class="o">=</span><span class="s1">&#39;TARGET&#39;</span><span class="p">)</span>  <span class="c1"># comment is optional</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="c1"># place the next new keyword after the 21st keyword</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">prihdr</span><span class="o">.</span><span class="n">set</span><span class="p">(</span><span class="s1">&#39;newkey2&#39;</span><span class="p">,</span> <span class="mf">42.0</span><span class="p">,</span> <span class="s1">&#39;another new key&#39;</span><span class="p">,</span> <span class="n">after</span><span class="o">=</span><span class="mi">20</span><span class="p">)</span>
+</pre></div>
+</div>
+<p>In FITS headers, each keyword may also have a comment associated with it
+explaining its purpose.  The comments associated with each keyword are accessed
+through the <a class="reference internal" href="../api/headers.html#astropy.io.fits.Header.comments" title="astropy.io.fits.Header.comments"><code class="xref py py-attr docutils literal"><span class="pre">comments</span></code></a> attribute:</p>
+<div class="highlight-default"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="n">header</span><span class="p">[</span><span class="s1">&#39;NAXIS&#39;</span><span class="p">]</span>
+<span class="go">2</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">header</span><span class="o">.</span><span class="n">comments</span><span class="p">[</span><span class="s1">&#39;NAXIS&#39;</span><span class="p">]</span>
+<span class="go">the number of image axes</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">header</span><span class="o">.</span><span class="n">comments</span><span class="p">[</span><span class="s1">&#39;NAXIS&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="s1">&#39;The number of image axes&#39;</span>  <span class="c1"># Update</span>
+</pre></div>
+</div>
+<p>Comments can be accessed in all the same ways that values are accessed, whether
+by keyword name or card index.  Slices are also possible.  The only difference
+is that you go through <code class="docutils literal"><span class="pre">header.comments</span></code> instead of just <code class="docutils literal"><span class="pre">header</span></code> by
+itself.</p>
+</div>
+<div class="section" id="comment-history-and-blank-keywords">
+<h3>COMMENT, HISTORY, and Blank Keywords<a class="headerlink" href="#comment-history-and-blank-keywords" title="Permalink to this headline">¶</a></h3>
+<p>Most keywords in a FITS header have unique names. If there are more than two
+cards sharing the same name, it is the first one accessed when referred by
+name. The duplicates can only be accessed by numeric indexing.</p>
+<p>There are three special keywords (their associated cards are sometimes referred
+to as commentary cards), which commonly appear in FITS headers more than once.
+They are (1) blank keyword, (2) HISTORY, and (3) COMMENT. Unlike other
+keywords, when accessing these keywords they are returned as a list:</p>
+<div class="highlight-default"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="n">prihdr</span><span class="p">[</span><span class="s1">&#39;HISTORY&#39;</span><span class="p">]</span>
+<span class="go">I updated this file on 02/03/2011</span>
+<span class="go">I updated this file on 02/04/2011</span>
+<span class="go">....</span>
+</pre></div>
+</div>
+<p>These lists can be sliced like any other list.  For example, to display just the
+last HISTORY entry, use <code class="docutils literal"><span class="pre">prihdr['history'][-1]</span></code>.  Existing commentary cards
+can also be updated by using the appropriate index number for that card.</p>
+<p>New commentary cards can be added like any other card by using the dict-like
+keyword assignment syntax, or by using the <a class="reference internal" href="../api/headers.html#astropy.io.fits.Header.set" title="astropy.io.fits.Header.set"><code class="xref py py-meth docutils literal"><span class="pre">Header.set()</span></code></a> method.  However,
+unlike with other keywords, a new commentary card is always added and appended
+to the last commentary card with the same keyword, rather than to the end of
+the header. Here is an example:</p>
+<div class="highlight-default"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="n">hdu</span><span class="o">.</span><span class="n">header</span><span class="p">[</span><span class="s1">&#39;HISTORY&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="s1">&#39;history 1&#39;</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">hdu</span><span class="o">.</span><span class="n">header</span><span class="p">[</span><span class="s1">&#39;&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="s1">&#39;blank 1&#39;</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">hdu</span><span class="o">.</span><span class="n">header</span><span class="p">[</span><span class="s1">&#39;COMMENT&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="s1">&#39;comment 1&#39;</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">hdu</span><span class="o">.</span><span class="n">header</span><span class="p">[</span><span class="s1">&#39;HISTORY&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="s1">&#39;history 2&#39;</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">hdu</span><span class="o">.</span><span class="n">header</span><span class="p">[</span><span class="s1">&#39;&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="s1">&#39;blank 2&#39;</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">hdu</span><span class="o">.</span><span class="n">header</span><span class="p">[</span><span class="s1">&#39;COMMENT&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="s1">&#39;comment 2&#39;</span>
+</pre></div>
+</div>
+<p>and the part in the modified header becomes:</p>
+<div class="highlight-default"><div class="highlight"><pre><span></span><span class="n">HISTORY</span> <span class="n">history</span> <span class="mi">1</span>
+<span class="n">HISTORY</span> <span class="n">history</span> <span class="mi">2</span>
+        <span class="n">blank</span> <span class="mi">1</span>
+        <span class="n">blank</span> <span class="mi">2</span>
+<span class="n">COMMENT</span> <span class="n">comment</span> <span class="mi">1</span>
+<span class="n">COMMENT</span> <span class="n">comment</span> <span class="mi">2</span>
+</pre></div>
+</div>
+<p>Users can also directly control exactly where in the header to add a new
+commentary card by using the <a class="reference internal" href="../api/headers.html#astropy.io.fits.Header.insert" title="astropy.io.fits.Header.insert"><code class="xref py py-meth docutils literal"><span class="pre">Header.insert()</span></code></a> method.</p>
+<div class="admonition note">
+<p class="first admonition-title">Note</p>
+<p class="last">Ironically, there is no comment in a commentary card, only a string
+value.</p>
+</div>
+</div>
+</div>
+<div class="section" id="card-images">
+<h2>Card Images<a class="headerlink" href="#card-images" title="Permalink to this headline">¶</a></h2>
+<p>A FITS header consists of card images.</p>
+<p>A card image in a FITS header consists of a keyword name, a value, and
+optionally a comment. Physically, it takes 80 columns (bytes)&#8211;without carriage
+return&#8211;in a FITS file&#8217;s storage format. In Astropy, each card image is
+manifested by a <a class="reference internal" href="../api/cards.html#astropy.io.fits.Card" title="astropy.io.fits.Card"><code class="xref py py-class docutils literal"><span class="pre">Card</span></code></a> object. There are also special kinds of cards:
+commentary cards (see above) and card images taking more than one 80-column
+card image.  The latter will be discussed later.</p>
+<p>Most of the time the details of dealing with cards are handled by the
+<a class="reference internal" href="../api/headers.html#astropy.io.fits.Header" title="astropy.io.fits.Header"><code class="xref py py-class docutils literal"><span class="pre">Header</span></code></a> object, and it is not necessary to directly manipulate cards.
+In fact, most <a class="reference internal" href="../api/headers.html#astropy.io.fits.Header" title="astropy.io.fits.Header"><code class="xref py py-class docutils literal"><span class="pre">Header</span></code></a> methods that accept a <code class="docutils literal"><span class="pre">(keyword,</span> <span class="pre">value)</span></code> or
+<code class="docutils literal"><span class="pre">(keyword,</span> <span class="pre">value,</span> <span class="pre">comment)</span></code> tuple as an argument can also take a
+<a class="reference internal" href="../api/cards.html#astropy.io.fits.Card" title="astropy.io.fits.Card"><code class="xref py py-class docutils literal"><span class="pre">Card</span></code></a> object as an argument.  <a class="reference internal" href="../api/cards.html#astropy.io.fits.Card" title="astropy.io.fits.Card"><code class="xref py py-class docutils literal"><span class="pre">Card</span></code></a> objects are just wrappers
+around such tuples that provide the logic for parsing and formatting individual
+cards in a header.  But there&#8217;s usually nothing gained by manually using a
+<a class="reference internal" href="../api/cards.html#astropy.io.fits.Card" title="astropy.io.fits.Card"><code class="xref py py-class docutils literal"><span class="pre">Card</span></code></a> object, except to examine how a card might appear in a header
+before actually adding it to the header.</p>
+<p>A new Card object is created with the <a class="reference internal" href="../api/cards.html#astropy.io.fits.Card" title="astropy.io.fits.Card"><code class="xref py py-class docutils literal"><span class="pre">Card</span></code></a> constructor:
+<code class="docutils literal"><span class="pre">Card(key,</span> <span class="pre">value,</span> <span class="pre">comment)</span></code>. For example:</p>
+<div class="highlight-default"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="n">c1</span> <span class="o">=</span> <span class="n">fits</span><span class="o">.</span><span class="n">Card</span><span class="p">(</span><span class="s1">&#39;TEMP&#39;</span><span class="p">,</span> <span class="mf">80.0</span><span class="p">,</span> <span class="s1">&#39;temperature, floating value&#39;</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">c2</span> <span class="o">=</span> <span class="n">fits</span><span class="o">.</span><span class="n">Card</span><span class="p">(</span><span class="s1">&#39;DETECTOR&#39;</span><span class="p">,</span> <span class="mi">1</span><span class="p">)</span>  <span class="c1"># comment is optional</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">c3</span> <span class="o">=</span> <span class="n">fits</span><span class="o">.</span><span class="n">Card</span><span class="p">(</span><span class="s1">&#39;MIR_REVR&#39;</span><span class="p">,</span> <span class="kc">True</span><span class="p">,</span>
+<span class="gp">... </span>               <span class="s1">&#39;mirror reversed? Boolean value&#39;</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">c4</span> <span class="o">=</span> <span class="n">fits</span><span class="o">.</span><span class="n">Card</span><span class="p">(</span><span class="s1">&#39;ABC&#39;</span><span class="p">,</span> <span class="mi">2</span><span class="o">+</span><span class="mi">3</span><span class="n">j</span><span class="p">,</span> <span class="s1">&#39;complex value&#39;</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">c5</span> <span class="o">=</span> <span class="n">fits</span><span class="o">.</span><span class="n">Card</span><span class="p">(</span><span class="s1">&#39;OBSERVER&#39;</span><span class="p">,</span> <span class="s1">&#39;Hubble&#39;</span><span class="p">,</span> <span class="s1">&#39;string value&#39;</span><span class="p">)</span>
+
+<span class="gp">&gt;&gt;&gt; </span><span class="nb">print</span><span class="p">(</span><span class="n">c1</span><span class="p">);</span> <span class="nb">print</span><span class="p">(</span><span class="n">c2</span><span class="p">);</span> <span class="nb">print</span><span class="p">(</span><span class="n">c3</span><span class="p">);</span> <span class="nb">print</span><span class="p">(</span><span class="n">c4</span><span class="p">);</span> <span class="nb">print</span><span class="p">(</span><span class="n">c5</span><span class="p">)</span>  <span class="c1"># show the cards</span>
+<span class="go">TEMP = 80.0 / temperature, floating value</span>
+<span class="go">DETECTOR= 1 /</span>
+<span class="go">MIR_REVR= T / mirror reversed? Boolean value</span>
+<span class="go">ABC = (2.0, 3.0) / complex value</span>
+<span class="go">OBSERVER= &#39;Hubble &#39; / string value</span>
+</pre></div>
+</div>
+<p>Cards have the attributes <code class="docutils literal"><span class="pre">.keyword</span></code>, <code class="docutils literal"><span class="pre">.value</span></code>, and <code class="docutils literal"><span class="pre">.comment</span></code>. Both
+<code class="docutils literal"><span class="pre">.value</span></code> and <code class="docutils literal"><span class="pre">.comment</span></code> can be changed but not the <code class="docutils literal"><span class="pre">.keyword</span></code> attribute.
+In other words, once a card is created, it is created for a specific, immutable
+keyword.</p>
+<p>The <a class="reference internal" href="../api/cards.html#astropy.io.fits.Card" title="astropy.io.fits.Card"><code class="xref py py-meth docutils literal"><span class="pre">Card()</span></code></a> constructor will check if the arguments given are conforming
+to the FITS standard and has a fixed card image format. If the user wants to
+create a card with a customized format or even a card which is not conforming
+to the FITS standard (e.g. for testing purposes), the <a class="reference internal" href="../api/cards.html#astropy.io.fits.Card.fromstring" title="astropy.io.fits.Card.fromstring"><code class="xref py py-meth docutils literal"><span class="pre">Card.fromstring()</span></code></a>
+class method can be used.</p>
+<p>Cards can be verified with <a class="reference internal" href="../api/cards.html#astropy.io.fits.Card.verify" title="astropy.io.fits.Card.verify"><code class="xref py py-meth docutils literal"><span class="pre">Card.verify()</span></code></a>. The non-standard card <code class="docutils literal"><span class="pre">c2</span></code> in
+the example below is flagged by such verification. More about verification in
+Astropy will be discussed in a later chapter.</p>
+<div class="highlight-default"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="n">c1</span> <span class="o">=</span> <span class="n">fits</span><span class="o">.</span><span class="n">Card</span><span class="o">.</span><span class="n">fromstring</span><span class="p">(</span><span class="s1">&#39;ABC = 3.456D023&#39;</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">c2</span> <span class="o">=</span> <span class="n">fits</span><span class="o">.</span><span class="n">Card</span><span class="o">.</span><span class="n">fromstring</span><span class="p">(</span><span class="s2">&quot;P.I. =&#39;Hubble&#39;&quot;</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="nb">print</span><span class="p">(</span><span class="n">c1</span><span class="p">);</span> <span class="nb">print</span><span class="p">(</span><span class="n">c2</span><span class="p">)</span>
+<span class="go">ABC = 3.456D023</span>
+<span class="go">P.I. =&#39;Hubble&#39;</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">c2</span><span class="o">.</span><span class="n">verify</span><span class="p">()</span>
+<span class="go">Output verification result:</span>
+<span class="go">Unfixable error: Illegal keyword name &#39;P.I.&#39;</span>
+</pre></div>
+</div>
+<p>A list of the <a class="reference internal" href="../api/cards.html#astropy.io.fits.Card" title="astropy.io.fits.Card"><code class="xref py py-class docutils literal"><span class="pre">Card</span></code></a> objects underlying a <a class="reference internal" href="../api/headers.html#astropy.io.fits.Header" title="astropy.io.fits.Header"><code class="xref py py-class docutils literal"><span class="pre">Header</span></code></a> object can be
+accessed with the <a class="reference internal" href="../api/headers.html#astropy.io.fits.Header.cards" title="astropy.io.fits.Header.cards"><code class="xref py py-attr docutils literal"><span class="pre">Header.cards</span></code></a> attribute.  This list is only meant for
+observing, and should not be directly manipulated.  In fact, it is only a
+copy&#8211;modifications to it will not affect the header it came from.  Use the
+methods provided by the <a class="reference internal" href="../api/headers.html#astropy.io.fits.Header" title="astropy.io.fits.Header"><code class="xref py py-class docutils literal"><span class="pre">Header</span></code></a> class instead.</p>
+</div>
+<div class="section" id="continue-cards">
+<h2>CONTINUE Cards<a class="headerlink" href="#continue-cards" title="Permalink to this headline">¶</a></h2>
+<p>The fact that the FITS standard only allows up to 8 characters for the keyword
+name and 80 characters to contain the keyword, the value, and the comment is
+restrictive for certain applications. To allow long string values for keywords,
+a proposal was made in:</p>
+<blockquote>
+<div><a class="reference external" href="http://legacy.gsfc.nasa.gov/docs/heasarc/ofwg/docs/ofwg_recomm/r13.html">http://legacy.gsfc.nasa.gov/docs/heasarc/ofwg/docs/ofwg_recomm/r13.html</a></div></blockquote>
+<p>by using the CONTINUE keyword after the regular 80-column containing the
+keyword. Astropy does support this convention, even though it is not a FITS
+standard. The examples below show the use of CONTINUE is automatic for long
+string values:</p>
+<div class="highlight-default"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="n">header</span> <span class="o">=</span> <span class="n">fits</span><span class="o">.</span><span class="n">Header</span><span class="p">()</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">header</span><span class="p">[</span><span class="s1">&#39;abc&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="s1">&#39;abcdefg&#39;</span> <span class="o">*</span> <span class="mi">20</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">header</span>
+<span class="go">ABC = &#39;abcdefgabcdefgabcdefgabcdefgabcdefgabcdefgabcdefgabcdefgabcdefgabcd&amp;&#39;</span>
+<span class="go">CONTINUE &#39;efgabcdefgabcdefgabcdefgabcdefgabcdefgabcdefgabcdefgabcdefgabcdefga&amp;&#39;</span>
+<span class="go">CONTINUE &#39;bcdefg&amp;&#39;</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">header</span><span class="p">[</span><span class="s1">&#39;abc&#39;</span><span class="p">]</span>
+<span class="go">&#39;abcdefgabcdefgabcdefgabcdefgabcdefgabcdefgabcdefgabcdefgabcdefgabcdefgabcdefgabcdefgabcdefgabcdefgabcdefgabcdefgabcdefgabcdefgabcdefgabcdefg&#39;</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="c1"># both value and comments are long</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">header</span><span class="p">[</span><span class="s1">&#39;abc&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="p">(</span><span class="s1">&#39;abcdefg&#39;</span> <span class="o">*</span> <span class="mi">10</span><span class="p">,</span> <span class="s1">&#39;abcdefg&#39;</span> <span class="o">*</span> <span class="mi">10</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">header</span>
+<span class="go">ABC = &#39;abcdefgabcdefgabcdefgabcdefgabcdefgabcdefgabcdefgabcdefgabcdefgabcd&amp;&#39;</span>
+<span class="go">CONTINUE &#39;efg&amp;&#39;</span>
+<span class="go">CONTINUE &#39;&amp;&#39; / abcdefgabcdefgabcdefgabcdefgabcdefgabcdefgabcdefgabcdefgabcdefga</span>
+<span class="go">CONTINUE &#39;&amp;&#39; / bcdefg</span>
+</pre></div>
+</div>
+<p>Note that when a CONTINUE card is used, at the end of each 80-characters card
+image, an ampersand is present. The ampersand is not part of the string value.
+Also, there is no &#8220;=&#8221; at the 9th column after CONTINUE. In the first example,
+the entire 240 characters is treated by Astropy as a single card. So, if it is
+the nth card in a header, the (n+1)th card refers to the next keyword, not the
+next CONTINUE card.  As such, CONTINUE cards are transparently handled by
+Astropy as a single logical card, and it&#8217;s generally not necessary to worry
+about the details of the format.  Keywords that resolve to a set of CONTINUE
+cards can be accessed and updated just like regular keywords.</p>
+</div>
+<div class="section" id="hierarch-cards">
+<h2>HIERARCH Cards<a class="headerlink" href="#hierarch-cards" title="Permalink to this headline">¶</a></h2>
+<p>For keywords longer than 8 characters, there is a convention originated at ESO
+to facilitate such use. It uses a special keyword HIERARCH with the actual long
+keyword following. Astropy supports this convention as well.</p>
+<p>If a keyword contains more than 8 characters Astropy will automatically use a
+HIERARCH card, but will also issue a warning in case this is in error.
+However, one may explicitly request a HIERARCH card by prepending the keyword
+with &#8216;HIERARCH &#8216; (just as it would appear in the header).  For example,
+<code class="docutils literal"><span class="pre">header['HIERARCH</span> <span class="pre">abcdefghi']</span></code> will create the keyword <code class="docutils literal"><span class="pre">abcdefghi</span></code> without
+displaying a warning.  Once created, HIERARCH keywords can be accessed like any
+other: <code class="docutils literal"><span class="pre">header['abcdefghi']</span></code>, without prepending &#8216;HIERARCH&#8217; to the keyword.
+HIEARARCH keywords also differ from normal FITS keywords in that they are
+case-sensitive.</p>
+<p>Examples follow:</p>
+<div class="highlight-default"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="n">c</span> <span class="o">=</span> <span class="n">fits</span><span class="o">.</span><span class="n">Card</span><span class="p">(</span><span class="s1">&#39;abcdefghi&#39;</span><span class="p">,</span> <span class="mi">10</span><span class="p">)</span>
+<span class="go">Keyword name &#39;abcdefghi&#39; is greater than 8 characters; a HIERARCH card will</span>
+<span class="go">be created.</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="nb">print</span><span class="p">(</span><span class="n">c</span><span class="p">)</span>
+<span class="go">HIERARCH abcdefghi = 10</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">c</span> <span class="o">=</span> <span class="n">fits</span><span class="o">.</span><span class="n">Card</span><span class="p">(</span><span class="s1">&#39;hierarch abcdefghi&#39;</span><span class="p">,</span> <span class="mi">10</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="nb">print</span><span class="p">(</span><span class="n">c</span><span class="p">)</span>
+<span class="go">HIERARCH abcdefghi = 10</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">h</span> <span class="o">=</span> <span class="n">fits</span><span class="o">.</span><span class="n">PrimaryHDU</span><span class="p">()</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">h</span><span class="o">.</span><span class="n">header</span><span class="p">[</span><span class="s1">&#39;hierarch abcdefghi&#39;</span><span class="p">]</span> <span class="o">=</span>  <span class="mi">99</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">h</span><span class="o">.</span><span class="n">header</span><span class="p">[</span><span class="s1">&#39;abcdefghi&#39;</span><span class="p">]</span>
+<span class="go">99</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">h</span><span class="o">.</span><span class="n">header</span><span class="p">[</span><span class="s1">&#39;abcdefghi&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="mi">10</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">h</span><span class="o">.</span><span class="n">header</span><span class="p">[</span><span class="s1">&#39;abcdefghi&#39;</span><span class="p">]</span>
+<span class="go">10</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">h</span><span class="o">.</span><span class="n">header</span><span class="p">[</span><span class="s1">&#39;ABCDEFGHI&#39;</span><span class="p">]</span>
+<span class="gt">Traceback (most recent call last):</span>
+<span class="c">...</span>
+<span class="gr">KeyError</span>: <span class="n">&quot;Keyword &#39;ABCDEFGI.&#39; not found.&quot;</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">h</span><span class="o">.</span><span class="n">header</span>
+<span class="go">SIMPLE = T / conforms to FITS standard</span>
+<span class="go">BITPIX = 8 / array data type</span>
+<span class="go">NAXIS = 0 / number of array dimensions</span>
+<span class="go">EXTEND = T</span>
+<span class="go">HIERARCH abcdefghi = 1000</span>
+</pre></div>
+</div>
+<div class="admonition note">
+<p class="first admonition-title">Note</p>
+<p>A final point to keep in mind about the <a class="reference internal" href="../api/headers.html#astropy.io.fits.Header" title="astropy.io.fits.Header"><code class="xref py py-class docutils literal"><span class="pre">Header</span></code></a> class is that much
+of its design is intended to abstract away quirks about the FITS format.
+This is why, for example, it will automatically created CONTINUE and
+HIERARCH cards.  The Header is just a data structure, and as user you
+shouldn&#8217;t have to worry about how it ultimately gets serialized to a header
+in a FITS file.</p>
+<p class="last">Though there are some areas where it&#8217;s almost impossible to hide away the
+quirks of the FITS format, Astropy tries to make it so that you have to
+think about it as little as possible.  If there are any areas where you
+have concern yourself unnecessarily about how the header is constructed,
+then let <a class="reference external" href="mailto:help&#37;&#52;&#48;stsci&#46;edu">help<span>&#64;</span>stsci<span>&#46;</span>edu</a> know, as there are probably areas where this can be
+improved on even more.</p>
+</div>
+</div>
+</div>
+
+
+          </div>
+        </div>
+      </div>
+      <div class="sphinxsidebar" role="navigation" aria-label="main navigation">
+        <div class="sphinxsidebarwrapper"><h3>Page Contents</h3>
+<ul>
+<li><a class="reference internal" href="#">FITS Headers</a><ul>
+<li><a class="reference internal" href="#header-of-an-hdu">Header of an HDU</a></li>
+<li><a class="reference internal" href="#the-header-attribute">The Header Attribute</a><ul>
+<li><a class="reference internal" href="#value-access-updating-and-creating">Value Access, Updating, and Creating</a></li>
+<li><a class="reference internal" href="#comment-history-and-blank-keywords">COMMENT, HISTORY, and Blank Keywords</a></li>
+</ul>
+</li>
+<li><a class="reference internal" href="#card-images">Card Images</a></li>
+<li><a class="reference internal" href="#continue-cards">CONTINUE Cards</a></li>
+<li><a class="reference internal" href="#hierarch-cards">HIERARCH Cards</a></li>
+</ul>
+</li>
+</ul>
+
+
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+<footer class="footer">
+  <p class="pull-right">
+    <a href="http://github.com/astropy/astropy/tree/master/docs/io/fits/usage/headers.rst">Edit This Page on Github</a> &nbsp;
+    <a href="../../../_sources/io/fits/usage/headers.rst.txt"
+       rel="nofollow">Page Source</a> &nbsp;
+    <a href="#">Back to Top</a></p>
+  <p>
+    &copy; Copyright 2011-2016, The Astropy Developers.<br/>
+    Created using <a href="http://sphinx.pocoo.org/">Sphinx</a> 1.5.6. &nbsp;
+    Last built 05 Jul 2017. <br/>
+  </p>
+</footer>
+  </body>
+</html>

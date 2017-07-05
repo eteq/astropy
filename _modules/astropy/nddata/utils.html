@@ -1,0 +1,976 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <head>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    
+    <title>astropy.nddata.utils &#8212; Astropy v3.0.dev19489</title>
+    
+    <link rel="stylesheet" href="../../../_static/bootstrap-astropy.css" type="text/css" />
+    <link rel="stylesheet" href="../../../_static/pygments.css" type="text/css" />
+    <link rel="stylesheet" href="../../../_static/gallery.css" type="text/css" />
+    
+    <script type="text/javascript">
+      var DOCUMENTATION_OPTIONS = {
+        URL_ROOT:    '../../../',
+        VERSION:     '3.0.dev19489',
+        COLLAPSE_INDEX: false,
+        FILE_SUFFIX: '.html',
+        HAS_SOURCE:  true,
+        SOURCELINK_SUFFIX: '.txt'
+      };
+    </script>
+    <script type="text/javascript" src="../../../_static/jquery.js"></script>
+    <script type="text/javascript" src="../../../_static/underscore.js"></script>
+    <script type="text/javascript" src="../../../_static/doctools.js"></script>
+    <script type="text/javascript" src="../../../_static/sidebar.js"></script>
+    <link rel="shortcut icon" href="../../../_static/astropy_logo.ico"/>
+    <link rel="index" title="Index" href="../../../genindex.html" />
+    <link rel="search" title="Search" href="../../../search.html" />
+<link href='https://fonts.googleapis.com/css?family=Source+Sans+Pro:200,600' rel='stylesheet' type='text/css'/>
+<script type="text/javascript" src="../../../_static/copybutton.js"></script>
+
+
+  </head>
+  <body role="document">
+<div class="topbar">
+  <a class="brand" title="Documentation Home" href="../../../index.html"><span id="logotext1">astro</span><span id="logotext2">py</span><span id="logotext3">:docs</span></a>
+  <ul>
+    <li><a class="homelink" title="Astropy Homepage" href="http://www.astropy.org"></a></li>
+    <li><a title="General Index" href="../../../genindex.html">Index</a></li>
+    <li><a title="Module Index" href="../../../py-modindex.html">Modules</a></li>
+    <li>
+      
+      
+<form action="../../../search.html" method="get">
+  <input type="text" name="q" placeholder="Search" />
+  <input type="hidden" name="check_keywords" value="yes" />
+  <input type="hidden" name="area" value="default" />
+</form>
+      
+    </li>
+  </ul>
+</div>
+
+<div class="related">
+    <h3>Navigation</h3>
+    <ul>
+      <li>
+	<a href="../../../index.html">Astropy v3.0.dev19489</a>
+	 &#187;
+      </li>
+      <li><a href="../../index.html" >Module code</a> &#187;</li>
+      <li><a href="../../astropy.html" >astropy</a> &#187;</li>
+      <li><a href="../nddata.html" accesskey="U">astropy.nddata</a> &#187;</li>
+      
+       
+    </ul>
+</div>
+  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          <div class="body" role="main">
+            
+  <h1>Source code for astropy.nddata.utils</h1><div class="highlight"><pre>
+<span></span><span class="c1"># Licensed under a 3-clause BSD style license - see LICENSE.rst</span>
+<span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">This module includes helper functions for array operations.</span>
+<span class="sd">&quot;&quot;&quot;</span>
+<span class="kn">from</span> <span class="nn">__future__</span> <span class="k">import</span> <span class="p">(</span><span class="n">absolute_import</span><span class="p">,</span> <span class="n">division</span><span class="p">,</span> <span class="n">print_function</span><span class="p">,</span>
+                        <span class="n">unicode_literals</span><span class="p">)</span>
+<span class="kn">from</span> <span class="nn">copy</span> <span class="k">import</span> <span class="n">deepcopy</span>
+
+<span class="kn">import</span> <span class="nn">numpy</span> <span class="k">as</span> <span class="nn">np</span>
+
+<span class="kn">from</span> <span class="nn">.decorators</span> <span class="k">import</span> <span class="n">support_nddata</span>
+<span class="kn">from</span> <span class="nn">..</span> <span class="k">import</span> <span class="n">units</span> <span class="k">as</span> <span class="n">u</span>
+<span class="kn">from</span> <span class="nn">..coordinates</span> <span class="k">import</span> <span class="n">SkyCoord</span>
+<span class="kn">from</span> <span class="nn">..extern.six.moves</span> <span class="k">import</span> <span class="nb">range</span><span class="p">,</span> <span class="nb">zip</span>
+<span class="kn">from</span> <span class="nn">..utils</span> <span class="k">import</span> <span class="n">lazyproperty</span>
+<span class="kn">from</span> <span class="nn">..wcs.utils</span> <span class="k">import</span> <span class="n">skycoord_to_pixel</span><span class="p">,</span> <span class="n">proj_plane_pixel_scales</span>
+
+
+<span class="n">__all__</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;extract_array&#39;</span><span class="p">,</span> <span class="s1">&#39;add_array&#39;</span><span class="p">,</span> <span class="s1">&#39;subpixel_indices&#39;</span><span class="p">,</span>
+           <span class="s1">&#39;overlap_slices&#39;</span><span class="p">,</span> <span class="s1">&#39;block_reduce&#39;</span><span class="p">,</span> <span class="s1">&#39;block_replicate&#39;</span><span class="p">,</span>
+           <span class="s1">&#39;NoOverlapError&#39;</span><span class="p">,</span> <span class="s1">&#39;PartialOverlapError&#39;</span><span class="p">,</span> <span class="s1">&#39;Cutout2D&#39;</span><span class="p">]</span>
+
+
+<div class="viewcode-block" id="NoOverlapError"><a class="viewcode-back" href="../../../api/astropy.nddata.utils.NoOverlapError.html#astropy.nddata.NoOverlapError">[docs]</a><span class="k">class</span> <span class="nc">NoOverlapError</span><span class="p">(</span><span class="ne">ValueError</span><span class="p">):</span>
+    <span class="sd">&#39;&#39;&#39;Raised when determining the overlap of non-overlapping arrays.&#39;&#39;&#39;</span>
+    <span class="k">pass</span></div>
+
+
+<div class="viewcode-block" id="PartialOverlapError"><a class="viewcode-back" href="../../../api/astropy.nddata.utils.PartialOverlapError.html#astropy.nddata.PartialOverlapError">[docs]</a><span class="k">class</span> <span class="nc">PartialOverlapError</span><span class="p">(</span><span class="ne">ValueError</span><span class="p">):</span>
+    <span class="sd">&#39;&#39;&#39;Raised when arrays only partially overlap.&#39;&#39;&#39;</span>
+    <span class="k">pass</span></div>
+
+
+<span class="k">def</span> <span class="nf">_round</span><span class="p">(</span><span class="n">a</span><span class="p">):</span>
+    <span class="sd">&#39;&#39;&#39;Always round up.</span>
+
+<span class="sd">    ``np.round`` cannot be used here, because it rounds .5 to the nearest</span>
+<span class="sd">    even number.</span>
+<span class="sd">    &#39;&#39;&#39;</span>
+    <span class="k">return</span> <span class="nb">int</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">floor</span><span class="p">(</span><span class="n">a</span> <span class="o">+</span> <span class="mf">0.5</span><span class="p">))</span>
+
+
+<span class="k">def</span> <span class="nf">_offset</span><span class="p">(</span><span class="n">a</span><span class="p">):</span>
+    <span class="sd">&#39;&#39;&#39;Offset by 0.5 for an even array.</span>
+
+<span class="sd">    For an array with an odd number of elements, the center is</span>
+<span class="sd">    symmetric, e.g. for 3 elements, it&#39;s center +/-1 elements, but for</span>
+<span class="sd">    four elements it&#39;s center -2 / +1</span>
+<span class="sd">    This function introduces that offset.</span>
+<span class="sd">    &#39;&#39;&#39;</span>
+    <span class="k">if</span> <span class="n">np</span><span class="o">.</span><span class="n">mod</span><span class="p">(</span><span class="n">a</span><span class="p">,</span> <span class="mi">2</span><span class="p">)</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
+        <span class="k">return</span> <span class="o">-</span><span class="mf">0.5</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="k">return</span> <span class="mf">0.</span>
+
+
+<div class="viewcode-block" id="overlap_slices"><a class="viewcode-back" href="../../../api/astropy.nddata.utils.overlap_slices.html#astropy.nddata.overlap_slices">[docs]</a><span class="k">def</span> <span class="nf">overlap_slices</span><span class="p">(</span><span class="n">large_array_shape</span><span class="p">,</span> <span class="n">small_array_shape</span><span class="p">,</span> <span class="n">position</span><span class="p">,</span>
+                   <span class="n">mode</span><span class="o">=</span><span class="s1">&#39;partial&#39;</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Get slices for the overlapping part of a small and a large array.</span>
+
+<span class="sd">    Given a certain position of the center of the small array, with</span>
+<span class="sd">    respect to the large array, tuples of slices are returned which can be</span>
+<span class="sd">    used to extract, add or subtract the small array at the given</span>
+<span class="sd">    position. This function takes care of the correct behavior at the</span>
+<span class="sd">    boundaries, where the small array is cut of appropriately.</span>
+<span class="sd">    Integer positions are at the pixel centers.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    large_array_shape : tuple or int</span>
+<span class="sd">        The shape of the large array (for 1D arrays, this can be an</span>
+<span class="sd">        `int`).</span>
+<span class="sd">    small_array_shape : tuple or int</span>
+<span class="sd">        The shape of the small array (for 1D arrays, this can be an</span>
+<span class="sd">        `int`).  See the ``mode`` keyword for additional details.</span>
+<span class="sd">    position : tuple of numbers or number</span>
+<span class="sd">        The position of the small array&#39;s center with respect to the</span>
+<span class="sd">        large array.  The pixel coordinates should be in the same order</span>
+<span class="sd">        as the array shape.  Integer positions are at the pixel centers.</span>
+<span class="sd">        For any axis where ``small_array_shape`` is even, the position</span>
+<span class="sd">        is rounded up, e.g. extracting two elements with a center of</span>
+<span class="sd">        ``1`` will define the extracted region as ``[0, 1]``.</span>
+<span class="sd">    mode : {&#39;partial&#39;, &#39;trim&#39;, &#39;strict&#39;}, optional</span>
+<span class="sd">        In ``&#39;partial&#39;`` mode, a partial overlap of the small and the</span>
+<span class="sd">        large array is sufficient.  The ``&#39;trim&#39;`` mode is similar to</span>
+<span class="sd">        the ``&#39;partial&#39;`` mode, but ``slices_small`` will be adjusted to</span>
+<span class="sd">        return only the overlapping elements.  In the ``&#39;strict&#39;`` mode,</span>
+<span class="sd">        the small array has to be fully contained in the large array,</span>
+<span class="sd">        otherwise an `~astropy.nddata.utils.PartialOverlapError` is</span>
+<span class="sd">        raised.  In all modes, non-overlapping arrays will raise a</span>
+<span class="sd">        `~astropy.nddata.utils.NoOverlapError`.</span>
+
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+<span class="sd">    slices_large : tuple of slices</span>
+<span class="sd">        A tuple of slice objects for each axis of the large array, such</span>
+<span class="sd">        that ``large_array[slices_large]`` extracts the region of the</span>
+<span class="sd">        large array that overlaps with the small array.</span>
+<span class="sd">    slices_small : slice</span>
+<span class="sd">        A tuple of slice objects for each axis of the small array, such</span>
+<span class="sd">        that ``small_array[slices_small]`` extracts the region that is</span>
+<span class="sd">        inside the large array.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="k">if</span> <span class="n">mode</span> <span class="ow">not</span> <span class="ow">in</span> <span class="p">[</span><span class="s1">&#39;partial&#39;</span><span class="p">,</span> <span class="s1">&#39;trim&#39;</span><span class="p">,</span> <span class="s1">&#39;strict&#39;</span><span class="p">]:</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s1">&#39;Mode can be only &quot;partial&quot;, &quot;trim&quot;, or &quot;strict&quot;.&#39;</span><span class="p">)</span>
+    <span class="k">if</span> <span class="n">np</span><span class="o">.</span><span class="n">isscalar</span><span class="p">(</span><span class="n">small_array_shape</span><span class="p">):</span>
+        <span class="n">small_array_shape</span> <span class="o">=</span> <span class="p">(</span><span class="n">small_array_shape</span><span class="p">,</span> <span class="p">)</span>
+    <span class="k">if</span> <span class="n">np</span><span class="o">.</span><span class="n">isscalar</span><span class="p">(</span><span class="n">large_array_shape</span><span class="p">):</span>
+        <span class="n">large_array_shape</span> <span class="o">=</span> <span class="p">(</span><span class="n">large_array_shape</span><span class="p">,</span> <span class="p">)</span>
+    <span class="k">if</span> <span class="n">np</span><span class="o">.</span><span class="n">isscalar</span><span class="p">(</span><span class="n">position</span><span class="p">):</span>
+        <span class="n">position</span> <span class="o">=</span> <span class="p">(</span><span class="n">position</span><span class="p">,</span> <span class="p">)</span>
+
+    <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">small_array_shape</span><span class="p">)</span> <span class="o">!=</span> <span class="nb">len</span><span class="p">(</span><span class="n">large_array_shape</span><span class="p">):</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s1">&#39;&quot;large_array_shape&quot; and &quot;small_array_shape&quot; must &#39;</span>
+                         <span class="s1">&#39;have the same number of dimensions.&#39;</span><span class="p">)</span>
+
+    <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">small_array_shape</span><span class="p">)</span> <span class="o">!=</span> <span class="nb">len</span><span class="p">(</span><span class="n">position</span><span class="p">):</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s1">&#39;&quot;position&quot; must have the same number of dimensions &#39;</span>
+                         <span class="s1">&#39;as &quot;small_array_shape&quot;.&#39;</span><span class="p">)</span>
+    <span class="c1"># Get edge coordinates</span>
+    <span class="n">edges_min</span> <span class="o">=</span> <span class="p">[</span><span class="n">_round</span><span class="p">(</span><span class="n">pos</span> <span class="o">+</span> <span class="mf">0.5</span> <span class="o">-</span> <span class="n">small_shape</span> <span class="o">/</span> <span class="mf">2.</span> <span class="o">+</span> <span class="n">_offset</span><span class="p">(</span><span class="n">small_shape</span><span class="p">))</span>
+                 <span class="k">for</span> <span class="p">(</span><span class="n">pos</span><span class="p">,</span> <span class="n">small_shape</span><span class="p">)</span> <span class="ow">in</span> <span class="nb">zip</span><span class="p">(</span><span class="n">position</span><span class="p">,</span> <span class="n">small_array_shape</span><span class="p">)]</span>
+    <span class="n">edges_max</span> <span class="o">=</span> <span class="p">[</span><span class="n">_round</span><span class="p">(</span><span class="n">pos</span> <span class="o">+</span> <span class="mf">0.5</span> <span class="o">+</span> <span class="n">small_shape</span> <span class="o">/</span> <span class="mf">2.</span> <span class="o">+</span> <span class="n">_offset</span><span class="p">(</span><span class="n">small_shape</span><span class="p">))</span>
+                 <span class="k">for</span> <span class="p">(</span><span class="n">pos</span><span class="p">,</span> <span class="n">small_shape</span><span class="p">)</span> <span class="ow">in</span> <span class="nb">zip</span><span class="p">(</span><span class="n">position</span><span class="p">,</span> <span class="n">small_array_shape</span><span class="p">)]</span>
+
+    <span class="k">for</span> <span class="n">e_max</span> <span class="ow">in</span> <span class="n">edges_max</span><span class="p">:</span>
+        <span class="k">if</span> <span class="n">e_max</span> <span class="o">&lt;=</span> <span class="mi">0</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="n">NoOverlapError</span><span class="p">(</span><span class="s1">&#39;Arrays do not overlap.&#39;</span><span class="p">)</span>
+    <span class="k">for</span> <span class="n">e_min</span><span class="p">,</span> <span class="n">large_shape</span> <span class="ow">in</span> <span class="nb">zip</span><span class="p">(</span><span class="n">edges_min</span><span class="p">,</span> <span class="n">large_array_shape</span><span class="p">):</span>
+        <span class="k">if</span> <span class="n">e_min</span> <span class="o">&gt;=</span> <span class="n">large_shape</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="n">NoOverlapError</span><span class="p">(</span><span class="s1">&#39;Arrays do not overlap.&#39;</span><span class="p">)</span>
+
+    <span class="k">if</span> <span class="n">mode</span> <span class="o">==</span> <span class="s1">&#39;strict&#39;</span><span class="p">:</span>
+        <span class="k">for</span> <span class="n">e_min</span> <span class="ow">in</span> <span class="n">edges_min</span><span class="p">:</span>
+            <span class="k">if</span> <span class="n">e_min</span> <span class="o">&lt;</span> <span class="mi">0</span><span class="p">:</span>
+                <span class="k">raise</span> <span class="n">PartialOverlapError</span><span class="p">(</span><span class="s1">&#39;Arrays overlap only partially.&#39;</span><span class="p">)</span>
+        <span class="k">for</span> <span class="n">e_max</span><span class="p">,</span> <span class="n">large_shape</span> <span class="ow">in</span> <span class="nb">zip</span><span class="p">(</span><span class="n">edges_max</span><span class="p">,</span> <span class="n">large_array_shape</span><span class="p">):</span>
+            <span class="k">if</span> <span class="n">e_max</span> <span class="o">&gt;=</span> <span class="n">large_shape</span><span class="p">:</span>
+                <span class="k">raise</span> <span class="n">PartialOverlapError</span><span class="p">(</span><span class="s1">&#39;Arrays overlap only partially.&#39;</span><span class="p">)</span>
+
+    <span class="c1"># Set up slices</span>
+    <span class="n">slices_large</span> <span class="o">=</span> <span class="nb">tuple</span><span class="p">(</span><span class="nb">slice</span><span class="p">(</span><span class="nb">max</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="n">edge_min</span><span class="p">),</span> <span class="nb">min</span><span class="p">(</span><span class="n">large_shape</span><span class="p">,</span> <span class="n">edge_max</span><span class="p">))</span>
+                         <span class="k">for</span> <span class="p">(</span><span class="n">edge_min</span><span class="p">,</span> <span class="n">edge_max</span><span class="p">,</span> <span class="n">large_shape</span><span class="p">)</span> <span class="ow">in</span>
+                         <span class="nb">zip</span><span class="p">(</span><span class="n">edges_min</span><span class="p">,</span> <span class="n">edges_max</span><span class="p">,</span> <span class="n">large_array_shape</span><span class="p">))</span>
+    <span class="k">if</span> <span class="n">mode</span> <span class="o">==</span> <span class="s1">&#39;trim&#39;</span><span class="p">:</span>
+        <span class="n">slices_small</span> <span class="o">=</span> <span class="nb">tuple</span><span class="p">(</span><span class="nb">slice</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="n">slc</span><span class="o">.</span><span class="n">stop</span> <span class="o">-</span> <span class="n">slc</span><span class="o">.</span><span class="n">start</span><span class="p">)</span>
+                             <span class="k">for</span> <span class="n">slc</span> <span class="ow">in</span> <span class="n">slices_large</span><span class="p">)</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="n">slices_small</span> <span class="o">=</span> <span class="nb">tuple</span><span class="p">(</span><span class="nb">slice</span><span class="p">(</span><span class="nb">max</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="o">-</span><span class="n">edge_min</span><span class="p">),</span>
+                                   <span class="nb">min</span><span class="p">(</span><span class="n">large_shape</span> <span class="o">-</span> <span class="n">edge_min</span><span class="p">,</span>
+                                       <span class="n">edge_max</span> <span class="o">-</span> <span class="n">edge_min</span><span class="p">))</span>
+                             <span class="k">for</span> <span class="p">(</span><span class="n">edge_min</span><span class="p">,</span> <span class="n">edge_max</span><span class="p">,</span> <span class="n">large_shape</span><span class="p">)</span> <span class="ow">in</span>
+                             <span class="nb">zip</span><span class="p">(</span><span class="n">edges_min</span><span class="p">,</span> <span class="n">edges_max</span><span class="p">,</span> <span class="n">large_array_shape</span><span class="p">))</span>
+
+    <span class="k">return</span> <span class="n">slices_large</span><span class="p">,</span> <span class="n">slices_small</span></div>
+
+
+<div class="viewcode-block" id="extract_array"><a class="viewcode-back" href="../../../api/astropy.nddata.utils.extract_array.html#astropy.nddata.extract_array">[docs]</a><span class="k">def</span> <span class="nf">extract_array</span><span class="p">(</span><span class="n">array_large</span><span class="p">,</span> <span class="n">shape</span><span class="p">,</span> <span class="n">position</span><span class="p">,</span> <span class="n">mode</span><span class="o">=</span><span class="s1">&#39;partial&#39;</span><span class="p">,</span>
+                  <span class="n">fill_value</span><span class="o">=</span><span class="n">np</span><span class="o">.</span><span class="n">nan</span><span class="p">,</span> <span class="n">return_position</span><span class="o">=</span><span class="kc">False</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Extract a smaller array of the given shape and position from a</span>
+<span class="sd">    larger array.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    array_large : `~numpy.ndarray`</span>
+<span class="sd">        The array from which to extract the small array.</span>
+<span class="sd">    shape : tuple or int</span>
+<span class="sd">        The shape of the extracted array (for 1D arrays, this can be an</span>
+<span class="sd">        `int`).  See the ``mode`` keyword for additional details.</span>
+<span class="sd">    position : tuple of numbers or number</span>
+<span class="sd">        The position of the small array&#39;s center with respect to the</span>
+<span class="sd">        large array.  The pixel coordinates should be in the same order</span>
+<span class="sd">        as the array shape.  Integer positions are at the pixel centers</span>
+<span class="sd">        (for 1D arrays, this can be a number).</span>
+<span class="sd">    mode : {&#39;partial&#39;, &#39;trim&#39;, &#39;strict&#39;}, optional</span>
+<span class="sd">        The mode used for extracting the small array.  For the</span>
+<span class="sd">        ``&#39;partial&#39;`` and ``&#39;trim&#39;`` modes, a partial overlap of the</span>
+<span class="sd">        small array and the large array is sufficient.  For the</span>
+<span class="sd">        ``&#39;strict&#39;`` mode, the small array has to be fully contained</span>
+<span class="sd">        within the large array, otherwise an</span>
+<span class="sd">        `~astropy.nddata.utils.PartialOverlapError` is raised.   In all</span>
+<span class="sd">        modes, non-overlapping arrays will raise a</span>
+<span class="sd">        `~astropy.nddata.utils.NoOverlapError`.  In ``&#39;partial&#39;`` mode,</span>
+<span class="sd">        positions in the small array that do not overlap with the large</span>
+<span class="sd">        array will be filled with ``fill_value``.  In ``&#39;trim&#39;`` mode</span>
+<span class="sd">        only the overlapping elements are returned, thus the resulting</span>
+<span class="sd">        small array may be smaller than the requested ``shape``.</span>
+<span class="sd">    fill_value : number, optional</span>
+<span class="sd">        If ``mode=&#39;partial&#39;``, the value to fill pixels in the extracted</span>
+<span class="sd">        small array that do not overlap with the input ``array_large``.</span>
+<span class="sd">        ``fill_value`` must have the same ``dtype`` as the</span>
+<span class="sd">        ``array_large`` array.</span>
+<span class="sd">    return_position : boolean, optional</span>
+<span class="sd">        If `True`, return the coordinates of ``position`` in the</span>
+<span class="sd">        coordinate system of the returned array.</span>
+
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+<span class="sd">    array_small : `~numpy.ndarray`</span>
+<span class="sd">        The extracted array.</span>
+<span class="sd">    new_position : tuple</span>
+<span class="sd">        If ``return_position`` is true, this tuple will contain the</span>
+<span class="sd">        coordinates of the input ``position`` in the coordinate system</span>
+<span class="sd">        of ``array_small``. Note that for partially overlapping arrays,</span>
+<span class="sd">        ``new_position`` might actually be outside of the</span>
+<span class="sd">        ``array_small``; ``array_small[new_position]`` might give wrong</span>
+<span class="sd">        results if any element in ``new_position`` is negative.</span>
+
+<span class="sd">    Examples</span>
+<span class="sd">    --------</span>
+<span class="sd">    We consider a large array with the shape 11x10, from which we extract</span>
+<span class="sd">    a small array of shape 3x5:</span>
+
+<span class="sd">    &gt;&gt;&gt; import numpy as np</span>
+<span class="sd">    &gt;&gt;&gt; from astropy.nddata.utils import extract_array</span>
+<span class="sd">    &gt;&gt;&gt; large_array = np.arange(110).reshape((11, 10))</span>
+<span class="sd">    &gt;&gt;&gt; extract_array(large_array, (3, 5), (7, 7))</span>
+<span class="sd">    array([[65, 66, 67, 68, 69],</span>
+<span class="sd">           [75, 76, 77, 78, 79],</span>
+<span class="sd">           [85, 86, 87, 88, 89]])</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="k">if</span> <span class="n">np</span><span class="o">.</span><span class="n">isscalar</span><span class="p">(</span><span class="n">shape</span><span class="p">):</span>
+        <span class="n">shape</span> <span class="o">=</span> <span class="p">(</span><span class="n">shape</span><span class="p">,</span> <span class="p">)</span>
+    <span class="k">if</span> <span class="n">np</span><span class="o">.</span><span class="n">isscalar</span><span class="p">(</span><span class="n">position</span><span class="p">):</span>
+        <span class="n">position</span> <span class="o">=</span> <span class="p">(</span><span class="n">position</span><span class="p">,</span> <span class="p">)</span>
+
+    <span class="k">if</span> <span class="n">mode</span> <span class="ow">not</span> <span class="ow">in</span> <span class="p">[</span><span class="s1">&#39;partial&#39;</span><span class="p">,</span> <span class="s1">&#39;trim&#39;</span><span class="p">,</span> <span class="s1">&#39;strict&#39;</span><span class="p">]:</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;Valid modes are &#39;partial&#39;, &#39;trim&#39;, and &#39;strict&#39;.&quot;</span><span class="p">)</span>
+    <span class="n">large_slices</span><span class="p">,</span> <span class="n">small_slices</span> <span class="o">=</span> <span class="n">overlap_slices</span><span class="p">(</span><span class="n">array_large</span><span class="o">.</span><span class="n">shape</span><span class="p">,</span>
+                                                <span class="n">shape</span><span class="p">,</span> <span class="n">position</span><span class="p">,</span> <span class="n">mode</span><span class="o">=</span><span class="n">mode</span><span class="p">)</span>
+    <span class="n">extracted_array</span> <span class="o">=</span> <span class="n">array_large</span><span class="p">[</span><span class="n">large_slices</span><span class="p">]</span>
+    <span class="k">if</span> <span class="n">return_position</span><span class="p">:</span>
+        <span class="n">new_position</span> <span class="o">=</span> <span class="p">[</span><span class="n">i</span> <span class="o">-</span> <span class="n">s</span><span class="o">.</span><span class="n">start</span> <span class="k">for</span> <span class="n">i</span><span class="p">,</span> <span class="n">s</span> <span class="ow">in</span> <span class="nb">zip</span><span class="p">(</span><span class="n">position</span><span class="p">,</span> <span class="n">large_slices</span><span class="p">)]</span>
+    <span class="c1"># Extracting on the edges is presumably a rare case, so treat special here</span>
+    <span class="k">if</span> <span class="p">(</span><span class="n">extracted_array</span><span class="o">.</span><span class="n">shape</span> <span class="o">!=</span> <span class="n">shape</span><span class="p">)</span> <span class="ow">and</span> <span class="p">(</span><span class="n">mode</span> <span class="o">==</span> <span class="s1">&#39;partial&#39;</span><span class="p">):</span>
+        <span class="n">extracted_array</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">zeros</span><span class="p">(</span><span class="n">shape</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="n">array_large</span><span class="o">.</span><span class="n">dtype</span><span class="p">)</span>
+        <span class="n">extracted_array</span><span class="p">[:]</span> <span class="o">=</span> <span class="n">fill_value</span>
+        <span class="n">extracted_array</span><span class="p">[</span><span class="n">small_slices</span><span class="p">]</span> <span class="o">=</span> <span class="n">array_large</span><span class="p">[</span><span class="n">large_slices</span><span class="p">]</span>
+        <span class="k">if</span> <span class="n">return_position</span><span class="p">:</span>
+            <span class="n">new_position</span> <span class="o">=</span> <span class="p">[</span><span class="n">i</span> <span class="o">+</span> <span class="n">s</span><span class="o">.</span><span class="n">start</span> <span class="k">for</span> <span class="n">i</span><span class="p">,</span> <span class="n">s</span> <span class="ow">in</span> <span class="nb">zip</span><span class="p">(</span><span class="n">new_position</span><span class="p">,</span>
+                                                        <span class="n">small_slices</span><span class="p">)]</span>
+    <span class="k">if</span> <span class="n">return_position</span><span class="p">:</span>
+        <span class="k">return</span> <span class="n">extracted_array</span><span class="p">,</span> <span class="nb">tuple</span><span class="p">(</span><span class="n">new_position</span><span class="p">)</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="k">return</span> <span class="n">extracted_array</span></div>
+
+
+<div class="viewcode-block" id="add_array"><a class="viewcode-back" href="../../../api/astropy.nddata.utils.add_array.html#astropy.nddata.add_array">[docs]</a><span class="k">def</span> <span class="nf">add_array</span><span class="p">(</span><span class="n">array_large</span><span class="p">,</span> <span class="n">array_small</span><span class="p">,</span> <span class="n">position</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Add a smaller array at a given position in a larger array.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    array_large : `~numpy.ndarray`</span>
+<span class="sd">        Large array.</span>
+<span class="sd">    array_small : `~numpy.ndarray`</span>
+<span class="sd">        Small array to add.</span>
+<span class="sd">    position : tuple</span>
+<span class="sd">        Position of the small array&#39;s center, with respect to the large array.</span>
+<span class="sd">        Coordinates should be in the same order as the array shape.</span>
+
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+<span class="sd">    new_array : `~numpy.ndarray`</span>
+<span class="sd">        The new array formed from the sum of ``array_large`` and</span>
+<span class="sd">        ``array_small``.</span>
+
+<span class="sd">    Notes</span>
+<span class="sd">    -----</span>
+<span class="sd">    The addition is done in-place.</span>
+
+<span class="sd">    Examples</span>
+<span class="sd">    --------</span>
+<span class="sd">    We consider a large array of zeros with the shape 5x5 and a small</span>
+<span class="sd">    array of ones with a shape of 3x3:</span>
+
+<span class="sd">    &gt;&gt;&gt; import numpy as np</span>
+<span class="sd">    &gt;&gt;&gt; from astropy.nddata.utils import add_array</span>
+<span class="sd">    &gt;&gt;&gt; large_array = np.zeros((5, 5))</span>
+<span class="sd">    &gt;&gt;&gt; small_array = np.ones((3, 3))</span>
+<span class="sd">    &gt;&gt;&gt; add_array(large_array, small_array, (1, 2))</span>
+<span class="sd">    array([[ 0.,  1.,  1.,  1.,  0.],</span>
+<span class="sd">           [ 0.,  1.,  1.,  1.,  0.],</span>
+<span class="sd">           [ 0.,  1.,  1.,  1.,  0.],</span>
+<span class="sd">           [ 0.,  0.,  0.,  0.,  0.],</span>
+<span class="sd">           [ 0.,  0.,  0.,  0.,  0.]])</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="c1"># Check if large array is really larger</span>
+    <span class="k">if</span> <span class="nb">all</span><span class="p">(</span><span class="n">large_shape</span> <span class="o">&gt;</span> <span class="n">small_shape</span> <span class="k">for</span> <span class="p">(</span><span class="n">large_shape</span><span class="p">,</span> <span class="n">small_shape</span><span class="p">)</span>
+           <span class="ow">in</span> <span class="nb">zip</span><span class="p">(</span><span class="n">array_large</span><span class="o">.</span><span class="n">shape</span><span class="p">,</span> <span class="n">array_small</span><span class="o">.</span><span class="n">shape</span><span class="p">)):</span>
+        <span class="n">large_slices</span><span class="p">,</span> <span class="n">small_slices</span> <span class="o">=</span> <span class="n">overlap_slices</span><span class="p">(</span><span class="n">array_large</span><span class="o">.</span><span class="n">shape</span><span class="p">,</span>
+                                                    <span class="n">array_small</span><span class="o">.</span><span class="n">shape</span><span class="p">,</span> <span class="n">position</span><span class="p">)</span>
+        <span class="n">array_large</span><span class="p">[</span><span class="n">large_slices</span><span class="p">]</span> <span class="o">+=</span> <span class="n">array_small</span><span class="p">[</span><span class="n">small_slices</span><span class="p">]</span>
+        <span class="k">return</span> <span class="n">array_large</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;Can&#39;t add array. Small array too large.&quot;</span><span class="p">)</span></div>
+
+
+<div class="viewcode-block" id="subpixel_indices"><a class="viewcode-back" href="../../../api/astropy.nddata.utils.subpixel_indices.html#astropy.nddata.subpixel_indices">[docs]</a><span class="k">def</span> <span class="nf">subpixel_indices</span><span class="p">(</span><span class="n">position</span><span class="p">,</span> <span class="n">subsampling</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Convert decimal points to indices, given a subsampling factor.</span>
+
+<span class="sd">    This discards the integer part of the position and uses only the decimal</span>
+<span class="sd">    place, and converts this to a subpixel position depending on the</span>
+<span class="sd">    subsampling specified. The center of a pixel corresponds to an integer</span>
+<span class="sd">    position.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    position : `~numpy.ndarray` or array-like</span>
+<span class="sd">        Positions in pixels.</span>
+<span class="sd">    subsampling : int</span>
+<span class="sd">        Subsampling factor per pixel.</span>
+
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+<span class="sd">    indices : `~numpy.ndarray`</span>
+<span class="sd">        The integer subpixel indices corresponding to the input positions.</span>
+
+<span class="sd">    Examples</span>
+<span class="sd">    --------</span>
+
+<span class="sd">    If no subsampling is used, then the subpixel indices returned are always 0:</span>
+
+<span class="sd">    &gt;&gt;&gt; from astropy.nddata.utils import subpixel_indices</span>
+<span class="sd">    &gt;&gt;&gt; subpixel_indices([1.2, 3.4, 5.6],1)</span>
+<span class="sd">    array([ 0.,  0.,  0.])</span>
+
+<span class="sd">    If instead we use a subsampling of 2, we see that for the two first values</span>
+<span class="sd">    (1.1 and 3.4) the subpixel position is 1, while for 5.6 it is 0. This is</span>
+<span class="sd">    because the values of 1, 3, and 6 lie in the center of pixels, and 1.1 and</span>
+<span class="sd">    3.4 lie in the left part of the pixels and 5.6 lies in the right part.</span>
+
+<span class="sd">    &gt;&gt;&gt; subpixel_indices([1.2, 3.4, 5.5],2)</span>
+<span class="sd">    array([ 1.,  1.,  0.])</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="c1"># Get decimal points</span>
+    <span class="n">fractions</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">modf</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">asanyarray</span><span class="p">(</span><span class="n">position</span><span class="p">)</span> <span class="o">+</span> <span class="mf">0.5</span><span class="p">)[</span><span class="mi">0</span><span class="p">]</span>
+    <span class="k">return</span> <span class="n">np</span><span class="o">.</span><span class="n">floor</span><span class="p">(</span><span class="n">fractions</span> <span class="o">*</span> <span class="n">subsampling</span><span class="p">)</span></div>
+
+
+<span class="nd">@support_nddata</span>
+<div class="viewcode-block" id="block_reduce"><a class="viewcode-back" href="../../../api/astropy.nddata.utils.block_reduce.html#astropy.nddata.block_reduce">[docs]</a><span class="k">def</span> <span class="nf">block_reduce</span><span class="p">(</span><span class="n">data</span><span class="p">,</span> <span class="n">block_size</span><span class="p">,</span> <span class="n">func</span><span class="o">=</span><span class="n">np</span><span class="o">.</span><span class="n">sum</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Downsample a data array by applying a function to local blocks.</span>
+
+<span class="sd">    If ``data`` is not perfectly divisible by ``block_size`` along a</span>
+<span class="sd">    given axis then the data will be trimmed (from the end) along that</span>
+<span class="sd">    axis.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    data : array_like</span>
+<span class="sd">        The data to be resampled.</span>
+
+<span class="sd">    block_size : int or array_like (int)</span>
+<span class="sd">        The integer block size along each axis.  If ``block_size`` is a</span>
+<span class="sd">        scalar and ``data`` has more than one dimension, then</span>
+<span class="sd">        ``block_size`` will be used for for every axis.</span>
+
+<span class="sd">    func : callable, optional</span>
+<span class="sd">        The method to use to downsample the data.  Must be a callable</span>
+<span class="sd">        that takes in a `~numpy.ndarray` along with an ``axis`` keyword,</span>
+<span class="sd">        which defines the axis along which the function is applied.  The</span>
+<span class="sd">        default is `~numpy.sum`, which provides block summation (and</span>
+<span class="sd">        conserves the data sum).</span>
+
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+<span class="sd">    output : array-like</span>
+<span class="sd">        The resampled data.</span>
+
+<span class="sd">    Examples</span>
+<span class="sd">    --------</span>
+<span class="sd">    &gt;&gt;&gt; import numpy as np</span>
+<span class="sd">    &gt;&gt;&gt; from astropy.nddata.utils import block_reduce</span>
+<span class="sd">    &gt;&gt;&gt; data = np.arange(16).reshape(4, 4)</span>
+<span class="sd">    &gt;&gt;&gt; block_reduce(data, 2)    # doctest: +SKIP</span>
+<span class="sd">    array([[10, 18],</span>
+<span class="sd">           [42, 50]])</span>
+
+<span class="sd">    &gt;&gt;&gt; block_reduce(data, 2, func=np.mean)    # doctest: +SKIP</span>
+<span class="sd">    array([[  2.5,   4.5],</span>
+<span class="sd">           [ 10.5,  12.5]])</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="kn">from</span> <span class="nn">skimage.measure</span> <span class="k">import</span> <span class="n">block_reduce</span>
+
+    <span class="n">data</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">asanyarray</span><span class="p">(</span><span class="n">data</span><span class="p">)</span>
+
+    <span class="n">block_size</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">atleast_1d</span><span class="p">(</span><span class="n">block_size</span><span class="p">)</span>
+    <span class="k">if</span> <span class="n">data</span><span class="o">.</span><span class="n">ndim</span> <span class="o">&gt;</span> <span class="mi">1</span> <span class="ow">and</span> <span class="nb">len</span><span class="p">(</span><span class="n">block_size</span><span class="p">)</span> <span class="o">==</span> <span class="mi">1</span><span class="p">:</span>
+        <span class="n">block_size</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">repeat</span><span class="p">(</span><span class="n">block_size</span><span class="p">,</span> <span class="n">data</span><span class="o">.</span><span class="n">ndim</span><span class="p">)</span>
+
+    <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">block_size</span><span class="p">)</span> <span class="o">!=</span> <span class="n">data</span><span class="o">.</span><span class="n">ndim</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s1">&#39;`block_size` must be a scalar or have the same &#39;</span>
+                         <span class="s1">&#39;length as `data.shape`&#39;</span><span class="p">)</span>
+
+    <span class="n">block_size</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">([</span><span class="nb">int</span><span class="p">(</span><span class="n">i</span><span class="p">)</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">block_size</span><span class="p">])</span>
+    <span class="n">size_resampled</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">(</span><span class="n">data</span><span class="o">.</span><span class="n">shape</span><span class="p">)</span> <span class="o">//</span> <span class="n">block_size</span>
+    <span class="n">size_init</span> <span class="o">=</span> <span class="n">size_resampled</span> <span class="o">*</span> <span class="n">block_size</span>
+
+    <span class="c1"># trim data if necessary</span>
+    <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">data</span><span class="o">.</span><span class="n">ndim</span><span class="p">):</span>
+        <span class="k">if</span> <span class="n">data</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="n">i</span><span class="p">]</span> <span class="o">!=</span> <span class="n">size_init</span><span class="p">[</span><span class="n">i</span><span class="p">]:</span>
+            <span class="n">data</span> <span class="o">=</span> <span class="n">data</span><span class="o">.</span><span class="n">swapaxes</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="n">i</span><span class="p">)</span>
+            <span class="n">data</span> <span class="o">=</span> <span class="n">data</span><span class="p">[:</span><span class="n">size_init</span><span class="p">[</span><span class="n">i</span><span class="p">]]</span>
+            <span class="n">data</span> <span class="o">=</span> <span class="n">data</span><span class="o">.</span><span class="n">swapaxes</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="n">i</span><span class="p">)</span>
+
+    <span class="k">return</span> <span class="n">block_reduce</span><span class="p">(</span><span class="n">data</span><span class="p">,</span> <span class="nb">tuple</span><span class="p">(</span><span class="n">block_size</span><span class="p">),</span> <span class="n">func</span><span class="o">=</span><span class="n">func</span><span class="p">)</span></div>
+
+
+<span class="nd">@support_nddata</span>
+<div class="viewcode-block" id="block_replicate"><a class="viewcode-back" href="../../../api/astropy.nddata.utils.block_replicate.html#astropy.nddata.block_replicate">[docs]</a><span class="k">def</span> <span class="nf">block_replicate</span><span class="p">(</span><span class="n">data</span><span class="p">,</span> <span class="n">block_size</span><span class="p">,</span> <span class="n">conserve_sum</span><span class="o">=</span><span class="kc">True</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Upsample a data array by block replication.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    data : array_like</span>
+<span class="sd">        The data to be block replicated.</span>
+
+<span class="sd">    block_size : int or array_like (int)</span>
+<span class="sd">        The integer block size along each axis.  If ``block_size`` is a</span>
+<span class="sd">        scalar and ``data`` has more than one dimension, then</span>
+<span class="sd">        ``block_size`` will be used for for every axis.</span>
+
+<span class="sd">    conserve_sum : bool, optional</span>
+<span class="sd">        If `True` (the default) then the sum of the output</span>
+<span class="sd">        block-replicated data will equal the sum of the input ``data``.</span>
+
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+<span class="sd">    output : array_like</span>
+<span class="sd">        The block-replicated data.</span>
+
+<span class="sd">    Examples</span>
+<span class="sd">    --------</span>
+<span class="sd">    &gt;&gt;&gt; import numpy as np</span>
+<span class="sd">    &gt;&gt;&gt; from astropy.nddata.utils import block_replicate</span>
+<span class="sd">    &gt;&gt;&gt; data = np.array([[0., 1.], [2., 3.]])</span>
+<span class="sd">    &gt;&gt;&gt; block_replicate(data, 2)</span>
+<span class="sd">    array([[ 0.  ,  0.  ,  0.25,  0.25],</span>
+<span class="sd">           [ 0.  ,  0.  ,  0.25,  0.25],</span>
+<span class="sd">           [ 0.5 ,  0.5 ,  0.75,  0.75],</span>
+<span class="sd">           [ 0.5 ,  0.5 ,  0.75,  0.75]])</span>
+
+<span class="sd">    &gt;&gt;&gt; block_replicate(data, 2, conserve_sum=False)</span>
+<span class="sd">    array([[ 0.,  0.,  1.,  1.],</span>
+<span class="sd">           [ 0.,  0.,  1.,  1.],</span>
+<span class="sd">           [ 2.,  2.,  3.,  3.],</span>
+<span class="sd">           [ 2.,  2.,  3.,  3.]])</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="n">data</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">asanyarray</span><span class="p">(</span><span class="n">data</span><span class="p">)</span>
+
+    <span class="n">block_size</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">atleast_1d</span><span class="p">(</span><span class="n">block_size</span><span class="p">)</span>
+    <span class="k">if</span> <span class="n">data</span><span class="o">.</span><span class="n">ndim</span> <span class="o">&gt;</span> <span class="mi">1</span> <span class="ow">and</span> <span class="nb">len</span><span class="p">(</span><span class="n">block_size</span><span class="p">)</span> <span class="o">==</span> <span class="mi">1</span><span class="p">:</span>
+        <span class="n">block_size</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">repeat</span><span class="p">(</span><span class="n">block_size</span><span class="p">,</span> <span class="n">data</span><span class="o">.</span><span class="n">ndim</span><span class="p">)</span>
+
+    <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">block_size</span><span class="p">)</span> <span class="o">!=</span> <span class="n">data</span><span class="o">.</span><span class="n">ndim</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s1">&#39;`block_size` must be a scalar or have the same &#39;</span>
+                         <span class="s1">&#39;length as `data.shape`&#39;</span><span class="p">)</span>
+
+    <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">data</span><span class="o">.</span><span class="n">ndim</span><span class="p">):</span>
+        <span class="n">data</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">repeat</span><span class="p">(</span><span class="n">data</span><span class="p">,</span> <span class="n">block_size</span><span class="p">[</span><span class="n">i</span><span class="p">],</span> <span class="n">axis</span><span class="o">=</span><span class="n">i</span><span class="p">)</span>
+
+    <span class="k">if</span> <span class="n">conserve_sum</span><span class="p">:</span>
+        <span class="n">data</span> <span class="o">=</span> <span class="n">data</span> <span class="o">/</span> <span class="nb">float</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">prod</span><span class="p">(</span><span class="n">block_size</span><span class="p">))</span>
+
+    <span class="k">return</span> <span class="n">data</span></div>
+
+
+<div class="viewcode-block" id="Cutout2D"><a class="viewcode-back" href="../../../api/astropy.nddata.utils.Cutout2D.html#astropy.nddata.Cutout2D">[docs]</a><span class="k">class</span> <span class="nc">Cutout2D</span><span class="p">(</span><span class="nb">object</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Create a cutout object from a 2D array.</span>
+
+<span class="sd">    The returned object will contain a 2D cutout array.  If</span>
+<span class="sd">    ``copy=False`` (default), the cutout array is a view into the</span>
+<span class="sd">    original ``data`` array, otherwise the cutout array will contain a</span>
+<span class="sd">    copy of the original data.</span>
+
+<span class="sd">    If a `~astropy.wcs.WCS` object is input, then the returned object</span>
+<span class="sd">    will also contain a copy of the original WCS, but updated for the</span>
+<span class="sd">    cutout array.</span>
+
+<span class="sd">    For example usage, see :ref:`cutout_images`.</span>
+
+<span class="sd">    .. warning::</span>
+
+<span class="sd">        The cutout WCS object does not currently handle cases where the</span>
+<span class="sd">        input WCS object contains distortion lookup tables described in</span>
+<span class="sd">        the `FITS WCS distortion paper</span>
+<span class="sd">        &lt;http://www.atnf.csiro.au/people/mcalabre/WCS/dcs_20040422.pdf&gt;`__.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">data</span><span class="p">,</span> <span class="n">position</span><span class="p">,</span> <span class="n">size</span><span class="p">,</span> <span class="n">wcs</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">mode</span><span class="o">=</span><span class="s1">&#39;trim&#39;</span><span class="p">,</span>
+                 <span class="n">fill_value</span><span class="o">=</span><span class="n">np</span><span class="o">.</span><span class="n">nan</span><span class="p">,</span> <span class="n">copy</span><span class="o">=</span><span class="kc">False</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        data : `~numpy.ndarray`</span>
+<span class="sd">            The 2D data array from which to extract the cutout array.</span>
+
+<span class="sd">        position : tuple or `~astropy.coordinates.SkyCoord`</span>
+<span class="sd">            The position of the cutout array&#39;s center with respect to</span>
+<span class="sd">            the ``data`` array.  The position can be specified either as</span>
+<span class="sd">            a ``(x, y)`` tuple of pixel coordinates or a</span>
+<span class="sd">            `~astropy.coordinates.SkyCoord`, in which case ``wcs`` is a</span>
+<span class="sd">            required input.</span>
+
+<span class="sd">        size : int, array-like, `~astropy.units.Quantity`</span>
+<span class="sd">            The size of the cutout array along each axis.  If ``size``</span>
+<span class="sd">            is a scalar number or a scalar `~astropy.units.Quantity`,</span>
+<span class="sd">            then a square cutout of ``size`` will be created.  If</span>
+<span class="sd">            ``size`` has two elements, they should be in ``(ny, nx)``</span>
+<span class="sd">            order.  Scalar numbers in ``size`` are assumed to be in</span>
+<span class="sd">            units of pixels.  ``size`` can also be a</span>
+<span class="sd">            `~astropy.units.Quantity` object or contain</span>
+<span class="sd">            `~astropy.units.Quantity` objects.  Such</span>
+<span class="sd">            `~astropy.units.Quantity` objects must be in pixel or</span>
+<span class="sd">            angular units.  For all cases, ``size`` will be converted to</span>
+<span class="sd">            an integer number of pixels, rounding the the nearest</span>
+<span class="sd">            integer.  See the ``mode`` keyword for additional details on</span>
+<span class="sd">            the final cutout size.</span>
+
+<span class="sd">            .. note::</span>
+<span class="sd">                If ``size`` is in angular units, the cutout size is</span>
+<span class="sd">                converted to pixels using the pixel scales along each</span>
+<span class="sd">                axis of the image at the ``CRPIX`` location.  Projection</span>
+<span class="sd">                and other non-linear distortions are not taken into</span>
+<span class="sd">                account.</span>
+
+<span class="sd">        wcs : `~astropy.wcs.WCS`, optional</span>
+<span class="sd">            A WCS object associated with the input ``data`` array.  If</span>
+<span class="sd">            ``wcs`` is not `None`, then the returned cutout object will</span>
+<span class="sd">            contain a copy of the updated WCS for the cutout data array.</span>
+
+<span class="sd">        mode : {&#39;trim&#39;, &#39;partial&#39;, &#39;strict&#39;}, optional</span>
+<span class="sd">            The mode used for creating the cutout data array.  For the</span>
+<span class="sd">            ``&#39;partial&#39;`` and ``&#39;trim&#39;`` modes, a partial overlap of the</span>
+<span class="sd">            cutout array and the input ``data`` array is sufficient.</span>
+<span class="sd">            For the ``&#39;strict&#39;`` mode, the cutout array has to be fully</span>
+<span class="sd">            contained within the ``data`` array, otherwise an</span>
+<span class="sd">            `~astropy.nddata.utils.PartialOverlapError` is raised.   In</span>
+<span class="sd">            all modes, non-overlapping arrays will raise a</span>
+<span class="sd">            `~astropy.nddata.utils.NoOverlapError`.  In ``&#39;partial&#39;``</span>
+<span class="sd">            mode, positions in the cutout array that do not overlap with</span>
+<span class="sd">            the ``data`` array will be filled with ``fill_value``.  In</span>
+<span class="sd">            ``&#39;trim&#39;`` mode only the overlapping elements are returned,</span>
+<span class="sd">            thus the resulting cutout array may be smaller than the</span>
+<span class="sd">            requested ``shape``.</span>
+
+<span class="sd">        fill_value : number, optional</span>
+<span class="sd">            If ``mode=&#39;partial&#39;``, the value to fill pixels in the</span>
+<span class="sd">            cutout array that do not overlap with the input ``data``.</span>
+<span class="sd">            ``fill_value`` must have the same ``dtype`` as the input</span>
+<span class="sd">            ``data`` array.</span>
+
+<span class="sd">        copy : bool, optional</span>
+<span class="sd">            If `False` (default), then the cutout data will be a view</span>
+<span class="sd">            into the original ``data`` array.  If `True`, then the</span>
+<span class="sd">            cutout data will hold a copy of the original ``data`` array.</span>
+
+<span class="sd">        Returns</span>
+<span class="sd">        -------</span>
+<span class="sd">        result : `~astropy.nddata.utils.Cutout2D`</span>
+<span class="sd">            A cutout object containing the 2D cutout data array and the</span>
+<span class="sd">            updated WCS, if ``wcs`` is input.</span>
+
+<span class="sd">        Examples</span>
+<span class="sd">        --------</span>
+<span class="sd">        &gt;&gt;&gt; import numpy as np</span>
+<span class="sd">        &gt;&gt;&gt; from astropy.nddata.utils import Cutout2D</span>
+<span class="sd">        &gt;&gt;&gt; from astropy import units as u</span>
+<span class="sd">        &gt;&gt;&gt; data = np.arange(20.).reshape(5, 4)</span>
+<span class="sd">        &gt;&gt;&gt; cutout1 = Cutout2D(data, (2, 2), (3, 3))</span>
+<span class="sd">        &gt;&gt;&gt; print(cutout1.data)</span>
+<span class="sd">        [[  5.   6.   7.]</span>
+<span class="sd">         [  9.  10.  11.]</span>
+<span class="sd">         [ 13.  14.  15.]]</span>
+
+<span class="sd">        &gt;&gt;&gt; print(cutout1.center_original)</span>
+<span class="sd">        (2.0, 2.0)</span>
+<span class="sd">        &gt;&gt;&gt; print(cutout1.center_cutout)</span>
+<span class="sd">        (1.0, 1.0)</span>
+<span class="sd">        &gt;&gt;&gt; print(cutout1.origin_original)</span>
+<span class="sd">        (1, 1)</span>
+
+<span class="sd">        &gt;&gt;&gt; cutout2 = Cutout2D(data, (2, 2), 3)</span>
+<span class="sd">        &gt;&gt;&gt; print(cutout2.data)</span>
+<span class="sd">        [[  5.   6.   7.]</span>
+<span class="sd">         [  9.  10.  11.]</span>
+<span class="sd">         [ 13.  14.  15.]]</span>
+
+<span class="sd">        &gt;&gt;&gt; size = u.Quantity([3, 3], u.pixel)</span>
+<span class="sd">        &gt;&gt;&gt; cutout3 = Cutout2D(data, (0, 0), size)</span>
+<span class="sd">        &gt;&gt;&gt; print(cutout3.data)</span>
+<span class="sd">        [[ 0.  1.]</span>
+<span class="sd">         [ 4.  5.]]</span>
+
+<span class="sd">        &gt;&gt;&gt; cutout4 = Cutout2D(data, (0, 0), (3 * u.pixel, 3))</span>
+<span class="sd">        &gt;&gt;&gt; print(cutout4.data)</span>
+<span class="sd">        [[ 0.  1.]</span>
+<span class="sd">         [ 4.  5.]]</span>
+
+<span class="sd">        &gt;&gt;&gt; cutout5 = Cutout2D(data, (0, 0), (3, 3), mode=&#39;partial&#39;)</span>
+<span class="sd">        &gt;&gt;&gt; print(cutout5.data)</span>
+<span class="sd">        [[ nan  nan  nan]</span>
+<span class="sd">         [ nan   0.   1.]</span>
+<span class="sd">         [ nan   4.   5.]]</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+
+        <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">position</span><span class="p">,</span> <span class="n">SkyCoord</span><span class="p">):</span>
+            <span class="k">if</span> <span class="n">wcs</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+                <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s1">&#39;wcs must be input if position is a &#39;</span>
+                                 <span class="s1">&#39;SkyCoord&#39;</span><span class="p">)</span>
+            <span class="n">position</span> <span class="o">=</span> <span class="n">skycoord_to_pixel</span><span class="p">(</span><span class="n">position</span><span class="p">,</span> <span class="n">wcs</span><span class="p">,</span> <span class="n">mode</span><span class="o">=</span><span class="s1">&#39;all&#39;</span><span class="p">)</span>  <span class="c1"># (x, y)</span>
+
+        <span class="k">if</span> <span class="n">np</span><span class="o">.</span><span class="n">isscalar</span><span class="p">(</span><span class="n">size</span><span class="p">):</span>
+            <span class="n">size</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">repeat</span><span class="p">(</span><span class="n">size</span><span class="p">,</span> <span class="mi">2</span><span class="p">)</span>
+
+        <span class="c1"># special handling for a scalar Quantity</span>
+        <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">size</span><span class="p">,</span> <span class="n">u</span><span class="o">.</span><span class="n">Quantity</span><span class="p">):</span>
+            <span class="n">size</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">atleast_1d</span><span class="p">(</span><span class="n">size</span><span class="p">)</span>
+            <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">size</span><span class="p">)</span> <span class="o">==</span> <span class="mi">1</span><span class="p">:</span>
+                <span class="n">size</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">repeat</span><span class="p">(</span><span class="n">size</span><span class="p">,</span> <span class="mi">2</span><span class="p">)</span>
+
+        <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">size</span><span class="p">)</span> <span class="o">&gt;</span> <span class="mi">2</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s1">&#39;size must have at most two elements&#39;</span><span class="p">)</span>
+
+        <span class="n">shape</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">zeros</span><span class="p">(</span><span class="mi">2</span><span class="p">)</span><span class="o">.</span><span class="n">astype</span><span class="p">(</span><span class="nb">int</span><span class="p">)</span>
+        <span class="n">pixel_scales</span> <span class="o">=</span> <span class="kc">None</span>
+        <span class="c1"># ``size`` can have a mixture of int and Quantity (and even units),</span>
+        <span class="c1"># so evaluate each axis separately</span>
+        <span class="k">for</span> <span class="n">axis</span><span class="p">,</span> <span class="n">side</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="n">size</span><span class="p">):</span>
+            <span class="k">if</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">side</span><span class="p">,</span> <span class="n">u</span><span class="o">.</span><span class="n">Quantity</span><span class="p">):</span>
+                <span class="n">shape</span><span class="p">[</span><span class="n">axis</span><span class="p">]</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">int</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">round</span><span class="p">(</span><span class="n">size</span><span class="p">[</span><span class="n">axis</span><span class="p">]))</span>     <span class="c1"># pixels</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="k">if</span> <span class="n">side</span><span class="o">.</span><span class="n">unit</span> <span class="o">==</span> <span class="n">u</span><span class="o">.</span><span class="n">pixel</span><span class="p">:</span>
+                    <span class="n">shape</span><span class="p">[</span><span class="n">axis</span><span class="p">]</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">int</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">round</span><span class="p">(</span><span class="n">side</span><span class="o">.</span><span class="n">value</span><span class="p">))</span>
+                <span class="k">elif</span> <span class="n">side</span><span class="o">.</span><span class="n">unit</span><span class="o">.</span><span class="n">physical_type</span> <span class="o">==</span> <span class="s1">&#39;angle&#39;</span><span class="p">:</span>
+                    <span class="k">if</span> <span class="n">wcs</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+                        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s1">&#39;wcs must be input if any element &#39;</span>
+                                         <span class="s1">&#39;of size has angular units&#39;</span><span class="p">)</span>
+                    <span class="k">if</span> <span class="n">pixel_scales</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+                        <span class="n">pixel_scales</span> <span class="o">=</span> <span class="n">u</span><span class="o">.</span><span class="n">Quantity</span><span class="p">(</span>
+                            <span class="n">proj_plane_pixel_scales</span><span class="p">(</span><span class="n">wcs</span><span class="p">),</span> <span class="n">wcs</span><span class="o">.</span><span class="n">wcs</span><span class="o">.</span><span class="n">cunit</span><span class="p">[</span><span class="n">axis</span><span class="p">])</span>
+                    <span class="n">shape</span><span class="p">[</span><span class="n">axis</span><span class="p">]</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">int</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">round</span><span class="p">(</span>
+                        <span class="p">(</span><span class="n">side</span> <span class="o">/</span> <span class="n">pixel_scales</span><span class="p">[</span><span class="n">axis</span><span class="p">])</span><span class="o">.</span><span class="n">decompose</span><span class="p">()))</span>
+                <span class="k">else</span><span class="p">:</span>
+                    <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s1">&#39;shape can contain Quantities with only &#39;</span>
+                                     <span class="s1">&#39;pixel or angular units&#39;</span><span class="p">)</span>
+
+        <span class="n">data</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">asanyarray</span><span class="p">(</span><span class="n">data</span><span class="p">)</span>
+        <span class="c1"># reverse position because extract_array and overlap_slices</span>
+        <span class="c1"># use (y, x), but keep the input position</span>
+        <span class="n">pos_yx</span> <span class="o">=</span> <span class="n">position</span><span class="p">[::</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span>
+
+        <span class="n">cutout_data</span><span class="p">,</span> <span class="n">input_position_cutout</span> <span class="o">=</span> <span class="n">extract_array</span><span class="p">(</span>
+            <span class="n">data</span><span class="p">,</span> <span class="nb">tuple</span><span class="p">(</span><span class="n">shape</span><span class="p">),</span> <span class="n">pos_yx</span><span class="p">,</span> <span class="n">mode</span><span class="o">=</span><span class="n">mode</span><span class="p">,</span> <span class="n">fill_value</span><span class="o">=</span><span class="n">fill_value</span><span class="p">,</span>
+            <span class="n">return_position</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">copy</span><span class="p">:</span>
+            <span class="n">cutout_data</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">copy</span><span class="p">(</span><span class="n">cutout_data</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">data</span> <span class="o">=</span> <span class="n">cutout_data</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">input_position_cutout</span> <span class="o">=</span> <span class="n">input_position_cutout</span><span class="p">[::</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span>    <span class="c1"># (x, y)</span>
+        <span class="n">slices_original</span><span class="p">,</span> <span class="n">slices_cutout</span> <span class="o">=</span> <span class="n">overlap_slices</span><span class="p">(</span>
+            <span class="n">data</span><span class="o">.</span><span class="n">shape</span><span class="p">,</span> <span class="n">shape</span><span class="p">,</span> <span class="n">pos_yx</span><span class="p">,</span> <span class="n">mode</span><span class="o">=</span><span class="n">mode</span><span class="p">)</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">slices_original</span> <span class="o">=</span> <span class="n">slices_original</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">slices_cutout</span> <span class="o">=</span> <span class="n">slices_cutout</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">shape</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">shape</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">input_position_original</span> <span class="o">=</span> <span class="n">position</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">shape_input</span> <span class="o">=</span> <span class="n">shape</span>
+
+        <span class="p">((</span><span class="bp">self</span><span class="o">.</span><span class="n">ymin_original</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">ymax_original</span><span class="p">),</span>
+         <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">xmin_original</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">xmax_original</span><span class="p">))</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">bbox_original</span>
+
+        <span class="p">((</span><span class="bp">self</span><span class="o">.</span><span class="n">ymin_cutout</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">ymax_cutout</span><span class="p">),</span>
+         <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">xmin_cutout</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">xmax_cutout</span><span class="p">))</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">bbox_cutout</span>
+
+        <span class="c1"># the true origin pixel of the cutout array, including any</span>
+        <span class="c1"># filled cutout values</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_origin_original_true</span> <span class="o">=</span> <span class="p">(</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">origin_original</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">-</span> <span class="bp">self</span><span class="o">.</span><span class="n">slices_cutout</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span><span class="o">.</span><span class="n">start</span><span class="p">,</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">origin_original</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span> <span class="o">-</span> <span class="bp">self</span><span class="o">.</span><span class="n">slices_cutout</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">start</span><span class="p">)</span>
+
+        <span class="k">if</span> <span class="n">wcs</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">wcs</span> <span class="o">=</span> <span class="n">deepcopy</span><span class="p">(</span><span class="n">wcs</span><span class="p">)</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">wcs</span><span class="o">.</span><span class="n">wcs</span><span class="o">.</span><span class="n">crpix</span> <span class="o">-=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_origin_original_true</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">wcs</span> <span class="o">=</span> <span class="kc">None</span>
+
+<div class="viewcode-block" id="Cutout2D.to_original_position"><a class="viewcode-back" href="../../../api/astropy.nddata.utils.Cutout2D.html#astropy.nddata.Cutout2D.to_original_position">[docs]</a>    <span class="k">def</span> <span class="nf">to_original_position</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">cutout_position</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Convert an ``(x, y)`` position in the cutout array to the original</span>
+<span class="sd">        ``(x, y)`` position in the original large array.</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        cutout_position : tuple</span>
+<span class="sd">            The ``(x, y)`` pixel position in the cutout array.</span>
+
+<span class="sd">        Returns</span>
+<span class="sd">        -------</span>
+<span class="sd">        original_position : tuple</span>
+<span class="sd">            The corresponding ``(x, y)`` pixel position in the original</span>
+<span class="sd">            large array.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="nb">tuple</span><span class="p">(</span><span class="n">cutout_position</span><span class="p">[</span><span class="n">i</span><span class="p">]</span> <span class="o">+</span> <span class="bp">self</span><span class="o">.</span><span class="n">origin_original</span><span class="p">[</span><span class="n">i</span><span class="p">]</span>
+                     <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="p">[</span><span class="mi">0</span><span class="p">,</span> <span class="mi">1</span><span class="p">])</span></div>
+
+<div class="viewcode-block" id="Cutout2D.to_cutout_position"><a class="viewcode-back" href="../../../api/astropy.nddata.utils.Cutout2D.html#astropy.nddata.Cutout2D.to_cutout_position">[docs]</a>    <span class="k">def</span> <span class="nf">to_cutout_position</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">original_position</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Convert an ``(x, y)`` position in the original large array to</span>
+<span class="sd">        the ``(x, y)`` position in the cutout array.</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        original_position : tuple</span>
+<span class="sd">            The ``(x, y)`` pixel position in the original large array.</span>
+
+<span class="sd">        Returns</span>
+<span class="sd">        -------</span>
+<span class="sd">        cutout_position : tuple</span>
+<span class="sd">            The corresponding ``(x, y)`` pixel position in the cutout</span>
+<span class="sd">            array.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="nb">tuple</span><span class="p">(</span><span class="n">original_position</span><span class="p">[</span><span class="n">i</span><span class="p">]</span> <span class="o">-</span> <span class="bp">self</span><span class="o">.</span><span class="n">origin_original</span><span class="p">[</span><span class="n">i</span><span class="p">]</span>
+                     <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="p">[</span><span class="mi">0</span><span class="p">,</span> <span class="mi">1</span><span class="p">])</span></div>
+
+<div class="viewcode-block" id="Cutout2D.plot_on_original"><a class="viewcode-back" href="../../../api/astropy.nddata.utils.Cutout2D.html#astropy.nddata.Cutout2D.plot_on_original">[docs]</a>    <span class="k">def</span> <span class="nf">plot_on_original</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">ax</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">fill</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Plot the cutout region on a matplotlib Axes instance.</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        ax : `matplotlib.axes.Axes` instance, optional</span>
+<span class="sd">            If `None`, then the current `matplotlib.axes.Axes` instance</span>
+<span class="sd">            is used.</span>
+
+<span class="sd">        fill : bool, optional</span>
+<span class="sd">            Set whether to fill the cutout patch.  The default is</span>
+<span class="sd">            `False`.</span>
+
+<span class="sd">        kwargs : optional</span>
+<span class="sd">            Any keyword arguments accepted by `matplotlib.patches.Patch`.</span>
+
+<span class="sd">        Returns</span>
+<span class="sd">        -------</span>
+<span class="sd">        ax : `matplotlib.axes.Axes` instance</span>
+<span class="sd">            The matplotlib Axes instance constructed in the method if</span>
+<span class="sd">            ``ax=None``.  Otherwise the output ``ax`` is the same as the</span>
+<span class="sd">            input ``ax``.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+
+        <span class="kn">import</span> <span class="nn">matplotlib.pyplot</span> <span class="k">as</span> <span class="nn">plt</span>
+        <span class="kn">import</span> <span class="nn">matplotlib.patches</span> <span class="k">as</span> <span class="nn">mpatches</span>
+
+        <span class="n">kwargs</span><span class="p">[</span><span class="s1">&#39;fill&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">fill</span>
+
+        <span class="k">if</span> <span class="n">ax</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">ax</span> <span class="o">=</span> <span class="n">plt</span><span class="o">.</span><span class="n">gca</span><span class="p">()</span>
+
+        <span class="n">height</span><span class="p">,</span> <span class="n">width</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">shape</span>
+        <span class="n">hw</span><span class="p">,</span> <span class="n">hh</span> <span class="o">=</span> <span class="n">width</span> <span class="o">/</span> <span class="mf">2.</span><span class="p">,</span> <span class="n">height</span> <span class="o">/</span> <span class="mf">2.</span>
+        <span class="n">pos_xy</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">position_original</span> <span class="o">-</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">([</span><span class="n">hw</span><span class="p">,</span> <span class="n">hh</span><span class="p">])</span>
+        <span class="n">patch</span> <span class="o">=</span> <span class="n">mpatches</span><span class="o">.</span><span class="n">Rectangle</span><span class="p">(</span><span class="n">pos_xy</span><span class="p">,</span> <span class="n">width</span><span class="p">,</span> <span class="n">height</span><span class="p">,</span> <span class="mf">0.</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
+        <span class="n">ax</span><span class="o">.</span><span class="n">add_patch</span><span class="p">(</span><span class="n">patch</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">ax</span></div>
+
+    <span class="nd">@staticmethod</span>
+    <span class="k">def</span> <span class="nf">_calc_center</span><span class="p">(</span><span class="n">slices</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Calculate the center position.  The center position will be</span>
+<span class="sd">        fractional for even-sized arrays.  For ``mode=&#39;partial&#39;``, the</span>
+<span class="sd">        central position is calculated for the valid (non-filled) cutout</span>
+<span class="sd">        values.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="nb">tuple</span><span class="p">(</span><span class="mf">0.5</span> <span class="o">*</span> <span class="p">(</span><span class="n">slices</span><span class="p">[</span><span class="n">i</span><span class="p">]</span><span class="o">.</span><span class="n">start</span> <span class="o">+</span> <span class="n">slices</span><span class="p">[</span><span class="n">i</span><span class="p">]</span><span class="o">.</span><span class="n">stop</span> <span class="o">-</span> <span class="mi">1</span><span class="p">)</span>
+                     <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="p">[</span><span class="mi">1</span><span class="p">,</span> <span class="mi">0</span><span class="p">])</span>
+
+    <span class="nd">@staticmethod</span>
+    <span class="k">def</span> <span class="nf">_calc_bbox</span><span class="p">(</span><span class="n">slices</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Calculate a minimal bounding box in the form ``((ymin, ymax),</span>
+<span class="sd">        (xmin, xmax))``.  Note these are pixel locations, not slice</span>
+<span class="sd">        indices.  For ``mode=&#39;partial&#39;``, the bounding box indices are</span>
+<span class="sd">        for the valid (non-filled) cutout values.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="c1"># (stop - 1) to return the max pixel location, not the slice index</span>
+        <span class="k">return</span> <span class="p">((</span><span class="n">slices</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">start</span><span class="p">,</span> <span class="n">slices</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">stop</span> <span class="o">-</span> <span class="mi">1</span><span class="p">),</span>
+                <span class="p">(</span><span class="n">slices</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span><span class="o">.</span><span class="n">start</span><span class="p">,</span> <span class="n">slices</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span><span class="o">.</span><span class="n">stop</span> <span class="o">-</span> <span class="mi">1</span><span class="p">))</span>
+
+    <span class="nd">@lazyproperty</span>
+    <span class="k">def</span> <span class="nf">origin_original</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        The ``(x, y)`` index of the origin pixel of the cutout with</span>
+<span class="sd">        respect to the original array.  For ``mode=&#39;partial&#39;``, the</span>
+<span class="sd">        origin pixel is calculated for the valid (non-filled) cutout</span>
+<span class="sd">        values.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">slices_original</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span><span class="o">.</span><span class="n">start</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">slices_original</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">start</span><span class="p">)</span>
+
+    <span class="nd">@lazyproperty</span>
+    <span class="k">def</span> <span class="nf">origin_cutout</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        The ``(x, y)`` index of the origin pixel of the cutout with</span>
+<span class="sd">        respect to the cutout array.  For ``mode=&#39;partial&#39;``, the origin</span>
+<span class="sd">        pixel is calculated for the valid (non-filled) cutout values.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">slices_cutout</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span><span class="o">.</span><span class="n">start</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">slices_cutout</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">start</span><span class="p">)</span>
+
+    <span class="nd">@lazyproperty</span>
+    <span class="k">def</span> <span class="nf">position_original</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        The ``(x, y)`` position index (rounded to the nearest pixel) in</span>
+<span class="sd">        the original array.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="p">(</span><span class="n">_round</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">input_position_original</span><span class="p">[</span><span class="mi">0</span><span class="p">]),</span>
+                <span class="n">_round</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">input_position_original</span><span class="p">[</span><span class="mi">1</span><span class="p">]))</span>
+
+    <span class="nd">@lazyproperty</span>
+    <span class="k">def</span> <span class="nf">position_cutout</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        The ``(x, y)`` position index (rounded to the nearest pixel) in</span>
+<span class="sd">        the cutout array.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="p">(</span><span class="n">_round</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">input_position_cutout</span><span class="p">[</span><span class="mi">0</span><span class="p">]),</span>
+                <span class="n">_round</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">input_position_cutout</span><span class="p">[</span><span class="mi">1</span><span class="p">]))</span>
+
+    <span class="nd">@lazyproperty</span>
+    <span class="k">def</span> <span class="nf">center_original</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        The central ``(x, y)`` position of the cutout array with respect</span>
+<span class="sd">        to the original array.  For ``mode=&#39;partial&#39;``, the central</span>
+<span class="sd">        position is calculated for the valid (non-filled) cutout values.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_calc_center</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">slices_original</span><span class="p">)</span>
+
+    <span class="nd">@lazyproperty</span>
+    <span class="k">def</span> <span class="nf">center_cutout</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        The central ``(x, y)`` position of the cutout array with respect</span>
+<span class="sd">        to the cutout array.  For ``mode=&#39;partial&#39;``, the central</span>
+<span class="sd">        position is calculated for the valid (non-filled) cutout values.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_calc_center</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">slices_cutout</span><span class="p">)</span>
+
+    <span class="nd">@lazyproperty</span>
+    <span class="k">def</span> <span class="nf">bbox_original</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        The bounding box ``((ymin, ymax), (xmin, xmax))`` of the minimal</span>
+<span class="sd">        rectangular region of the cutout array with respect to the</span>
+<span class="sd">        original array.  For ``mode=&#39;partial&#39;``, the bounding box</span>
+<span class="sd">        indices are for the valid (non-filled) cutout values.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_calc_bbox</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">slices_original</span><span class="p">)</span>
+
+    <span class="nd">@lazyproperty</span>
+    <span class="k">def</span> <span class="nf">bbox_cutout</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        The bounding box ``((ymin, ymax), (xmin, xmax))`` of the minimal</span>
+<span class="sd">        rectangular region of the cutout array with respect to the</span>
+<span class="sd">        cutout array.  For ``mode=&#39;partial&#39;``, the bounding box indices</span>
+<span class="sd">        are for the valid (non-filled) cutout values.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_calc_bbox</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">slices_cutout</span><span class="p">)</span></div>
+</pre></div>
+
+          </div>
+        </div>
+      </div>
+      <div class="sphinxsidebar" role="navigation" aria-label="main navigation">
+        <div class="sphinxsidebarwrapper"><h3>Page Contents</h3>
+
+
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+<footer class="footer">
+  <p class="pull-right"> &nbsp;
+    <a href="#">Back to Top</a></p>
+  <p>
+    &copy; Copyright 2011-2016, The Astropy Developers.<br/>
+    Created using <a href="http://sphinx.pocoo.org/">Sphinx</a> 1.5.6. &nbsp;
+    Last built 05 Jul 2017. <br/>
+  </p>
+</footer>
+  </body>
+</html>

@@ -1,0 +1,331 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <head>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    
+    <title>astropy.coordinates.builtin_frames.skyoffset &#8212; Astropy v3.0.dev19489</title>
+    
+    <link rel="stylesheet" href="../../../../_static/bootstrap-astropy.css" type="text/css" />
+    <link rel="stylesheet" href="../../../../_static/pygments.css" type="text/css" />
+    <link rel="stylesheet" href="../../../../_static/gallery.css" type="text/css" />
+    
+    <script type="text/javascript">
+      var DOCUMENTATION_OPTIONS = {
+        URL_ROOT:    '../../../../',
+        VERSION:     '3.0.dev19489',
+        COLLAPSE_INDEX: false,
+        FILE_SUFFIX: '.html',
+        HAS_SOURCE:  true,
+        SOURCELINK_SUFFIX: '.txt'
+      };
+    </script>
+    <script type="text/javascript" src="../../../../_static/jquery.js"></script>
+    <script type="text/javascript" src="../../../../_static/underscore.js"></script>
+    <script type="text/javascript" src="../../../../_static/doctools.js"></script>
+    <script type="text/javascript" src="../../../../_static/sidebar.js"></script>
+    <link rel="shortcut icon" href="../../../../_static/astropy_logo.ico"/>
+    <link rel="index" title="Index" href="../../../../genindex.html" />
+    <link rel="search" title="Search" href="../../../../search.html" />
+<link href='https://fonts.googleapis.com/css?family=Source+Sans+Pro:200,600' rel='stylesheet' type='text/css'/>
+<script type="text/javascript" src="../../../../_static/copybutton.js"></script>
+
+
+  </head>
+  <body role="document">
+<div class="topbar">
+  <a class="brand" title="Documentation Home" href="../../../../index.html"><span id="logotext1">astro</span><span id="logotext2">py</span><span id="logotext3">:docs</span></a>
+  <ul>
+    <li><a class="homelink" title="Astropy Homepage" href="http://www.astropy.org"></a></li>
+    <li><a title="General Index" href="../../../../genindex.html">Index</a></li>
+    <li><a title="Module Index" href="../../../../py-modindex.html">Modules</a></li>
+    <li>
+      
+      
+<form action="../../../../search.html" method="get">
+  <input type="text" name="q" placeholder="Search" />
+  <input type="hidden" name="check_keywords" value="yes" />
+  <input type="hidden" name="area" value="default" />
+</form>
+      
+    </li>
+  </ul>
+</div>
+
+<div class="related">
+    <h3>Navigation</h3>
+    <ul>
+      <li>
+	<a href="../../../../index.html">Astropy v3.0.dev19489</a>
+	 &#187;
+      </li>
+      <li><a href="../../../index.html" >Module code</a> &#187;</li>
+      <li><a href="../../../astropy.html" accesskey="U">astropy</a> &#187;</li>
+      
+       
+    </ul>
+</div>
+  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          <div class="body" role="main">
+            
+  <h1>Source code for astropy.coordinates.builtin_frames.skyoffset</h1><div class="highlight"><pre>
+<span></span><span class="c1"># -*- coding: utf-8 -*-</span>
+<span class="c1"># Licensed under a 3-clause BSD style license - see LICENSE.rst</span>
+<span class="c1"># Note: `from __future__ import unicode_literals` is omitted here on purpose.</span>
+<span class="c1"># Adding it leads to str / unicode errors on Python 2</span>
+<span class="kn">from</span> <span class="nn">__future__</span> <span class="k">import</span> <span class="p">(</span><span class="n">absolute_import</span><span class="p">,</span> <span class="n">division</span><span class="p">,</span> <span class="n">print_function</span><span class="p">)</span>
+
+<span class="kn">from</span> <span class="nn">...</span> <span class="k">import</span> <span class="n">units</span> <span class="k">as</span> <span class="n">u</span>
+<span class="kn">from</span> <span class="nn">...utils.compat</span> <span class="k">import</span> <span class="n">namedtuple_asdict</span>
+<span class="kn">from</span> <span class="nn">..</span> <span class="k">import</span> <span class="n">representation</span> <span class="k">as</span> <span class="n">r</span>
+<span class="kn">from</span> <span class="nn">..transformations</span> <span class="k">import</span> <span class="n">DynamicMatrixTransform</span><span class="p">,</span> <span class="n">FunctionTransform</span>
+<span class="kn">from</span> <span class="nn">..baseframe</span> <span class="k">import</span> <span class="p">(</span><span class="n">frame_transform_graph</span><span class="p">,</span> <span class="n">RepresentationMapping</span><span class="p">,</span>
+                         <span class="n">BaseCoordinateFrame</span><span class="p">)</span>
+<span class="kn">from</span> <span class="nn">..frame_attributes</span> <span class="k">import</span> <span class="n">CoordinateAttribute</span><span class="p">,</span> <span class="n">QuantityFrameAttribute</span>
+<span class="kn">from</span> <span class="nn">..matrix_utilities</span> <span class="k">import</span> <span class="p">(</span><span class="n">rotation_matrix</span><span class="p">,</span>
+                                <span class="n">matrix_product</span><span class="p">,</span> <span class="n">matrix_transpose</span><span class="p">)</span>
+
+<span class="n">_skyoffset_cache</span> <span class="o">=</span> <span class="p">{}</span>
+
+
+<span class="k">def</span> <span class="nf">make_skyoffset_cls</span><span class="p">(</span><span class="n">framecls</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Create a new class that is the sky offset frame for a specific class of</span>
+<span class="sd">    origin frame. If such a class has already been created for this frame, the</span>
+<span class="sd">    same class will be returned.</span>
+
+<span class="sd">    The new class will always have component names for spherical coordinates of</span>
+<span class="sd">    ``lon``/``lat``.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    framecls : coordinate frame class (i.e., subclass of `~astropy.coordinates.BaseCoordinateFrame`)</span>
+<span class="sd">        The class to create the SkyOffsetFrame of.</span>
+
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+<span class="sd">    skyoffsetframecls : class</span>
+<span class="sd">        The class for the new skyoffset frame.</span>
+
+<span class="sd">    Notes</span>
+<span class="sd">    -----</span>
+<span class="sd">    This function is necessary because Astropy&#39;s frame transformations depend</span>
+<span class="sd">    on connection between specific frame *classes*.  So each type of frame</span>
+<span class="sd">    needs its own distinct skyoffset frame class.  This function generates</span>
+<span class="sd">    just that class, as well as ensuring that only one example of such a class</span>
+<span class="sd">    actually gets created in any given python session.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="k">if</span> <span class="n">framecls</span> <span class="ow">in</span> <span class="n">_skyoffset_cache</span><span class="p">:</span>
+        <span class="k">return</span> <span class="n">_skyoffset_cache</span><span class="p">[</span><span class="n">framecls</span><span class="p">]</span>
+
+    <span class="c1"># the class of a class object is the metaclass</span>
+    <span class="n">framemeta</span> <span class="o">=</span> <span class="n">framecls</span><span class="o">.</span><span class="n">__class__</span>
+
+    <span class="k">class</span> <span class="nc">SkyOffsetMeta</span><span class="p">(</span><span class="n">framemeta</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        This metaclass renames the class to be &quot;SkyOffset&lt;framecls&gt;&quot; and also</span>
+<span class="sd">        adjusts the frame specific representation info so that spherical names</span>
+<span class="sd">        are always &quot;lon&quot; and &quot;lat&quot; (instead of e.g. &quot;ra&quot; and &quot;dec&quot;).</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+
+        <span class="k">def</span> <span class="nf">__new__</span><span class="p">(</span><span class="n">cls</span><span class="p">,</span> <span class="n">name</span><span class="p">,</span> <span class="n">bases</span><span class="p">,</span> <span class="n">members</span><span class="p">):</span>
+            <span class="c1"># Only &#39;origin&#39; is needed here, to set the origin frame properly.</span>
+            <span class="n">members</span><span class="p">[</span><span class="s1">&#39;origin&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">CoordinateAttribute</span><span class="p">(</span><span class="n">frame</span><span class="o">=</span><span class="n">framecls</span><span class="p">,</span> <span class="n">default</span><span class="o">=</span><span class="kc">None</span><span class="p">)</span>
+
+            <span class="c1"># This has to be done because FrameMeta will set these attributes</span>
+            <span class="c1"># to the defaults from BaseCoordinateFrame when it creates the base</span>
+            <span class="c1"># SkyOffsetFrame class initially.</span>
+            <span class="n">members</span><span class="p">[</span><span class="s1">&#39;_frame_specific_representation_info&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">framecls</span><span class="o">.</span><span class="n">_frame_specific_representation_info</span>
+            <span class="n">members</span><span class="p">[</span><span class="s1">&#39;_default_representation&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">framecls</span><span class="o">.</span><span class="n">_default_representation</span>
+            <span class="n">members</span><span class="p">[</span><span class="s1">&#39;_default_differential&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">framecls</span><span class="o">.</span><span class="n">_default_differential</span>
+
+            <span class="n">newname</span> <span class="o">=</span> <span class="n">name</span><span class="p">[:</span><span class="o">-</span><span class="mi">5</span><span class="p">]</span> <span class="k">if</span> <span class="n">name</span><span class="o">.</span><span class="n">endswith</span><span class="p">(</span><span class="s1">&#39;Frame&#39;</span><span class="p">)</span> <span class="k">else</span> <span class="n">name</span>
+            <span class="n">newname</span> <span class="o">+=</span> <span class="n">framecls</span><span class="o">.</span><span class="n">__name__</span>
+
+            <span class="n">res</span> <span class="o">=</span> <span class="nb">super</span><span class="p">(</span><span class="n">SkyOffsetMeta</span><span class="p">,</span> <span class="n">cls</span><span class="p">)</span><span class="o">.</span><span class="n">__new__</span><span class="p">(</span><span class="n">cls</span><span class="p">,</span> <span class="n">newname</span><span class="p">,</span> <span class="n">bases</span><span class="p">,</span> <span class="n">members</span><span class="p">)</span>
+
+            <span class="c1"># now go through all the component names and make any spherical names be &quot;lon&quot; and &quot;lat&quot;</span>
+            <span class="c1"># instead of e.g. &quot;ra&quot; and &quot;dec&quot;</span>
+
+            <span class="n">lists_done</span> <span class="o">=</span> <span class="p">[]</span>
+            <span class="k">for</span> <span class="n">cls_</span><span class="p">,</span> <span class="n">component_list</span> <span class="ow">in</span> <span class="n">res</span><span class="o">.</span><span class="n">_frame_specific_representation_info</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
+                <span class="k">if</span> <span class="n">cls_</span> <span class="ow">in</span> <span class="p">(</span><span class="n">r</span><span class="o">.</span><span class="n">SphericalRepresentation</span><span class="p">,</span>
+                            <span class="n">r</span><span class="o">.</span><span class="n">UnitSphericalRepresentation</span><span class="p">):</span>
+                    <span class="n">gotlatlon</span> <span class="o">=</span> <span class="p">[]</span>
+                    <span class="k">for</span> <span class="n">i</span><span class="p">,</span> <span class="n">comp</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="n">component_list</span><span class="p">):</span>
+                        <span class="k">if</span> <span class="n">component_list</span> <span class="ow">in</span> <span class="n">lists_done</span><span class="p">:</span>
+                            <span class="c1"># we need this because sometimes the component_</span>
+                            <span class="c1"># list&#39;s are the exact *same* object for both</span>
+                            <span class="c1"># spherical and unitspherical.  So looping then makes</span>
+                            <span class="c1"># the change *twice*.  This hack bypasses that.</span>
+                            <span class="k">continue</span>
+
+                        <span class="k">if</span> <span class="n">comp</span><span class="o">.</span><span class="n">reprname</span> <span class="ow">in</span> <span class="p">(</span><span class="s1">&#39;lon&#39;</span><span class="p">,</span> <span class="s1">&#39;lat&#39;</span><span class="p">):</span>
+                            <span class="n">dct</span> <span class="o">=</span> <span class="n">namedtuple_asdict</span><span class="p">(</span><span class="n">comp</span><span class="p">)</span>
+                            <span class="c1"># this forces the component names to be &#39;lat&#39; and</span>
+                            <span class="c1"># &#39;lon&#39; regardless of what the actual base frame</span>
+                            <span class="c1"># might use</span>
+                            <span class="n">dct</span><span class="p">[</span><span class="s1">&#39;framename&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">comp</span><span class="o">.</span><span class="n">reprname</span>
+                            <span class="n">component_list</span><span class="p">[</span><span class="n">i</span><span class="p">]</span> <span class="o">=</span> <span class="nb">type</span><span class="p">(</span><span class="n">comp</span><span class="p">)(</span><span class="o">**</span><span class="n">dct</span><span class="p">)</span>
+                            <span class="n">gotlatlon</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">comp</span><span class="o">.</span><span class="n">reprname</span><span class="p">)</span>
+
+                    <span class="k">if</span> <span class="s1">&#39;lon&#39;</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">gotlatlon</span><span class="p">:</span>
+                        <span class="n">rmlon</span> <span class="o">=</span> <span class="n">RepresentationMapping</span><span class="p">(</span><span class="s1">&#39;lon&#39;</span><span class="p">,</span> <span class="s1">&#39;lon&#39;</span><span class="p">,</span> <span class="s1">&#39;recommended&#39;</span><span class="p">)</span>
+                        <span class="n">component_list</span><span class="o">.</span><span class="n">insert</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="n">rmlon</span><span class="p">)</span>
+
+                    <span class="k">if</span> <span class="s1">&#39;lat&#39;</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">gotlatlon</span><span class="p">:</span>
+                        <span class="n">rmlat</span> <span class="o">=</span> <span class="n">RepresentationMapping</span><span class="p">(</span><span class="s1">&#39;lat&#39;</span><span class="p">,</span> <span class="s1">&#39;lat&#39;</span><span class="p">,</span> <span class="s1">&#39;recommended&#39;</span><span class="p">)</span>
+                        <span class="n">component_list</span><span class="o">.</span><span class="n">insert</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="n">rmlat</span><span class="p">)</span>
+
+                    <span class="c1"># TODO: we could support proper motions / velocities in sky</span>
+                    <span class="c1"># offset frames.</span>
+
+                    <span class="n">lists_done</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">component_list</span><span class="p">)</span>
+
+            <span class="k">return</span> <span class="n">res</span>
+
+    <span class="c1"># We need this to handle the intermediate metaclass correctly, otherwise we could</span>
+    <span class="c1"># just subclass SkyOffsetFrame.</span>
+    <span class="n">_SkyOffsetFramecls</span> <span class="o">=</span> <span class="n">SkyOffsetMeta</span><span class="p">(</span><span class="s1">&#39;SkyOffsetFrame&#39;</span><span class="p">,</span> <span class="p">(</span><span class="n">SkyOffsetFrame</span><span class="p">,</span> <span class="n">framecls</span><span class="p">),</span>
+                                 <span class="p">{</span><span class="s1">&#39;__doc__&#39;</span><span class="p">:</span> <span class="n">SkyOffsetFrame</span><span class="o">.</span><span class="n">__doc__</span><span class="p">})</span>
+
+    <span class="nd">@frame_transform_graph</span><span class="o">.</span><span class="n">transform</span><span class="p">(</span><span class="n">FunctionTransform</span><span class="p">,</span> <span class="n">_SkyOffsetFramecls</span><span class="p">,</span> <span class="n">_SkyOffsetFramecls</span><span class="p">)</span>
+    <span class="k">def</span> <span class="nf">skyoffset_to_skyoffset</span><span class="p">(</span><span class="n">from_skyoffset_coord</span><span class="p">,</span> <span class="n">to_skyoffset_frame</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Transform between two skyoffset frames.&quot;&quot;&quot;</span>
+
+        <span class="c1"># This transform goes through the parent frames on each side.</span>
+        <span class="c1"># from_frame -&gt; from_frame.origin -&gt; to_frame.origin -&gt; to_frame</span>
+        <span class="n">intermediate_from</span> <span class="o">=</span> <span class="n">from_skyoffset_coord</span><span class="o">.</span><span class="n">transform_to</span><span class="p">(</span><span class="n">from_skyoffset_coord</span><span class="o">.</span><span class="n">origin</span><span class="p">)</span>
+        <span class="n">intermediate_to</span> <span class="o">=</span> <span class="n">intermediate_from</span><span class="o">.</span><span class="n">transform_to</span><span class="p">(</span><span class="n">to_skyoffset_frame</span><span class="o">.</span><span class="n">origin</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">intermediate_to</span><span class="o">.</span><span class="n">transform_to</span><span class="p">(</span><span class="n">to_skyoffset_frame</span><span class="p">)</span>
+
+    <span class="nd">@frame_transform_graph</span><span class="o">.</span><span class="n">transform</span><span class="p">(</span><span class="n">DynamicMatrixTransform</span><span class="p">,</span> <span class="n">framecls</span><span class="p">,</span> <span class="n">_SkyOffsetFramecls</span><span class="p">)</span>
+    <span class="k">def</span> <span class="nf">reference_to_skyoffset</span><span class="p">(</span><span class="n">reference_frame</span><span class="p">,</span> <span class="n">skyoffset_frame</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Convert a reference coordinate to an sky offset frame.&quot;&quot;&quot;</span>
+
+        <span class="c1"># Define rotation matrices along the position angle vector, and</span>
+        <span class="c1"># relative to the origin.</span>
+        <span class="n">origin</span> <span class="o">=</span> <span class="n">skyoffset_frame</span><span class="o">.</span><span class="n">origin</span><span class="o">.</span><span class="n">spherical</span>
+        <span class="n">mat1</span> <span class="o">=</span> <span class="n">rotation_matrix</span><span class="p">(</span><span class="o">-</span><span class="n">skyoffset_frame</span><span class="o">.</span><span class="n">rotation</span><span class="p">,</span> <span class="s1">&#39;x&#39;</span><span class="p">)</span>
+        <span class="n">mat2</span> <span class="o">=</span> <span class="n">rotation_matrix</span><span class="p">(</span><span class="o">-</span><span class="n">origin</span><span class="o">.</span><span class="n">lat</span><span class="p">,</span> <span class="s1">&#39;y&#39;</span><span class="p">)</span>
+        <span class="n">mat3</span> <span class="o">=</span> <span class="n">rotation_matrix</span><span class="p">(</span><span class="n">origin</span><span class="o">.</span><span class="n">lon</span><span class="p">,</span> <span class="s1">&#39;z&#39;</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">matrix_product</span><span class="p">(</span><span class="n">mat1</span><span class="p">,</span> <span class="n">mat2</span><span class="p">,</span> <span class="n">mat3</span><span class="p">)</span>
+
+    <span class="nd">@frame_transform_graph</span><span class="o">.</span><span class="n">transform</span><span class="p">(</span><span class="n">DynamicMatrixTransform</span><span class="p">,</span> <span class="n">_SkyOffsetFramecls</span><span class="p">,</span> <span class="n">framecls</span><span class="p">)</span>
+    <span class="k">def</span> <span class="nf">skyoffset_to_reference</span><span class="p">(</span><span class="n">skyoffset_coord</span><span class="p">,</span> <span class="n">reference_frame</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Convert an sky offset frame coordinate to the reference frame&quot;&quot;&quot;</span>
+
+        <span class="c1"># use the forward transform, but just invert it</span>
+        <span class="n">R</span> <span class="o">=</span> <span class="n">reference_to_skyoffset</span><span class="p">(</span><span class="n">reference_frame</span><span class="p">,</span> <span class="n">skyoffset_coord</span><span class="p">)</span>
+        <span class="c1"># transpose is the inverse because R is a rotation matrix</span>
+        <span class="k">return</span> <span class="n">matrix_transpose</span><span class="p">(</span><span class="n">R</span><span class="p">)</span>
+
+    <span class="n">_skyoffset_cache</span><span class="p">[</span><span class="n">framecls</span><span class="p">]</span> <span class="o">=</span> <span class="n">_SkyOffsetFramecls</span>
+    <span class="k">return</span> <span class="n">_SkyOffsetFramecls</span>
+
+
+<div class="viewcode-block" id="SkyOffsetFrame"><a class="viewcode-back" href="../../../../api/astropy.coordinates.SkyOffsetFrame.html#astropy.coordinates.SkyOffsetFrame">[docs]</a><span class="k">class</span> <span class="nc">SkyOffsetFrame</span><span class="p">(</span><span class="n">BaseCoordinateFrame</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    A frame which is relative to some specific position and oriented to match</span>
+<span class="sd">    its frame.</span>
+
+<span class="sd">    SkyOffsetFrames always have component names for spherical coordinates</span>
+<span class="sd">    of ``lon``/``lat``, *not* the component names for the frame of ``origin``.</span>
+
+<span class="sd">    This is useful for calculating offsets and dithers in the frame of the sky</span>
+<span class="sd">    relative to an arbitrary position. Coordinates in this frame are both centered on the position specified by the</span>
+<span class="sd">    ``origin`` coordinate, *and* they are oriented in the same manner as the</span>
+<span class="sd">    ``origin`` frame.  E.g., if ``origin`` is `~astropy.coordinates.ICRS`, this</span>
+<span class="sd">    object&#39;s ``lat`` will be pointed in the direction of Dec, while ``lon``</span>
+<span class="sd">    will point in the direction of RA.</span>
+
+<span class="sd">    For more on skyoffset frames, see :ref:`astropy-skyoffset-frames`.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    representation : `BaseRepresentation` or None</span>
+<span class="sd">        A representation object or None to have no data (or use the other keywords)</span>
+<span class="sd">    origin : `SkyCoord` or low-level coordinate object.</span>
+<span class="sd">        the coordinate which specifies the origin of this frame.</span>
+<span class="sd">    rotation : `~astropy.coordinates.Angle` or `~astropy.units.Quantity` with angle units</span>
+<span class="sd">        The final rotation of the frame about the ``origin``. The sign of</span>
+<span class="sd">        the rotation is the left-hand rule.  That is, an object at a</span>
+<span class="sd">        particular position angle in the un-rotated system will be sent to</span>
+<span class="sd">        the positive latitude (z) direction in the final frame.</span>
+
+
+<span class="sd">    Notes</span>
+<span class="sd">    -----</span>
+<span class="sd">    ``SkyOffsetFrame`` is a factory class.  That is, the objects that it</span>
+<span class="sd">    yields are *not* actually objects of class ``SkyOffsetFrame``.  Instead,</span>
+<span class="sd">    distinct classes are created on-the-fly for whatever the frame class is</span>
+<span class="sd">    of ``origin``.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="n">rotation</span> <span class="o">=</span> <span class="n">QuantityFrameAttribute</span><span class="p">(</span><span class="n">default</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span> <span class="n">unit</span><span class="o">=</span><span class="n">u</span><span class="o">.</span><span class="n">deg</span><span class="p">)</span>
+    <span class="n">origin</span> <span class="o">=</span> <span class="n">CoordinateAttribute</span><span class="p">(</span><span class="n">default</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">frame</span><span class="o">=</span><span class="kc">None</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">__new__</span><span class="p">(</span><span class="n">cls</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+        <span class="c1"># We don&#39;t want to call this method if we&#39;ve already set up</span>
+        <span class="c1"># an skyoffset frame for this class.</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="p">(</span><span class="nb">issubclass</span><span class="p">(</span><span class="n">cls</span><span class="p">,</span> <span class="n">SkyOffsetFrame</span><span class="p">)</span> <span class="ow">and</span> <span class="n">cls</span> <span class="ow">is</span> <span class="ow">not</span> <span class="n">SkyOffsetFrame</span><span class="p">):</span>
+            <span class="c1"># We get the origin argument, and handle it here.</span>
+            <span class="k">try</span><span class="p">:</span>
+                <span class="n">origin_frame</span> <span class="o">=</span> <span class="n">kwargs</span><span class="p">[</span><span class="s1">&#39;origin&#39;</span><span class="p">]</span>
+            <span class="k">except</span> <span class="ne">KeyError</span><span class="p">:</span>
+                <span class="k">raise</span> <span class="ne">TypeError</span><span class="p">(</span><span class="s2">&quot;Can&#39;t initialize an SkyOffsetFrame without origin= keyword.&quot;</span><span class="p">)</span>
+            <span class="k">if</span> <span class="nb">hasattr</span><span class="p">(</span><span class="n">origin_frame</span><span class="p">,</span> <span class="s1">&#39;frame&#39;</span><span class="p">):</span>
+                <span class="n">origin_frame</span> <span class="o">=</span> <span class="n">origin_frame</span><span class="o">.</span><span class="n">frame</span>
+            <span class="n">newcls</span> <span class="o">=</span> <span class="n">make_skyoffset_cls</span><span class="p">(</span><span class="n">origin_frame</span><span class="o">.</span><span class="n">__class__</span><span class="p">)</span>
+            <span class="k">return</span> <span class="n">newcls</span><span class="o">.</span><span class="n">__new__</span><span class="p">(</span><span class="n">newcls</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
+
+        <span class="c1"># http://stackoverflow.com/questions/19277399/why-does-object-new-work-differently-in-these-three-cases</span>
+        <span class="c1"># See above for why this is necessary. Basically, because some child</span>
+        <span class="c1"># may override __new__, we must override it here to never pass</span>
+        <span class="c1"># arguments to the object.__new__ method.</span>
+        <span class="k">if</span> <span class="nb">super</span><span class="p">(</span><span class="n">SkyOffsetFrame</span><span class="p">,</span> <span class="n">cls</span><span class="p">)</span><span class="o">.</span><span class="n">__new__</span> <span class="ow">is</span> <span class="nb">object</span><span class="o">.</span><span class="n">__new__</span><span class="p">:</span>
+            <span class="k">return</span> <span class="nb">super</span><span class="p">(</span><span class="n">SkyOffsetFrame</span><span class="p">,</span> <span class="n">cls</span><span class="p">)</span><span class="o">.</span><span class="n">__new__</span><span class="p">(</span><span class="n">cls</span><span class="p">)</span>
+        <span class="k">return</span> <span class="nb">super</span><span class="p">(</span><span class="n">SkyOffsetFrame</span><span class="p">,</span> <span class="n">cls</span><span class="p">)</span><span class="o">.</span><span class="n">__new__</span><span class="p">(</span><span class="n">cls</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+        <span class="nb">super</span><span class="p">(</span><span class="n">SkyOffsetFrame</span><span class="p">,</span> <span class="bp">self</span><span class="p">)</span><span class="o">.</span><span class="n">__init__</span><span class="p">(</span><span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">origin</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="ow">and</span> <span class="ow">not</span> <span class="bp">self</span><span class="o">.</span><span class="n">origin</span><span class="o">.</span><span class="n">has_data</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s1">&#39;The origin supplied to SkyOffsetFrame has no &#39;</span>
+                             <span class="s1">&#39;data.&#39;</span><span class="p">)</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">has_data</span> <span class="ow">and</span> <span class="nb">hasattr</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">data</span><span class="p">,</span> <span class="s1">&#39;lon&#39;</span><span class="p">):</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">lon</span><span class="o">.</span><span class="n">wrap_angle</span> <span class="o">=</span> <span class="mi">180</span><span class="o">*</span><span class="n">u</span><span class="o">.</span><span class="n">deg</span>
+        <span class="k">if</span> <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">origin</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="ow">and</span> <span class="nb">getattr</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">origin</span><span class="o">.</span><span class="n">data</span><span class="p">,</span> <span class="s1">&#39;differentials&#39;</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span> <span class="ow">or</span>
+           <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">has_data</span> <span class="ow">and</span> <span class="nb">getattr</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">data</span><span class="p">,</span> <span class="s1">&#39;differentials&#39;</span><span class="p">,</span> <span class="kc">None</span><span class="p">))):</span>
+            <span class="k">raise</span> <span class="ne">NotImplementedError</span><span class="p">(</span><span class="s1">&#39;SkyOffsetFrame currently does not &#39;</span>
+                                      <span class="s1">&#39;support velocities.&#39;</span><span class="p">)</span></div>
+</pre></div>
+
+          </div>
+        </div>
+      </div>
+      <div class="sphinxsidebar" role="navigation" aria-label="main navigation">
+        <div class="sphinxsidebarwrapper"><h3>Page Contents</h3>
+
+
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+<footer class="footer">
+  <p class="pull-right"> &nbsp;
+    <a href="#">Back to Top</a></p>
+  <p>
+    &copy; Copyright 2011-2016, The Astropy Developers.<br/>
+    Created using <a href="http://sphinx.pocoo.org/">Sphinx</a> 1.5.6. &nbsp;
+    Last built 05 Jul 2017. <br/>
+  </p>
+</footer>
+  </body>
+</html>

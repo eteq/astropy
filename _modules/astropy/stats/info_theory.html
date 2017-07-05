@@ -1,0 +1,504 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <head>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    
+    <title>astropy.stats.info_theory &#8212; Astropy v3.0.dev19489</title>
+    
+    <link rel="stylesheet" href="../../../_static/bootstrap-astropy.css" type="text/css" />
+    <link rel="stylesheet" href="../../../_static/pygments.css" type="text/css" />
+    <link rel="stylesheet" href="../../../_static/gallery.css" type="text/css" />
+    
+    <script type="text/javascript">
+      var DOCUMENTATION_OPTIONS = {
+        URL_ROOT:    '../../../',
+        VERSION:     '3.0.dev19489',
+        COLLAPSE_INDEX: false,
+        FILE_SUFFIX: '.html',
+        HAS_SOURCE:  true,
+        SOURCELINK_SUFFIX: '.txt'
+      };
+    </script>
+    <script type="text/javascript" src="../../../_static/jquery.js"></script>
+    <script type="text/javascript" src="../../../_static/underscore.js"></script>
+    <script type="text/javascript" src="../../../_static/doctools.js"></script>
+    <script type="text/javascript" src="../../../_static/sidebar.js"></script>
+    <link rel="shortcut icon" href="../../../_static/astropy_logo.ico"/>
+    <link rel="index" title="Index" href="../../../genindex.html" />
+    <link rel="search" title="Search" href="../../../search.html" />
+<link href='https://fonts.googleapis.com/css?family=Source+Sans+Pro:200,600' rel='stylesheet' type='text/css'/>
+<script type="text/javascript" src="../../../_static/copybutton.js"></script>
+
+
+  </head>
+  <body role="document">
+<div class="topbar">
+  <a class="brand" title="Documentation Home" href="../../../index.html"><span id="logotext1">astro</span><span id="logotext2">py</span><span id="logotext3">:docs</span></a>
+  <ul>
+    <li><a class="homelink" title="Astropy Homepage" href="http://www.astropy.org"></a></li>
+    <li><a title="General Index" href="../../../genindex.html">Index</a></li>
+    <li><a title="Module Index" href="../../../py-modindex.html">Modules</a></li>
+    <li>
+      
+      
+<form action="../../../search.html" method="get">
+  <input type="text" name="q" placeholder="Search" />
+  <input type="hidden" name="check_keywords" value="yes" />
+  <input type="hidden" name="area" value="default" />
+</form>
+      
+    </li>
+  </ul>
+</div>
+
+<div class="related">
+    <h3>Navigation</h3>
+    <ul>
+      <li>
+	<a href="../../../index.html">Astropy v3.0.dev19489</a>
+	 &#187;
+      </li>
+      <li><a href="../../index.html" >Module code</a> &#187;</li>
+      <li><a href="../../astropy.html" accesskey="U">astropy</a> &#187;</li>
+      
+       
+    </ul>
+</div>
+  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          <div class="body" role="main">
+            
+  <h1>Source code for astropy.stats.info_theory</h1><div class="highlight"><pre>
+<span></span><span class="c1"># Licensed under a 3-clause BSD style license - see LICENSE.rst</span>
+
+<span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">This module contains simple functions for model selection.</span>
+<span class="sd">&quot;&quot;&quot;</span>
+
+<span class="kn">from</span> <span class="nn">__future__</span> <span class="k">import</span> <span class="p">(</span><span class="n">absolute_import</span><span class="p">,</span> <span class="n">division</span><span class="p">,</span> <span class="n">print_function</span><span class="p">,</span>
+                        <span class="n">unicode_literals</span><span class="p">)</span>
+<span class="kn">import</span> <span class="nn">numpy</span> <span class="k">as</span> <span class="nn">np</span>
+
+<span class="n">__all__</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;bayesian_info_criterion&#39;</span><span class="p">,</span> <span class="s1">&#39;bayesian_info_criterion_lsq&#39;</span><span class="p">,</span>
+           <span class="s1">&#39;akaike_info_criterion&#39;</span><span class="p">,</span> <span class="s1">&#39;akaike_info_criterion_lsq&#39;</span><span class="p">]</span>
+
+<span class="n">__doctest_requires__</span> <span class="o">=</span> <span class="p">{</span><span class="s1">&#39;bayesian_info_criterion_lsq&#39;</span><span class="p">:</span> <span class="p">[</span><span class="s1">&#39;scipy&#39;</span><span class="p">],</span>
+                        <span class="s1">&#39;akaike_info_criterion_lsq&#39;</span><span class="p">:</span> <span class="p">[</span><span class="s1">&#39;scipy&#39;</span><span class="p">]}</span>
+
+
+<div class="viewcode-block" id="bayesian_info_criterion"><a class="viewcode-back" href="../../../api/astropy.stats.bayesian_info_criterion.html#astropy.stats.bayesian_info_criterion">[docs]</a><span class="k">def</span> <span class="nf">bayesian_info_criterion</span><span class="p">(</span><span class="n">log_likelihood</span><span class="p">,</span> <span class="n">n_params</span><span class="p">,</span> <span class="n">n_samples</span><span class="p">):</span>
+    <span class="sd">r&quot;&quot;&quot; Computes the Bayesian Information Criterion (BIC) given the log of the</span>
+<span class="sd">    likelihood function evaluated at the estimated (or analytically derived)</span>
+<span class="sd">    parameters, the number of parameters, and the number of samples.</span>
+
+<span class="sd">    The BIC is usually applied to decide whether increasing the number of free</span>
+<span class="sd">    parameters (hence, increasing the model complexity) yields significantly</span>
+<span class="sd">    better fittings. The decision is in favor of the model with the lowest</span>
+<span class="sd">    BIC.</span>
+
+<span class="sd">    BIC is given as</span>
+
+<span class="sd">    .. math::</span>
+
+<span class="sd">        \mathrm{BIC} = k \ln(n) - 2L,</span>
+
+<span class="sd">    in which :math:`n` is the sample size, :math:`k` is the number of free</span>
+<span class="sd">    parameters, and :math:`L` is the log likelihood function of the model</span>
+<span class="sd">    evaluated at the maximum likelihood estimate (i. e., the parameters for</span>
+<span class="sd">    which L is maximized).</span>
+
+<span class="sd">    When comparing two models define</span>
+<span class="sd">    :math:`\Delta \mathrm{BIC} = \mathrm{BIC}_h - \mathrm{BIC}_l`, in which</span>
+<span class="sd">    :math:`\mathrm{BIC}_h` is the higher BIC, and :math:`\mathrm{BIC}_l` is</span>
+<span class="sd">    the lower BIC. The higher is :math:`\Delta \mathrm{BIC}` the stronger is</span>
+<span class="sd">    the evidence against the model with higher BIC.</span>
+
+<span class="sd">    The general rule of thumb is:</span>
+
+<span class="sd">    :math:`0 &lt; \Delta\mathrm{BIC} \leq 2`: weak evidence that model low is</span>
+<span class="sd">    better</span>
+
+<span class="sd">    :math:`2 &lt; \Delta\mathrm{BIC} \leq 6`: moderate evidence that model low is</span>
+<span class="sd">    better</span>
+
+<span class="sd">    :math:`6 &lt; \Delta\mathrm{BIC} \leq 10`: strong evidence that model low is</span>
+<span class="sd">    better</span>
+
+<span class="sd">    :math:`\Delta\mathrm{BIC} &gt; 10`: very strong evidence that model low is</span>
+<span class="sd">    better</span>
+
+<span class="sd">    For a detailed explanation, see [1]_ - [5]_.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    log_likelihood : float</span>
+<span class="sd">        Logarithm of the likelihood function of the model evaluated at the</span>
+<span class="sd">        point of maxima (with respect to the parameter space).</span>
+<span class="sd">    n_params : int</span>
+<span class="sd">        Number of free parameters of the model, i.e., dimension of the</span>
+<span class="sd">        parameter space.</span>
+<span class="sd">    n_samples : int</span>
+<span class="sd">        Number of observations.</span>
+
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+<span class="sd">    bic : float</span>
+<span class="sd">        Bayesian Information Criterion.</span>
+
+<span class="sd">    Examples</span>
+<span class="sd">    --------</span>
+<span class="sd">    The following example was originally presented in [1]_. Consider a</span>
+<span class="sd">    Gaussian model (mu, sigma) and a t-Student model (mu, sigma, delta).</span>
+<span class="sd">    In addition, assume that the t model has presented a higher likelihood.</span>
+<span class="sd">    The question that the BIC is proposed to answer is: &quot;Is the increase in</span>
+<span class="sd">    likelihood due to larger number of parameters?&quot;</span>
+
+<span class="sd">    &gt;&gt;&gt; from astropy.stats.info_theory import bayesian_info_criterion</span>
+<span class="sd">    &gt;&gt;&gt; lnL_g = -176.4</span>
+<span class="sd">    &gt;&gt;&gt; lnL_t = -173.0</span>
+<span class="sd">    &gt;&gt;&gt; n_params_g = 2</span>
+<span class="sd">    &gt;&gt;&gt; n_params_t = 3</span>
+<span class="sd">    &gt;&gt;&gt; n_samples = 100</span>
+<span class="sd">    &gt;&gt;&gt; bic_g = bayesian_info_criterion(lnL_g, n_params_g, n_samples)</span>
+<span class="sd">    &gt;&gt;&gt; bic_t = bayesian_info_criterion(lnL_t, n_params_t, n_samples)</span>
+<span class="sd">    &gt;&gt;&gt; bic_g - bic_t # doctest: +FLOAT_CMP</span>
+<span class="sd">    2.1948298140119391</span>
+
+<span class="sd">    Therefore, there exist a moderate evidence that the increasing in</span>
+<span class="sd">    likelihood for t-Student model is due to the larger number of parameters.</span>
+
+<span class="sd">    References</span>
+<span class="sd">    ----------</span>
+<span class="sd">    .. [1] Richards, D. Maximum Likelihood Estimation and the Bayesian</span>
+<span class="sd">       Information Criterion.</span>
+<span class="sd">       &lt;https://hea-www.harvard.edu/astrostat/Stat310_0910/dr_20100323_mle.pdf&gt;</span>
+<span class="sd">    .. [2] Wikipedia. Bayesian Information Criterion.</span>
+<span class="sd">       &lt;https://en.wikipedia.org/wiki/Bayesian_information_criterion&gt;</span>
+<span class="sd">    .. [3] Origin Lab. Comparing Two Fitting Functions.</span>
+<span class="sd">       &lt;http://www.originlab.com/doc/Origin-Help/PostFit-CompareFitFunc&gt;</span>
+<span class="sd">    .. [4] Liddle, A. R. Information Criteria for Astrophysical Model</span>
+<span class="sd">       Selection. 2008. &lt;http://arxiv.org/pdf/astro-ph/0701113v2.pdf&gt;</span>
+<span class="sd">    .. [5] Liddle, A. R. How many cosmological parameters? 2008.</span>
+<span class="sd">       &lt;http://arxiv.org/pdf/astro-ph/0401198v3.pdf&gt;</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="k">return</span> <span class="n">n_params</span><span class="o">*</span><span class="n">np</span><span class="o">.</span><span class="n">log</span><span class="p">(</span><span class="n">n_samples</span><span class="p">)</span> <span class="o">-</span> <span class="mf">2.0</span><span class="o">*</span><span class="n">log_likelihood</span></div>
+
+
+<div class="viewcode-block" id="bayesian_info_criterion_lsq"><a class="viewcode-back" href="../../../api/astropy.stats.bayesian_info_criterion_lsq.html#astropy.stats.bayesian_info_criterion_lsq">[docs]</a><span class="k">def</span> <span class="nf">bayesian_info_criterion_lsq</span><span class="p">(</span><span class="n">ssr</span><span class="p">,</span> <span class="n">n_params</span><span class="p">,</span> <span class="n">n_samples</span><span class="p">):</span>
+    <span class="sd">r&quot;&quot;&quot;</span>
+<span class="sd">    Computes the Bayesian Information Criterion (BIC) assuming that the</span>
+<span class="sd">    observations come from a Gaussian distribution.</span>
+
+<span class="sd">    In this case, BIC is given as</span>
+
+<span class="sd">    .. math::</span>
+
+<span class="sd">        \mathrm{BIC} = n\ln\left(\dfrac{\mathrm{SSR}}{n}\right) + k\ln(n)</span>
+
+<span class="sd">    in which :math:`n` is the sample size, :math:`k` is the number of free</span>
+<span class="sd">    parameters and :math:`\mathrm{SSR}` stands for the sum of squared residuals</span>
+<span class="sd">    between model and data.</span>
+
+<span class="sd">    This is applicable, for instance, when the parameters of a model are</span>
+<span class="sd">    estimated using the least squares statistic. See [1]_ and [2]_.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    ssr : float</span>
+<span class="sd">        Sum of squared residuals (SSR) between model and data.</span>
+<span class="sd">    n_params : int</span>
+<span class="sd">        Number of free parameters of the model, i.e., dimension of the</span>
+<span class="sd">        parameter space.</span>
+<span class="sd">    n_samples : int</span>
+<span class="sd">        Number of observations.</span>
+
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+<span class="sd">    bic : float</span>
+
+<span class="sd">    Examples</span>
+<span class="sd">    --------</span>
+<span class="sd">    Consider the simple 1-D fitting example presented in the Astropy</span>
+<span class="sd">    modeling webpage [3]_. There, two models (Box and Gaussian) were fitted to</span>
+<span class="sd">    a source flux using the least squares statistic. However, the fittings</span>
+<span class="sd">    themselves do not tell much about which model better represents this</span>
+<span class="sd">    hypothetical source. Therefore, we are going to apply to BIC in order to</span>
+<span class="sd">    decide in favor of a model.</span>
+
+<span class="sd">    &gt;&gt;&gt; import numpy as np</span>
+<span class="sd">    &gt;&gt;&gt; from astropy.modeling import models, fitting</span>
+<span class="sd">    &gt;&gt;&gt; from astropy.stats.info_theory import bayesian_info_criterion_lsq</span>
+<span class="sd">    &gt;&gt;&gt; # Generate fake data</span>
+<span class="sd">    &gt;&gt;&gt; np.random.seed(0)</span>
+<span class="sd">    &gt;&gt;&gt; x = np.linspace(-5., 5., 200)</span>
+<span class="sd">    &gt;&gt;&gt; y = 3 * np.exp(-0.5 * (x - 1.3)**2 / 0.8**2)</span>
+<span class="sd">    &gt;&gt;&gt; y += np.random.normal(0., 0.2, x.shape)</span>
+<span class="sd">    &gt;&gt;&gt; # Fit the data using a Box model</span>
+<span class="sd">    &gt;&gt;&gt; t_init = models.Trapezoid1D(amplitude=1., x_0=0., width=1., slope=0.5)</span>
+<span class="sd">    &gt;&gt;&gt; fit_t = fitting.LevMarLSQFitter()</span>
+<span class="sd">    &gt;&gt;&gt; t = fit_t(t_init, x, y)</span>
+<span class="sd">    &gt;&gt;&gt; # Fit the data using a Gaussian</span>
+<span class="sd">    &gt;&gt;&gt; g_init = models.Gaussian1D(amplitude=1., mean=0, stddev=1.)</span>
+<span class="sd">    &gt;&gt;&gt; fit_g = fitting.LevMarLSQFitter()</span>
+<span class="sd">    &gt;&gt;&gt; g = fit_g(g_init, x, y)</span>
+<span class="sd">    &gt;&gt;&gt; # Compute the mean squared errors</span>
+<span class="sd">    &gt;&gt;&gt; ssr_t = np.sum((t(x) - y)*(t(x) - y))</span>
+<span class="sd">    &gt;&gt;&gt; ssr_g = np.sum((g(x) - y)*(g(x) - y))</span>
+<span class="sd">    &gt;&gt;&gt; # Compute the bics</span>
+<span class="sd">    &gt;&gt;&gt; bic_t = bayesian_info_criterion_lsq(ssr_t, 4, x.shape[0])</span>
+<span class="sd">    &gt;&gt;&gt; bic_g = bayesian_info_criterion_lsq(ssr_g, 3, x.shape[0])</span>
+<span class="sd">    &gt;&gt;&gt; bic_t - bic_g # doctest: +FLOAT_CMP</span>
+<span class="sd">    30.644474706065466</span>
+
+<span class="sd">    Hence, there is a very strong evidence that the Gaussian model has a</span>
+<span class="sd">    significantly better representation of the data than the Box model. This</span>
+<span class="sd">    is, obviously, expected since the true model is Gaussian.</span>
+
+<span class="sd">    References</span>
+<span class="sd">    ----------</span>
+<span class="sd">    .. [1] Wikipedia. Bayesian Information Criterion.</span>
+<span class="sd">       &lt;https://en.wikipedia.org/wiki/Bayesian_information_criterion&gt;</span>
+<span class="sd">    .. [2] Origin Lab. Comparing Two Fitting Functions.</span>
+<span class="sd">       &lt;http://www.originlab.com/doc/Origin-Help/PostFit-CompareFitFunc&gt;</span>
+<span class="sd">    .. [3] Astropy Models and Fitting</span>
+<span class="sd">        &lt;http://docs.astropy.org/en/stable/modeling&gt;</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="k">return</span> <span class="n">bayesian_info_criterion</span><span class="p">(</span><span class="o">-</span><span class="mf">0.5</span> <span class="o">*</span> <span class="n">n_samples</span> <span class="o">*</span> <span class="n">np</span><span class="o">.</span><span class="n">log</span><span class="p">(</span><span class="n">ssr</span> <span class="o">/</span> <span class="n">n_samples</span><span class="p">),</span>
+                                   <span class="n">n_params</span><span class="p">,</span> <span class="n">n_samples</span><span class="p">)</span></div>
+
+
+<div class="viewcode-block" id="akaike_info_criterion"><a class="viewcode-back" href="../../../api/astropy.stats.akaike_info_criterion.html#astropy.stats.akaike_info_criterion">[docs]</a><span class="k">def</span> <span class="nf">akaike_info_criterion</span><span class="p">(</span><span class="n">log_likelihood</span><span class="p">,</span> <span class="n">n_params</span><span class="p">,</span> <span class="n">n_samples</span><span class="p">):</span>
+    <span class="sd">r&quot;&quot;&quot;</span>
+<span class="sd">    Computes the Akaike Information Criterion (AIC).</span>
+
+<span class="sd">    Like the Bayesian Information Criterion, the AIC is a measure of</span>
+<span class="sd">    relative fitting quality which is used for fitting evaluation and model</span>
+<span class="sd">    selection. The decision is in favor of the model with the lowest AIC.</span>
+
+<span class="sd">    AIC is given as</span>
+
+<span class="sd">    .. math::</span>
+
+<span class="sd">        \mathrm{AIC} = 2(k - L)</span>
+
+<span class="sd">    in which :math:`n` is the sample size, :math:`k` is the number of free</span>
+<span class="sd">    parameters, and :math:`L` is the log likelihood function of the model</span>
+<span class="sd">    evaluated at the maximum likelihood estimate (i. e., the parameters for</span>
+<span class="sd">    which L is maximized).</span>
+
+<span class="sd">    In case that the sample size is not &quot;large enough&quot; a correction is</span>
+<span class="sd">    applied, i.e.</span>
+
+<span class="sd">    .. math::</span>
+
+<span class="sd">        \mathrm{AIC} = 2(k - L) + \dfrac{2k(k+1)}{n - k - 1}</span>
+
+<span class="sd">    Rule of thumb [1]_:</span>
+
+<span class="sd">    :math:`\Delta\mathrm{AIC}_i = \mathrm{AIC}_i - \mathrm{AIC}_{min}`</span>
+
+<span class="sd">    :math:`\Delta\mathrm{AIC}_i &lt; 2`: substantial support for model i</span>
+
+<span class="sd">    :math:`3 &lt; \Delta\mathrm{AIC}_i &lt; 7`: considerably less support for model i</span>
+
+<span class="sd">    :math:`\Delta\mathrm{AIC}_i &gt; 10`: essentially none support for model i</span>
+
+<span class="sd">    in which :math:`\mathrm{AIC}_{min}` stands for the lower AIC among the</span>
+<span class="sd">    models which are being compared.</span>
+
+<span class="sd">    For detailed explanations see [1]_-[6]_.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    log_likelihood : float</span>
+<span class="sd">        Logarithm of the likelihood function of the model evaluated at the</span>
+<span class="sd">        point of maxima (with respect to the parameter space).</span>
+<span class="sd">    n_params : int</span>
+<span class="sd">        Number of free parameters of the model, i.e., dimension of the</span>
+<span class="sd">        parameter space.</span>
+<span class="sd">    n_samples : int</span>
+<span class="sd">        Number of observations.</span>
+
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+<span class="sd">    aic : float</span>
+<span class="sd">        Akaike Information Criterion.</span>
+
+<span class="sd">    Examples</span>
+<span class="sd">    --------</span>
+<span class="sd">    The following example was originally presented in [2]_. Basically, two</span>
+<span class="sd">    models are being compared. One with six parameters (model 1) and another</span>
+<span class="sd">    with five parameters (model 2). Despite of the fact that model 2 has a</span>
+<span class="sd">    lower AIC, we could decide in favor of model 1 since the difference (in</span>
+<span class="sd">    AIC)  between them is only about 1.0.</span>
+
+<span class="sd">    &gt;&gt;&gt; n_samples = 121</span>
+<span class="sd">    &gt;&gt;&gt; lnL1 = -3.54</span>
+<span class="sd">    &gt;&gt;&gt; n1_params = 6</span>
+<span class="sd">    &gt;&gt;&gt; lnL2 = -4.17</span>
+<span class="sd">    &gt;&gt;&gt; n2_params = 5</span>
+<span class="sd">    &gt;&gt;&gt; aic1 = akaike_info_criterion(lnL1, n1_params, n_samples)</span>
+<span class="sd">    &gt;&gt;&gt; aic2 = akaike_info_criterion(lnL2, n2_params, n_samples)</span>
+<span class="sd">    &gt;&gt;&gt; aic1 - aic2 # doctest: +FLOAT_CMP</span>
+<span class="sd">    0.9551029748283746</span>
+
+<span class="sd">    Therefore, we can strongly support the model 1 with the advantage that</span>
+<span class="sd">    it has more free parameters.</span>
+
+<span class="sd">    References</span>
+<span class="sd">    ----------</span>
+<span class="sd">    .. [1] Cavanaugh, J. E.  Model Selection Lecture II: The Akaike</span>
+<span class="sd">       Information Criterion.</span>
+<span class="sd">       &lt;http://myweb.uiowa.edu/cavaaugh/ms_lec_2_ho.pdf&gt;</span>
+<span class="sd">    .. [2] Mazerolle, M. J. Making sense out of Akaike&#39;s Information</span>
+<span class="sd">       Criterion (AIC): its use and interpretation in model selection and</span>
+<span class="sd">       inference from ecological data.</span>
+<span class="sd">       &lt;http://theses.ulaval.ca/archimede/fichiers/21842/apa.html&gt;</span>
+<span class="sd">    .. [3] Wikipedia. Akaike Information Criterion.</span>
+<span class="sd">       &lt;https://en.wikipedia.org/wiki/Akaike_information_criterion&gt;</span>
+<span class="sd">    .. [4] Origin Lab. Comparing Two Fitting Functions.</span>
+<span class="sd">       &lt;http://www.originlab.com/doc/Origin-Help/PostFit-CompareFitFunc&gt;</span>
+<span class="sd">    .. [5] Liddle, A. R. Information Criteria for Astrophysical Model</span>
+<span class="sd">       Selection. 2008. &lt;http://arxiv.org/pdf/astro-ph/0701113v2.pdf&gt;</span>
+<span class="sd">    .. [6] Liddle, A. R. How many cosmological parameters? 2008.</span>
+<span class="sd">       &lt;http://arxiv.org/pdf/astro-ph/0401198v3.pdf&gt;</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="c1"># Correction in case of small number of observations</span>
+    <span class="k">if</span> <span class="n">n_samples</span><span class="o">/</span><span class="nb">float</span><span class="p">(</span><span class="n">n_params</span><span class="p">)</span> <span class="o">&gt;=</span> <span class="mf">40.0</span><span class="p">:</span>
+        <span class="n">aic</span> <span class="o">=</span> <span class="mf">2.0</span> <span class="o">*</span> <span class="p">(</span><span class="n">n_params</span> <span class="o">-</span> <span class="n">log_likelihood</span><span class="p">)</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="n">aic</span> <span class="o">=</span> <span class="p">(</span><span class="mf">2.0</span> <span class="o">*</span> <span class="p">(</span><span class="n">n_params</span> <span class="o">-</span> <span class="n">log_likelihood</span><span class="p">)</span> <span class="o">+</span>
+               <span class="mf">2.0</span> <span class="o">*</span> <span class="n">n_params</span> <span class="o">*</span> <span class="p">(</span><span class="n">n_params</span> <span class="o">+</span> <span class="mf">1.0</span><span class="p">)</span> <span class="o">/</span>
+               <span class="p">(</span><span class="n">n_samples</span> <span class="o">-</span> <span class="n">n_params</span> <span class="o">-</span> <span class="mf">1.0</span><span class="p">))</span>
+    <span class="k">return</span> <span class="n">aic</span></div>
+
+
+<div class="viewcode-block" id="akaike_info_criterion_lsq"><a class="viewcode-back" href="../../../api/astropy.stats.akaike_info_criterion_lsq.html#astropy.stats.akaike_info_criterion_lsq">[docs]</a><span class="k">def</span> <span class="nf">akaike_info_criterion_lsq</span><span class="p">(</span><span class="n">ssr</span><span class="p">,</span> <span class="n">n_params</span><span class="p">,</span> <span class="n">n_samples</span><span class="p">):</span>
+    <span class="sd">r&quot;&quot;&quot;</span>
+<span class="sd">    Computes the Akaike Information Criterion assuming that the observations</span>
+<span class="sd">    are Gaussian distributed.</span>
+
+<span class="sd">    In this case, AIC is given as</span>
+
+<span class="sd">    .. math::</span>
+
+<span class="sd">        \mathrm{AIC} = n\ln\left(\dfrac{\mathrm{SSR}}{n}\right) + 2k</span>
+
+<span class="sd">    In case that the sample size is not &quot;large enough&quot;, a correction is</span>
+<span class="sd">    applied, i.e.</span>
+
+<span class="sd">    .. math::</span>
+
+<span class="sd">        \mathrm{AIC} = n\ln\left(\dfrac{\mathrm{SSR}}{n}\right) + 2k +</span>
+<span class="sd">                       \dfrac{2k(k+1)}{n-k-1}</span>
+
+
+<span class="sd">    in which :math:`n` is the sample size, :math:`k` is the number of free</span>
+<span class="sd">    parameters and :math:`\mathrm{SSR}` stands for the sum of squared residuals</span>
+<span class="sd">    between model and data.</span>
+
+<span class="sd">    This is applicable, for instance, when the parameters of a model are</span>
+<span class="sd">    estimated using the least squares statistic.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    ssr : float</span>
+<span class="sd">        Sum of squared residuals (SSR) between model and data.</span>
+<span class="sd">    n_params : int</span>
+<span class="sd">        Number of free parameters of the model, i.e.,  the dimension of the</span>
+<span class="sd">        parameter space.</span>
+<span class="sd">    n_samples : int</span>
+<span class="sd">        Number of observations.</span>
+
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+<span class="sd">    aic : float</span>
+<span class="sd">        Akaike Information Criterion.</span>
+
+<span class="sd">    Examples</span>
+<span class="sd">    --------</span>
+<span class="sd">    This example is based on Astropy Modeling webpage, Compound models</span>
+<span class="sd">    section.</span>
+
+<span class="sd">    &gt;&gt;&gt; import numpy as np</span>
+<span class="sd">    &gt;&gt;&gt; from astropy.modeling import models, fitting</span>
+<span class="sd">    &gt;&gt;&gt; from astropy.stats.info_theory import akaike_info_criterion_lsq</span>
+<span class="sd">    &gt;&gt;&gt; np.random.seed(42)</span>
+<span class="sd">    &gt;&gt;&gt; # Generate fake data</span>
+<span class="sd">    &gt;&gt;&gt; g1 = models.Gaussian1D(.1, 0, 0.2) # changed this to noise level</span>
+<span class="sd">    &gt;&gt;&gt; g2 = models.Gaussian1D(.1, 0.3, 0.2) # and added another Gaussian</span>
+<span class="sd">    &gt;&gt;&gt; g3 = models.Gaussian1D(2.5, 0.5, 0.1)</span>
+<span class="sd">    &gt;&gt;&gt; x = np.linspace(-1, 1, 200)</span>
+<span class="sd">    &gt;&gt;&gt; y = g1(x) + g2(x) + g3(x) + np.random.normal(0., 0.2, x.shape)</span>
+<span class="sd">    &gt;&gt;&gt; # Fit with three Gaussians</span>
+<span class="sd">    &gt;&gt;&gt; g3_init = (models.Gaussian1D(.1, 0, 0.1)</span>
+<span class="sd">    ...            + models.Gaussian1D(.1, 0.2, 0.15)</span>
+<span class="sd">    ...            + models.Gaussian1D(2., .4, 0.1))</span>
+<span class="sd">    &gt;&gt;&gt; fitter = fitting.LevMarLSQFitter()</span>
+<span class="sd">    &gt;&gt;&gt; g3_fit = fitter(g3_init, x, y)</span>
+<span class="sd">    &gt;&gt;&gt; # Fit with two Gaussians</span>
+<span class="sd">    &gt;&gt;&gt; g2_init = (models.Gaussian1D(.1, 0, 0.1) +</span>
+<span class="sd">    ...            models.Gaussian1D(2, 0.5, 0.1))</span>
+<span class="sd">    &gt;&gt;&gt; g2_fit = fitter(g2_init, x, y)</span>
+<span class="sd">    &gt;&gt;&gt; # Fit with only one Gaussian</span>
+<span class="sd">    &gt;&gt;&gt; g1_init = models.Gaussian1D(amplitude=2., mean=0.3, stddev=.5)</span>
+<span class="sd">    &gt;&gt;&gt; g1_fit = fitter(g1_init, x, y)</span>
+<span class="sd">    &gt;&gt;&gt; # Compute the mean squared errors</span>
+<span class="sd">    &gt;&gt;&gt; ssr_g3 = np.sum((g3_fit(x) - y)**2.0)</span>
+<span class="sd">    &gt;&gt;&gt; ssr_g2 = np.sum((g2_fit(x) - y)**2.0)</span>
+<span class="sd">    &gt;&gt;&gt; ssr_g1 = np.sum((g1_fit(x) - y)**2.0)</span>
+<span class="sd">    &gt;&gt;&gt; akaike_info_criterion_lsq(ssr_g3, 9, x.shape[0]) # doctest: +FLOAT_CMP</span>
+<span class="sd">    -660.41075962620482</span>
+<span class="sd">    &gt;&gt;&gt; akaike_info_criterion_lsq(ssr_g2, 6, x.shape[0]) # doctest: +FLOAT_CMP</span>
+<span class="sd">    -662.83834510232043</span>
+<span class="sd">    &gt;&gt;&gt; akaike_info_criterion_lsq(ssr_g1, 3, x.shape[0]) # doctest: +FLOAT_CMP</span>
+<span class="sd">    -647.47312032659499</span>
+
+<span class="sd">    Hence, from the AIC values, we would prefer to choose the model g2_fit.</span>
+<span class="sd">    However, we can considerably support the model g3_fit, since the</span>
+<span class="sd">    difference in AIC is about 2.4. We should reject the model g1_fit.</span>
+
+<span class="sd">    References</span>
+<span class="sd">    ----------</span>
+<span class="sd">    .. [1] Akaike Information Criteria</span>
+<span class="sd">       &lt;http://avesbiodiv.mncn.csic.es/estadistica/ejemploaic.pdf&gt;</span>
+<span class="sd">    .. [2] Hu, S. Akaike Information Criterion.</span>
+<span class="sd">       &lt;http://www4.ncsu.edu/~shu3/Presentation/AIC.pdf&gt;</span>
+<span class="sd">    .. [3] Origin Lab. Comparing Two Fitting Functions.</span>
+<span class="sd">       &lt;http://www.originlab.com/doc/Origin-Help/PostFit-CompareFitFunc&gt;</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="k">return</span> <span class="n">akaike_info_criterion</span><span class="p">(</span><span class="o">-</span><span class="mf">0.5</span> <span class="o">*</span> <span class="n">n_samples</span> <span class="o">*</span> <span class="n">np</span><span class="o">.</span><span class="n">log</span><span class="p">(</span><span class="n">ssr</span> <span class="o">/</span> <span class="n">n_samples</span><span class="p">),</span>
+                                 <span class="n">n_params</span><span class="p">,</span> <span class="n">n_samples</span><span class="p">)</span></div>
+</pre></div>
+
+          </div>
+        </div>
+      </div>
+      <div class="sphinxsidebar" role="navigation" aria-label="main navigation">
+        <div class="sphinxsidebarwrapper"><h3>Page Contents</h3>
+
+
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+<footer class="footer">
+  <p class="pull-right"> &nbsp;
+    <a href="#">Back to Top</a></p>
+  <p>
+    &copy; Copyright 2011-2016, The Astropy Developers.<br/>
+    Created using <a href="http://sphinx.pocoo.org/">Sphinx</a> 1.5.6. &nbsp;
+    Last built 05 Jul 2017. <br/>
+  </p>
+</footer>
+  </body>
+</html>

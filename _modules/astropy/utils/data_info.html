@@ -1,0 +1,747 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <head>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    
+    <title>astropy.utils.data_info &#8212; Astropy v3.0.dev19489</title>
+    
+    <link rel="stylesheet" href="../../../_static/bootstrap-astropy.css" type="text/css" />
+    <link rel="stylesheet" href="../../../_static/pygments.css" type="text/css" />
+    <link rel="stylesheet" href="../../../_static/gallery.css" type="text/css" />
+    
+    <script type="text/javascript">
+      var DOCUMENTATION_OPTIONS = {
+        URL_ROOT:    '../../../',
+        VERSION:     '3.0.dev19489',
+        COLLAPSE_INDEX: false,
+        FILE_SUFFIX: '.html',
+        HAS_SOURCE:  true,
+        SOURCELINK_SUFFIX: '.txt'
+      };
+    </script>
+    <script type="text/javascript" src="../../../_static/jquery.js"></script>
+    <script type="text/javascript" src="../../../_static/underscore.js"></script>
+    <script type="text/javascript" src="../../../_static/doctools.js"></script>
+    <script type="text/javascript" src="../../../_static/sidebar.js"></script>
+    <link rel="shortcut icon" href="../../../_static/astropy_logo.ico"/>
+    <link rel="index" title="Index" href="../../../genindex.html" />
+    <link rel="search" title="Search" href="../../../search.html" />
+<link href='https://fonts.googleapis.com/css?family=Source+Sans+Pro:200,600' rel='stylesheet' type='text/css'/>
+<script type="text/javascript" src="../../../_static/copybutton.js"></script>
+
+
+  </head>
+  <body role="document">
+<div class="topbar">
+  <a class="brand" title="Documentation Home" href="../../../index.html"><span id="logotext1">astro</span><span id="logotext2">py</span><span id="logotext3">:docs</span></a>
+  <ul>
+    <li><a class="homelink" title="Astropy Homepage" href="http://www.astropy.org"></a></li>
+    <li><a title="General Index" href="../../../genindex.html">Index</a></li>
+    <li><a title="Module Index" href="../../../py-modindex.html">Modules</a></li>
+    <li>
+      
+      
+<form action="../../../search.html" method="get">
+  <input type="text" name="q" placeholder="Search" />
+  <input type="hidden" name="check_keywords" value="yes" />
+  <input type="hidden" name="area" value="default" />
+</form>
+      
+    </li>
+  </ul>
+</div>
+
+<div class="related">
+    <h3>Navigation</h3>
+    <ul>
+      <li>
+	<a href="../../../index.html">Astropy v3.0.dev19489</a>
+	 &#187;
+      </li>
+      <li><a href="../../index.html" >Module code</a> &#187;</li>
+      <li><a href="../../astropy.html" accesskey="U">astropy</a> &#187;</li>
+      
+       
+    </ul>
+</div>
+  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          <div class="body" role="main">
+            
+  <h1>Source code for astropy.utils.data_info</h1><div class="highlight"><pre>
+<span></span><span class="c1"># -*- coding: utf-8 -*-</span>
+<span class="c1"># Licensed under a 3-clause BSD style license - see LICENSE.rst</span>
+
+<span class="sd">&quot;&quot;&quot;This module contains functions and methods that relate to the DataInfo class</span>
+<span class="sd">which provides a container for informational attributes as well as summary info</span>
+<span class="sd">methods.</span>
+
+<span class="sd">A DataInfo object is attached to the Quantity, SkyCoord, and Time classes in</span>
+<span class="sd">astropy.  Here it allows those classes to be used in Tables and uniformly carry</span>
+<span class="sd">table column attributes such as name, format, dtype, meta, and description.</span>
+<span class="sd">&quot;&quot;&quot;</span>
+
+<span class="c1"># Note: these functions and classes are tested extensively in astropy table</span>
+<span class="c1"># tests via their use in providing mixin column info, and in</span>
+<span class="c1"># astropy/tests/test_info for providing table and column info summary data.</span>
+
+<span class="kn">from</span> <span class="nn">__future__</span> <span class="k">import</span> <span class="n">absolute_import</span><span class="p">,</span> <span class="n">division</span><span class="p">,</span> <span class="n">print_function</span>
+
+<span class="kn">import</span> <span class="nn">os</span>
+<span class="kn">import</span> <span class="nn">sys</span>
+<span class="kn">import</span> <span class="nn">weakref</span>
+<span class="kn">from</span> <span class="nn">copy</span> <span class="k">import</span> <span class="n">deepcopy</span>
+<span class="kn">import</span> <span class="nn">numpy</span> <span class="k">as</span> <span class="nn">np</span>
+<span class="kn">from</span> <span class="nn">functools</span> <span class="k">import</span> <span class="n">partial</span>
+<span class="kn">import</span> <span class="nn">warnings</span>
+<span class="kn">import</span> <span class="nn">re</span>
+<span class="kn">from</span> <span class="nn">collections</span> <span class="k">import</span> <span class="n">OrderedDict</span>
+<span class="kn">from</span> <span class="nn">contextlib</span> <span class="k">import</span> <span class="n">contextmanager</span>
+
+<span class="kn">from</span> <span class="nn">..extern</span> <span class="k">import</span> <span class="n">six</span>
+<span class="kn">from</span> <span class="nn">..extern.six.moves</span> <span class="k">import</span> <span class="nb">zip</span><span class="p">,</span> <span class="n">cStringIO</span> <span class="k">as</span> <span class="n">StringIO</span>
+<span class="kn">from</span> <span class="nn">.</span> <span class="k">import</span> <span class="n">metadata</span>
+
+
+<span class="n">__all__</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;data_info_factory&#39;</span><span class="p">,</span> <span class="s1">&#39;dtype_info_name&#39;</span><span class="p">,</span> <span class="s1">&#39;BaseColumnInfo&#39;</span><span class="p">,</span>
+           <span class="s1">&#39;DataInfo&#39;</span><span class="p">,</span> <span class="s1">&#39;MixinInfo&#39;</span><span class="p">,</span> <span class="s1">&#39;ParentDtypeInfo&#39;</span><span class="p">]</span>
+
+<span class="c1"># Tuple of filterwarnings kwargs to ignore when calling info</span>
+<span class="n">IGNORE_WARNINGS</span> <span class="o">=</span> <span class="p">(</span><span class="nb">dict</span><span class="p">(</span><span class="n">category</span><span class="o">=</span><span class="ne">RuntimeWarning</span><span class="p">,</span> <span class="n">message</span><span class="o">=</span><span class="s1">&#39;All-NaN|&#39;</span>
+                        <span class="s1">&#39;Mean of empty slice|Degrees of freedom &lt;= 0&#39;</span><span class="p">),)</span>
+
+<span class="n">STRING_TYPE_NAMES</span> <span class="o">=</span> <span class="p">{(</span><span class="kc">False</span><span class="p">,</span> <span class="s1">&#39;S&#39;</span><span class="p">):</span> <span class="s1">&#39;str&#39;</span><span class="p">,</span>  <span class="c1"># not PY3</span>
+                     <span class="p">(</span><span class="kc">False</span><span class="p">,</span> <span class="s1">&#39;U&#39;</span><span class="p">):</span> <span class="s1">&#39;unicode&#39;</span><span class="p">,</span>
+                     <span class="p">(</span><span class="kc">True</span><span class="p">,</span> <span class="s1">&#39;S&#39;</span><span class="p">):</span> <span class="s1">&#39;bytes&#39;</span><span class="p">,</span>  <span class="c1"># PY3</span>
+                     <span class="p">(</span><span class="kc">True</span><span class="p">,</span> <span class="s1">&#39;U&#39;</span><span class="p">):</span> <span class="s1">&#39;str&#39;</span><span class="p">}</span>
+
+
+<span class="nd">@contextmanager</span>
+<span class="k">def</span> <span class="nf">serialize_context_as</span><span class="p">(</span><span class="n">context</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;Set context for serialization.</span>
+
+<span class="sd">    This will allow downstream code to understand the context in which a column</span>
+<span class="sd">    is being serialized.  Objects like Time or SkyCoord will have different</span>
+<span class="sd">    default serialization representations depending on context.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    context : str</span>
+<span class="sd">        Context name, e.g. &#39;fits&#39;, &#39;hdf5&#39;, &#39;ecsv&#39;, &#39;yaml&#39;</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">old_context</span> <span class="o">=</span> <span class="n">BaseColumnInfo</span><span class="o">.</span><span class="n">_serialize_context</span>
+    <span class="n">BaseColumnInfo</span><span class="o">.</span><span class="n">_serialize_context</span> <span class="o">=</span> <span class="n">context</span>
+    <span class="k">yield</span>
+    <span class="n">BaseColumnInfo</span><span class="o">.</span><span class="n">_serialize_context</span> <span class="o">=</span> <span class="n">old_context</span>
+
+
+<div class="viewcode-block" id="dtype_info_name"><a class="viewcode-back" href="../../../api/astropy.utils.data_info.dtype_info_name.html#astropy.table.dtype_info_name">[docs]</a><span class="k">def</span> <span class="nf">dtype_info_name</span><span class="p">(</span><span class="n">dtype</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;Return a human-oriented string name of the ``dtype`` arg.</span>
+<span class="sd">    This can be use by astropy methods that present type information about</span>
+<span class="sd">    a data object.</span>
+
+<span class="sd">    The output is mostly equivalent to ``dtype.name`` which takes the form</span>
+<span class="sd">    &lt;type_name&gt;[B] where &lt;type_name&gt; is like ``int`` or ``bool`` and [B] is an</span>
+<span class="sd">    optional number of bits which gets included only for numeric types.</span>
+
+<span class="sd">    For bytes, string and unicode types, the output is shown below, where &lt;N&gt;</span>
+<span class="sd">    is the number of characters.  This representation corresponds to the Python</span>
+<span class="sd">    type that matches the dtype::</span>
+
+<span class="sd">      Numpy          S&lt;N&gt;      U&lt;N&gt;</span>
+<span class="sd">      Python 2      str&lt;N&gt;  unicode&lt;N&gt;</span>
+<span class="sd">      Python 3    bytes&lt;N&gt;   str&lt;N&gt;</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    dtype : str, np.dtype, type</span>
+<span class="sd">        Input dtype as an object that can be converted via np.dtype()</span>
+
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+<span class="sd">    dtype_info_name : str</span>
+<span class="sd">        String name of ``dtype``</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">dtype</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">dtype</span><span class="p">(</span><span class="n">dtype</span><span class="p">)</span>
+    <span class="k">if</span> <span class="n">dtype</span><span class="o">.</span><span class="n">kind</span> <span class="ow">in</span> <span class="p">(</span><span class="s1">&#39;S&#39;</span><span class="p">,</span> <span class="s1">&#39;U&#39;</span><span class="p">):</span>
+        <span class="n">length</span> <span class="o">=</span> <span class="n">re</span><span class="o">.</span><span class="n">search</span><span class="p">(</span><span class="s1">r&#39;(\d+)&#39;</span><span class="p">,</span> <span class="n">dtype</span><span class="o">.</span><span class="n">str</span><span class="p">)</span><span class="o">.</span><span class="n">group</span><span class="p">(</span><span class="mi">1</span><span class="p">)</span>
+        <span class="n">type_name</span> <span class="o">=</span> <span class="n">STRING_TYPE_NAMES</span><span class="p">[(</span><span class="ow">not</span> <span class="n">six</span><span class="o">.</span><span class="n">PY2</span><span class="p">,</span> <span class="n">dtype</span><span class="o">.</span><span class="n">kind</span><span class="p">)]</span>
+        <span class="n">out</span> <span class="o">=</span> <span class="n">type_name</span> <span class="o">+</span> <span class="n">length</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="n">out</span> <span class="o">=</span> <span class="n">dtype</span><span class="o">.</span><span class="n">name</span>
+
+    <span class="k">return</span> <span class="n">out</span></div>
+
+
+<div class="viewcode-block" id="data_info_factory"><a class="viewcode-back" href="../../../api/astropy.utils.data_info.data_info_factory.html#astropy.table.data_info_factory">[docs]</a><span class="k">def</span> <span class="nf">data_info_factory</span><span class="p">(</span><span class="n">names</span><span class="p">,</span> <span class="n">funcs</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Factory to create a function that can be used as an ``option``</span>
+<span class="sd">    for outputting data object summary information.</span>
+
+<span class="sd">    Examples</span>
+<span class="sd">    --------</span>
+<span class="sd">    &gt;&gt;&gt; from astropy.utils.data_info import data_info_factory</span>
+<span class="sd">    &gt;&gt;&gt; from astropy.table import Column</span>
+<span class="sd">    &gt;&gt;&gt; c = Column([4., 3., 2., 1.])</span>
+<span class="sd">    &gt;&gt;&gt; mystats = data_info_factory(names=[&#39;min&#39;, &#39;median&#39;, &#39;max&#39;],</span>
+<span class="sd">    ...                             funcs=[np.min, np.median, np.max])</span>
+<span class="sd">    &gt;&gt;&gt; c.info(option=mystats)</span>
+<span class="sd">    min = 1.0</span>
+<span class="sd">    median = 2.5</span>
+<span class="sd">    max = 4.0</span>
+<span class="sd">    n_bad = 0</span>
+<span class="sd">    length = 4</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    names : list</span>
+<span class="sd">        List of information attribute names</span>
+<span class="sd">    funcs : list</span>
+<span class="sd">        List of functions that compute the corresponding information attribute</span>
+
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+<span class="sd">    func : function</span>
+<span class="sd">        Function that can be used as a data info option</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">def</span> <span class="nf">func</span><span class="p">(</span><span class="n">dat</span><span class="p">):</span>
+        <span class="n">outs</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="k">for</span> <span class="n">name</span><span class="p">,</span> <span class="n">func</span> <span class="ow">in</span> <span class="nb">zip</span><span class="p">(</span><span class="n">names</span><span class="p">,</span> <span class="n">funcs</span><span class="p">):</span>
+            <span class="k">try</span><span class="p">:</span>
+                <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">func</span><span class="p">,</span> <span class="n">six</span><span class="o">.</span><span class="n">string_types</span><span class="p">):</span>
+                    <span class="n">out</span> <span class="o">=</span> <span class="nb">getattr</span><span class="p">(</span><span class="n">dat</span><span class="p">,</span> <span class="n">func</span><span class="p">)()</span>
+                <span class="k">else</span><span class="p">:</span>
+                    <span class="n">out</span> <span class="o">=</span> <span class="n">func</span><span class="p">(</span><span class="n">dat</span><span class="p">)</span>
+            <span class="k">except</span> <span class="ne">Exception</span><span class="p">:</span>
+                <span class="n">outs</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="s1">&#39;--&#39;</span><span class="p">)</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="n">outs</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="nb">str</span><span class="p">(</span><span class="n">out</span><span class="p">))</span>
+
+        <span class="k">return</span> <span class="n">OrderedDict</span><span class="p">(</span><span class="nb">zip</span><span class="p">(</span><span class="n">names</span><span class="p">,</span> <span class="n">outs</span><span class="p">))</span>
+    <span class="k">return</span> <span class="n">func</span></div>
+
+
+<span class="k">def</span> <span class="nf">_get_obj_attrs_map</span><span class="p">(</span><span class="n">obj</span><span class="p">,</span> <span class="n">attrs</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Get the values for object ``attrs`` and return as a dict.  This</span>
+<span class="sd">    ignores any attributes that are None and in Py2 converts any unicode</span>
+<span class="sd">    attribute names or values to str.  In the context of serializing the</span>
+<span class="sd">    supported core astropy classes this conversion will succeed and results</span>
+<span class="sd">    in more succinct and less python-specific YAML.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">out</span> <span class="o">=</span> <span class="p">{}</span>
+    <span class="k">for</span> <span class="n">attr</span> <span class="ow">in</span> <span class="n">attrs</span><span class="p">:</span>
+        <span class="n">val</span> <span class="o">=</span> <span class="nb">getattr</span><span class="p">(</span><span class="n">obj</span><span class="p">,</span> <span class="n">attr</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span>
+
+        <span class="k">if</span> <span class="n">val</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="k">if</span> <span class="n">six</span><span class="o">.</span><span class="n">PY2</span><span class="p">:</span>
+                <span class="n">attr</span> <span class="o">=</span> <span class="nb">str</span><span class="p">(</span><span class="n">attr</span><span class="p">)</span>
+                <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">val</span><span class="p">,</span> <span class="n">six</span><span class="o">.</span><span class="n">text_type</span><span class="p">):</span>
+                    <span class="n">val</span> <span class="o">=</span> <span class="nb">str</span><span class="p">(</span><span class="n">val</span><span class="p">)</span>
+            <span class="n">out</span><span class="p">[</span><span class="n">attr</span><span class="p">]</span> <span class="o">=</span> <span class="n">val</span>
+    <span class="k">return</span> <span class="n">out</span>
+
+
+<span class="k">def</span> <span class="nf">_get_data_attribute</span><span class="p">(</span><span class="n">dat</span><span class="p">,</span> <span class="n">attr</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Get a data object attribute for the ``attributes`` info summary method</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">if</span> <span class="n">attr</span> <span class="o">==</span> <span class="s1">&#39;class&#39;</span><span class="p">:</span>
+        <span class="n">val</span> <span class="o">=</span> <span class="nb">type</span><span class="p">(</span><span class="n">dat</span><span class="p">)</span><span class="o">.</span><span class="n">__name__</span>
+    <span class="k">elif</span> <span class="n">attr</span> <span class="o">==</span> <span class="s1">&#39;dtype&#39;</span><span class="p">:</span>
+        <span class="n">val</span> <span class="o">=</span> <span class="n">dtype_info_name</span><span class="p">(</span><span class="n">dat</span><span class="o">.</span><span class="n">info</span><span class="o">.</span><span class="n">dtype</span><span class="p">)</span>
+    <span class="k">elif</span> <span class="n">attr</span> <span class="o">==</span> <span class="s1">&#39;shape&#39;</span><span class="p">:</span>
+        <span class="n">datshape</span> <span class="o">=</span> <span class="n">dat</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">1</span><span class="p">:]</span>
+        <span class="n">val</span> <span class="o">=</span> <span class="n">datshape</span> <span class="k">if</span> <span class="n">datshape</span> <span class="k">else</span> <span class="s1">&#39;&#39;</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="n">val</span> <span class="o">=</span> <span class="nb">getattr</span><span class="p">(</span><span class="n">dat</span><span class="o">.</span><span class="n">info</span><span class="p">,</span> <span class="n">attr</span><span class="p">)</span>
+    <span class="k">if</span> <span class="n">val</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="n">val</span> <span class="o">=</span> <span class="s1">&#39;&#39;</span>
+    <span class="k">return</span> <span class="nb">str</span><span class="p">(</span><span class="n">val</span><span class="p">)</span>
+
+
+<div class="viewcode-block" id="DataInfo"><a class="viewcode-back" href="../../../api/astropy.utils.data_info.DataInfo.html#astropy.table.DataInfo">[docs]</a><span class="k">class</span> <span class="nc">DataInfo</span><span class="p">(</span><span class="nb">object</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Descriptor that data classes use to add an ``info`` attribute for storing</span>
+<span class="sd">    data attributes in a uniform and portable way.  Note that it *must* be</span>
+<span class="sd">    called ``info`` so that the DataInfo() object can be stored in the</span>
+<span class="sd">    ``instance`` using the ``info`` key.  Because owner_cls.x is a descriptor,</span>
+<span class="sd">    Python doesn&#39;t use __dict__[&#39;x&#39;] normally, and the descriptor can safely</span>
+<span class="sd">    store stuff there.  Thanks to http://nbviewer.ipython.org/urls/</span>
+<span class="sd">    gist.github.com/ChrisBeaumont/5758381/raw/descriptor_writeup.ipynb for</span>
+<span class="sd">    this trick that works for non-hashable classes.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    bound : bool</span>
+<span class="sd">        If True this is a descriptor attribute in a class definition, else it</span>
+<span class="sd">        is a DataInfo() object that is bound to a data object instance. Default is False.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">_stats</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;mean&#39;</span><span class="p">,</span> <span class="s1">&#39;std&#39;</span><span class="p">,</span> <span class="s1">&#39;min&#39;</span><span class="p">,</span> <span class="s1">&#39;max&#39;</span><span class="p">]</span>
+    <span class="n">attrs_from_parent</span> <span class="o">=</span> <span class="nb">set</span><span class="p">()</span>
+    <span class="n">attr_names</span> <span class="o">=</span> <span class="nb">set</span><span class="p">([</span><span class="s1">&#39;name&#39;</span><span class="p">,</span> <span class="s1">&#39;unit&#39;</span><span class="p">,</span> <span class="s1">&#39;dtype&#39;</span><span class="p">,</span> <span class="s1">&#39;format&#39;</span><span class="p">,</span> <span class="s1">&#39;description&#39;</span><span class="p">,</span> <span class="s1">&#39;meta&#39;</span><span class="p">])</span>
+    <span class="n">_attrs_no_copy</span> <span class="o">=</span> <span class="nb">set</span><span class="p">()</span>
+    <span class="n">_info_summary_attrs</span> <span class="o">=</span> <span class="p">(</span><span class="s1">&#39;dtype&#39;</span><span class="p">,</span> <span class="s1">&#39;shape&#39;</span><span class="p">,</span> <span class="s1">&#39;unit&#39;</span><span class="p">,</span> <span class="s1">&#39;format&#39;</span><span class="p">,</span> <span class="s1">&#39;description&#39;</span><span class="p">,</span> <span class="s1">&#39;class&#39;</span><span class="p">)</span>
+    <span class="n">_represent_as_dict_attrs</span> <span class="o">=</span> <span class="p">()</span>
+    <span class="n">_parent_ref</span> <span class="o">=</span> <span class="kc">None</span>
+
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">bound</span><span class="o">=</span><span class="kc">False</span><span class="p">):</span>
+        <span class="c1"># If bound to a data object instance then create the dict of attributes</span>
+        <span class="c1"># which stores the info attribute values.</span>
+        <span class="k">if</span> <span class="n">bound</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_attrs</span> <span class="o">=</span> <span class="nb">dict</span><span class="p">((</span><span class="n">attr</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span> <span class="k">for</span> <span class="n">attr</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">attr_names</span><span class="p">)</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">_parent</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_parent_ref</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="k">return</span> <span class="kc">None</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">parent</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_parent_ref</span><span class="p">()</span>
+            <span class="k">if</span> <span class="n">parent</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+                <span class="k">return</span> <span class="n">parent</span>
+
+            <span class="k">else</span><span class="p">:</span>
+                <span class="k">raise</span> <span class="ne">AttributeError</span><span class="p">(</span><span class="s2">&quot;&quot;&quot;</span><span class="se">\</span>
+<span class="s2">failed access &quot;info&quot; attribute on a temporary object.</span>
+
+<span class="s2">It looks like you have done something like ``col[3:5].info``, i.e.</span>
+<span class="s2">you accessed ``info`` from a temporary slice object ``col[3:5]`` that</span>
+<span class="s2">only exists momentarily.  This has failed because the reference to</span>
+<span class="s2">that temporary object is now lost.  Instead force a permanent</span>
+<span class="s2">reference with ``c = col[3:5]`` followed by ``c.info``.&quot;&quot;&quot;</span><span class="p">)</span>
+
+    <span class="nd">@_parent</span><span class="o">.</span><span class="n">setter</span>
+    <span class="k">def</span> <span class="nf">_parent</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">value</span><span class="p">):</span>
+        <span class="k">if</span> <span class="n">value</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_parent_ref</span> <span class="o">=</span> <span class="kc">None</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_parent_ref</span> <span class="o">=</span> <span class="n">weakref</span><span class="o">.</span><span class="n">ref</span><span class="p">(</span><span class="n">value</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">__get__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">instance</span><span class="p">,</span> <span class="n">owner_cls</span><span class="p">):</span>
+        <span class="k">if</span> <span class="n">instance</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="c1"># This is an unbound descriptor on the class</span>
+            <span class="n">info</span> <span class="o">=</span> <span class="bp">self</span>
+            <span class="n">info</span><span class="o">.</span><span class="n">_parent_cls</span> <span class="o">=</span> <span class="n">owner_cls</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">info</span> <span class="o">=</span> <span class="n">instance</span><span class="o">.</span><span class="n">__dict__</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;info&#39;</span><span class="p">)</span>
+            <span class="k">if</span> <span class="n">info</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+                <span class="n">info</span> <span class="o">=</span> <span class="n">instance</span><span class="o">.</span><span class="n">__dict__</span><span class="p">[</span><span class="s1">&#39;info&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">__class__</span><span class="p">(</span><span class="n">bound</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+            <span class="n">info</span><span class="o">.</span><span class="n">_parent</span> <span class="o">=</span> <span class="n">instance</span>
+        <span class="k">return</span> <span class="n">info</span>
+
+    <span class="k">def</span> <span class="nf">__set__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">instance</span><span class="p">,</span> <span class="n">value</span><span class="p">):</span>
+        <span class="k">if</span> <span class="n">instance</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="c1"># This is an unbound descriptor on the class</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s1">&#39;cannot set unbound descriptor&#39;</span><span class="p">)</span>
+
+        <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">value</span><span class="p">,</span> <span class="n">DataInfo</span><span class="p">):</span>
+            <span class="n">info</span> <span class="o">=</span> <span class="n">instance</span><span class="o">.</span><span class="n">__dict__</span><span class="p">[</span><span class="s1">&#39;info&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">__class__</span><span class="p">(</span><span class="n">bound</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+            <span class="k">for</span> <span class="n">attr</span> <span class="ow">in</span> <span class="n">info</span><span class="o">.</span><span class="n">attr_names</span> <span class="o">-</span> <span class="n">info</span><span class="o">.</span><span class="n">attrs_from_parent</span> <span class="o">-</span> <span class="n">info</span><span class="o">.</span><span class="n">_attrs_no_copy</span><span class="p">:</span>
+                <span class="n">info</span><span class="o">.</span><span class="n">_attrs</span><span class="p">[</span><span class="n">attr</span><span class="p">]</span> <span class="o">=</span> <span class="n">deepcopy</span><span class="p">(</span><span class="nb">getattr</span><span class="p">(</span><span class="n">value</span><span class="p">,</span> <span class="n">attr</span><span class="p">))</span>
+
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">TypeError</span><span class="p">(</span><span class="s1">&#39;info must be set with a DataInfo instance&#39;</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">__getstate__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_attrs</span>
+
+    <span class="k">def</span> <span class="nf">__setstate__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">state</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_attrs</span> <span class="o">=</span> <span class="n">state</span>
+
+    <span class="k">def</span> <span class="nf">__getattr__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">attr</span><span class="p">):</span>
+        <span class="k">if</span> <span class="n">attr</span><span class="o">.</span><span class="n">startswith</span><span class="p">(</span><span class="s1">&#39;_&#39;</span><span class="p">):</span>
+            <span class="k">return</span> <span class="nb">super</span><span class="p">(</span><span class="n">DataInfo</span><span class="p">,</span> <span class="bp">self</span><span class="p">)</span><span class="o">.</span><span class="n">__getattribute__</span><span class="p">(</span><span class="n">attr</span><span class="p">)</span>
+
+        <span class="k">if</span> <span class="n">attr</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">attrs_from_parent</span><span class="p">:</span>
+            <span class="k">return</span> <span class="nb">getattr</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_parent</span><span class="p">,</span> <span class="n">attr</span><span class="p">)</span>
+
+        <span class="k">try</span><span class="p">:</span>
+            <span class="n">value</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_attrs</span><span class="p">[</span><span class="n">attr</span><span class="p">]</span>
+        <span class="k">except</span> <span class="ne">KeyError</span><span class="p">:</span>
+            <span class="nb">super</span><span class="p">(</span><span class="n">DataInfo</span><span class="p">,</span> <span class="bp">self</span><span class="p">)</span><span class="o">.</span><span class="n">__getattribute__</span><span class="p">(</span><span class="n">attr</span><span class="p">)</span>  <span class="c1"># Generate AttributeError</span>
+
+        <span class="c1"># Weak ref for parent table</span>
+        <span class="k">if</span> <span class="n">attr</span> <span class="o">==</span> <span class="s1">&#39;parent_table&#39;</span> <span class="ow">and</span> <span class="n">callable</span><span class="p">(</span><span class="n">value</span><span class="p">):</span>
+            <span class="n">value</span> <span class="o">=</span> <span class="n">value</span><span class="p">()</span>
+
+        <span class="c1"># Mixins have a default dtype of Object if nothing else was set</span>
+        <span class="k">if</span> <span class="n">attr</span> <span class="o">==</span> <span class="s1">&#39;dtype&#39;</span> <span class="ow">and</span> <span class="n">value</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">value</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">dtype</span><span class="p">(</span><span class="s1">&#39;O&#39;</span><span class="p">)</span>
+
+        <span class="k">return</span> <span class="n">value</span>
+
+    <span class="k">def</span> <span class="nf">__setattr__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">attr</span><span class="p">,</span> <span class="n">value</span><span class="p">):</span>
+        <span class="n">propobj</span> <span class="o">=</span> <span class="nb">getattr</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">__class__</span><span class="p">,</span> <span class="n">attr</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span>
+
+        <span class="c1"># If attribute is taken from parent properties and there is not a</span>
+        <span class="c1"># class property (getter/setter) for this attribute then set</span>
+        <span class="c1"># attribute directly in parent.</span>
+        <span class="k">if</span> <span class="n">attr</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">attrs_from_parent</span> <span class="ow">and</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">propobj</span><span class="p">,</span> <span class="nb">property</span><span class="p">):</span>
+            <span class="nb">setattr</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_parent</span><span class="p">,</span> <span class="n">attr</span><span class="p">,</span> <span class="n">value</span><span class="p">)</span>
+            <span class="k">return</span>
+
+        <span class="c1"># Check if there is a property setter and use it if possible.</span>
+        <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">propobj</span><span class="p">,</span> <span class="nb">property</span><span class="p">):</span>
+            <span class="k">if</span> <span class="n">propobj</span><span class="o">.</span><span class="n">fset</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+                <span class="k">raise</span> <span class="ne">AttributeError</span><span class="p">(</span><span class="s2">&quot;can&#39;t set attribute&quot;</span><span class="p">)</span>
+            <span class="n">propobj</span><span class="o">.</span><span class="n">fset</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">value</span><span class="p">)</span>
+            <span class="k">return</span>
+
+        <span class="c1"># Private attr names get directly set</span>
+        <span class="k">if</span> <span class="n">attr</span><span class="o">.</span><span class="n">startswith</span><span class="p">(</span><span class="s1">&#39;_&#39;</span><span class="p">):</span>
+            <span class="nb">super</span><span class="p">(</span><span class="n">DataInfo</span><span class="p">,</span> <span class="bp">self</span><span class="p">)</span><span class="o">.</span><span class="n">__setattr__</span><span class="p">(</span><span class="n">attr</span><span class="p">,</span> <span class="n">value</span><span class="p">)</span>
+            <span class="k">return</span>
+
+        <span class="c1"># Finally this must be an actual data attribute that this class is handling.</span>
+        <span class="k">if</span> <span class="n">attr</span> <span class="ow">not</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">attr_names</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">AttributeError</span><span class="p">(</span><span class="s2">&quot;attribute must be one of </span><span class="si">{0}</span><span class="s2">&quot;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">attr_names</span><span class="p">))</span>
+
+        <span class="k">if</span> <span class="n">attr</span> <span class="o">==</span> <span class="s1">&#39;parent_table&#39;</span><span class="p">:</span>
+            <span class="n">value</span> <span class="o">=</span> <span class="kc">None</span> <span class="k">if</span> <span class="n">value</span> <span class="ow">is</span> <span class="kc">None</span> <span class="k">else</span> <span class="n">weakref</span><span class="o">.</span><span class="n">ref</span><span class="p">(</span><span class="n">value</span><span class="p">)</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">_attrs</span><span class="p">[</span><span class="n">attr</span><span class="p">]</span> <span class="o">=</span> <span class="n">value</span>
+
+    <span class="k">def</span> <span class="nf">_represent_as_dict</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Get the values for the parent ``attrs`` and return as a dict.&quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="n">_get_obj_attrs_map</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_parent</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">_represent_as_dict_attrs</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">_construct_from_dict</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="nb">map</span><span class="p">):</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_parent_cls</span><span class="p">(</span><span class="o">**</span><span class="nb">map</span><span class="p">)</span>
+
+    <span class="n">info_summary_attributes</span> <span class="o">=</span> <span class="nb">staticmethod</span><span class="p">(</span>
+        <span class="n">data_info_factory</span><span class="p">(</span><span class="n">names</span><span class="o">=</span><span class="n">_info_summary_attrs</span><span class="p">,</span>
+                          <span class="n">funcs</span><span class="o">=</span><span class="p">[</span><span class="n">partial</span><span class="p">(</span><span class="n">_get_data_attribute</span><span class="p">,</span> <span class="n">attr</span><span class="o">=</span><span class="n">attr</span><span class="p">)</span>
+                                 <span class="k">for</span> <span class="n">attr</span> <span class="ow">in</span> <span class="n">_info_summary_attrs</span><span class="p">]))</span>
+
+    <span class="c1"># No nan* methods in numpy &lt; 1.8</span>
+    <span class="n">info_summary_stats</span> <span class="o">=</span> <span class="nb">staticmethod</span><span class="p">(</span>
+        <span class="n">data_info_factory</span><span class="p">(</span><span class="n">names</span><span class="o">=</span><span class="n">_stats</span><span class="p">,</span>
+                          <span class="n">funcs</span><span class="o">=</span><span class="p">[</span><span class="nb">getattr</span><span class="p">(</span><span class="n">np</span><span class="p">,</span> <span class="s1">&#39;nan&#39;</span> <span class="o">+</span> <span class="n">stat</span><span class="p">)</span>
+                                 <span class="k">for</span> <span class="n">stat</span> <span class="ow">in</span> <span class="n">_stats</span><span class="p">]))</span>
+
+<div class="viewcode-block" id="DataInfo.__call__"><a class="viewcode-back" href="../../../api/astropy.utils.data_info.DataInfo.html#astropy.table.DataInfo.__call__">[docs]</a>    <span class="k">def</span> <span class="nf">__call__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">option</span><span class="o">=</span><span class="s1">&#39;attributes&#39;</span><span class="p">,</span> <span class="n">out</span><span class="o">=</span><span class="s1">&#39;&#39;</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Write summary information about data object to the ``out`` filehandle.</span>
+<span class="sd">        By default this prints to standard output via sys.stdout.</span>
+
+<span class="sd">        The ``option`` argument specifies what type of information</span>
+<span class="sd">        to include.  This can be a string, a function, or a list of</span>
+<span class="sd">        strings or functions.  Built-in options are:</span>
+
+<span class="sd">        - ``attributes``: data object attributes like ``dtype`` and ``format``</span>
+<span class="sd">        - ``stats``: basic statistics: min, mean, and max</span>
+
+<span class="sd">        If a function is specified then that function will be called with the</span>
+<span class="sd">        data object as its single argument.  The function must return an</span>
+<span class="sd">        OrderedDict containing the information attributes.</span>
+
+<span class="sd">        If a list is provided then the information attributes will be</span>
+<span class="sd">        appended for each of the options, in order.</span>
+
+<span class="sd">        Examples</span>
+<span class="sd">        --------</span>
+
+<span class="sd">        &gt;&gt;&gt; from astropy.table import Column</span>
+<span class="sd">        &gt;&gt;&gt; c = Column([1, 2], unit=&#39;m&#39;, dtype=&#39;int32&#39;)</span>
+<span class="sd">        &gt;&gt;&gt; c.info()</span>
+<span class="sd">        dtype = int32</span>
+<span class="sd">        unit = m</span>
+<span class="sd">        class = Column</span>
+<span class="sd">        n_bad = 0</span>
+<span class="sd">        length = 2</span>
+
+<span class="sd">        &gt;&gt;&gt; c.info([&#39;attributes&#39;, &#39;stats&#39;])</span>
+<span class="sd">        dtype = int32</span>
+<span class="sd">        unit = m</span>
+<span class="sd">        class = Column</span>
+<span class="sd">        mean = 1.5</span>
+<span class="sd">        std = 0.5</span>
+<span class="sd">        min = 1</span>
+<span class="sd">        max = 2</span>
+<span class="sd">        n_bad = 0</span>
+<span class="sd">        length = 2</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        option : str, function, list of (str or function)</span>
+<span class="sd">            Info option, defaults to &#39;attributes&#39;.</span>
+<span class="sd">        out : file-like object, None</span>
+<span class="sd">            Output destination, defaults to sys.stdout.  If None then the</span>
+<span class="sd">            OrderedDict with information attributes is returned</span>
+
+<span class="sd">        Returns</span>
+<span class="sd">        -------</span>
+<span class="sd">        info : OrderedDict if out==None else None</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="n">out</span> <span class="o">==</span> <span class="s1">&#39;&#39;</span><span class="p">:</span>
+            <span class="n">out</span> <span class="o">=</span> <span class="n">sys</span><span class="o">.</span><span class="n">stdout</span>
+
+        <span class="n">dat</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_parent</span>
+        <span class="n">info</span> <span class="o">=</span> <span class="n">OrderedDict</span><span class="p">()</span>
+        <span class="n">name</span> <span class="o">=</span> <span class="n">dat</span><span class="o">.</span><span class="n">info</span><span class="o">.</span><span class="n">name</span>
+        <span class="k">if</span> <span class="n">name</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">info</span><span class="p">[</span><span class="s1">&#39;name&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">name</span>
+
+        <span class="n">options</span> <span class="o">=</span> <span class="n">option</span> <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">option</span><span class="p">,</span> <span class="p">(</span><span class="nb">list</span><span class="p">,</span> <span class="nb">tuple</span><span class="p">))</span> <span class="k">else</span> <span class="p">[</span><span class="n">option</span><span class="p">]</span>
+        <span class="k">for</span> <span class="n">option</span> <span class="ow">in</span> <span class="n">options</span><span class="p">:</span>
+            <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">option</span><span class="p">,</span> <span class="n">six</span><span class="o">.</span><span class="n">string_types</span><span class="p">):</span>
+                <span class="k">if</span> <span class="nb">hasattr</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="s1">&#39;info_summary_&#39;</span> <span class="o">+</span> <span class="n">option</span><span class="p">):</span>
+                    <span class="n">option</span> <span class="o">=</span> <span class="nb">getattr</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="s1">&#39;info_summary_&#39;</span> <span class="o">+</span> <span class="n">option</span><span class="p">)</span>
+                <span class="k">else</span><span class="p">:</span>
+                    <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s1">&#39;option=</span><span class="si">{0}</span><span class="s1"> is not an allowed information type&#39;</span>
+                                     <span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">option</span><span class="p">))</span>
+
+            <span class="k">with</span> <span class="n">warnings</span><span class="o">.</span><span class="n">catch_warnings</span><span class="p">():</span>
+                <span class="k">for</span> <span class="n">ignore_kwargs</span> <span class="ow">in</span> <span class="n">IGNORE_WARNINGS</span><span class="p">:</span>
+                    <span class="n">warnings</span><span class="o">.</span><span class="n">filterwarnings</span><span class="p">(</span><span class="s1">&#39;ignore&#39;</span><span class="p">,</span> <span class="o">**</span><span class="n">ignore_kwargs</span><span class="p">)</span>
+                <span class="n">info</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="n">option</span><span class="p">(</span><span class="n">dat</span><span class="p">))</span>
+
+        <span class="k">if</span> <span class="nb">hasattr</span><span class="p">(</span><span class="n">dat</span><span class="p">,</span> <span class="s1">&#39;mask&#39;</span><span class="p">):</span>
+            <span class="n">n_bad</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">count_nonzero</span><span class="p">(</span><span class="n">dat</span><span class="o">.</span><span class="n">mask</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">try</span><span class="p">:</span>
+                <span class="n">n_bad</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">count_nonzero</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">isinf</span><span class="p">(</span><span class="n">dat</span><span class="p">)</span> <span class="o">|</span> <span class="n">np</span><span class="o">.</span><span class="n">isnan</span><span class="p">(</span><span class="n">dat</span><span class="p">))</span>
+            <span class="k">except</span> <span class="ne">Exception</span><span class="p">:</span>
+                <span class="n">n_bad</span> <span class="o">=</span> <span class="mi">0</span>
+        <span class="n">info</span><span class="p">[</span><span class="s1">&#39;n_bad&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">n_bad</span>
+
+        <span class="k">try</span><span class="p">:</span>
+            <span class="n">info</span><span class="p">[</span><span class="s1">&#39;length&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="n">dat</span><span class="p">)</span>
+        <span class="k">except</span> <span class="ne">TypeError</span><span class="p">:</span>
+            <span class="k">pass</span>
+
+        <span class="k">if</span> <span class="n">out</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="k">return</span> <span class="n">info</span>
+
+        <span class="k">for</span> <span class="n">key</span><span class="p">,</span> <span class="n">val</span> <span class="ow">in</span> <span class="n">info</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
+            <span class="k">if</span> <span class="n">val</span> <span class="o">!=</span> <span class="s1">&#39;&#39;</span><span class="p">:</span>
+                <span class="n">out</span><span class="o">.</span><span class="n">write</span><span class="p">(</span><span class="s1">&#39;</span><span class="si">{0}</span><span class="s1"> = </span><span class="si">{1}</span><span class="s1">&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">key</span><span class="p">,</span> <span class="n">val</span><span class="p">)</span> <span class="o">+</span> <span class="n">os</span><span class="o">.</span><span class="n">linesep</span><span class="p">)</span></div>
+
+    <span class="k">def</span> <span class="nf">__repr__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_parent</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="k">return</span> <span class="nb">super</span><span class="p">(</span><span class="n">DataInfo</span><span class="p">,</span> <span class="bp">self</span><span class="p">)</span><span class="o">.</span><span class="n">__repr__</span><span class="p">()</span>
+
+        <span class="n">out</span> <span class="o">=</span> <span class="n">StringIO</span><span class="p">()</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">__call__</span><span class="p">(</span><span class="n">out</span><span class="o">=</span><span class="n">out</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">out</span><span class="o">.</span><span class="n">getvalue</span><span class="p">()</span></div>
+
+
+<div class="viewcode-block" id="BaseColumnInfo"><a class="viewcode-back" href="../../../api/astropy.utils.data_info.BaseColumnInfo.html#astropy.table.BaseColumnInfo">[docs]</a><span class="k">class</span> <span class="nc">BaseColumnInfo</span><span class="p">(</span><span class="n">DataInfo</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Base info class for anything that can be a column in an astropy</span>
+<span class="sd">    Table.  There are at least two classes that inherit from this:</span>
+
+<span class="sd">      ColumnInfo: for native astropy Column / MaskedColumn objects</span>
+<span class="sd">      MixinInfo: for mixin column objects</span>
+
+<span class="sd">    Note that this class is defined here so that mixins can use it</span>
+<span class="sd">    without importing the table package.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">attr_names</span> <span class="o">=</span> <span class="n">DataInfo</span><span class="o">.</span><span class="n">attr_names</span><span class="o">.</span><span class="n">union</span><span class="p">([</span><span class="s1">&#39;parent_table&#39;</span><span class="p">,</span> <span class="s1">&#39;indices&#39;</span><span class="p">])</span>
+    <span class="n">_attrs_no_copy</span> <span class="o">=</span> <span class="nb">set</span><span class="p">([</span><span class="s1">&#39;parent_table&#39;</span><span class="p">])</span>
+
+    <span class="c1"># Context for serialization.  This can be set temporarily via</span>
+    <span class="c1"># ``serialize_context_as(context)`` context manager to allow downstream</span>
+    <span class="c1"># code to understand the context in which a column is being serialized.</span>
+    <span class="c1"># Typical values are &#39;fits&#39;, &#39;hdf5&#39;, &#39;ecsv&#39;, &#39;yaml&#39;.  Objects like Time or</span>
+    <span class="c1"># SkyCoord will have different default serialization representations</span>
+    <span class="c1"># depending on context.</span>
+    <span class="n">_serialize_context</span> <span class="o">=</span> <span class="kc">None</span>
+
+<div class="viewcode-block" id="BaseColumnInfo.iter_str_vals"><a class="viewcode-back" href="../../../api/astropy.utils.data_info.BaseColumnInfo.html#astropy.table.BaseColumnInfo.iter_str_vals">[docs]</a>    <span class="k">def</span> <span class="nf">iter_str_vals</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        This is a mixin-safe version of Column.iter_str_vals.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">col</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_parent</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">parent_table</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="kn">from</span> <span class="nn">..table.column</span> <span class="k">import</span> <span class="n">FORMATTER</span> <span class="k">as</span> <span class="n">formatter</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">formatter</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">parent_table</span><span class="o">.</span><span class="n">formatter</span>
+
+        <span class="n">_pformat_col_iter</span> <span class="o">=</span> <span class="n">formatter</span><span class="o">.</span><span class="n">_pformat_col_iter</span>
+        <span class="k">for</span> <span class="n">str_val</span> <span class="ow">in</span> <span class="n">_pformat_col_iter</span><span class="p">(</span><span class="n">col</span><span class="p">,</span> <span class="o">-</span><span class="mi">1</span><span class="p">,</span> <span class="kc">False</span><span class="p">,</span> <span class="kc">False</span><span class="p">,</span> <span class="p">{}):</span>
+            <span class="k">yield</span> <span class="n">str_val</span></div>
+
+<div class="viewcode-block" id="BaseColumnInfo.adjust_indices"><a class="viewcode-back" href="../../../api/astropy.utils.data_info.BaseColumnInfo.html#astropy.table.BaseColumnInfo.adjust_indices">[docs]</a>    <span class="k">def</span> <span class="nf">adjust_indices</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">index</span><span class="p">,</span> <span class="n">value</span><span class="p">,</span> <span class="n">col_len</span><span class="p">):</span>
+        <span class="sd">&#39;&#39;&#39;</span>
+<span class="sd">        Adjust info indices after column modification.</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        index : slice, int, list, or ndarray</span>
+<span class="sd">            Element(s) of column to modify. This parameter can</span>
+<span class="sd">            be a single row number, a list of row numbers, an</span>
+<span class="sd">            ndarray of row numbers, a boolean ndarray (a mask),</span>
+<span class="sd">            or a column slice.</span>
+<span class="sd">        value : int, list, or ndarray</span>
+<span class="sd">            New value(s) to insert</span>
+<span class="sd">        col_len : int</span>
+<span class="sd">            Length of the column</span>
+<span class="sd">        &#39;&#39;&#39;</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="bp">self</span><span class="o">.</span><span class="n">indices</span><span class="p">:</span>
+            <span class="k">return</span>
+
+        <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">index</span><span class="p">,</span> <span class="nb">slice</span><span class="p">):</span>
+            <span class="c1"># run through each key in slice</span>
+            <span class="n">t</span> <span class="o">=</span> <span class="n">index</span><span class="o">.</span><span class="n">indices</span><span class="p">(</span><span class="n">col_len</span><span class="p">)</span>
+            <span class="n">keys</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="nb">range</span><span class="p">(</span><span class="o">*</span><span class="n">t</span><span class="p">))</span>
+        <span class="k">elif</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">index</span><span class="p">,</span> <span class="n">np</span><span class="o">.</span><span class="n">ndarray</span><span class="p">)</span> <span class="ow">and</span> <span class="n">index</span><span class="o">.</span><span class="n">dtype</span><span class="o">.</span><span class="n">kind</span> <span class="o">==</span> <span class="s1">&#39;b&#39;</span><span class="p">:</span>
+            <span class="c1"># boolean mask</span>
+            <span class="n">keys</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">where</span><span class="p">(</span><span class="n">index</span><span class="p">)[</span><span class="mi">0</span><span class="p">]</span>
+        <span class="k">else</span><span class="p">:</span>  <span class="c1"># single int</span>
+            <span class="n">keys</span> <span class="o">=</span> <span class="p">[</span><span class="n">index</span><span class="p">]</span>
+
+        <span class="n">value</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">atleast_1d</span><span class="p">(</span><span class="n">value</span><span class="p">)</span>  <span class="c1"># turn array(x) into array([x])</span>
+        <span class="k">if</span> <span class="n">value</span><span class="o">.</span><span class="n">size</span> <span class="o">==</span> <span class="mi">1</span><span class="p">:</span>
+            <span class="c1"># repeat single value</span>
+            <span class="n">value</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="n">value</span><span class="p">)</span> <span class="o">*</span> <span class="nb">len</span><span class="p">(</span><span class="n">keys</span><span class="p">)</span>
+
+        <span class="k">for</span> <span class="n">key</span><span class="p">,</span> <span class="n">val</span> <span class="ow">in</span> <span class="nb">zip</span><span class="p">(</span><span class="n">keys</span><span class="p">,</span> <span class="n">value</span><span class="p">):</span>
+            <span class="k">for</span> <span class="n">col_index</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">indices</span><span class="p">:</span>
+                <span class="n">col_index</span><span class="o">.</span><span class="n">replace</span><span class="p">(</span><span class="n">key</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">name</span><span class="p">,</span> <span class="n">val</span><span class="p">)</span></div>
+
+<div class="viewcode-block" id="BaseColumnInfo.slice_indices"><a class="viewcode-back" href="../../../api/astropy.utils.data_info.BaseColumnInfo.html#astropy.table.BaseColumnInfo.slice_indices">[docs]</a>    <span class="k">def</span> <span class="nf">slice_indices</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">col_slice</span><span class="p">,</span> <span class="n">item</span><span class="p">,</span> <span class="n">col_len</span><span class="p">):</span>
+        <span class="sd">&#39;&#39;&#39;</span>
+<span class="sd">        Given a sliced object, modify its indices</span>
+<span class="sd">        to correctly represent the slice.</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        col_slice : Column or mixin</span>
+<span class="sd">            Sliced object</span>
+<span class="sd">        item : slice, list, or ndarray</span>
+<span class="sd">            Slice used to create col_slice</span>
+<span class="sd">        col_len : int</span>
+<span class="sd">            Length of original object</span>
+<span class="sd">        &#39;&#39;&#39;</span>
+        <span class="kn">from</span> <span class="nn">..table.sorted_array</span> <span class="k">import</span> <span class="n">SortedArray</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="nb">getattr</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="s1">&#39;_copy_indices&#39;</span><span class="p">,</span> <span class="kc">True</span><span class="p">):</span>
+            <span class="c1"># Necessary because MaskedArray will perform a shallow copy</span>
+            <span class="n">col_slice</span><span class="o">.</span><span class="n">info</span><span class="o">.</span><span class="n">indices</span> <span class="o">=</span> <span class="p">[]</span>
+            <span class="k">return</span> <span class="n">col_slice</span>
+        <span class="k">elif</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">item</span><span class="p">,</span> <span class="nb">slice</span><span class="p">):</span>
+            <span class="n">col_slice</span><span class="o">.</span><span class="n">info</span><span class="o">.</span><span class="n">indices</span> <span class="o">=</span> <span class="p">[</span><span class="n">x</span><span class="p">[</span><span class="n">item</span><span class="p">]</span> <span class="k">for</span> <span class="n">x</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">indices</span><span class="p">]</span>
+        <span class="k">elif</span> <span class="bp">self</span><span class="o">.</span><span class="n">indices</span><span class="p">:</span>
+            <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">item</span><span class="p">,</span> <span class="n">np</span><span class="o">.</span><span class="n">ndarray</span><span class="p">)</span> <span class="ow">and</span> <span class="n">item</span><span class="o">.</span><span class="n">dtype</span><span class="o">.</span><span class="n">kind</span> <span class="o">==</span> <span class="s1">&#39;b&#39;</span><span class="p">:</span>
+                <span class="c1"># boolean mask</span>
+                <span class="n">item</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">where</span><span class="p">(</span><span class="n">item</span><span class="p">)[</span><span class="mi">0</span><span class="p">]</span>
+            <span class="n">threshold</span> <span class="o">=</span> <span class="mf">0.6</span>
+            <span class="c1"># Empirical testing suggests that recreating a BST/RBT index is</span>
+            <span class="c1"># more effective than relabelling when less than ~60% of</span>
+            <span class="c1"># the total number of rows are involved, and is in general</span>
+            <span class="c1"># more effective for SortedArray.</span>
+            <span class="n">small</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="n">item</span><span class="p">)</span> <span class="o">&lt;=</span> <span class="mf">0.6</span> <span class="o">*</span> <span class="n">col_len</span>
+            <span class="n">col_slice</span><span class="o">.</span><span class="n">info</span><span class="o">.</span><span class="n">indices</span> <span class="o">=</span> <span class="p">[]</span>
+            <span class="k">for</span> <span class="n">index</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">indices</span><span class="p">:</span>
+                <span class="k">if</span> <span class="n">small</span> <span class="ow">or</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">index</span><span class="p">,</span> <span class="n">SortedArray</span><span class="p">):</span>
+                    <span class="n">new_index</span> <span class="o">=</span> <span class="n">index</span><span class="o">.</span><span class="n">get_slice</span><span class="p">(</span><span class="n">col_slice</span><span class="p">,</span> <span class="n">item</span><span class="p">)</span>
+                <span class="k">else</span><span class="p">:</span>
+                    <span class="n">new_index</span> <span class="o">=</span> <span class="n">deepcopy</span><span class="p">(</span><span class="n">index</span><span class="p">)</span>
+                    <span class="n">new_index</span><span class="o">.</span><span class="n">replace_rows</span><span class="p">(</span><span class="n">item</span><span class="p">)</span>
+                <span class="n">col_slice</span><span class="o">.</span><span class="n">info</span><span class="o">.</span><span class="n">indices</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">new_index</span><span class="p">)</span>
+
+        <span class="k">return</span> <span class="n">col_slice</span></div>
+
+    <span class="nd">@staticmethod</span>
+<div class="viewcode-block" id="BaseColumnInfo.merge_cols_attributes"><a class="viewcode-back" href="../../../api/astropy.utils.data_info.BaseColumnInfo.html#astropy.table.BaseColumnInfo.merge_cols_attributes">[docs]</a>    <span class="k">def</span> <span class="nf">merge_cols_attributes</span><span class="p">(</span><span class="n">cols</span><span class="p">,</span> <span class="n">metadata_conflicts</span><span class="p">,</span> <span class="n">name</span><span class="p">,</span> <span class="n">attrs</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Utility method to merge and validate the attributes ``attrs`` for the</span>
+<span class="sd">        input table columns ``cols``.</span>
+
+<span class="sd">        Note that ``dtype`` and ``shape`` attributes are handled specially.</span>
+<span class="sd">        These should not be passed in ``attrs`` but will always be in the</span>
+<span class="sd">        returned dict of merged attributes.</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        cols : list</span>
+<span class="sd">            List of input Table column objects</span>
+<span class="sd">        metadata_conflicts : str (&#39;warn&#39;|&#39;error&#39;|&#39;silent&#39;)</span>
+<span class="sd">            How to handle metadata conflicts</span>
+<span class="sd">        name : str</span>
+<span class="sd">            Output column name</span>
+<span class="sd">        attrs : list</span>
+<span class="sd">            List of attribute names to be merged</span>
+
+<span class="sd">        Returns</span>
+<span class="sd">        -------</span>
+<span class="sd">        attrs : dict of merged attributes</span>
+
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="kn">from</span> <span class="nn">..table.np_utils</span> <span class="k">import</span> <span class="n">TableMergeError</span>
+
+        <span class="k">def</span> <span class="nf">warn_str_func</span><span class="p">(</span><span class="n">key</span><span class="p">,</span> <span class="n">left</span><span class="p">,</span> <span class="n">right</span><span class="p">):</span>
+            <span class="n">out</span> <span class="o">=</span> <span class="p">(</span><span class="s2">&quot;In merged column &#39;</span><span class="si">{}</span><span class="s2">&#39; the &#39;</span><span class="si">{}</span><span class="s2">&#39; attribute does not match &quot;</span>
+                   <span class="s2">&quot;(</span><span class="si">{}</span><span class="s2"> != </span><span class="si">{}</span><span class="s2">).  Using </span><span class="si">{}</span><span class="s2"> for merged output&quot;</span>
+                   <span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">name</span><span class="p">,</span> <span class="n">key</span><span class="p">,</span> <span class="n">left</span><span class="p">,</span> <span class="n">right</span><span class="p">,</span> <span class="n">right</span><span class="p">))</span>
+            <span class="k">return</span> <span class="n">out</span>
+
+        <span class="k">def</span> <span class="nf">getattrs</span><span class="p">(</span><span class="n">col</span><span class="p">):</span>
+            <span class="k">return</span> <span class="p">{</span><span class="n">attr</span><span class="p">:</span> <span class="nb">getattr</span><span class="p">(</span><span class="n">col</span><span class="o">.</span><span class="n">info</span><span class="p">,</span> <span class="n">attr</span><span class="p">)</span> <span class="k">for</span> <span class="n">attr</span> <span class="ow">in</span> <span class="n">attrs</span>
+                    <span class="k">if</span> <span class="nb">getattr</span><span class="p">(</span><span class="n">col</span><span class="o">.</span><span class="n">info</span><span class="p">,</span> <span class="n">attr</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">}</span>
+
+        <span class="n">out</span> <span class="o">=</span> <span class="n">getattrs</span><span class="p">(</span><span class="n">cols</span><span class="p">[</span><span class="mi">0</span><span class="p">])</span>
+        <span class="k">for</span> <span class="n">col</span> <span class="ow">in</span> <span class="n">cols</span><span class="p">[</span><span class="mi">1</span><span class="p">:]:</span>
+            <span class="n">out</span> <span class="o">=</span> <span class="n">metadata</span><span class="o">.</span><span class="n">merge</span><span class="p">(</span><span class="n">out</span><span class="p">,</span> <span class="n">getattrs</span><span class="p">(</span><span class="n">col</span><span class="p">),</span> <span class="n">metadata_conflicts</span><span class="o">=</span><span class="n">metadata_conflicts</span><span class="p">,</span>
+                                 <span class="n">warn_str_func</span><span class="o">=</span><span class="n">warn_str_func</span><span class="p">)</span>
+
+        <span class="c1"># Output dtype is the superset of all dtypes in in_cols</span>
+        <span class="n">out</span><span class="p">[</span><span class="s1">&#39;dtype&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">metadata</span><span class="o">.</span><span class="n">common_dtype</span><span class="p">(</span><span class="n">cols</span><span class="p">)</span>
+
+        <span class="c1"># Make sure all input shapes are the same</span>
+        <span class="n">uniq_shapes</span> <span class="o">=</span> <span class="nb">set</span><span class="p">(</span><span class="n">col</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">1</span><span class="p">:]</span> <span class="k">for</span> <span class="n">col</span> <span class="ow">in</span> <span class="n">cols</span><span class="p">)</span>
+        <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">uniq_shapes</span><span class="p">)</span> <span class="o">!=</span> <span class="mi">1</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="n">TableMergeError</span><span class="p">(</span><span class="s1">&#39;columns have different shapes&#39;</span><span class="p">)</span>
+        <span class="n">out</span><span class="p">[</span><span class="s1">&#39;shape&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">uniq_shapes</span><span class="o">.</span><span class="n">pop</span><span class="p">()</span>
+
+        <span class="k">return</span> <span class="n">out</span></div></div>
+
+
+<div class="viewcode-block" id="MixinInfo"><a class="viewcode-back" href="../../../api/astropy.utils.data_info.MixinInfo.html#astropy.table.MixinInfo">[docs]</a><span class="k">class</span> <span class="nc">MixinInfo</span><span class="p">(</span><span class="n">BaseColumnInfo</span><span class="p">):</span>
+
+    <span class="k">def</span> <span class="nf">__setattr__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">attr</span><span class="p">,</span> <span class="n">value</span><span class="p">):</span>
+        <span class="c1"># For mixin columns that live within a table, rename the column in the</span>
+        <span class="c1"># table when setting the name attribute.  This mirrors the same</span>
+        <span class="c1"># functionality in the BaseColumn class.</span>
+        <span class="k">if</span> <span class="n">attr</span> <span class="o">==</span> <span class="s1">&#39;name&#39;</span> <span class="ow">and</span> <span class="bp">self</span><span class="o">.</span><span class="n">parent_table</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="kn">from</span> <span class="nn">..table.np_utils</span> <span class="k">import</span> <span class="n">fix_column_name</span>
+            <span class="n">new_name</span> <span class="o">=</span> <span class="n">fix_column_name</span><span class="p">(</span><span class="n">value</span><span class="p">)</span>  <span class="c1"># Ensure col name is numpy compatible</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">parent_table</span><span class="o">.</span><span class="n">columns</span><span class="o">.</span><span class="n">_rename_column</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">name</span><span class="p">,</span> <span class="n">new_name</span><span class="p">)</span>
+
+        <span class="nb">super</span><span class="p">(</span><span class="n">MixinInfo</span><span class="p">,</span> <span class="bp">self</span><span class="p">)</span><span class="o">.</span><span class="n">__setattr__</span><span class="p">(</span><span class="n">attr</span><span class="p">,</span> <span class="n">value</span><span class="p">)</span></div>
+
+
+<div class="viewcode-block" id="ParentDtypeInfo"><a class="viewcode-back" href="../../../api/astropy.utils.data_info.ParentDtypeInfo.html#astropy.table.ParentDtypeInfo">[docs]</a><span class="k">class</span> <span class="nc">ParentDtypeInfo</span><span class="p">(</span><span class="n">MixinInfo</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;Mixin that gets info.dtype from parent&quot;&quot;&quot;</span>
+
+    <span class="n">attrs_from_parent</span> <span class="o">=</span> <span class="nb">set</span><span class="p">([</span><span class="s1">&#39;dtype&#39;</span><span class="p">])</span>  <span class="c1"># dtype and unit taken from parent</span></div>
+</pre></div>
+
+          </div>
+        </div>
+      </div>
+      <div class="sphinxsidebar" role="navigation" aria-label="main navigation">
+        <div class="sphinxsidebarwrapper"><h3>Page Contents</h3>
+
+
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+<footer class="footer">
+  <p class="pull-right"> &nbsp;
+    <a href="#">Back to Top</a></p>
+  <p>
+    &copy; Copyright 2011-2016, The Astropy Developers.<br/>
+    Created using <a href="http://sphinx.pocoo.org/">Sphinx</a> 1.5.6. &nbsp;
+    Last built 05 Jul 2017. <br/>
+  </p>
+</footer>
+  </body>
+</html>

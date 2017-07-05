@@ -1,0 +1,471 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <head>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    
+    <title>astropy.visualization.lupton_rgb &#8212; Astropy v3.0.dev19489</title>
+    
+    <link rel="stylesheet" href="../../../_static/bootstrap-astropy.css" type="text/css" />
+    <link rel="stylesheet" href="../../../_static/pygments.css" type="text/css" />
+    <link rel="stylesheet" href="../../../_static/gallery.css" type="text/css" />
+    
+    <script type="text/javascript">
+      var DOCUMENTATION_OPTIONS = {
+        URL_ROOT:    '../../../',
+        VERSION:     '3.0.dev19489',
+        COLLAPSE_INDEX: false,
+        FILE_SUFFIX: '.html',
+        HAS_SOURCE:  true,
+        SOURCELINK_SUFFIX: '.txt'
+      };
+    </script>
+    <script type="text/javascript" src="../../../_static/jquery.js"></script>
+    <script type="text/javascript" src="../../../_static/underscore.js"></script>
+    <script type="text/javascript" src="../../../_static/doctools.js"></script>
+    <script type="text/javascript" src="../../../_static/sidebar.js"></script>
+    <link rel="shortcut icon" href="../../../_static/astropy_logo.ico"/>
+    <link rel="index" title="Index" href="../../../genindex.html" />
+    <link rel="search" title="Search" href="../../../search.html" />
+<link href='https://fonts.googleapis.com/css?family=Source+Sans+Pro:200,600' rel='stylesheet' type='text/css'/>
+<script type="text/javascript" src="../../../_static/copybutton.js"></script>
+
+
+  </head>
+  <body role="document">
+<div class="topbar">
+  <a class="brand" title="Documentation Home" href="../../../index.html"><span id="logotext1">astro</span><span id="logotext2">py</span><span id="logotext3">:docs</span></a>
+  <ul>
+    <li><a class="homelink" title="Astropy Homepage" href="http://www.astropy.org"></a></li>
+    <li><a title="General Index" href="../../../genindex.html">Index</a></li>
+    <li><a title="Module Index" href="../../../py-modindex.html">Modules</a></li>
+    <li>
+      
+      
+<form action="../../../search.html" method="get">
+  <input type="text" name="q" placeholder="Search" />
+  <input type="hidden" name="check_keywords" value="yes" />
+  <input type="hidden" name="area" value="default" />
+</form>
+      
+    </li>
+  </ul>
+</div>
+
+<div class="related">
+    <h3>Navigation</h3>
+    <ul>
+      <li>
+	<a href="../../../index.html">Astropy v3.0.dev19489</a>
+	 &#187;
+      </li>
+      <li><a href="../../index.html" >Module code</a> &#187;</li>
+      <li><a href="../../astropy.html" accesskey="U">astropy</a> &#187;</li>
+      
+       
+    </ul>
+</div>
+  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          <div class="body" role="main">
+            
+  <h1>Source code for astropy.visualization.lupton_rgb</h1><div class="highlight"><pre>
+<span></span><span class="c1"># Licensed under a 3-clause BSD style license - see LICENSE.rst</span>
+<span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">Combine 3 images to produce a properly-scaled RGB image following Lupton et al. (2004).</span>
+
+<span class="sd">The three images must be aligned and have the same pixel scale and size.</span>
+
+<span class="sd">For details, see : http://adsabs.harvard.edu/abs/2004PASP..116..133L</span>
+<span class="sd">&quot;&quot;&quot;</span>
+<span class="kn">from</span> <span class="nn">__future__</span> <span class="k">import</span> <span class="n">absolute_import</span><span class="p">,</span> <span class="n">division</span><span class="p">,</span> <span class="n">print_function</span><span class="p">,</span> <span class="n">unicode_literals</span>
+
+<span class="kn">import</span> <span class="nn">numpy</span> <span class="k">as</span> <span class="nn">np</span>
+<span class="kn">from</span> <span class="nn">.</span> <span class="k">import</span> <span class="n">ZScaleInterval</span>
+
+
+<span class="n">__all__</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;make_lupton_rgb&#39;</span><span class="p">]</span>
+
+
+<span class="k">def</span> <span class="nf">compute_intensity</span><span class="p">(</span><span class="n">image_r</span><span class="p">,</span> <span class="n">image_g</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">image_b</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Return a naive total intensity from the red, blue, and green intensities.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    image_r : `~numpy.ndarray`</span>
+<span class="sd">        Intensity of image to be mapped to red; or total intensity if ``image_g``</span>
+<span class="sd">        and ``image_b`` are None.</span>
+<span class="sd">    image_g : `~numpy.ndarray`, optional</span>
+<span class="sd">        Intensity of image to be mapped to green.</span>
+<span class="sd">    image_b : `~numpy.ndarray`, optional</span>
+<span class="sd">        Intensity of image to be mapped to blue.</span>
+
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+<span class="sd">    intensity : `~numpy.ndarray`</span>
+<span class="sd">        Total intensity from the red, blue and green intensities, or ``image_r``</span>
+<span class="sd">        if green and blue images are not provided.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">if</span> <span class="n">image_g</span> <span class="ow">is</span> <span class="kc">None</span> <span class="ow">or</span> <span class="n">image_b</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="p">(</span><span class="n">image_g</span> <span class="ow">is</span> <span class="kc">None</span> <span class="ow">and</span> <span class="n">image_b</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">):</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;please specify either a single image &quot;</span>
+                             <span class="s2">&quot;or red, green, and blue images.&quot;</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">image_r</span>
+
+    <span class="n">intensity</span> <span class="o">=</span> <span class="p">(</span><span class="n">image_r</span> <span class="o">+</span> <span class="n">image_g</span> <span class="o">+</span> <span class="n">image_b</span><span class="p">)</span><span class="o">/</span><span class="mf">3.0</span>
+
+    <span class="c1"># Repack into whatever type was passed to us</span>
+    <span class="k">return</span> <span class="n">np</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span><span class="n">intensity</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="n">image_r</span><span class="o">.</span><span class="n">dtype</span><span class="p">)</span>
+
+
+<span class="k">class</span> <span class="nc">Mapping</span><span class="p">(</span><span class="nb">object</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Baseclass to map red, blue, green intensities into uint8 values.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    minimum : float or sequence(3)</span>
+<span class="sd">        Intensity that should be mapped to black (a scalar or array for R, G, B).</span>
+<span class="sd">    image : `~numpy.ndarray`, optional</span>
+<span class="sd">        An image used to calculate some parameters of some mappings.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">minimum</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">image</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_uint8Max</span> <span class="o">=</span> <span class="nb">float</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">iinfo</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">uint8</span><span class="p">)</span><span class="o">.</span><span class="n">max</span><span class="p">)</span>
+
+        <span class="k">try</span><span class="p">:</span>
+            <span class="nb">len</span><span class="p">(</span><span class="n">minimum</span><span class="p">)</span>
+        <span class="k">except</span> <span class="ne">TypeError</span><span class="p">:</span>
+            <span class="n">minimum</span> <span class="o">=</span> <span class="mi">3</span><span class="o">*</span><span class="p">[</span><span class="n">minimum</span><span class="p">]</span>
+        <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">minimum</span><span class="p">)</span> <span class="o">!=</span> <span class="mi">3</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;please provide 1 or 3 values for minimum.&quot;</span><span class="p">)</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">minimum</span> <span class="o">=</span> <span class="n">minimum</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_image</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span><span class="n">image</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">make_rgb_image</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">image_r</span><span class="p">,</span> <span class="n">image_g</span><span class="p">,</span> <span class="n">image_b</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Convert 3 arrays, image_r, image_g, and image_b into an 8-bit RGB image.</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        image_r : `~numpy.ndarray`</span>
+<span class="sd">            Image to map to red.</span>
+<span class="sd">        image_g : `~numpy.ndarray`</span>
+<span class="sd">            Image to map to green.</span>
+<span class="sd">        image_b : `~numpy.ndarray`</span>
+<span class="sd">            Image to map to blue.</span>
+
+<span class="sd">        Returns</span>
+<span class="sd">        -------</span>
+<span class="sd">        RGBimage : `~numpy.ndarray`</span>
+<span class="sd">            RGB (integer, 8-bits per channel) color image as an NxNx3 numpy array.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">image_r</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span><span class="n">image_r</span><span class="p">)</span>
+        <span class="n">image_g</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span><span class="n">image_g</span><span class="p">)</span>
+        <span class="n">image_b</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span><span class="n">image_b</span><span class="p">)</span>
+
+        <span class="k">if</span> <span class="p">(</span><span class="n">image_r</span><span class="o">.</span><span class="n">shape</span> <span class="o">!=</span> <span class="n">image_g</span><span class="o">.</span><span class="n">shape</span><span class="p">)</span> <span class="ow">or</span> <span class="p">(</span><span class="n">image_g</span><span class="o">.</span><span class="n">shape</span> <span class="o">!=</span> <span class="n">image_b</span><span class="o">.</span><span class="n">shape</span><span class="p">):</span>
+            <span class="n">msg</span> <span class="o">=</span> <span class="s2">&quot;The image shapes must match. r: </span><span class="si">{}</span><span class="s2">, g: </span><span class="si">{}</span><span class="s2"> b: </span><span class="si">{}</span><span class="s2">&quot;</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="n">msg</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">image_r</span><span class="o">.</span><span class="n">shape</span><span class="p">,</span> <span class="n">image_g</span><span class="o">.</span><span class="n">shape</span><span class="p">,</span> <span class="n">image_b</span><span class="o">.</span><span class="n">shape</span><span class="p">))</span>
+
+        <span class="k">return</span> <span class="n">np</span><span class="o">.</span><span class="n">dstack</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_convert_images_to_uint8</span><span class="p">(</span><span class="n">image_r</span><span class="p">,</span> <span class="n">image_g</span><span class="p">,</span> <span class="n">image_b</span><span class="p">))</span><span class="o">.</span><span class="n">astype</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">uint8</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">intensity</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">image_r</span><span class="p">,</span> <span class="n">image_g</span><span class="p">,</span> <span class="n">image_b</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Return the total intensity from the red, blue, and green intensities.</span>
+<span class="sd">        This is a naive computation, and may be overridden by subclasses.</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        image_r : `~numpy.ndarray`</span>
+<span class="sd">            Intensity of image to be mapped to red; or total intensity if</span>
+<span class="sd">            ``image_g`` and ``image_b`` are None.</span>
+<span class="sd">        image_g : `~numpy.ndarray`, optional</span>
+<span class="sd">            Intensity of image to be mapped to green.</span>
+<span class="sd">        image_b : `~numpy.ndarray`, optional</span>
+<span class="sd">            Intensity of image to be mapped to blue.</span>
+
+<span class="sd">        Returns</span>
+<span class="sd">        -------</span>
+<span class="sd">        intensity : `~numpy.ndarray`</span>
+<span class="sd">            Total intensity from the red, blue and green intensities, or</span>
+<span class="sd">            ``image_r`` if green and blue images are not provided.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="n">compute_intensity</span><span class="p">(</span><span class="n">image_r</span><span class="p">,</span> <span class="n">image_g</span><span class="p">,</span> <span class="n">image_b</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">map_intensity_to_uint8</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">I</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Return an array which, when multiplied by an image, returns that image</span>
+<span class="sd">        mapped to the range of a uint8, [0, 255] (but not converted to uint8).</span>
+
+<span class="sd">        The intensity is assumed to have had minimum subtracted (as that can be</span>
+<span class="sd">        done per-band).</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        I : `~numpy.ndarray`</span>
+<span class="sd">            Intensity to be mapped.</span>
+
+<span class="sd">        Returns</span>
+<span class="sd">        -------</span>
+<span class="sd">        mapped_I : `~numpy.ndarray`</span>
+<span class="sd">            ``I`` mapped to uint8</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">with</span> <span class="n">np</span><span class="o">.</span><span class="n">errstate</span><span class="p">(</span><span class="n">invalid</span><span class="o">=</span><span class="s1">&#39;ignore&#39;</span><span class="p">,</span> <span class="n">divide</span><span class="o">=</span><span class="s1">&#39;ignore&#39;</span><span class="p">):</span>
+            <span class="k">return</span> <span class="n">np</span><span class="o">.</span><span class="n">clip</span><span class="p">(</span><span class="n">I</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">_uint8Max</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">_convert_images_to_uint8</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">image_r</span><span class="p">,</span> <span class="n">image_g</span><span class="p">,</span> <span class="n">image_b</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Use the mapping to convert images image_r, image_g, and image_b to a triplet of uint8 images&quot;&quot;&quot;</span>
+        <span class="n">image_r</span> <span class="o">=</span> <span class="n">image_r</span> <span class="o">-</span> <span class="bp">self</span><span class="o">.</span><span class="n">minimum</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>  <span class="c1"># n.b. makes copy</span>
+        <span class="n">image_g</span> <span class="o">=</span> <span class="n">image_g</span> <span class="o">-</span> <span class="bp">self</span><span class="o">.</span><span class="n">minimum</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span>
+        <span class="n">image_b</span> <span class="o">=</span> <span class="n">image_b</span> <span class="o">-</span> <span class="bp">self</span><span class="o">.</span><span class="n">minimum</span><span class="p">[</span><span class="mi">2</span><span class="p">]</span>
+
+        <span class="n">fac</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">map_intensity_to_uint8</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">intensity</span><span class="p">(</span><span class="n">image_r</span><span class="p">,</span> <span class="n">image_g</span><span class="p">,</span> <span class="n">image_b</span><span class="p">))</span>
+
+        <span class="n">image_rgb</span> <span class="o">=</span> <span class="p">[</span><span class="n">image_r</span><span class="p">,</span> <span class="n">image_g</span><span class="p">,</span> <span class="n">image_b</span><span class="p">]</span>
+        <span class="k">for</span> <span class="n">c</span> <span class="ow">in</span> <span class="n">image_rgb</span><span class="p">:</span>
+            <span class="n">c</span> <span class="o">*=</span> <span class="n">fac</span>
+            <span class="n">c</span><span class="p">[</span><span class="n">c</span> <span class="o">&lt;</span> <span class="mi">0</span><span class="p">]</span> <span class="o">=</span> <span class="mi">0</span>                <span class="c1"># individual bands can still be &lt; 0, even if fac isn&#39;t</span>
+
+        <span class="n">pixmax</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_uint8Max</span>
+        <span class="n">r0</span><span class="p">,</span> <span class="n">g0</span><span class="p">,</span> <span class="n">b0</span> <span class="o">=</span> <span class="n">image_rgb</span>           <span class="c1"># copies -- could work row by row to minimise memory usage</span>
+
+        <span class="k">with</span> <span class="n">np</span><span class="o">.</span><span class="n">errstate</span><span class="p">(</span><span class="n">invalid</span><span class="o">=</span><span class="s1">&#39;ignore&#39;</span><span class="p">,</span> <span class="n">divide</span><span class="o">=</span><span class="s1">&#39;ignore&#39;</span><span class="p">):</span>  <span class="c1"># n.b. np.where can&#39;t and doesn&#39;t short-circuit</span>
+            <span class="k">for</span> <span class="n">i</span><span class="p">,</span> <span class="n">c</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="n">image_rgb</span><span class="p">):</span>
+                <span class="n">c</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">where</span><span class="p">(</span><span class="n">r0</span> <span class="o">&gt;</span> <span class="n">g0</span><span class="p">,</span>
+                             <span class="n">np</span><span class="o">.</span><span class="n">where</span><span class="p">(</span><span class="n">r0</span> <span class="o">&gt;</span> <span class="n">b0</span><span class="p">,</span>
+                                      <span class="n">np</span><span class="o">.</span><span class="n">where</span><span class="p">(</span><span class="n">r0</span> <span class="o">&gt;=</span> <span class="n">pixmax</span><span class="p">,</span> <span class="n">c</span><span class="o">*</span><span class="n">pixmax</span><span class="o">/</span><span class="n">r0</span><span class="p">,</span> <span class="n">c</span><span class="p">),</span>
+                                      <span class="n">np</span><span class="o">.</span><span class="n">where</span><span class="p">(</span><span class="n">b0</span> <span class="o">&gt;=</span> <span class="n">pixmax</span><span class="p">,</span> <span class="n">c</span><span class="o">*</span><span class="n">pixmax</span><span class="o">/</span><span class="n">b0</span><span class="p">,</span> <span class="n">c</span><span class="p">)),</span>
+                             <span class="n">np</span><span class="o">.</span><span class="n">where</span><span class="p">(</span><span class="n">g0</span> <span class="o">&gt;</span> <span class="n">b0</span><span class="p">,</span>
+                                      <span class="n">np</span><span class="o">.</span><span class="n">where</span><span class="p">(</span><span class="n">g0</span> <span class="o">&gt;=</span> <span class="n">pixmax</span><span class="p">,</span> <span class="n">c</span><span class="o">*</span><span class="n">pixmax</span><span class="o">/</span><span class="n">g0</span><span class="p">,</span> <span class="n">c</span><span class="p">),</span>
+                                      <span class="n">np</span><span class="o">.</span><span class="n">where</span><span class="p">(</span><span class="n">b0</span> <span class="o">&gt;=</span> <span class="n">pixmax</span><span class="p">,</span> <span class="n">c</span><span class="o">*</span><span class="n">pixmax</span><span class="o">/</span><span class="n">b0</span><span class="p">,</span> <span class="n">c</span><span class="p">)))</span><span class="o">.</span><span class="n">astype</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">uint8</span><span class="p">)</span>
+                <span class="n">c</span><span class="p">[</span><span class="n">c</span> <span class="o">&gt;</span> <span class="n">pixmax</span><span class="p">]</span> <span class="o">=</span> <span class="n">pixmax</span>
+
+                <span class="n">image_rgb</span><span class="p">[</span><span class="n">i</span><span class="p">]</span> <span class="o">=</span> <span class="n">c</span>
+
+        <span class="k">return</span> <span class="n">image_rgb</span>
+
+
+<span class="k">class</span> <span class="nc">LinearMapping</span><span class="p">(</span><span class="n">Mapping</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    A linear map map of red, blue, green intensities into uint8 values.</span>
+
+<span class="sd">    A linear stretch from [minimum, maximum].</span>
+<span class="sd">    If one or both are omitted use image min and/or max to set them.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    minimum : float</span>
+<span class="sd">        Intensity that should be mapped to black (a scalar or array for R, G, B).</span>
+<span class="sd">    maximum : float</span>
+<span class="sd">        Intensity that should be mapped to white (a scalar).</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">minimum</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">maximum</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">image</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+        <span class="k">if</span> <span class="n">minimum</span> <span class="ow">is</span> <span class="kc">None</span> <span class="ow">or</span> <span class="n">maximum</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="k">if</span> <span class="n">image</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+                <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;you must provide an image if you don&#39;t &quot;</span>
+                                 <span class="s2">&quot;set both minimum and maximum&quot;</span><span class="p">)</span>
+            <span class="k">if</span> <span class="n">minimum</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+                <span class="n">minimum</span> <span class="o">=</span> <span class="n">image</span><span class="o">.</span><span class="n">min</span><span class="p">()</span>
+            <span class="k">if</span> <span class="n">maximum</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+                <span class="n">maximum</span> <span class="o">=</span> <span class="n">image</span><span class="o">.</span><span class="n">max</span><span class="p">()</span>
+
+        <span class="n">Mapping</span><span class="o">.</span><span class="n">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">minimum</span><span class="o">=</span><span class="n">minimum</span><span class="p">,</span> <span class="n">image</span><span class="o">=</span><span class="n">image</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">maximum</span> <span class="o">=</span> <span class="n">maximum</span>
+
+        <span class="k">if</span> <span class="n">maximum</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_range</span> <span class="o">=</span> <span class="kc">None</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">if</span> <span class="n">maximum</span> <span class="o">==</span> <span class="n">minimum</span><span class="p">:</span>
+                <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;minimum and maximum values must not be equal&quot;</span><span class="p">)</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_range</span> <span class="o">=</span> <span class="nb">float</span><span class="p">(</span><span class="n">maximum</span> <span class="o">-</span> <span class="n">minimum</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">map_intensity_to_uint8</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">I</span><span class="p">):</span>
+        <span class="k">with</span> <span class="n">np</span><span class="o">.</span><span class="n">errstate</span><span class="p">(</span><span class="n">invalid</span><span class="o">=</span><span class="s1">&#39;ignore&#39;</span><span class="p">,</span> <span class="n">divide</span><span class="o">=</span><span class="s1">&#39;ignore&#39;</span><span class="p">):</span>  <span class="c1"># n.b. np.where can&#39;t and doesn&#39;t short-circuit</span>
+            <span class="k">return</span> <span class="n">np</span><span class="o">.</span><span class="n">where</span><span class="p">(</span><span class="n">I</span> <span class="o">&lt;=</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span>
+                            <span class="n">np</span><span class="o">.</span><span class="n">where</span><span class="p">(</span><span class="n">I</span> <span class="o">&gt;=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_range</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">_uint8Max</span><span class="o">/</span><span class="n">I</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">_uint8Max</span><span class="o">/</span><span class="bp">self</span><span class="o">.</span><span class="n">_range</span><span class="p">))</span>
+
+
+<span class="k">class</span> <span class="nc">AsinhMapping</span><span class="p">(</span><span class="n">Mapping</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    A mapping for an asinh stretch (preserving colours independent of brightness)</span>
+
+<span class="sd">    x = asinh(Q (I - minimum)/stretch)/Q</span>
+
+<span class="sd">    This reduces to a linear stretch if Q == 0</span>
+
+<span class="sd">    See http://adsabs.harvard.edu/abs/2004PASP..116..133L</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+
+<span class="sd">    minimum : float</span>
+<span class="sd">        Intensity that should be mapped to black (a scalar or array for R, G, B).</span>
+<span class="sd">    stretch : float</span>
+<span class="sd">        The linear stretch of the image.</span>
+<span class="sd">    Q : float</span>
+<span class="sd">        The asinh softening parameter.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">minimum</span><span class="p">,</span> <span class="n">stretch</span><span class="p">,</span> <span class="n">Q</span><span class="o">=</span><span class="mi">8</span><span class="p">):</span>
+        <span class="n">Mapping</span><span class="o">.</span><span class="n">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">minimum</span><span class="p">)</span>
+
+        <span class="n">epsilon</span> <span class="o">=</span> <span class="mf">1.0</span><span class="o">/</span><span class="mi">2</span><span class="o">**</span><span class="mi">23</span>            <span class="c1"># 32bit floating point machine epsilon; sys.float_info.epsilon is 64bit</span>
+        <span class="k">if</span> <span class="nb">abs</span><span class="p">(</span><span class="n">Q</span><span class="p">)</span> <span class="o">&lt;</span> <span class="n">epsilon</span><span class="p">:</span>
+            <span class="n">Q</span> <span class="o">=</span> <span class="mf">0.1</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">Qmax</span> <span class="o">=</span> <span class="mi">1</span><span class="n">e10</span>
+            <span class="k">if</span> <span class="n">Q</span> <span class="o">&gt;</span> <span class="n">Qmax</span><span class="p">:</span>
+                <span class="n">Q</span> <span class="o">=</span> <span class="n">Qmax</span>
+
+        <span class="n">frac</span> <span class="o">=</span> <span class="mf">0.1</span>                  <span class="c1"># gradient estimated using frac*stretch is _slope</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_slope</span> <span class="o">=</span> <span class="n">frac</span><span class="o">*</span><span class="bp">self</span><span class="o">.</span><span class="n">_uint8Max</span><span class="o">/</span><span class="n">np</span><span class="o">.</span><span class="n">arcsinh</span><span class="p">(</span><span class="n">frac</span><span class="o">*</span><span class="n">Q</span><span class="p">)</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">_soften</span> <span class="o">=</span> <span class="n">Q</span><span class="o">/</span><span class="nb">float</span><span class="p">(</span><span class="n">stretch</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">map_intensity_to_uint8</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">I</span><span class="p">):</span>
+        <span class="k">with</span> <span class="n">np</span><span class="o">.</span><span class="n">errstate</span><span class="p">(</span><span class="n">invalid</span><span class="o">=</span><span class="s1">&#39;ignore&#39;</span><span class="p">,</span> <span class="n">divide</span><span class="o">=</span><span class="s1">&#39;ignore&#39;</span><span class="p">):</span>  <span class="c1"># n.b. np.where can&#39;t and doesn&#39;t short-circuit</span>
+            <span class="k">return</span> <span class="n">np</span><span class="o">.</span><span class="n">where</span><span class="p">(</span><span class="n">I</span> <span class="o">&lt;=</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="n">np</span><span class="o">.</span><span class="n">arcsinh</span><span class="p">(</span><span class="n">I</span><span class="o">*</span><span class="bp">self</span><span class="o">.</span><span class="n">_soften</span><span class="p">)</span><span class="o">*</span><span class="bp">self</span><span class="o">.</span><span class="n">_slope</span><span class="o">/</span><span class="n">I</span><span class="p">)</span>
+
+
+<span class="k">class</span> <span class="nc">AsinhZScaleMapping</span><span class="p">(</span><span class="n">AsinhMapping</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    A mapping for an asinh stretch, estimating the linear stretch by zscale.</span>
+
+<span class="sd">    x = asinh(Q (I - z1)/(z2 - z1))/Q</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    image1 : `~numpy.ndarray` or a list of arrays</span>
+<span class="sd">        The image to analyse, or a list of 3 images to be converted to</span>
+<span class="sd">        an intensity image.</span>
+<span class="sd">    image2 : `~numpy.ndarray`, optional</span>
+<span class="sd">        the second image to analyse (must be specified with image3).</span>
+<span class="sd">    image3 : `~numpy.ndarray`, optional</span>
+<span class="sd">        the third image to analyse (must be specified with image2).</span>
+<span class="sd">    Q : float, optional</span>
+<span class="sd">        The asinh softening parameter. Default is 8.</span>
+<span class="sd">    pedestal : float or sequence(3), optional</span>
+<span class="sd">        The value, or array of 3 values, to subtract from the images; or None.</span>
+
+<span class="sd">    Notes</span>
+<span class="sd">    -----</span>
+<span class="sd">    pedestal, if not None, is removed from the images when calculating the</span>
+<span class="sd">    zscale stretch, and added back into Mapping.minimum[]</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">image1</span><span class="p">,</span> <span class="n">image2</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">image3</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">Q</span><span class="o">=</span><span class="mi">8</span><span class="p">,</span> <span class="n">pedestal</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+
+        <span class="k">if</span> <span class="n">image2</span> <span class="ow">is</span> <span class="kc">None</span> <span class="ow">or</span> <span class="n">image3</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="k">if</span> <span class="ow">not</span> <span class="p">(</span><span class="n">image2</span> <span class="ow">is</span> <span class="kc">None</span> <span class="ow">and</span> <span class="n">image3</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">):</span>
+                <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;please specify either a single image &quot;</span>
+                                 <span class="s2">&quot;or three images.&quot;</span><span class="p">)</span>
+            <span class="n">image</span> <span class="o">=</span> <span class="p">[</span><span class="n">image1</span><span class="p">]</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">image</span> <span class="o">=</span> <span class="p">[</span><span class="n">image1</span><span class="p">,</span> <span class="n">image2</span><span class="p">,</span> <span class="n">image3</span><span class="p">]</span>
+
+        <span class="k">if</span> <span class="n">pedestal</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="k">try</span><span class="p">:</span>
+                <span class="nb">len</span><span class="p">(</span><span class="n">pedestal</span><span class="p">)</span>
+            <span class="k">except</span> <span class="ne">TypeError</span><span class="p">:</span>
+                <span class="n">pedestal</span> <span class="o">=</span> <span class="mi">3</span><span class="o">*</span><span class="p">[</span><span class="n">pedestal</span><span class="p">]</span>
+
+            <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">pedestal</span><span class="p">)</span> <span class="o">!=</span> <span class="mi">3</span><span class="p">:</span>
+                <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;please provide 1 or 3 pedestals.&quot;</span><span class="p">)</span>
+
+            <span class="n">image</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="n">image</span><span class="p">)</span>        <span class="c1"># needs to be mutable</span>
+            <span class="k">for</span> <span class="n">i</span><span class="p">,</span> <span class="n">im</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="n">image</span><span class="p">):</span>
+                <span class="k">if</span> <span class="n">pedestal</span><span class="p">[</span><span class="n">i</span><span class="p">]</span> <span class="o">!=</span> <span class="mf">0.0</span><span class="p">:</span>
+                    <span class="n">image</span><span class="p">[</span><span class="n">i</span><span class="p">]</span> <span class="o">=</span> <span class="n">im</span> <span class="o">-</span> <span class="n">pedestal</span><span class="p">[</span><span class="n">i</span><span class="p">]</span>  <span class="c1"># n.b. a copy</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">pedestal</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="n">image</span><span class="p">)</span><span class="o">*</span><span class="p">[</span><span class="mf">0.0</span><span class="p">]</span>
+
+        <span class="n">image</span> <span class="o">=</span> <span class="n">compute_intensity</span><span class="p">(</span><span class="o">*</span><span class="n">image</span><span class="p">)</span>
+
+        <span class="n">zscale_limits</span> <span class="o">=</span> <span class="n">ZScaleInterval</span><span class="p">()</span><span class="o">.</span><span class="n">get_limits</span><span class="p">(</span><span class="n">image</span><span class="p">)</span>
+        <span class="n">zscale</span> <span class="o">=</span> <span class="n">LinearMapping</span><span class="p">(</span><span class="o">*</span><span class="n">zscale_limits</span><span class="p">,</span> <span class="n">image</span><span class="o">=</span><span class="n">image</span><span class="p">)</span>
+        <span class="n">stretch</span> <span class="o">=</span> <span class="n">zscale</span><span class="o">.</span><span class="n">maximum</span> <span class="o">-</span> <span class="n">zscale</span><span class="o">.</span><span class="n">minimum</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>  <span class="c1"># zscale.minimum is always a triple</span>
+        <span class="n">minimum</span> <span class="o">=</span> <span class="n">zscale</span><span class="o">.</span><span class="n">minimum</span>
+
+        <span class="k">for</span> <span class="n">i</span><span class="p">,</span> <span class="n">level</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="n">pedestal</span><span class="p">):</span>
+            <span class="n">minimum</span><span class="p">[</span><span class="n">i</span><span class="p">]</span> <span class="o">+=</span> <span class="n">level</span>
+
+        <span class="n">AsinhMapping</span><span class="o">.</span><span class="n">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">minimum</span><span class="p">,</span> <span class="n">stretch</span><span class="p">,</span> <span class="n">Q</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_image</span> <span class="o">=</span> <span class="n">image</span>
+
+
+<div class="viewcode-block" id="make_lupton_rgb"><a class="viewcode-back" href="../../../api/astropy.visualization.make_lupton_rgb.html#astropy.visualization.make_lupton_rgb">[docs]</a><span class="k">def</span> <span class="nf">make_lupton_rgb</span><span class="p">(</span><span class="n">image_r</span><span class="p">,</span> <span class="n">image_g</span><span class="p">,</span> <span class="n">image_b</span><span class="p">,</span> <span class="n">minimum</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span> <span class="n">stretch</span><span class="o">=</span><span class="mi">5</span><span class="p">,</span> <span class="n">Q</span><span class="o">=</span><span class="mi">8</span><span class="p">,</span>
+                    <span class="n">filename</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Return a Red/Green/Blue color image from up to 3 images using an asinh stretch.</span>
+<span class="sd">    The input images can be int or float, and in any range or bit-depth.</span>
+
+<span class="sd">    For a more detailed look at the use of this method, see the document</span>
+<span class="sd">    :ref:`astropy-visualization-rgb`.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+
+<span class="sd">    image_r : `~numpy.ndarray`</span>
+<span class="sd">        Image to map to red.</span>
+<span class="sd">    image_g : `~numpy.ndarray`</span>
+<span class="sd">        Image to map to green.</span>
+<span class="sd">    image_b : `~numpy.ndarray`</span>
+<span class="sd">        Image to map to blue.</span>
+<span class="sd">    minimum : float</span>
+<span class="sd">        Intensity that should be mapped to black (a scalar or array for R, G, B).</span>
+<span class="sd">    stretch : float</span>
+<span class="sd">        The linear stretch of the image.</span>
+<span class="sd">    Q : float</span>
+<span class="sd">        The asinh softening parameter.</span>
+<span class="sd">    filename: str</span>
+<span class="sd">        Write the resulting RGB image to a file (file type determined</span>
+<span class="sd">        from extension).</span>
+
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+<span class="sd">    rgb : `~numpy.ndarray`</span>
+<span class="sd">        RGB (integer, 8-bits per channel) color image as an NxNx3 numpy array.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">asinhMap</span> <span class="o">=</span> <span class="n">AsinhMapping</span><span class="p">(</span><span class="n">minimum</span><span class="p">,</span> <span class="n">stretch</span><span class="p">,</span> <span class="n">Q</span><span class="p">)</span>
+    <span class="n">rgb</span> <span class="o">=</span> <span class="n">asinhMap</span><span class="o">.</span><span class="n">make_rgb_image</span><span class="p">(</span><span class="n">image_r</span><span class="p">,</span> <span class="n">image_g</span><span class="p">,</span> <span class="n">image_b</span><span class="p">)</span>
+
+    <span class="k">if</span> <span class="n">filename</span><span class="p">:</span>
+        <span class="kn">import</span> <span class="nn">matplotlib.image</span>
+        <span class="n">matplotlib</span><span class="o">.</span><span class="n">image</span><span class="o">.</span><span class="n">imsave</span><span class="p">(</span><span class="n">filename</span><span class="p">,</span> <span class="n">rgb</span><span class="p">,</span> <span class="n">origin</span><span class="o">=</span><span class="s1">&#39;lower&#39;</span><span class="p">)</span>
+
+    <span class="k">return</span> <span class="n">rgb</span></div>
+</pre></div>
+
+          </div>
+        </div>
+      </div>
+      <div class="sphinxsidebar" role="navigation" aria-label="main navigation">
+        <div class="sphinxsidebarwrapper"><h3>Page Contents</h3>
+
+
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+<footer class="footer">
+  <p class="pull-right"> &nbsp;
+    <a href="#">Back to Top</a></p>
+  <p>
+    &copy; Copyright 2011-2016, The Astropy Developers.<br/>
+    Created using <a href="http://sphinx.pocoo.org/">Sphinx</a> 1.5.6. &nbsp;
+    Last built 05 Jul 2017. <br/>
+  </p>
+</footer>
+  </body>
+</html>

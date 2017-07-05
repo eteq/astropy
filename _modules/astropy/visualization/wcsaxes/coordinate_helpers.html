@@ -1,0 +1,877 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <head>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    
+    <title>astropy.visualization.wcsaxes.coordinate_helpers &#8212; Astropy v3.0.dev19489</title>
+    
+    <link rel="stylesheet" href="../../../../_static/bootstrap-astropy.css" type="text/css" />
+    <link rel="stylesheet" href="../../../../_static/pygments.css" type="text/css" />
+    <link rel="stylesheet" href="../../../../_static/gallery.css" type="text/css" />
+    
+    <script type="text/javascript">
+      var DOCUMENTATION_OPTIONS = {
+        URL_ROOT:    '../../../../',
+        VERSION:     '3.0.dev19489',
+        COLLAPSE_INDEX: false,
+        FILE_SUFFIX: '.html',
+        HAS_SOURCE:  true,
+        SOURCELINK_SUFFIX: '.txt'
+      };
+    </script>
+    <script type="text/javascript" src="../../../../_static/jquery.js"></script>
+    <script type="text/javascript" src="../../../../_static/underscore.js"></script>
+    <script type="text/javascript" src="../../../../_static/doctools.js"></script>
+    <script type="text/javascript" src="../../../../_static/sidebar.js"></script>
+    <link rel="shortcut icon" href="../../../../_static/astropy_logo.ico"/>
+    <link rel="index" title="Index" href="../../../../genindex.html" />
+    <link rel="search" title="Search" href="../../../../search.html" />
+<link href='https://fonts.googleapis.com/css?family=Source+Sans+Pro:200,600' rel='stylesheet' type='text/css'/>
+<script type="text/javascript" src="../../../../_static/copybutton.js"></script>
+
+
+  </head>
+  <body role="document">
+<div class="topbar">
+  <a class="brand" title="Documentation Home" href="../../../../index.html"><span id="logotext1">astro</span><span id="logotext2">py</span><span id="logotext3">:docs</span></a>
+  <ul>
+    <li><a class="homelink" title="Astropy Homepage" href="http://www.astropy.org"></a></li>
+    <li><a title="General Index" href="../../../../genindex.html">Index</a></li>
+    <li><a title="Module Index" href="../../../../py-modindex.html">Modules</a></li>
+    <li>
+      
+      
+<form action="../../../../search.html" method="get">
+  <input type="text" name="q" placeholder="Search" />
+  <input type="hidden" name="check_keywords" value="yes" />
+  <input type="hidden" name="area" value="default" />
+</form>
+      
+    </li>
+  </ul>
+</div>
+
+<div class="related">
+    <h3>Navigation</h3>
+    <ul>
+      <li>
+	<a href="../../../../index.html">Astropy v3.0.dev19489</a>
+	 &#187;
+      </li>
+      <li><a href="../../../index.html" >Module code</a> &#187;</li>
+      <li><a href="../../../astropy.html" >astropy</a> &#187;</li>
+      <li><a href="../wcsaxes.html" accesskey="U">astropy.visualization.wcsaxes</a> &#187;</li>
+      
+       
+    </ul>
+</div>
+  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          <div class="body" role="main">
+            
+  <h1>Source code for astropy.visualization.wcsaxes.coordinate_helpers</h1><div class="highlight"><pre>
+<span></span><span class="c1"># Licensed under a 3-clause BSD style license - see LICENSE.rst</span>
+
+<span class="kn">from</span> <span class="nn">__future__</span> <span class="k">import</span> <span class="n">print_function</span><span class="p">,</span> <span class="n">division</span><span class="p">,</span> <span class="n">absolute_import</span>
+
+<span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">This file defines the classes used to represent a &#39;coordinate&#39;, which includes</span>
+<span class="sd">axes, ticks, tick labels, and grid lines.</span>
+<span class="sd">&quot;&quot;&quot;</span>
+
+<span class="kn">import</span> <span class="nn">numpy</span> <span class="k">as</span> <span class="nn">np</span>
+
+<span class="kn">from</span> <span class="nn">matplotlib.ticker</span> <span class="k">import</span> <span class="n">Formatter</span>
+<span class="kn">from</span> <span class="nn">matplotlib.transforms</span> <span class="k">import</span> <span class="n">Affine2D</span><span class="p">,</span> <span class="n">ScaledTranslation</span>
+<span class="kn">from</span> <span class="nn">matplotlib.patches</span> <span class="k">import</span> <span class="n">PathPatch</span>
+<span class="kn">from</span> <span class="nn">matplotlib</span> <span class="k">import</span> <span class="n">rcParams</span>
+
+<span class="kn">from</span> <span class="nn">...</span> <span class="k">import</span> <span class="n">units</span> <span class="k">as</span> <span class="n">u</span>
+<span class="kn">from</span> <span class="nn">...extern</span> <span class="k">import</span> <span class="n">six</span>
+
+<span class="kn">from</span> <span class="nn">.formatter_locator</span> <span class="k">import</span> <span class="n">AngleFormatterLocator</span><span class="p">,</span> <span class="n">ScalarFormatterLocator</span>
+<span class="kn">from</span> <span class="nn">.ticks</span> <span class="k">import</span> <span class="n">Ticks</span>
+<span class="kn">from</span> <span class="nn">.ticklabels</span> <span class="k">import</span> <span class="n">TickLabels</span>
+<span class="kn">from</span> <span class="nn">.axislabels</span> <span class="k">import</span> <span class="n">AxisLabels</span>
+<span class="kn">from</span> <span class="nn">.grid_paths</span> <span class="k">import</span> <span class="n">get_lon_lat_path</span><span class="p">,</span> <span class="n">get_gridline_path</span>
+
+<span class="n">__all__</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;CoordinateHelper&#39;</span><span class="p">]</span>
+
+
+<span class="k">def</span> <span class="nf">wrap_angle_at</span><span class="p">(</span><span class="n">values</span><span class="p">,</span> <span class="n">coord_wrap</span><span class="p">):</span>
+    <span class="c1"># On ARM processors, np.mod emits warnings if there are NaN values in the</span>
+    <span class="c1"># array, although this doesn&#39;t seem to happen on other processors.</span>
+    <span class="k">with</span> <span class="n">np</span><span class="o">.</span><span class="n">errstate</span><span class="p">(</span><span class="n">invalid</span><span class="o">=</span><span class="s1">&#39;ignore&#39;</span><span class="p">):</span>
+        <span class="k">return</span> <span class="n">np</span><span class="o">.</span><span class="n">mod</span><span class="p">(</span><span class="n">values</span> <span class="o">-</span> <span class="n">coord_wrap</span><span class="p">,</span> <span class="mf">360.</span><span class="p">)</span> <span class="o">-</span> <span class="p">(</span><span class="mf">360.</span> <span class="o">-</span> <span class="n">coord_wrap</span><span class="p">)</span>
+
+
+<div class="viewcode-block" id="CoordinateHelper"><a class="viewcode-back" href="../../../../api/astropy.visualization.wcsaxes.CoordinateHelper.html#astropy.visualization.wcsaxes.CoordinateHelper">[docs]</a><span class="k">class</span> <span class="nc">CoordinateHelper</span><span class="p">(</span><span class="nb">object</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Helper class to control one of the coordinates in the</span>
+<span class="sd">    :class:`~astropy.visualization.wcsaxes.WCSAxes`.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    parent_axes : :class:`~astropy.visualization.wcsaxes.WCSAxes`</span>
+<span class="sd">        The axes the coordinate helper belongs to.</span>
+<span class="sd">    parent_map : :class:`~astropy.visualization.wcsaxes.CoordinatesMap`</span>
+<span class="sd">        The :class:`~astropy.visualization.wcsaxes.CoordinatesMap` object this</span>
+<span class="sd">        coordinate belongs to.</span>
+<span class="sd">    transform : `~matplotlib.transforms.Transform`</span>
+<span class="sd">        The transform corresponding to this coordinate system.</span>
+<span class="sd">    coord_index : int</span>
+<span class="sd">        The index of this coordinate in the</span>
+<span class="sd">        :class:`~astropy.visualization.wcsaxes.CoordinatesMap`.</span>
+<span class="sd">    coord_type : {&#39;longitude&#39;, &#39;latitude&#39;, &#39;scalar&#39;}</span>
+<span class="sd">        The type of this coordinate, which is used to determine the wrapping and</span>
+<span class="sd">        boundary behavior of coordinates. Longitudes wrap at ``coord_wrap``,</span>
+<span class="sd">        latitudes have to be in the range -90 to 90, and scalars are unbounded</span>
+<span class="sd">        and do not wrap.</span>
+<span class="sd">    coord_unit : `~astropy.units.Unit`</span>
+<span class="sd">        The unit that this coordinate is in given the output of transform.</span>
+<span class="sd">    coord_wrap : float</span>
+<span class="sd">        The angle at which the longitude wraps (defaults to 360)</span>
+<span class="sd">    frame : `~astropy.visualization.wcsaxes.frame.BaseFrame`</span>
+<span class="sd">        The frame of the :class:`~astropy.visualization.wcsaxes.WCSAxes`.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">parent_axes</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">parent_map</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">transform</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">coord_index</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+                 <span class="n">coord_type</span><span class="o">=</span><span class="s1">&#39;scalar&#39;</span><span class="p">,</span> <span class="n">coord_unit</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">coord_wrap</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">frame</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+
+        <span class="c1"># Keep a reference to the parent axes and the transform</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">parent_axes</span> <span class="o">=</span> <span class="n">parent_axes</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">parent_map</span> <span class="o">=</span> <span class="n">parent_map</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">transform</span> <span class="o">=</span> <span class="n">transform</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">coord_index</span> <span class="o">=</span> <span class="n">coord_index</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">coord_unit</span> <span class="o">=</span> <span class="n">coord_unit</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">frame</span> <span class="o">=</span> <span class="n">frame</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">set_coord_type</span><span class="p">(</span><span class="n">coord_type</span><span class="p">,</span> <span class="n">coord_wrap</span><span class="p">)</span>
+
+        <span class="c1"># Initialize ticks</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">dpi_transform</span> <span class="o">=</span> <span class="n">Affine2D</span><span class="p">()</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">offset_transform</span> <span class="o">=</span> <span class="n">ScaledTranslation</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">dpi_transform</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">ticks</span> <span class="o">=</span> <span class="n">Ticks</span><span class="p">(</span><span class="n">transform</span><span class="o">=</span><span class="n">parent_axes</span><span class="o">.</span><span class="n">transData</span> <span class="o">+</span> <span class="bp">self</span><span class="o">.</span><span class="n">offset_transform</span><span class="p">)</span>
+
+        <span class="c1"># Initialize tick labels</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">ticklabels</span> <span class="o">=</span> <span class="n">TickLabels</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">frame</span><span class="p">,</span>
+                                     <span class="n">transform</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>  <span class="c1"># display coordinates</span>
+                                     <span class="n">figure</span><span class="o">=</span><span class="n">parent_axes</span><span class="o">.</span><span class="n">get_figure</span><span class="p">())</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">ticks</span><span class="o">.</span><span class="n">display_minor_ticks</span><span class="p">(</span><span class="kc">False</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">minor_frequency</span> <span class="o">=</span> <span class="mi">5</span>
+
+        <span class="c1"># Initialize axis labels</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">axislabels</span> <span class="o">=</span> <span class="n">AxisLabels</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">frame</span><span class="p">,</span>
+                                     <span class="n">transform</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>  <span class="c1"># display coordinates</span>
+                                     <span class="n">figure</span><span class="o">=</span><span class="n">parent_axes</span><span class="o">.</span><span class="n">get_figure</span><span class="p">())</span>
+
+        <span class="c1"># Initialize container for the grid lines</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">grid_lines</span> <span class="o">=</span> <span class="p">[]</span>
+
+        <span class="c1"># Initialize grid style. Take defaults from matplotlib.rcParams.</span>
+        <span class="c1"># Based on matplotlib.axis.YTick._get_gridline.</span>
+        <span class="c1">#</span>
+        <span class="c1"># Matplotlib&#39;s gridlines use Line2D, but ours use PathPatch.</span>
+        <span class="c1"># Patches take a slightly different format of linestyle argument.</span>
+        <span class="n">lines_to_patches_linestyle</span> <span class="o">=</span> <span class="p">{</span><span class="s1">&#39;-&#39;</span><span class="p">:</span> <span class="s1">&#39;solid&#39;</span><span class="p">,</span>
+                                      <span class="s1">&#39;--&#39;</span><span class="p">:</span> <span class="s1">&#39;dashed&#39;</span><span class="p">,</span>
+                                      <span class="s1">&#39;-.&#39;</span><span class="p">:</span> <span class="s1">&#39;dashdot&#39;</span><span class="p">,</span>
+                                      <span class="s1">&#39;:&#39;</span><span class="p">:</span> <span class="s1">&#39;dotted&#39;</span><span class="p">,</span>
+                                      <span class="s1">&#39;none&#39;</span><span class="p">:</span> <span class="s1">&#39;none&#39;</span><span class="p">,</span>
+                                      <span class="s1">&#39;None&#39;</span><span class="p">:</span> <span class="s1">&#39;none&#39;</span><span class="p">,</span>
+                                      <span class="s1">&#39; &#39;</span><span class="p">:</span> <span class="s1">&#39;none&#39;</span><span class="p">,</span>
+                                      <span class="s1">&#39;&#39;</span><span class="p">:</span> <span class="s1">&#39;none&#39;</span><span class="p">}</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">grid_lines_kwargs</span> <span class="o">=</span> <span class="p">{</span><span class="s1">&#39;visible&#39;</span><span class="p">:</span> <span class="kc">False</span><span class="p">,</span>
+                                  <span class="s1">&#39;facecolor&#39;</span><span class="p">:</span> <span class="s1">&#39;none&#39;</span><span class="p">,</span>
+                                  <span class="s1">&#39;edgecolor&#39;</span><span class="p">:</span> <span class="n">rcParams</span><span class="p">[</span><span class="s1">&#39;grid.color&#39;</span><span class="p">],</span>
+                                  <span class="s1">&#39;linestyle&#39;</span><span class="p">:</span> <span class="n">lines_to_patches_linestyle</span><span class="p">[</span><span class="n">rcParams</span><span class="p">[</span><span class="s1">&#39;grid.linestyle&#39;</span><span class="p">]],</span>
+                                  <span class="s1">&#39;linewidth&#39;</span><span class="p">:</span> <span class="n">rcParams</span><span class="p">[</span><span class="s1">&#39;grid.linewidth&#39;</span><span class="p">],</span>
+                                  <span class="s1">&#39;alpha&#39;</span><span class="p">:</span> <span class="n">rcParams</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;grid.alpha&#39;</span><span class="p">,</span> <span class="mf">1.0</span><span class="p">),</span>
+                                  <span class="s1">&#39;transform&#39;</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">parent_axes</span><span class="o">.</span><span class="n">transData</span><span class="p">}</span>
+
+<div class="viewcode-block" id="CoordinateHelper.grid"><a class="viewcode-back" href="../../../../api/astropy.visualization.wcsaxes.CoordinateHelper.html#astropy.visualization.wcsaxes.CoordinateHelper.grid">[docs]</a>    <span class="k">def</span> <span class="nf">grid</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">draw_grid</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">grid_type</span><span class="o">=</span><span class="s1">&#39;lines&#39;</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Plot grid lines for this coordinate.</span>
+
+<span class="sd">        Standard matplotlib appearance options (color, alpha, etc.) can be</span>
+<span class="sd">        passed as keyword arguments.</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        draw_grid : bool</span>
+<span class="sd">            Whether to show the gridlines</span>
+<span class="sd">        grid_type : { &#39;lines&#39; | &#39;contours&#39; }</span>
+<span class="sd">            Whether to plot the contours by determining the grid lines in</span>
+<span class="sd">            world coordinates and then plotting them in world coordinates</span>
+<span class="sd">            (``&#39;lines&#39;``) or by determining the world coordinates at many</span>
+<span class="sd">            positions in the image and then drawing contours</span>
+<span class="sd">            (``&#39;contours&#39;``). The first is recommended for 2-d images, while</span>
+<span class="sd">            for 3-d (or higher dimensional) cubes, the ``&#39;contours&#39;`` option</span>
+<span class="sd">            is recommended.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+
+        <span class="k">if</span> <span class="n">grid_type</span> <span class="ow">in</span> <span class="p">(</span><span class="s1">&#39;lines&#39;</span><span class="p">,</span> <span class="s1">&#39;contours&#39;</span><span class="p">):</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_grid_type</span> <span class="o">=</span> <span class="n">grid_type</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;grid_type should be &#39;lines&#39; or &#39;contours&#39;&quot;</span><span class="p">)</span>
+
+        <span class="k">if</span> <span class="s1">&#39;color&#39;</span> <span class="ow">in</span> <span class="n">kwargs</span><span class="p">:</span>
+            <span class="n">kwargs</span><span class="p">[</span><span class="s1">&#39;edgecolor&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">kwargs</span><span class="o">.</span><span class="n">pop</span><span class="p">(</span><span class="s1">&#39;color&#39;</span><span class="p">)</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">grid_lines_kwargs</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="n">kwargs</span><span class="p">)</span>
+
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">grid_lines_kwargs</span><span class="p">[</span><span class="s1">&#39;visible&#39;</span><span class="p">]:</span>
+            <span class="k">if</span> <span class="ow">not</span> <span class="n">draw_grid</span><span class="p">:</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">grid_lines_kwargs</span><span class="p">[</span><span class="s1">&#39;visible&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="kc">False</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">grid_lines_kwargs</span><span class="p">[</span><span class="s1">&#39;visible&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="kc">True</span></div>
+
+<div class="viewcode-block" id="CoordinateHelper.set_coord_type"><a class="viewcode-back" href="../../../../api/astropy.visualization.wcsaxes.CoordinateHelper.html#astropy.visualization.wcsaxes.CoordinateHelper.set_coord_type">[docs]</a>    <span class="k">def</span> <span class="nf">set_coord_type</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">coord_type</span><span class="p">,</span> <span class="n">coord_wrap</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Set the coordinate type for the axis.</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        coord_type : str</span>
+<span class="sd">            One of &#39;longitude&#39;, &#39;latitude&#39; or &#39;scalar&#39;</span>
+<span class="sd">        coord_wrap : float, optional</span>
+<span class="sd">            The value to wrap at for angular coordinates</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">coord_type</span> <span class="o">=</span> <span class="n">coord_type</span>
+
+        <span class="k">if</span> <span class="n">coord_type</span> <span class="o">==</span> <span class="s1">&#39;longitude&#39;</span> <span class="ow">and</span> <span class="n">coord_wrap</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">coord_wrap</span> <span class="o">=</span> <span class="mi">360</span>
+        <span class="k">elif</span> <span class="n">coord_type</span> <span class="o">!=</span> <span class="s1">&#39;longitude&#39;</span> <span class="ow">and</span> <span class="n">coord_wrap</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">NotImplementedError</span><span class="p">(</span><span class="s1">&#39;coord_wrap is not yet supported &#39;</span>
+                                      <span class="s1">&#39;for non-longitude coordinates&#39;</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">coord_wrap</span> <span class="o">=</span> <span class="n">coord_wrap</span>
+
+        <span class="c1"># Initialize tick formatter/locator</span>
+        <span class="k">if</span> <span class="n">coord_type</span> <span class="o">==</span> <span class="s1">&#39;scalar&#39;</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_coord_unit_scale</span> <span class="o">=</span> <span class="kc">None</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_formatter_locator</span> <span class="o">=</span> <span class="n">ScalarFormatterLocator</span><span class="p">(</span><span class="n">unit</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">coord_unit</span><span class="p">)</span>
+        <span class="k">elif</span> <span class="n">coord_type</span> <span class="ow">in</span> <span class="p">[</span><span class="s1">&#39;longitude&#39;</span><span class="p">,</span> <span class="s1">&#39;latitude&#39;</span><span class="p">]:</span>
+            <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">coord_unit</span> <span class="ow">is</span> <span class="n">u</span><span class="o">.</span><span class="n">deg</span><span class="p">:</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">_coord_unit_scale</span> <span class="o">=</span> <span class="kc">None</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">_coord_unit_scale</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">coord_unit</span><span class="o">.</span><span class="n">to</span><span class="p">(</span><span class="n">u</span><span class="o">.</span><span class="n">deg</span><span class="p">)</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_formatter_locator</span> <span class="o">=</span> <span class="n">AngleFormatterLocator</span><span class="p">()</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;coord_type should be one of &#39;scalar&#39;, &#39;longitude&#39;, or &#39;latitude&#39;&quot;</span><span class="p">)</span></div>
+
+<div class="viewcode-block" id="CoordinateHelper.set_major_formatter"><a class="viewcode-back" href="../../../../api/astropy.visualization.wcsaxes.CoordinateHelper.html#astropy.visualization.wcsaxes.CoordinateHelper.set_major_formatter">[docs]</a>    <span class="k">def</span> <span class="nf">set_major_formatter</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">formatter</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Set the formatter to use for the major tick labels.</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        formatter : str or Formatter</span>
+<span class="sd">            The format or formatter to use.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">formatter</span><span class="p">,</span> <span class="n">Formatter</span><span class="p">):</span>
+            <span class="k">raise</span> <span class="ne">NotImplementedError</span><span class="p">()</span>  <span class="c1"># figure out how to swap out formatter</span>
+        <span class="k">elif</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">formatter</span><span class="p">,</span> <span class="n">six</span><span class="o">.</span><span class="n">string_types</span><span class="p">):</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_formatter_locator</span><span class="o">.</span><span class="n">format</span> <span class="o">=</span> <span class="n">formatter</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">TypeError</span><span class="p">(</span><span class="s2">&quot;formatter should be a string or a Formatter &quot;</span>
+                            <span class="s2">&quot;instance&quot;</span><span class="p">)</span></div>
+
+<div class="viewcode-block" id="CoordinateHelper.format_coord"><a class="viewcode-back" href="../../../../api/astropy.visualization.wcsaxes.CoordinateHelper.html#astropy.visualization.wcsaxes.CoordinateHelper.format_coord">[docs]</a>    <span class="k">def</span> <span class="nf">format_coord</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">value</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Given the value of a coordinate, will format it according to the</span>
+<span class="sd">        format of the formatter_locator.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+
+        <span class="k">if</span> <span class="ow">not</span> <span class="nb">hasattr</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="s2">&quot;_fl_spacing&quot;</span><span class="p">):</span>
+            <span class="k">return</span> <span class="s2">&quot;&quot;</span>  <span class="c1"># _update_ticks has not been called yet</span>
+
+        <span class="n">fl</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_formatter_locator</span>
+        <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">fl</span><span class="p">,</span> <span class="n">AngleFormatterLocator</span><span class="p">):</span>
+
+            <span class="c1"># Convert to degrees if needed</span>
+            <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_coord_unit_scale</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+                <span class="n">value</span> <span class="o">*=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_coord_unit_scale</span>
+
+            <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">coord_type</span> <span class="o">==</span> <span class="s1">&#39;longitude&#39;</span><span class="p">:</span>
+                <span class="n">value</span> <span class="o">=</span> <span class="n">wrap_angle_at</span><span class="p">(</span><span class="n">value</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">coord_wrap</span><span class="p">)</span>
+            <span class="n">value</span> <span class="o">=</span> <span class="n">value</span> <span class="o">*</span> <span class="n">u</span><span class="o">.</span><span class="n">degree</span>
+            <span class="n">value</span> <span class="o">=</span> <span class="n">value</span><span class="o">.</span><span class="n">to_value</span><span class="p">(</span><span class="n">fl</span><span class="o">.</span><span class="n">_unit</span><span class="p">)</span>
+
+        <span class="n">spacing</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_fl_spacing</span>
+        <span class="n">string</span> <span class="o">=</span> <span class="n">fl</span><span class="o">.</span><span class="n">formatter</span><span class="p">(</span><span class="n">values</span><span class="o">=</span><span class="p">[</span><span class="n">value</span><span class="p">]</span> <span class="o">*</span> <span class="n">fl</span><span class="o">.</span><span class="n">_unit</span><span class="p">,</span> <span class="n">spacing</span><span class="o">=</span><span class="n">spacing</span><span class="p">)</span>
+
+        <span class="k">return</span> <span class="n">string</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span></div>
+
+<div class="viewcode-block" id="CoordinateHelper.set_separator"><a class="viewcode-back" href="../../../../api/astropy.visualization.wcsaxes.CoordinateHelper.html#astropy.visualization.wcsaxes.CoordinateHelper.set_separator">[docs]</a>    <span class="k">def</span> <span class="nf">set_separator</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">separator</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Set the separator to use for the angle major tick labels.</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        separator : The separator between numbers in sexagesimal</span>
+<span class="sd">        representation. Can be either a string or a tuple.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_formatter_locator</span><span class="o">.</span><span class="n">__class__</span> <span class="o">==</span> <span class="n">AngleFormatterLocator</span><span class="p">):</span>
+            <span class="k">raise</span> <span class="ne">TypeError</span><span class="p">(</span><span class="s2">&quot;Separator can only be specified for angle coordinates&quot;</span><span class="p">)</span>
+        <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">separator</span><span class="p">,</span> <span class="n">six</span><span class="o">.</span><span class="n">string_types</span><span class="p">)</span> <span class="ow">or</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">separator</span><span class="p">,</span> <span class="nb">tuple</span><span class="p">):</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_formatter_locator</span><span class="o">.</span><span class="n">sep</span> <span class="o">=</span> <span class="n">separator</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">TypeError</span><span class="p">(</span><span class="s2">&quot;separator should be a string or a tuple&quot;</span><span class="p">)</span></div>
+
+<div class="viewcode-block" id="CoordinateHelper.set_format_unit"><a class="viewcode-back" href="../../../../api/astropy.visualization.wcsaxes.CoordinateHelper.html#astropy.visualization.wcsaxes.CoordinateHelper.set_format_unit">[docs]</a>    <span class="k">def</span> <span class="nf">set_format_unit</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">unit</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Set the unit for the major tick labels.</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        unit : class:`~astropy.units.Unit`</span>
+<span class="sd">            The unit to which the tick labels should be converted to.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="nb">issubclass</span><span class="p">(</span><span class="n">unit</span><span class="o">.</span><span class="n">__class__</span><span class="p">,</span> <span class="n">u</span><span class="o">.</span><span class="n">UnitBase</span><span class="p">):</span>
+            <span class="k">raise</span> <span class="ne">TypeError</span><span class="p">(</span><span class="s2">&quot;unit should be an astropy UnitBase subclass&quot;</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_formatter_locator</span><span class="o">.</span><span class="n">format_unit</span> <span class="o">=</span> <span class="n">unit</span></div>
+
+<div class="viewcode-block" id="CoordinateHelper.set_ticks"><a class="viewcode-back" href="../../../../api/astropy.visualization.wcsaxes.CoordinateHelper.html#astropy.visualization.wcsaxes.CoordinateHelper.set_ticks">[docs]</a>    <span class="k">def</span> <span class="nf">set_ticks</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">values</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">spacing</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">number</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">size</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+                  <span class="n">width</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">color</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">alpha</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">exclude_overlapping</span><span class="o">=</span><span class="kc">False</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Set the location and properties of the ticks.</span>
+
+<span class="sd">        At most one of the options from ``values``, ``spacing``, or</span>
+<span class="sd">        ``number`` can be specified.</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        values : iterable, optional</span>
+<span class="sd">            The coordinate values at which to show the ticks.</span>
+<span class="sd">        spacing : float, optional</span>
+<span class="sd">            The spacing between ticks.</span>
+<span class="sd">        number : float, optional</span>
+<span class="sd">            The approximate number of ticks shown.</span>
+<span class="sd">        size : float, optional</span>
+<span class="sd">            The length of the ticks in points</span>
+<span class="sd">        color : str or tuple</span>
+<span class="sd">            A valid Matplotlib color for the ticks</span>
+<span class="sd">        exclude_overlapping : bool, optional</span>
+<span class="sd">            Whether to exclude tick labels that overlap over each other.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+
+        <span class="k">if</span> <span class="nb">sum</span><span class="p">([</span><span class="n">values</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">,</span> <span class="n">spacing</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">,</span> <span class="n">number</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">])</span> <span class="o">&lt;</span> <span class="mi">2</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;At most one of values, spacing, or number should &quot;</span>
+                             <span class="s2">&quot;be specified&quot;</span><span class="p">)</span>
+
+        <span class="k">if</span> <span class="n">values</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_formatter_locator</span><span class="o">.</span><span class="n">values</span> <span class="o">=</span> <span class="n">values</span>
+        <span class="k">elif</span> <span class="n">spacing</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_formatter_locator</span><span class="o">.</span><span class="n">spacing</span> <span class="o">=</span> <span class="n">spacing</span>
+        <span class="k">elif</span> <span class="n">number</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_formatter_locator</span><span class="o">.</span><span class="n">number</span> <span class="o">=</span> <span class="n">number</span>
+
+        <span class="k">if</span> <span class="n">size</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">ticks</span><span class="o">.</span><span class="n">set_ticksize</span><span class="p">(</span><span class="n">size</span><span class="p">)</span>
+
+        <span class="k">if</span> <span class="n">width</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">ticks</span><span class="o">.</span><span class="n">set_linewidth</span><span class="p">(</span><span class="n">width</span><span class="p">)</span>
+
+        <span class="k">if</span> <span class="n">color</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">ticks</span><span class="o">.</span><span class="n">set_color</span><span class="p">(</span><span class="n">color</span><span class="p">)</span>
+
+        <span class="k">if</span> <span class="n">alpha</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">ticks</span><span class="o">.</span><span class="n">set_alpha</span><span class="p">(</span><span class="n">alpha</span><span class="p">)</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">ticklabels</span><span class="o">.</span><span class="n">set_exclude_overlapping</span><span class="p">(</span><span class="n">exclude_overlapping</span><span class="p">)</span></div>
+
+<div class="viewcode-block" id="CoordinateHelper.set_ticks_position"><a class="viewcode-back" href="../../../../api/astropy.visualization.wcsaxes.CoordinateHelper.html#astropy.visualization.wcsaxes.CoordinateHelper.set_ticks_position">[docs]</a>    <span class="k">def</span> <span class="nf">set_ticks_position</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">position</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Set where ticks should appear</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        position : str</span>
+<span class="sd">            The axes on which the ticks for this coordinate should appear.</span>
+<span class="sd">            Should be a string containing zero or more of ``&#39;b&#39;``, ``&#39;t&#39;``,</span>
+<span class="sd">            ``&#39;l&#39;``, ``&#39;r&#39;``. For example, ``&#39;lb&#39;`` will lead the ticks to be</span>
+<span class="sd">            shown on the left and bottom axis.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">ticks</span><span class="o">.</span><span class="n">set_visible_axes</span><span class="p">(</span><span class="n">position</span><span class="p">)</span></div>
+
+<div class="viewcode-block" id="CoordinateHelper.set_ticks_visible"><a class="viewcode-back" href="../../../../api/astropy.visualization.wcsaxes.CoordinateHelper.html#astropy.visualization.wcsaxes.CoordinateHelper.set_ticks_visible">[docs]</a>    <span class="k">def</span> <span class="nf">set_ticks_visible</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">visible</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Set whether ticks are visible or not.</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        visible : bool</span>
+<span class="sd">            The visibility of ticks. Setting as ``False`` will hide ticks</span>
+<span class="sd">            along this coordinate.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">ticks</span><span class="o">.</span><span class="n">set_visible</span><span class="p">(</span><span class="n">visible</span><span class="p">)</span></div>
+
+<div class="viewcode-block" id="CoordinateHelper.set_ticklabel"><a class="viewcode-back" href="../../../../api/astropy.visualization.wcsaxes.CoordinateHelper.html#astropy.visualization.wcsaxes.CoordinateHelper.set_ticklabel">[docs]</a>    <span class="k">def</span> <span class="nf">set_ticklabel</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Set the visual properties for the tick labels.</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        kwargs</span>
+<span class="sd">            Keyword arguments are passed to :class:`matplotlib.text.Text`. These</span>
+<span class="sd">            can include keywords to set the ``color``, ``size``, ``weight``, and</span>
+<span class="sd">            other text properties.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">ticklabels</span><span class="o">.</span><span class="n">set</span><span class="p">(</span><span class="o">**</span><span class="n">kwargs</span><span class="p">)</span></div>
+
+<div class="viewcode-block" id="CoordinateHelper.set_ticklabel_position"><a class="viewcode-back" href="../../../../api/astropy.visualization.wcsaxes.CoordinateHelper.html#astropy.visualization.wcsaxes.CoordinateHelper.set_ticklabel_position">[docs]</a>    <span class="k">def</span> <span class="nf">set_ticklabel_position</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">position</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Set where tick labels should appear</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        position : str</span>
+<span class="sd">            The axes on which the tick labels for this coordinate should</span>
+<span class="sd">            appear. Should be a string containing zero or more of ``&#39;b&#39;``,</span>
+<span class="sd">            ``&#39;t&#39;``, ``&#39;l&#39;``, ``&#39;r&#39;``. For example, ``&#39;lb&#39;`` will lead the</span>
+<span class="sd">            tick labels to be shown on the left and bottom axis.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">ticklabels</span><span class="o">.</span><span class="n">set_visible_axes</span><span class="p">(</span><span class="n">position</span><span class="p">)</span></div>
+
+<div class="viewcode-block" id="CoordinateHelper.set_ticklabel_visible"><a class="viewcode-back" href="../../../../api/astropy.visualization.wcsaxes.CoordinateHelper.html#astropy.visualization.wcsaxes.CoordinateHelper.set_ticklabel_visible">[docs]</a>    <span class="k">def</span> <span class="nf">set_ticklabel_visible</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">visible</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Set whether the tick labels are visible or not.</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        visible : bool</span>
+<span class="sd">            The visibility of ticks. Setting as ``False`` will hide this</span>
+<span class="sd">            coordinate&#39;s tick labels.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">ticklabels</span><span class="o">.</span><span class="n">set_visible</span><span class="p">(</span><span class="n">visible</span><span class="p">)</span></div>
+
+<div class="viewcode-block" id="CoordinateHelper.set_axislabel"><a class="viewcode-back" href="../../../../api/astropy.visualization.wcsaxes.CoordinateHelper.html#astropy.visualization.wcsaxes.CoordinateHelper.set_axislabel">[docs]</a>    <span class="k">def</span> <span class="nf">set_axislabel</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">text</span><span class="p">,</span> <span class="n">minpad</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Set the text and optionally visual properties for the axis label.</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        text : str</span>
+<span class="sd">            The axis label text.</span>
+<span class="sd">        minpad : float, optional</span>
+<span class="sd">            The padding for the label in terms of axis label font size.</span>
+<span class="sd">        kwargs</span>
+<span class="sd">            Keywords are passed to :class:`matplotlib.text.Text`. These</span>
+<span class="sd">            can include keywords to set the ``color``, ``size``, ``weight``, and</span>
+<span class="sd">            other text properties.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">axislabels</span><span class="o">.</span><span class="n">set_text</span><span class="p">(</span><span class="n">text</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">axislabels</span><span class="o">.</span><span class="n">set_minpad</span><span class="p">(</span><span class="n">minpad</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">axislabels</span><span class="o">.</span><span class="n">set</span><span class="p">(</span><span class="o">**</span><span class="n">kwargs</span><span class="p">)</span></div>
+
+<div class="viewcode-block" id="CoordinateHelper.get_axislabel"><a class="viewcode-back" href="../../../../api/astropy.visualization.wcsaxes.CoordinateHelper.html#astropy.visualization.wcsaxes.CoordinateHelper.get_axislabel">[docs]</a>    <span class="k">def</span> <span class="nf">get_axislabel</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Get the text for the axis label</span>
+
+<span class="sd">        Returns</span>
+<span class="sd">        -------</span>
+<span class="sd">        label : str</span>
+<span class="sd">            The axis label</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">axislabels</span><span class="o">.</span><span class="n">get_text</span><span class="p">()</span></div>
+
+<div class="viewcode-block" id="CoordinateHelper.set_axislabel_position"><a class="viewcode-back" href="../../../../api/astropy.visualization.wcsaxes.CoordinateHelper.html#astropy.visualization.wcsaxes.CoordinateHelper.set_axislabel_position">[docs]</a>    <span class="k">def</span> <span class="nf">set_axislabel_position</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">position</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Set where axis labels should appear</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        position : str</span>
+<span class="sd">            The axes on which the axis label for this coordinate should</span>
+<span class="sd">            appear. Should be a string containing zero or more of ``&#39;b&#39;``,</span>
+<span class="sd">            ``&#39;t&#39;``, ``&#39;l&#39;``, ``&#39;r&#39;``. For example, ``&#39;lb&#39;`` will lead the</span>
+<span class="sd">            axis label to be shown on the left and bottom axis.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">axislabels</span><span class="o">.</span><span class="n">set_visible_axes</span><span class="p">(</span><span class="n">position</span><span class="p">)</span></div>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">locator</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_formatter_locator</span><span class="o">.</span><span class="n">locator</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">formatter</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_formatter_locator</span><span class="o">.</span><span class="n">formatter</span>
+
+    <span class="k">def</span> <span class="nf">_draw</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">renderer</span><span class="p">,</span> <span class="n">bboxes</span><span class="p">,</span> <span class="n">ticklabels_bbox</span><span class="p">):</span>
+
+        <span class="n">renderer</span><span class="o">.</span><span class="n">open_group</span><span class="p">(</span><span class="s1">&#39;coordinate_axis&#39;</span><span class="p">)</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">_update_ticks</span><span class="p">()</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">ticks</span><span class="o">.</span><span class="n">draw</span><span class="p">(</span><span class="n">renderer</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">ticklabels</span><span class="o">.</span><span class="n">draw</span><span class="p">(</span><span class="n">renderer</span><span class="p">,</span> <span class="n">bboxes</span><span class="o">=</span><span class="n">bboxes</span><span class="p">,</span>
+                             <span class="n">ticklabels_bbox</span><span class="o">=</span><span class="n">ticklabels_bbox</span><span class="p">)</span>
+
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">grid_lines_kwargs</span><span class="p">[</span><span class="s1">&#39;visible&#39;</span><span class="p">]:</span>
+
+            <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_grid_type</span> <span class="o">==</span> <span class="s1">&#39;lines&#39;</span><span class="p">:</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">_update_grid_lines</span><span class="p">()</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">_update_grid_contour</span><span class="p">()</span>
+
+            <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_grid_type</span> <span class="o">==</span> <span class="s1">&#39;lines&#39;</span><span class="p">:</span>
+
+                <span class="n">frame_patch</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">frame</span><span class="o">.</span><span class="n">patch</span>
+                <span class="k">for</span> <span class="n">path</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">grid_lines</span><span class="p">:</span>
+                    <span class="n">p</span> <span class="o">=</span> <span class="n">PathPatch</span><span class="p">(</span><span class="n">path</span><span class="p">,</span> <span class="o">**</span><span class="bp">self</span><span class="o">.</span><span class="n">grid_lines_kwargs</span><span class="p">)</span>
+                    <span class="n">p</span><span class="o">.</span><span class="n">set_clip_path</span><span class="p">(</span><span class="n">frame_patch</span><span class="p">)</span>
+                    <span class="n">p</span><span class="o">.</span><span class="n">draw</span><span class="p">(</span><span class="n">renderer</span><span class="p">)</span>
+
+            <span class="k">elif</span> <span class="bp">self</span><span class="o">.</span><span class="n">_grid</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+
+                <span class="k">for</span> <span class="n">line</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">_grid</span><span class="o">.</span><span class="n">collections</span><span class="p">:</span>
+                    <span class="n">line</span><span class="o">.</span><span class="n">set</span><span class="p">(</span><span class="o">**</span><span class="bp">self</span><span class="o">.</span><span class="n">grid_lines_kwargs</span><span class="p">)</span>
+                    <span class="n">line</span><span class="o">.</span><span class="n">draw</span><span class="p">(</span><span class="n">renderer</span><span class="p">)</span>
+
+        <span class="n">renderer</span><span class="o">.</span><span class="n">close_group</span><span class="p">(</span><span class="s1">&#39;coordinate_axis&#39;</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">_draw_axislabels</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">renderer</span><span class="p">,</span> <span class="n">bboxes</span><span class="p">,</span> <span class="n">ticklabels_bbox</span><span class="p">,</span> <span class="n">visible_ticks</span><span class="p">):</span>
+
+        <span class="n">renderer</span><span class="o">.</span><span class="n">open_group</span><span class="p">(</span><span class="s1">&#39;axis labels&#39;</span><span class="p">)</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">axislabels</span><span class="o">.</span><span class="n">draw</span><span class="p">(</span><span class="n">renderer</span><span class="p">,</span> <span class="n">bboxes</span><span class="o">=</span><span class="n">bboxes</span><span class="p">,</span>
+                             <span class="n">ticklabels_bbox_list</span><span class="o">=</span><span class="n">ticklabels_bbox</span><span class="p">,</span>
+                             <span class="n">visible_ticks</span><span class="o">=</span><span class="n">visible_ticks</span><span class="p">)</span>
+
+        <span class="n">renderer</span><span class="o">.</span><span class="n">close_group</span><span class="p">(</span><span class="s1">&#39;axis labels&#39;</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">_update_ticks</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+
+        <span class="c1"># TODO: this method should be optimized for speed</span>
+
+        <span class="c1"># Here we determine the location and rotation of all the ticks. For</span>
+        <span class="c1"># each axis, we can check the intersections for the specific</span>
+        <span class="c1"># coordinate and once we have the tick positions, we can use the WCS</span>
+        <span class="c1"># to determine the rotations.</span>
+
+        <span class="c1"># Find the range of coordinates in all directions</span>
+        <span class="n">coord_range</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">parent_map</span><span class="o">.</span><span class="n">get_coord_range</span><span class="p">()</span>
+
+        <span class="c1"># First find the ticks we want to show</span>
+        <span class="n">tick_world_coordinates</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">_fl_spacing</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">locator</span><span class="p">(</span><span class="o">*</span><span class="n">coord_range</span><span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">coord_index</span><span class="p">])</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">ticks</span><span class="o">.</span><span class="n">get_display_minor_ticks</span><span class="p">():</span>
+            <span class="n">minor_ticks_w_coordinates</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_formatter_locator</span><span class="o">.</span><span class="n">minor_locator</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_fl_spacing</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">get_minor_frequency</span><span class="p">(),</span> <span class="o">*</span><span class="n">coord_range</span><span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">coord_index</span><span class="p">])</span>
+
+        <span class="c1"># We want to allow non-standard rectangular frames, so we just rely on</span>
+        <span class="c1"># the parent axes to tell us what the bounding frame is.</span>
+        <span class="kn">from</span> <span class="nn">.</span> <span class="k">import</span> <span class="n">conf</span>
+        <span class="n">frame</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">frame</span><span class="o">.</span><span class="n">sample</span><span class="p">(</span><span class="n">conf</span><span class="o">.</span><span class="n">frame_boundary_samples</span><span class="p">)</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">ticks</span><span class="o">.</span><span class="n">clear</span><span class="p">()</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">ticklabels</span><span class="o">.</span><span class="n">clear</span><span class="p">()</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">lblinfo</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">lbl_world</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="c1"># Look up parent axes&#39; transform from data to figure coordinates.</span>
+        <span class="c1">#</span>
+        <span class="c1"># See:</span>
+        <span class="c1"># http://matplotlib.org/users/transforms_tutorial.html#the-transformation-pipeline</span>
+        <span class="n">transData</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">parent_axes</span><span class="o">.</span><span class="n">transData</span>
+        <span class="n">invertedTransLimits</span> <span class="o">=</span> <span class="n">transData</span><span class="o">.</span><span class="n">inverted</span><span class="p">()</span>
+
+        <span class="k">for</span> <span class="n">axis</span><span class="p">,</span> <span class="n">spine</span> <span class="ow">in</span> <span class="n">six</span><span class="o">.</span><span class="n">iteritems</span><span class="p">(</span><span class="n">frame</span><span class="p">):</span>
+
+            <span class="c1"># Determine tick rotation in display coordinates and compare to</span>
+            <span class="c1"># the normal angle in display coordinates.</span>
+
+            <span class="n">pixel0</span> <span class="o">=</span> <span class="n">spine</span><span class="o">.</span><span class="n">data</span>
+            <span class="n">world0</span> <span class="o">=</span> <span class="n">spine</span><span class="o">.</span><span class="n">world</span><span class="p">[:,</span> <span class="bp">self</span><span class="o">.</span><span class="n">coord_index</span><span class="p">]</span>
+            <span class="n">world0</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">transform</span><span class="o">.</span><span class="n">transform</span><span class="p">(</span><span class="n">pixel0</span><span class="p">)[:,</span> <span class="bp">self</span><span class="o">.</span><span class="n">coord_index</span><span class="p">]</span>
+            <span class="n">axes0</span> <span class="o">=</span> <span class="n">transData</span><span class="o">.</span><span class="n">transform</span><span class="p">(</span><span class="n">pixel0</span><span class="p">)</span>
+
+            <span class="c1"># Advance 2 pixels in figure coordinates</span>
+            <span class="n">pixel1</span> <span class="o">=</span> <span class="n">axes0</span><span class="o">.</span><span class="n">copy</span><span class="p">()</span>
+            <span class="n">pixel1</span><span class="p">[:,</span> <span class="mi">0</span><span class="p">]</span> <span class="o">+=</span> <span class="mf">2.0</span>
+            <span class="n">pixel1</span> <span class="o">=</span> <span class="n">invertedTransLimits</span><span class="o">.</span><span class="n">transform</span><span class="p">(</span><span class="n">pixel1</span><span class="p">)</span>
+            <span class="n">world1</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">transform</span><span class="o">.</span><span class="n">transform</span><span class="p">(</span><span class="n">pixel1</span><span class="p">)[:,</span> <span class="bp">self</span><span class="o">.</span><span class="n">coord_index</span><span class="p">]</span>
+
+            <span class="c1"># Advance 2 pixels in figure coordinates</span>
+            <span class="n">pixel2</span> <span class="o">=</span> <span class="n">axes0</span><span class="o">.</span><span class="n">copy</span><span class="p">()</span>
+            <span class="n">pixel2</span><span class="p">[:,</span> <span class="mi">1</span><span class="p">]</span> <span class="o">+=</span> <span class="mf">2.0</span> <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">frame</span><span class="o">.</span><span class="n">origin</span> <span class="o">==</span> <span class="s1">&#39;lower&#39;</span> <span class="k">else</span> <span class="o">-</span><span class="mf">2.0</span>
+            <span class="n">pixel2</span> <span class="o">=</span> <span class="n">invertedTransLimits</span><span class="o">.</span><span class="n">transform</span><span class="p">(</span><span class="n">pixel2</span><span class="p">)</span>
+            <span class="n">world2</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">transform</span><span class="o">.</span><span class="n">transform</span><span class="p">(</span><span class="n">pixel2</span><span class="p">)[:,</span> <span class="bp">self</span><span class="o">.</span><span class="n">coord_index</span><span class="p">]</span>
+
+            <span class="n">dx</span> <span class="o">=</span> <span class="p">(</span><span class="n">world1</span> <span class="o">-</span> <span class="n">world0</span><span class="p">)</span>
+            <span class="n">dy</span> <span class="o">=</span> <span class="p">(</span><span class="n">world2</span> <span class="o">-</span> <span class="n">world0</span><span class="p">)</span>
+
+            <span class="c1"># Rotate by 90 degrees</span>
+            <span class="n">dx</span><span class="p">,</span> <span class="n">dy</span> <span class="o">=</span> <span class="o">-</span><span class="n">dy</span><span class="p">,</span> <span class="n">dx</span>
+
+            <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_coord_unit_scale</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+                <span class="n">dx</span> <span class="o">*=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_coord_unit_scale</span>
+                <span class="n">dy</span> <span class="o">*=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_coord_unit_scale</span>
+
+            <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">coord_type</span> <span class="o">==</span> <span class="s1">&#39;longitude&#39;</span><span class="p">:</span>
+                <span class="c1"># Here we wrap at 180 not self.coord_wrap since we want to</span>
+                <span class="c1"># always ensure abs(dx) &lt; 180 and abs(dy) &lt; 180</span>
+                <span class="n">dx</span> <span class="o">=</span> <span class="n">wrap_angle_at</span><span class="p">(</span><span class="n">dx</span><span class="p">,</span> <span class="mf">180.</span><span class="p">)</span>
+                <span class="n">dy</span> <span class="o">=</span> <span class="n">wrap_angle_at</span><span class="p">(</span><span class="n">dy</span><span class="p">,</span> <span class="mf">180.</span><span class="p">)</span>
+
+            <span class="n">tick_angle</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">degrees</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">arctan2</span><span class="p">(</span><span class="n">dy</span><span class="p">,</span> <span class="n">dx</span><span class="p">))</span>
+
+            <span class="n">normal_angle_full</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">hstack</span><span class="p">([</span><span class="n">spine</span><span class="o">.</span><span class="n">normal_angle</span><span class="p">,</span> <span class="n">spine</span><span class="o">.</span><span class="n">normal_angle</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">]])</span>
+            <span class="k">with</span> <span class="n">np</span><span class="o">.</span><span class="n">errstate</span><span class="p">(</span><span class="n">invalid</span><span class="o">=</span><span class="s1">&#39;ignore&#39;</span><span class="p">):</span>
+                <span class="n">reset</span> <span class="o">=</span> <span class="p">(((</span><span class="n">normal_angle_full</span> <span class="o">-</span> <span class="n">tick_angle</span><span class="p">)</span> <span class="o">%</span> <span class="mi">360</span> <span class="o">&gt;</span> <span class="mf">90.</span><span class="p">)</span> <span class="o">&amp;</span>
+                         <span class="p">((</span><span class="n">tick_angle</span> <span class="o">-</span> <span class="n">normal_angle_full</span><span class="p">)</span> <span class="o">%</span> <span class="mi">360</span> <span class="o">&gt;</span> <span class="mf">90.</span><span class="p">))</span>
+            <span class="n">tick_angle</span><span class="p">[</span><span class="n">reset</span><span class="p">]</span> <span class="o">-=</span> <span class="mf">180.</span>
+
+            <span class="c1"># We find for each interval the starting and ending coordinate,</span>
+            <span class="c1"># ensuring that we take wrapping into account correctly for</span>
+            <span class="c1"># longitudes.</span>
+            <span class="n">w1</span> <span class="o">=</span> <span class="n">spine</span><span class="o">.</span><span class="n">world</span><span class="p">[:</span><span class="o">-</span><span class="mi">1</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">coord_index</span><span class="p">]</span>
+            <span class="n">w2</span> <span class="o">=</span> <span class="n">spine</span><span class="o">.</span><span class="n">world</span><span class="p">[</span><span class="mi">1</span><span class="p">:,</span> <span class="bp">self</span><span class="o">.</span><span class="n">coord_index</span><span class="p">]</span>
+
+            <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_coord_unit_scale</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+                <span class="n">w1</span> <span class="o">=</span> <span class="n">w1</span> <span class="o">*</span> <span class="bp">self</span><span class="o">.</span><span class="n">_coord_unit_scale</span>
+                <span class="n">w2</span> <span class="o">=</span> <span class="n">w2</span> <span class="o">*</span> <span class="bp">self</span><span class="o">.</span><span class="n">_coord_unit_scale</span>
+
+            <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">coord_type</span> <span class="o">==</span> <span class="s1">&#39;longitude&#39;</span><span class="p">:</span>
+                <span class="n">w1</span> <span class="o">=</span> <span class="n">wrap_angle_at</span><span class="p">(</span><span class="n">w1</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">coord_wrap</span><span class="p">)</span>
+                <span class="n">w2</span> <span class="o">=</span> <span class="n">wrap_angle_at</span><span class="p">(</span><span class="n">w2</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">coord_wrap</span><span class="p">)</span>
+                <span class="k">with</span> <span class="n">np</span><span class="o">.</span><span class="n">errstate</span><span class="p">(</span><span class="n">invalid</span><span class="o">=</span><span class="s1">&#39;ignore&#39;</span><span class="p">):</span>
+                    <span class="n">w1</span><span class="p">[</span><span class="n">w2</span> <span class="o">-</span> <span class="n">w1</span> <span class="o">&gt;</span> <span class="mf">180.</span><span class="p">]</span> <span class="o">+=</span> <span class="mi">360</span>
+                    <span class="n">w2</span><span class="p">[</span><span class="n">w1</span> <span class="o">-</span> <span class="n">w2</span> <span class="o">&gt;</span> <span class="mf">180.</span><span class="p">]</span> <span class="o">+=</span> <span class="mi">360</span>
+
+            <span class="c1"># For longitudes, we need to check ticks as well as ticks + 360,</span>
+            <span class="c1"># since the above can produce pairs such as 359 to 361 or 0.5 to</span>
+            <span class="c1"># 1.5, both of which would match a tick at 0.75. Otherwise we just</span>
+            <span class="c1"># check the ticks determined above.</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_compute_ticks</span><span class="p">(</span><span class="n">tick_world_coordinates</span><span class="p">,</span> <span class="n">spine</span><span class="p">,</span> <span class="n">axis</span><span class="p">,</span> <span class="n">w1</span><span class="p">,</span> <span class="n">w2</span><span class="p">,</span> <span class="n">tick_angle</span><span class="p">)</span>
+
+            <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">ticks</span><span class="o">.</span><span class="n">get_display_minor_ticks</span><span class="p">():</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">_compute_ticks</span><span class="p">(</span><span class="n">minor_ticks_w_coordinates</span><span class="p">,</span> <span class="n">spine</span><span class="p">,</span> <span class="n">axis</span><span class="p">,</span> <span class="n">w1</span><span class="p">,</span>
+                                    <span class="n">w2</span><span class="p">,</span> <span class="n">tick_angle</span><span class="p">,</span> <span class="n">ticks</span><span class="o">=</span><span class="s1">&#39;minor&#39;</span><span class="p">)</span>
+
+        <span class="c1"># format tick labels, add to scene</span>
+        <span class="n">text</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">formatter</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">lbl_world</span> <span class="o">*</span> <span class="n">tick_world_coordinates</span><span class="o">.</span><span class="n">unit</span><span class="p">,</span> <span class="n">spacing</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">_fl_spacing</span><span class="p">)</span>
+        <span class="k">for</span> <span class="n">kwargs</span><span class="p">,</span> <span class="n">txt</span> <span class="ow">in</span> <span class="nb">zip</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">lblinfo</span><span class="p">,</span> <span class="n">text</span><span class="p">):</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">ticklabels</span><span class="o">.</span><span class="n">add</span><span class="p">(</span><span class="n">text</span><span class="o">=</span><span class="n">txt</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">_compute_ticks</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">tick_world_coordinates</span><span class="p">,</span> <span class="n">spine</span><span class="p">,</span> <span class="n">axis</span><span class="p">,</span> <span class="n">w1</span><span class="p">,</span> <span class="n">w2</span><span class="p">,</span> <span class="n">tick_angle</span><span class="p">,</span> <span class="n">ticks</span><span class="o">=</span><span class="s1">&#39;major&#39;</span><span class="p">):</span>
+        <span class="n">tick_world_coordinates_values</span> <span class="o">=</span> <span class="n">tick_world_coordinates</span><span class="o">.</span><span class="n">value</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">coord_type</span> <span class="o">==</span> <span class="s1">&#39;longitude&#39;</span><span class="p">:</span>
+            <span class="n">tick_world_coordinates_values</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">hstack</span><span class="p">([</span><span class="n">tick_world_coordinates_values</span><span class="p">,</span>
+                                                       <span class="n">tick_world_coordinates_values</span> <span class="o">+</span> <span class="mi">360</span><span class="p">])</span>
+
+        <span class="k">for</span> <span class="n">t</span> <span class="ow">in</span> <span class="n">tick_world_coordinates_values</span><span class="p">:</span>
+
+            <span class="c1"># Find steps where a tick is present. We have to check</span>
+            <span class="c1"># separately for the case where the tick falls exactly on the</span>
+            <span class="c1"># frame points, otherwise we&#39;ll get two matches, one for w1 and</span>
+            <span class="c1"># one for w2.</span>
+            <span class="k">with</span> <span class="n">np</span><span class="o">.</span><span class="n">errstate</span><span class="p">(</span><span class="n">invalid</span><span class="o">=</span><span class="s1">&#39;ignore&#39;</span><span class="p">):</span>
+                <span class="n">intersections</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">hstack</span><span class="p">([</span><span class="n">np</span><span class="o">.</span><span class="n">nonzero</span><span class="p">((</span><span class="n">t</span> <span class="o">-</span> <span class="n">w1</span><span class="p">)</span> <span class="o">==</span> <span class="mi">0</span><span class="p">)[</span><span class="mi">0</span><span class="p">],</span>
+                                           <span class="n">np</span><span class="o">.</span><span class="n">nonzero</span><span class="p">(((</span><span class="n">t</span> <span class="o">-</span> <span class="n">w1</span><span class="p">)</span> <span class="o">*</span> <span class="p">(</span><span class="n">t</span> <span class="o">-</span> <span class="n">w2</span><span class="p">))</span> <span class="o">&lt;</span> <span class="mi">0</span><span class="p">)[</span><span class="mi">0</span><span class="p">]])</span>
+
+            <span class="c1"># But we also need to check for intersection with the last w2</span>
+            <span class="k">if</span> <span class="n">t</span> <span class="o">-</span> <span class="n">w2</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
+                <span class="n">intersections</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">intersections</span><span class="p">,</span> <span class="nb">len</span><span class="p">(</span><span class="n">w2</span><span class="p">)</span> <span class="o">-</span> <span class="mi">1</span><span class="p">)</span>
+
+            <span class="c1"># Loop over ticks, and find exact pixel coordinates by linear</span>
+            <span class="c1"># interpolation</span>
+            <span class="k">for</span> <span class="n">imin</span> <span class="ow">in</span> <span class="n">intersections</span><span class="p">:</span>
+
+                <span class="n">imax</span> <span class="o">=</span> <span class="n">imin</span> <span class="o">+</span> <span class="mi">1</span>
+
+                <span class="k">if</span> <span class="n">np</span><span class="o">.</span><span class="n">allclose</span><span class="p">(</span><span class="n">w1</span><span class="p">[</span><span class="n">imin</span><span class="p">],</span> <span class="n">w2</span><span class="p">[</span><span class="n">imin</span><span class="p">],</span> <span class="n">rtol</span><span class="o">=</span><span class="mf">1.e-13</span><span class="p">,</span> <span class="n">atol</span><span class="o">=</span><span class="mf">1.e-13</span><span class="p">):</span>
+                    <span class="k">continue</span>  <span class="c1"># tick is exactly aligned with frame</span>
+                <span class="k">else</span><span class="p">:</span>
+                    <span class="n">frac</span> <span class="o">=</span> <span class="p">(</span><span class="n">t</span> <span class="o">-</span> <span class="n">w1</span><span class="p">[</span><span class="n">imin</span><span class="p">])</span> <span class="o">/</span> <span class="p">(</span><span class="n">w2</span><span class="p">[</span><span class="n">imin</span><span class="p">]</span> <span class="o">-</span> <span class="n">w1</span><span class="p">[</span><span class="n">imin</span><span class="p">])</span>
+                    <span class="n">x_data_i</span> <span class="o">=</span> <span class="n">spine</span><span class="o">.</span><span class="n">data</span><span class="p">[</span><span class="n">imin</span><span class="p">,</span> <span class="mi">0</span><span class="p">]</span> <span class="o">+</span> <span class="n">frac</span> <span class="o">*</span> <span class="p">(</span><span class="n">spine</span><span class="o">.</span><span class="n">data</span><span class="p">[</span><span class="n">imax</span><span class="p">,</span> <span class="mi">0</span><span class="p">]</span> <span class="o">-</span> <span class="n">spine</span><span class="o">.</span><span class="n">data</span><span class="p">[</span><span class="n">imin</span><span class="p">,</span> <span class="mi">0</span><span class="p">])</span>
+                    <span class="n">y_data_i</span> <span class="o">=</span> <span class="n">spine</span><span class="o">.</span><span class="n">data</span><span class="p">[</span><span class="n">imin</span><span class="p">,</span> <span class="mi">1</span><span class="p">]</span> <span class="o">+</span> <span class="n">frac</span> <span class="o">*</span> <span class="p">(</span><span class="n">spine</span><span class="o">.</span><span class="n">data</span><span class="p">[</span><span class="n">imax</span><span class="p">,</span> <span class="mi">1</span><span class="p">]</span> <span class="o">-</span> <span class="n">spine</span><span class="o">.</span><span class="n">data</span><span class="p">[</span><span class="n">imin</span><span class="p">,</span> <span class="mi">1</span><span class="p">])</span>
+                    <span class="n">x_pix_i</span> <span class="o">=</span> <span class="n">spine</span><span class="o">.</span><span class="n">pixel</span><span class="p">[</span><span class="n">imin</span><span class="p">,</span> <span class="mi">0</span><span class="p">]</span> <span class="o">+</span> <span class="n">frac</span> <span class="o">*</span> <span class="p">(</span><span class="n">spine</span><span class="o">.</span><span class="n">pixel</span><span class="p">[</span><span class="n">imax</span><span class="p">,</span> <span class="mi">0</span><span class="p">]</span> <span class="o">-</span> <span class="n">spine</span><span class="o">.</span><span class="n">pixel</span><span class="p">[</span><span class="n">imin</span><span class="p">,</span> <span class="mi">0</span><span class="p">])</span>
+                    <span class="n">y_pix_i</span> <span class="o">=</span> <span class="n">spine</span><span class="o">.</span><span class="n">pixel</span><span class="p">[</span><span class="n">imin</span><span class="p">,</span> <span class="mi">1</span><span class="p">]</span> <span class="o">+</span> <span class="n">frac</span> <span class="o">*</span> <span class="p">(</span><span class="n">spine</span><span class="o">.</span><span class="n">pixel</span><span class="p">[</span><span class="n">imax</span><span class="p">,</span> <span class="mi">1</span><span class="p">]</span> <span class="o">-</span> <span class="n">spine</span><span class="o">.</span><span class="n">pixel</span><span class="p">[</span><span class="n">imin</span><span class="p">,</span> <span class="mi">1</span><span class="p">])</span>
+                    <span class="n">delta_angle</span> <span class="o">=</span> <span class="n">tick_angle</span><span class="p">[</span><span class="n">imax</span><span class="p">]</span> <span class="o">-</span> <span class="n">tick_angle</span><span class="p">[</span><span class="n">imin</span><span class="p">]</span>
+                    <span class="k">if</span> <span class="n">delta_angle</span> <span class="o">&gt;</span> <span class="mf">180.</span><span class="p">:</span>
+                        <span class="n">delta_angle</span> <span class="o">-=</span> <span class="mf">360.</span>
+                    <span class="k">elif</span> <span class="n">delta_angle</span> <span class="o">&lt;</span> <span class="o">-</span><span class="mf">180.</span><span class="p">:</span>
+                        <span class="n">delta_angle</span> <span class="o">+=</span> <span class="mf">360.</span>
+                    <span class="n">angle_i</span> <span class="o">=</span> <span class="n">tick_angle</span><span class="p">[</span><span class="n">imin</span><span class="p">]</span> <span class="o">+</span> <span class="n">frac</span> <span class="o">*</span> <span class="n">delta_angle</span>
+
+                <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">coord_type</span> <span class="o">==</span> <span class="s1">&#39;longitude&#39;</span><span class="p">:</span>
+                    <span class="n">world</span> <span class="o">=</span> <span class="n">wrap_angle_at</span><span class="p">(</span><span class="n">t</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">coord_wrap</span><span class="p">)</span>
+                <span class="k">else</span><span class="p">:</span>
+                    <span class="n">world</span> <span class="o">=</span> <span class="n">t</span>
+
+                <span class="k">if</span> <span class="n">ticks</span> <span class="o">==</span> <span class="s1">&#39;major&#39;</span><span class="p">:</span>
+
+                    <span class="bp">self</span><span class="o">.</span><span class="n">ticks</span><span class="o">.</span><span class="n">add</span><span class="p">(</span><span class="n">axis</span><span class="o">=</span><span class="n">axis</span><span class="p">,</span>
+                                   <span class="n">pixel</span><span class="o">=</span><span class="p">(</span><span class="n">x_data_i</span><span class="p">,</span> <span class="n">y_data_i</span><span class="p">),</span>
+                                   <span class="n">world</span><span class="o">=</span><span class="n">world</span><span class="p">,</span>
+                                   <span class="n">angle</span><span class="o">=</span><span class="n">angle_i</span><span class="p">,</span>
+                                   <span class="n">axis_displacement</span><span class="o">=</span><span class="n">imin</span> <span class="o">+</span> <span class="n">frac</span><span class="p">)</span>
+
+                    <span class="c1"># store information to pass to ticklabels.add</span>
+                    <span class="c1"># it&#39;s faster to format many ticklabels at once outside</span>
+                    <span class="c1"># of the loop</span>
+                    <span class="bp">self</span><span class="o">.</span><span class="n">lblinfo</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="nb">dict</span><span class="p">(</span><span class="n">axis</span><span class="o">=</span><span class="n">axis</span><span class="p">,</span>
+                                             <span class="n">pixel</span><span class="o">=</span><span class="p">(</span><span class="n">x_pix_i</span><span class="p">,</span> <span class="n">y_pix_i</span><span class="p">),</span>
+                                             <span class="n">world</span><span class="o">=</span><span class="n">world</span><span class="p">,</span>
+                                             <span class="n">angle</span><span class="o">=</span><span class="n">spine</span><span class="o">.</span><span class="n">normal_angle</span><span class="p">[</span><span class="n">imin</span><span class="p">],</span>
+                                             <span class="n">axis_displacement</span><span class="o">=</span><span class="n">imin</span> <span class="o">+</span> <span class="n">frac</span><span class="p">))</span>
+                    <span class="bp">self</span><span class="o">.</span><span class="n">lbl_world</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">world</span><span class="p">)</span>
+
+                <span class="k">else</span><span class="p">:</span>
+                    <span class="bp">self</span><span class="o">.</span><span class="n">ticks</span><span class="o">.</span><span class="n">add_minor</span><span class="p">(</span><span class="n">minor_axis</span><span class="o">=</span><span class="n">axis</span><span class="p">,</span>
+                                         <span class="n">minor_pixel</span><span class="o">=</span><span class="p">(</span><span class="n">x_data_i</span><span class="p">,</span> <span class="n">y_data_i</span><span class="p">),</span>
+                                         <span class="n">minor_world</span><span class="o">=</span><span class="n">world</span><span class="p">,</span>
+                                         <span class="n">minor_angle</span><span class="o">=</span><span class="n">angle_i</span><span class="p">,</span>
+                                         <span class="n">minor_axis_displacement</span><span class="o">=</span><span class="n">imin</span> <span class="o">+</span> <span class="n">frac</span><span class="p">)</span>
+
+<div class="viewcode-block" id="CoordinateHelper.display_minor_ticks"><a class="viewcode-back" href="../../../../api/astropy.visualization.wcsaxes.CoordinateHelper.html#astropy.visualization.wcsaxes.CoordinateHelper.display_minor_ticks">[docs]</a>    <span class="k">def</span> <span class="nf">display_minor_ticks</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">display_minor_ticks</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Display minor ticks for this coordinate.</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        display_minor_ticks : bool</span>
+<span class="sd">            Whether or not to display minor ticks.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">ticks</span><span class="o">.</span><span class="n">display_minor_ticks</span><span class="p">(</span><span class="n">display_minor_ticks</span><span class="p">)</span></div>
+
+<div class="viewcode-block" id="CoordinateHelper.get_minor_frequency"><a class="viewcode-back" href="../../../../api/astropy.visualization.wcsaxes.CoordinateHelper.html#astropy.visualization.wcsaxes.CoordinateHelper.get_minor_frequency">[docs]</a>    <span class="k">def</span> <span class="nf">get_minor_frequency</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">minor_frequency</span></div>
+
+<div class="viewcode-block" id="CoordinateHelper.set_minor_frequency"><a class="viewcode-back" href="../../../../api/astropy.visualization.wcsaxes.CoordinateHelper.html#astropy.visualization.wcsaxes.CoordinateHelper.set_minor_frequency">[docs]</a>    <span class="k">def</span> <span class="nf">set_minor_frequency</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">frequency</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Set the frequency of minor ticks per major ticks.</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        frequency : int</span>
+<span class="sd">            The number of minor ticks per major ticks.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">minor_frequency</span> <span class="o">=</span> <span class="n">frequency</span></div>
+
+    <span class="k">def</span> <span class="nf">_update_grid_lines</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+
+        <span class="c1"># For 3-d WCS with a correlated third axis, the *proper* way of</span>
+        <span class="c1"># drawing a grid should be to find the world coordinates of all pixels</span>
+        <span class="c1"># and drawing contours. What we are doing here assumes that we can</span>
+        <span class="c1"># define the grid lines with just two of the coordinates (and</span>
+        <span class="c1"># therefore assumes that the other coordinates are fixed and set to</span>
+        <span class="c1"># the value in the slice). Here we basically assume that if the WCS</span>
+        <span class="c1"># had a third axis, it has been abstracted away in the transformation.</span>
+
+        <span class="n">coord_range</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">parent_map</span><span class="o">.</span><span class="n">get_coord_range</span><span class="p">()</span>
+
+        <span class="n">tick_world_coordinates</span><span class="p">,</span> <span class="n">spacing</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">locator</span><span class="p">(</span><span class="o">*</span><span class="n">coord_range</span><span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">coord_index</span><span class="p">])</span>
+        <span class="n">tick_world_coordinates_values</span> <span class="o">=</span> <span class="n">tick_world_coordinates</span><span class="o">.</span><span class="n">value</span>
+
+        <span class="n">n_coord</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="n">tick_world_coordinates_values</span><span class="p">)</span>
+
+        <span class="kn">from</span> <span class="nn">.</span> <span class="k">import</span> <span class="n">conf</span>
+        <span class="n">n_samples</span> <span class="o">=</span> <span class="n">conf</span><span class="o">.</span><span class="n">grid_samples</span>
+
+        <span class="n">xy_world</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">zeros</span><span class="p">((</span><span class="n">n_samples</span> <span class="o">*</span> <span class="n">n_coord</span><span class="p">,</span> <span class="mi">2</span><span class="p">))</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">grid_lines</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="k">for</span> <span class="n">iw</span><span class="p">,</span> <span class="n">w</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="n">tick_world_coordinates_values</span><span class="p">):</span>
+            <span class="n">subset</span> <span class="o">=</span> <span class="nb">slice</span><span class="p">(</span><span class="n">iw</span> <span class="o">*</span> <span class="n">n_samples</span><span class="p">,</span> <span class="p">(</span><span class="n">iw</span> <span class="o">+</span> <span class="mi">1</span><span class="p">)</span> <span class="o">*</span> <span class="n">n_samples</span><span class="p">)</span>
+            <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">coord_index</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
+                <span class="n">xy_world</span><span class="p">[</span><span class="n">subset</span><span class="p">,</span> <span class="mi">0</span><span class="p">]</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">repeat</span><span class="p">(</span><span class="n">w</span><span class="p">,</span> <span class="n">n_samples</span><span class="p">)</span>
+                <span class="n">xy_world</span><span class="p">[</span><span class="n">subset</span><span class="p">,</span> <span class="mi">1</span><span class="p">]</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">linspace</span><span class="p">(</span><span class="n">coord_range</span><span class="p">[</span><span class="mi">1</span><span class="p">][</span><span class="mi">0</span><span class="p">],</span> <span class="n">coord_range</span><span class="p">[</span><span class="mi">1</span><span class="p">][</span><span class="mi">1</span><span class="p">],</span> <span class="n">n_samples</span><span class="p">)</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="n">xy_world</span><span class="p">[</span><span class="n">subset</span><span class="p">,</span> <span class="mi">0</span><span class="p">]</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">linspace</span><span class="p">(</span><span class="n">coord_range</span><span class="p">[</span><span class="mi">0</span><span class="p">][</span><span class="mi">0</span><span class="p">],</span> <span class="n">coord_range</span><span class="p">[</span><span class="mi">0</span><span class="p">][</span><span class="mi">1</span><span class="p">],</span> <span class="n">n_samples</span><span class="p">)</span>
+                <span class="n">xy_world</span><span class="p">[</span><span class="n">subset</span><span class="p">,</span> <span class="mi">1</span><span class="p">]</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">repeat</span><span class="p">(</span><span class="n">w</span><span class="p">,</span> <span class="n">n_samples</span><span class="p">)</span>
+
+        <span class="c1"># We now convert all the world coordinates to pixel coordinates in a</span>
+        <span class="c1"># single go rather than doing this in the gridline to path conversion</span>
+        <span class="c1"># to fully benefit from vectorized coordinate transformations.</span>
+
+        <span class="c1"># Currently xy_world is in deg, but transform function needs it in</span>
+        <span class="c1"># native units</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_coord_unit_scale</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">xy_world</span> <span class="o">/=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_coord_unit_scale</span>
+
+        <span class="c1"># Transform line to pixel coordinates</span>
+        <span class="n">pixel</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">transform</span><span class="o">.</span><span class="n">inverted</span><span class="p">()</span><span class="o">.</span><span class="n">transform</span><span class="p">(</span><span class="n">xy_world</span><span class="p">)</span>
+
+        <span class="c1"># Create round-tripped values for checking</span>
+        <span class="n">xy_world_round</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">transform</span><span class="o">.</span><span class="n">transform</span><span class="p">(</span><span class="n">pixel</span><span class="p">)</span>
+
+        <span class="k">for</span> <span class="n">iw</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">n_coord</span><span class="p">):</span>
+            <span class="n">subset</span> <span class="o">=</span> <span class="nb">slice</span><span class="p">(</span><span class="n">iw</span> <span class="o">*</span> <span class="n">n_samples</span><span class="p">,</span> <span class="p">(</span><span class="n">iw</span> <span class="o">+</span> <span class="mi">1</span><span class="p">)</span> <span class="o">*</span> <span class="n">n_samples</span><span class="p">)</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">grid_lines</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_get_gridline</span><span class="p">(</span><span class="n">xy_world</span><span class="p">[</span><span class="n">subset</span><span class="p">],</span> <span class="n">pixel</span><span class="p">[</span><span class="n">subset</span><span class="p">],</span> <span class="n">xy_world_round</span><span class="p">[</span><span class="n">subset</span><span class="p">]))</span>
+
+    <span class="k">def</span> <span class="nf">_get_gridline</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">xy_world</span><span class="p">,</span> <span class="n">pixel</span><span class="p">,</span> <span class="n">xy_world_round</span><span class="p">):</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">coord_type</span> <span class="o">==</span> <span class="s1">&#39;scalar&#39;</span><span class="p">:</span>
+            <span class="k">return</span> <span class="n">get_gridline_path</span><span class="p">(</span><span class="n">xy_world</span><span class="p">,</span> <span class="n">pixel</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">return</span> <span class="n">get_lon_lat_path</span><span class="p">(</span><span class="n">xy_world</span><span class="p">,</span> <span class="n">pixel</span><span class="p">,</span> <span class="n">xy_world_round</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">_update_grid_contour</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+
+        <span class="k">if</span> <span class="nb">hasattr</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="s1">&#39;_grid&#39;</span><span class="p">):</span>
+            <span class="k">for</span> <span class="n">line</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">_grid</span><span class="o">.</span><span class="n">collections</span><span class="p">:</span>
+                <span class="n">line</span><span class="o">.</span><span class="n">remove</span><span class="p">()</span>
+
+        <span class="n">xmin</span><span class="p">,</span> <span class="n">xmax</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">parent_axes</span><span class="o">.</span><span class="n">get_xlim</span><span class="p">()</span>
+        <span class="n">ymin</span><span class="p">,</span> <span class="n">ymax</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">parent_axes</span><span class="o">.</span><span class="n">get_ylim</span><span class="p">()</span>
+
+        <span class="n">x</span><span class="p">,</span> <span class="n">y</span><span class="p">,</span> <span class="n">field</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">transform</span><span class="o">.</span><span class="n">get_coord_slices</span><span class="p">(</span><span class="n">xmin</span><span class="p">,</span> <span class="n">xmax</span><span class="p">,</span> <span class="n">ymin</span><span class="p">,</span> <span class="n">ymax</span><span class="p">,</span> <span class="mi">200</span><span class="p">,</span> <span class="mi">200</span><span class="p">)</span>
+
+        <span class="n">coord_range</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">parent_map</span><span class="o">.</span><span class="n">get_coord_range</span><span class="p">()</span>
+
+        <span class="n">tick_world_coordinates</span><span class="p">,</span> <span class="n">spacing</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">locator</span><span class="p">(</span><span class="o">*</span><span class="n">coord_range</span><span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">coord_index</span><span class="p">])</span>
+
+        <span class="n">field</span> <span class="o">=</span> <span class="n">field</span><span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">coord_index</span><span class="p">]</span>
+
+        <span class="c1"># tick_world_coordinates is a Quantities array and we only needs its values</span>
+        <span class="n">tick_world_coordinates_values</span> <span class="o">=</span> <span class="n">tick_world_coordinates</span><span class="o">.</span><span class="n">value</span>
+
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">coord_type</span> <span class="o">==</span> <span class="s1">&#39;longitude&#39;</span><span class="p">:</span>
+
+            <span class="c1"># Find biggest gap in tick_world_coordinates and wrap in middle</span>
+            <span class="c1"># For now just assume spacing is equal, so any mid-point will do</span>
+            <span class="n">mid</span> <span class="o">=</span> <span class="mf">0.5</span> <span class="o">*</span> <span class="p">(</span><span class="n">tick_world_coordinates_values</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">+</span> <span class="n">tick_world_coordinates_values</span><span class="p">[</span><span class="mi">1</span><span class="p">])</span>
+            <span class="n">field</span> <span class="o">=</span> <span class="n">wrap_angle_at</span><span class="p">(</span><span class="n">field</span><span class="p">,</span> <span class="n">mid</span><span class="p">)</span>
+            <span class="n">tick_world_coordinates_values</span> <span class="o">=</span> <span class="n">wrap_angle_at</span><span class="p">(</span><span class="n">tick_world_coordinates_values</span><span class="p">,</span> <span class="n">mid</span><span class="p">)</span>
+
+            <span class="c1"># Replace wraps by NaN</span>
+            <span class="n">reset</span> <span class="o">=</span> <span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">abs</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">diff</span><span class="p">(</span><span class="n">field</span><span class="p">[:,</span> <span class="p">:</span><span class="o">-</span><span class="mi">1</span><span class="p">],</span> <span class="n">axis</span><span class="o">=</span><span class="mi">0</span><span class="p">))</span> <span class="o">&gt;</span> <span class="mi">180</span><span class="p">)</span> <span class="o">|</span> <span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">abs</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">diff</span><span class="p">(</span><span class="n">field</span><span class="p">[:</span><span class="o">-</span><span class="mi">1</span><span class="p">,</span> <span class="p">:],</span> <span class="n">axis</span><span class="o">=</span><span class="mi">1</span><span class="p">))</span> <span class="o">&gt;</span> <span class="mi">180</span><span class="p">)</span>
+            <span class="n">field</span><span class="p">[:</span><span class="o">-</span><span class="mi">1</span><span class="p">,</span> <span class="p">:</span><span class="o">-</span><span class="mi">1</span><span class="p">][</span><span class="n">reset</span><span class="p">]</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">nan</span>
+            <span class="n">field</span><span class="p">[</span><span class="mi">1</span><span class="p">:,</span> <span class="p">:</span><span class="o">-</span><span class="mi">1</span><span class="p">][</span><span class="n">reset</span><span class="p">]</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">nan</span>
+            <span class="n">field</span><span class="p">[:</span><span class="o">-</span><span class="mi">1</span><span class="p">,</span> <span class="mi">1</span><span class="p">:][</span><span class="n">reset</span><span class="p">]</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">nan</span>
+            <span class="n">field</span><span class="p">[</span><span class="mi">1</span><span class="p">:,</span> <span class="mi">1</span><span class="p">:][</span><span class="n">reset</span><span class="p">]</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">nan</span>
+
+        <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">tick_world_coordinates_values</span><span class="p">)</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_grid</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">parent_axes</span><span class="o">.</span><span class="n">contour</span><span class="p">(</span><span class="n">x</span><span class="p">,</span> <span class="n">y</span><span class="p">,</span> <span class="n">field</span><span class="o">.</span><span class="n">transpose</span><span class="p">(),</span> <span class="n">levels</span><span class="o">=</span><span class="n">np</span><span class="o">.</span><span class="n">sort</span><span class="p">(</span><span class="n">tick_world_coordinates_values</span><span class="p">))</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_grid</span> <span class="o">=</span> <span class="kc">None</span></div>
+</pre></div>
+
+          </div>
+        </div>
+      </div>
+      <div class="sphinxsidebar" role="navigation" aria-label="main navigation">
+        <div class="sphinxsidebarwrapper"><h3>Page Contents</h3>
+
+
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+<footer class="footer">
+  <p class="pull-right"> &nbsp;
+    <a href="#">Back to Top</a></p>
+  <p>
+    &copy; Copyright 2011-2016, The Astropy Developers.<br/>
+    Created using <a href="http://sphinx.pocoo.org/">Sphinx</a> 1.5.6. &nbsp;
+    Last built 05 Jul 2017. <br/>
+  </p>
+</footer>
+  </body>
+</html>

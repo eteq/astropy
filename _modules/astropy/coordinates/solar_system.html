@@ -1,0 +1,610 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <head>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    
+    <title>astropy.coordinates.solar_system &#8212; Astropy v3.0.dev19489</title>
+    
+    <link rel="stylesheet" href="../../../_static/bootstrap-astropy.css" type="text/css" />
+    <link rel="stylesheet" href="../../../_static/pygments.css" type="text/css" />
+    <link rel="stylesheet" href="../../../_static/gallery.css" type="text/css" />
+    
+    <script type="text/javascript">
+      var DOCUMENTATION_OPTIONS = {
+        URL_ROOT:    '../../../',
+        VERSION:     '3.0.dev19489',
+        COLLAPSE_INDEX: false,
+        FILE_SUFFIX: '.html',
+        HAS_SOURCE:  true,
+        SOURCELINK_SUFFIX: '.txt'
+      };
+    </script>
+    <script type="text/javascript" src="../../../_static/jquery.js"></script>
+    <script type="text/javascript" src="../../../_static/underscore.js"></script>
+    <script type="text/javascript" src="../../../_static/doctools.js"></script>
+    <script type="text/javascript" src="../../../_static/sidebar.js"></script>
+    <link rel="shortcut icon" href="../../../_static/astropy_logo.ico"/>
+    <link rel="index" title="Index" href="../../../genindex.html" />
+    <link rel="search" title="Search" href="../../../search.html" />
+<link href='https://fonts.googleapis.com/css?family=Source+Sans+Pro:200,600' rel='stylesheet' type='text/css'/>
+<script type="text/javascript" src="../../../_static/copybutton.js"></script>
+
+
+  </head>
+  <body role="document">
+<div class="topbar">
+  <a class="brand" title="Documentation Home" href="../../../index.html"><span id="logotext1">astro</span><span id="logotext2">py</span><span id="logotext3">:docs</span></a>
+  <ul>
+    <li><a class="homelink" title="Astropy Homepage" href="http://www.astropy.org"></a></li>
+    <li><a title="General Index" href="../../../genindex.html">Index</a></li>
+    <li><a title="Module Index" href="../../../py-modindex.html">Modules</a></li>
+    <li>
+      
+      
+<form action="../../../search.html" method="get">
+  <input type="text" name="q" placeholder="Search" />
+  <input type="hidden" name="check_keywords" value="yes" />
+  <input type="hidden" name="area" value="default" />
+</form>
+      
+    </li>
+  </ul>
+</div>
+
+<div class="related">
+    <h3>Navigation</h3>
+    <ul>
+      <li>
+	<a href="../../../index.html">Astropy v3.0.dev19489</a>
+	 &#187;
+      </li>
+      <li><a href="../../index.html" >Module code</a> &#187;</li>
+      <li><a href="../../astropy.html" accesskey="U">astropy</a> &#187;</li>
+      
+       
+    </ul>
+</div>
+  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          <div class="body" role="main">
+            
+  <h1>Source code for astropy.coordinates.solar_system</h1><div class="highlight"><pre>
+<span></span><span class="c1"># Licensed under a 3-clause BSD style license - see LICENSE.rst</span>
+<span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">This module contains convenience functions for retrieving solar system</span>
+<span class="sd">ephemerides from jplephem.</span>
+<span class="sd">&quot;&quot;&quot;</span>
+
+<span class="kn">from</span> <span class="nn">__future__</span> <span class="k">import</span> <span class="p">(</span><span class="n">absolute_import</span><span class="p">,</span> <span class="n">division</span><span class="p">,</span> <span class="n">print_function</span><span class="p">,</span>
+                        <span class="n">unicode_literals</span><span class="p">)</span>
+
+<span class="kn">from</span> <span class="nn">collections</span> <span class="k">import</span> <span class="n">OrderedDict</span>
+
+<span class="kn">import</span> <span class="nn">numpy</span> <span class="k">as</span> <span class="nn">np</span>
+
+<span class="kn">from</span> <span class="nn">.sky_coordinate</span> <span class="k">import</span> <span class="n">SkyCoord</span>
+<span class="kn">from</span> <span class="nn">..utils.data</span> <span class="k">import</span> <span class="n">download_file</span>
+<span class="kn">from</span> <span class="nn">..utils.decorators</span> <span class="k">import</span> <span class="n">classproperty</span>
+<span class="kn">from</span> <span class="nn">..utils.state</span> <span class="k">import</span> <span class="n">ScienceState</span>
+<span class="kn">from</span> <span class="nn">..utils</span> <span class="k">import</span> <span class="n">indent</span>
+<span class="kn">from</span> <span class="nn">..</span> <span class="k">import</span> <span class="n">units</span> <span class="k">as</span> <span class="n">u</span>
+<span class="kn">from</span> <span class="nn">..</span> <span class="k">import</span> <span class="n">_erfa</span> <span class="k">as</span> <span class="n">erfa</span>
+<span class="kn">from</span> <span class="nn">..constants</span> <span class="k">import</span> <span class="n">c</span> <span class="k">as</span> <span class="n">speed_of_light</span>
+<span class="kn">from</span> <span class="nn">.representation</span> <span class="k">import</span> <span class="n">CartesianRepresentation</span>
+<span class="kn">from</span> <span class="nn">.orbital_elements</span> <span class="k">import</span> <span class="n">calc_moon</span>
+<span class="kn">from</span> <span class="nn">.builtin_frames</span> <span class="k">import</span> <span class="n">GCRS</span><span class="p">,</span> <span class="n">ICRS</span>
+<span class="kn">from</span> <span class="nn">.builtin_frames.utils</span> <span class="k">import</span> <span class="n">get_jd12</span>
+<span class="kn">from</span> <span class="nn">..extern</span> <span class="k">import</span> <span class="n">six</span>
+
+<span class="n">__all__</span> <span class="o">=</span> <span class="p">[</span><span class="s2">&quot;get_body&quot;</span><span class="p">,</span> <span class="s2">&quot;get_moon&quot;</span><span class="p">,</span> <span class="s2">&quot;get_body_barycentric&quot;</span><span class="p">,</span>
+           <span class="s2">&quot;get_body_barycentric_posvel&quot;</span><span class="p">,</span> <span class="s2">&quot;solar_system_ephemeris&quot;</span><span class="p">]</span>
+
+
+<span class="n">DEFAULT_JPL_EPHEMERIS</span> <span class="o">=</span> <span class="s1">&#39;de430&#39;</span>
+
+<span class="sd">&quot;&quot;&quot;List of kernel pairs needed to calculate positions of a given object.&quot;&quot;&quot;</span>
+<span class="n">BODY_NAME_TO_KERNEL_SPEC</span> <span class="o">=</span> <span class="n">OrderedDict</span><span class="p">(</span>
+                                      <span class="p">((</span><span class="s1">&#39;sun&#39;</span><span class="p">,</span> <span class="p">[(</span><span class="mi">0</span><span class="p">,</span> <span class="mi">10</span><span class="p">)]),</span>
+                                       <span class="p">(</span><span class="s1">&#39;mercury&#39;</span><span class="p">,</span> <span class="p">[(</span><span class="mi">0</span><span class="p">,</span> <span class="mi">1</span><span class="p">),</span> <span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="mi">199</span><span class="p">)]),</span>
+                                       <span class="p">(</span><span class="s1">&#39;venus&#39;</span><span class="p">,</span> <span class="p">[(</span><span class="mi">0</span><span class="p">,</span> <span class="mi">2</span><span class="p">),</span> <span class="p">(</span><span class="mi">2</span><span class="p">,</span> <span class="mi">299</span><span class="p">)]),</span>
+                                       <span class="p">(</span><span class="s1">&#39;earth-moon-barycenter&#39;</span><span class="p">,</span> <span class="p">[(</span><span class="mi">0</span><span class="p">,</span> <span class="mi">3</span><span class="p">)]),</span>
+                                       <span class="p">(</span><span class="s1">&#39;earth&#39;</span><span class="p">,</span> <span class="p">[(</span><span class="mi">0</span><span class="p">,</span> <span class="mi">3</span><span class="p">),</span> <span class="p">(</span><span class="mi">3</span><span class="p">,</span> <span class="mi">399</span><span class="p">)]),</span>
+                                       <span class="p">(</span><span class="s1">&#39;moon&#39;</span><span class="p">,</span> <span class="p">[(</span><span class="mi">0</span><span class="p">,</span> <span class="mi">3</span><span class="p">),</span> <span class="p">(</span><span class="mi">3</span><span class="p">,</span> <span class="mi">301</span><span class="p">)]),</span>
+                                       <span class="p">(</span><span class="s1">&#39;mars&#39;</span><span class="p">,</span> <span class="p">[(</span><span class="mi">0</span><span class="p">,</span> <span class="mi">4</span><span class="p">)]),</span>
+                                       <span class="p">(</span><span class="s1">&#39;jupiter&#39;</span><span class="p">,</span> <span class="p">[(</span><span class="mi">0</span><span class="p">,</span> <span class="mi">5</span><span class="p">)]),</span>
+                                       <span class="p">(</span><span class="s1">&#39;saturn&#39;</span><span class="p">,</span> <span class="p">[(</span><span class="mi">0</span><span class="p">,</span> <span class="mi">6</span><span class="p">)]),</span>
+                                       <span class="p">(</span><span class="s1">&#39;uranus&#39;</span><span class="p">,</span> <span class="p">[(</span><span class="mi">0</span><span class="p">,</span> <span class="mi">7</span><span class="p">)]),</span>
+                                       <span class="p">(</span><span class="s1">&#39;neptune&#39;</span><span class="p">,</span> <span class="p">[(</span><span class="mi">0</span><span class="p">,</span> <span class="mi">8</span><span class="p">)]),</span>
+                                       <span class="p">(</span><span class="s1">&#39;pluto&#39;</span><span class="p">,</span> <span class="p">[(</span><span class="mi">0</span><span class="p">,</span> <span class="mi">9</span><span class="p">)]))</span>
+                                      <span class="p">)</span>
+
+<span class="sd">&quot;&quot;&quot;Indices to the plan94 routine for the given object.&quot;&quot;&quot;</span>
+<span class="n">PLAN94_BODY_NAME_TO_PLANET_INDEX</span> <span class="o">=</span> <span class="n">OrderedDict</span><span class="p">(</span>
+    <span class="p">((</span><span class="s1">&#39;mercury&#39;</span><span class="p">,</span> <span class="mi">1</span><span class="p">),</span>
+     <span class="p">(</span><span class="s1">&#39;venus&#39;</span><span class="p">,</span> <span class="mi">2</span><span class="p">),</span>
+     <span class="p">(</span><span class="s1">&#39;earth-moon-barycenter&#39;</span><span class="p">,</span> <span class="mi">3</span><span class="p">),</span>
+     <span class="p">(</span><span class="s1">&#39;mars&#39;</span><span class="p">,</span> <span class="mi">4</span><span class="p">),</span>
+     <span class="p">(</span><span class="s1">&#39;jupiter&#39;</span><span class="p">,</span> <span class="mi">5</span><span class="p">),</span>
+     <span class="p">(</span><span class="s1">&#39;saturn&#39;</span><span class="p">,</span> <span class="mi">6</span><span class="p">),</span>
+     <span class="p">(</span><span class="s1">&#39;uranus&#39;</span><span class="p">,</span> <span class="mi">7</span><span class="p">),</span>
+     <span class="p">(</span><span class="s1">&#39;neptune&#39;</span><span class="p">,</span> <span class="mi">8</span><span class="p">)))</span>
+
+<span class="n">_EPHEMERIS_NOTE</span> <span class="o">=</span> <span class="s2">&quot;&quot;&quot;</span>
+<span class="s2">You can either give an explicit ephemeris or use a default, which is normally</span>
+<span class="s2">a built-in ephemeris that does not require ephemeris files.  To change</span>
+<span class="s2">the default to be the JPL ephemeris::</span>
+
+<span class="s2">    &gt;&gt;&gt; from astropy.coordinates import solar_system_ephemeris</span>
+<span class="s2">    &gt;&gt;&gt; solar_system_ephemeris.set(&#39;jpl&#39;)  # doctest: +SKIP</span>
+
+<span class="s2">Use of any JPL ephemeris requires the jplephem package</span>
+<span class="s2">(https://pypi.python.org/pypi/jplephem).</span>
+<span class="s2">If needed, the ephemeris file will be downloaded (and cached).</span>
+
+<span class="s2">One can check which bodies are covered by a given ephemeris using::</span>
+<span class="s2">    &gt;&gt;&gt; solar_system_ephemeris.bodies</span>
+<span class="s2">    (&#39;earth&#39;, &#39;sun&#39;, &#39;moon&#39;, &#39;mercury&#39;, &#39;venus&#39;, &#39;earth-moon-barycenter&#39;, &#39;mars&#39;, &#39;jupiter&#39;, &#39;saturn&#39;, &#39;uranus&#39;, &#39;neptune&#39;)</span>
+<span class="s2">&quot;&quot;&quot;</span><span class="p">[</span><span class="mi">1</span><span class="p">:</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span>
+
+
+<div class="viewcode-block" id="solar_system_ephemeris"><a class="viewcode-back" href="../../../api/astropy.coordinates.solar_system_ephemeris.html#astropy.coordinates.solar_system_ephemeris">[docs]</a><span class="k">class</span> <span class="nc">solar_system_ephemeris</span><span class="p">(</span><span class="n">ScienceState</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;Default ephemerides for calculating positions of Solar-System bodies.</span>
+
+<span class="sd">    This can be one of the following::</span>
+
+<span class="sd">    - &#39;builtin&#39;: polynomial approximations to the orbital elements.</span>
+<span class="sd">    - &#39;de430&#39; or &#39;de432s&#39;: short-cuts for recent JPL dynamical models.</span>
+<span class="sd">    - &#39;jpl&#39;: Alias for the default JPL ephemeris (currently, &#39;de430&#39;).</span>
+<span class="sd">    - URL: (str) The url to a SPK ephemeris in SPICE binary (.bst) format.</span>
+<span class="sd">    - `None`: Ensure an Exception is raised without an explicit ephemeris.</span>
+
+<span class="sd">    The default is &#39;builtin&#39;, which uses the ``epv00`` and ``plan94``</span>
+<span class="sd">    routines from the ``erfa`` implementation of the Standards Of Fundamental</span>
+<span class="sd">    Astronomy library.</span>
+
+<span class="sd">    Notes</span>
+<span class="sd">    -----</span>
+<span class="sd">    Any file required will be downloaded (and cached) when the state is set.</span>
+<span class="sd">    The default Satellite Planet Kernel (SPK) file from NASA JPL (de430) is</span>
+<span class="sd">    ~120MB, and covers years ~1550-2650 CE [1]_.  The smaller de432s file is</span>
+<span class="sd">    ~10MB, and covers years 1950-2050 [2]_.  Older versions of the JPL</span>
+<span class="sd">    ephemerides (such as the widely used de200) can be used via their URL [3]_.</span>
+
+<span class="sd">    .. [1] http://naif.jpl.nasa.gov/pub/naif/generic_kernels/spk/planets/aareadme_de430-de431.txt</span>
+<span class="sd">    .. [2] http://naif.jpl.nasa.gov/pub/naif/generic_kernels/spk/planets/aareadme_de432s.txt</span>
+<span class="sd">    .. [3] http://naif.jpl.nasa.gov/pub/naif/generic_kernels/spk/planets/a_old_versions/</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">_value</span> <span class="o">=</span> <span class="s1">&#39;builtin&#39;</span>
+    <span class="n">_kernel</span> <span class="o">=</span> <span class="kc">None</span>
+
+    <span class="nd">@classmethod</span>
+<div class="viewcode-block" id="solar_system_ephemeris.validate"><a class="viewcode-back" href="../../../api/astropy.coordinates.solar_system_ephemeris.html#astropy.coordinates.solar_system_ephemeris.validate">[docs]</a>    <span class="k">def</span> <span class="nf">validate</span><span class="p">(</span><span class="n">cls</span><span class="p">,</span> <span class="n">value</span><span class="p">):</span>
+        <span class="c1"># make no changes if value is None</span>
+        <span class="k">if</span> <span class="n">value</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="k">return</span> <span class="n">cls</span><span class="o">.</span><span class="n">_value</span>
+        <span class="c1"># Set up Kernel; if the file is not in cache, this will download it.</span>
+        <span class="n">cls</span><span class="o">.</span><span class="n">get_kernel</span><span class="p">(</span><span class="n">value</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">value</span></div>
+
+    <span class="nd">@classmethod</span>
+<div class="viewcode-block" id="solar_system_ephemeris.get_kernel"><a class="viewcode-back" href="../../../api/astropy.coordinates.solar_system_ephemeris.html#astropy.coordinates.solar_system_ephemeris.get_kernel">[docs]</a>    <span class="k">def</span> <span class="nf">get_kernel</span><span class="p">(</span><span class="n">cls</span><span class="p">,</span> <span class="n">value</span><span class="p">):</span>
+        <span class="c1"># ScienceState only ensures the `_value` attribute is up to date,</span>
+        <span class="c1"># so we need to be sure any kernel returned is consistent.</span>
+        <span class="k">if</span> <span class="n">cls</span><span class="o">.</span><span class="n">_kernel</span> <span class="ow">is</span> <span class="kc">None</span> <span class="ow">or</span> <span class="n">cls</span><span class="o">.</span><span class="n">_kernel</span><span class="o">.</span><span class="n">origin</span> <span class="o">!=</span> <span class="n">value</span><span class="p">:</span>
+            <span class="k">if</span> <span class="n">cls</span><span class="o">.</span><span class="n">_kernel</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+                <span class="n">cls</span><span class="o">.</span><span class="n">_kernel</span><span class="o">.</span><span class="n">daf</span><span class="o">.</span><span class="n">file</span><span class="o">.</span><span class="n">close</span><span class="p">()</span>
+                <span class="n">cls</span><span class="o">.</span><span class="n">_kernel</span> <span class="o">=</span> <span class="kc">None</span>
+            <span class="n">kernel</span> <span class="o">=</span> <span class="n">_get_kernel</span><span class="p">(</span><span class="n">value</span><span class="p">)</span>
+            <span class="k">if</span> <span class="n">kernel</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+                <span class="n">kernel</span><span class="o">.</span><span class="n">origin</span> <span class="o">=</span> <span class="n">value</span>
+            <span class="n">cls</span><span class="o">.</span><span class="n">_kernel</span> <span class="o">=</span> <span class="n">kernel</span>
+        <span class="k">return</span> <span class="n">cls</span><span class="o">.</span><span class="n">_kernel</span></div>
+
+    <span class="nd">@classproperty</span>
+    <span class="k">def</span> <span class="nf">kernel</span><span class="p">(</span><span class="n">cls</span><span class="p">):</span>
+        <span class="k">return</span> <span class="n">cls</span><span class="o">.</span><span class="n">get_kernel</span><span class="p">(</span><span class="n">cls</span><span class="o">.</span><span class="n">_value</span><span class="p">)</span>
+
+    <span class="nd">@classproperty</span>
+    <span class="k">def</span> <span class="nf">bodies</span><span class="p">(</span><span class="n">cls</span><span class="p">):</span>
+        <span class="k">if</span> <span class="n">cls</span><span class="o">.</span><span class="n">_value</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="k">return</span> <span class="kc">None</span>
+        <span class="k">if</span> <span class="n">cls</span><span class="o">.</span><span class="n">_value</span><span class="o">.</span><span class="n">lower</span><span class="p">()</span> <span class="o">==</span> <span class="s1">&#39;builtin&#39;</span><span class="p">:</span>
+            <span class="k">return</span> <span class="p">((</span><span class="s1">&#39;earth&#39;</span><span class="p">,</span> <span class="s1">&#39;sun&#39;</span><span class="p">,</span> <span class="s1">&#39;moon&#39;</span><span class="p">)</span> <span class="o">+</span>
+                    <span class="nb">tuple</span><span class="p">(</span><span class="n">PLAN94_BODY_NAME_TO_PLANET_INDEX</span><span class="o">.</span><span class="n">keys</span><span class="p">()))</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">return</span> <span class="nb">tuple</span><span class="p">(</span><span class="n">BODY_NAME_TO_KERNEL_SPEC</span><span class="o">.</span><span class="n">keys</span><span class="p">())</span></div>
+
+
+<span class="k">def</span> <span class="nf">_get_kernel</span><span class="p">(</span><span class="n">value</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Try importing jplephem, download/retrieve from cache the Satellite Planet</span>
+<span class="sd">    Kernel corresponding to the given ephemeris.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">if</span> <span class="n">value</span> <span class="ow">is</span> <span class="kc">None</span> <span class="ow">or</span> <span class="n">value</span><span class="o">.</span><span class="n">lower</span><span class="p">()</span> <span class="o">==</span> <span class="s1">&#39;builtin&#39;</span><span class="p">:</span>
+        <span class="k">return</span> <span class="kc">None</span>
+
+    <span class="k">if</span> <span class="n">value</span><span class="o">.</span><span class="n">lower</span><span class="p">()</span> <span class="o">==</span> <span class="s1">&#39;jpl&#39;</span><span class="p">:</span>
+        <span class="n">value</span> <span class="o">=</span> <span class="n">DEFAULT_JPL_EPHEMERIS</span>
+
+    <span class="k">if</span> <span class="n">value</span><span class="o">.</span><span class="n">lower</span><span class="p">()</span> <span class="ow">in</span> <span class="p">(</span><span class="s1">&#39;de430&#39;</span><span class="p">,</span> <span class="s1">&#39;de432s&#39;</span><span class="p">):</span>
+        <span class="n">value</span> <span class="o">=</span> <span class="p">(</span><span class="s1">&#39;http://naif.jpl.nasa.gov/pub/naif/generic_kernels&#39;</span>
+                 <span class="s1">&#39;/spk/planets/</span><span class="si">{:s}</span><span class="s1">.bsp&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">value</span><span class="o">.</span><span class="n">lower</span><span class="p">()))</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="k">try</span><span class="p">:</span>
+            <span class="n">six</span><span class="o">.</span><span class="n">moves</span><span class="o">.</span><span class="n">urllib</span><span class="o">.</span><span class="n">parse</span><span class="o">.</span><span class="n">urlparse</span><span class="p">(</span><span class="n">value</span><span class="p">)</span>
+        <span class="k">except</span> <span class="ne">Exception</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s1">&#39;</span><span class="si">{}</span><span class="s1"> was not one of the standard strings and &#39;</span>
+                             <span class="s1">&#39;could not be parsed as a URL&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">value</span><span class="p">))</span>
+
+    <span class="k">try</span><span class="p">:</span>
+        <span class="kn">from</span> <span class="nn">jplephem.spk</span> <span class="k">import</span> <span class="n">SPK</span>
+    <span class="k">except</span> <span class="ne">ImportError</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="ne">ImportError</span><span class="p">(</span><span class="s2">&quot;Solar system JPL ephemeris calculations require &quot;</span>
+                          <span class="s2">&quot;the jplephem package &quot;</span>
+                          <span class="s2">&quot;(https://pypi.python.org/pypi/jplephem)&quot;</span><span class="p">)</span>
+
+    <span class="k">return</span> <span class="n">SPK</span><span class="o">.</span><span class="n">open</span><span class="p">(</span><span class="n">download_file</span><span class="p">(</span><span class="n">value</span><span class="p">,</span> <span class="n">cache</span><span class="o">=</span><span class="kc">True</span><span class="p">))</span>
+
+
+<span class="k">def</span> <span class="nf">_get_body_barycentric_posvel</span><span class="p">(</span><span class="n">body</span><span class="p">,</span> <span class="n">time</span><span class="p">,</span> <span class="n">ephemeris</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+                                 <span class="n">get_velocity</span><span class="o">=</span><span class="kc">True</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;Calculate the barycentric position (and velocity) of a solar system body.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    body : str or other</span>
+<span class="sd">        The solar system body for which to calculate positions.  Can also be a</span>
+<span class="sd">        kernel specifier (list of 2-tuples) if the ``ephemeris`` is a JPL</span>
+<span class="sd">        kernel.</span>
+<span class="sd">    time : `~astropy.time.Time`</span>
+<span class="sd">        Time of observation.</span>
+<span class="sd">    ephemeris : str, optional</span>
+<span class="sd">        Ephemeris to use.  By default, use the one set with</span>
+<span class="sd">        ``astropy.coordinates.solar_system_ephemeris.set``</span>
+<span class="sd">    get_velocity : bool, optional</span>
+<span class="sd">        Whether or not to calculate the velocity as well as the position.</span>
+
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+<span class="sd">    position : `~astropy.coordinates.CartesianRepresentation` or tuple</span>
+<span class="sd">        Barycentric (ICRS) position or tuple of position and velocity.</span>
+
+<span class="sd">    Notes</span>
+<span class="sd">    -----</span>
+<span class="sd">    No velocity can be calculated with the built-in ephemeris for the Moon.</span>
+
+<span class="sd">    Whether or not velocities are calculated makes little difference for the</span>
+<span class="sd">    built-in ephemerides, but for most JPL ephemeris files, the execution time</span>
+<span class="sd">    roughly doubles.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="k">if</span> <span class="n">ephemeris</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="n">ephemeris</span> <span class="o">=</span> <span class="n">solar_system_ephemeris</span><span class="o">.</span><span class="n">get</span><span class="p">()</span>
+        <span class="k">if</span> <span class="n">ephemeris</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="n">_EPHEMERIS_NOTE</span><span class="p">)</span>
+        <span class="n">kernel</span> <span class="o">=</span> <span class="n">solar_system_ephemeris</span><span class="o">.</span><span class="n">kernel</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="n">kernel</span> <span class="o">=</span> <span class="n">_get_kernel</span><span class="p">(</span><span class="n">ephemeris</span><span class="p">)</span>
+
+    <span class="n">jd1</span><span class="p">,</span> <span class="n">jd2</span> <span class="o">=</span> <span class="n">get_jd12</span><span class="p">(</span><span class="n">time</span><span class="p">,</span> <span class="s1">&#39;tdb&#39;</span><span class="p">)</span>
+    <span class="k">if</span> <span class="n">kernel</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="n">body</span> <span class="o">=</span> <span class="n">body</span><span class="o">.</span><span class="n">lower</span><span class="p">()</span>
+        <span class="n">earth_pv_helio</span><span class="p">,</span> <span class="n">earth_pv_bary</span> <span class="o">=</span> <span class="n">erfa</span><span class="o">.</span><span class="n">epv00</span><span class="p">(</span><span class="n">jd1</span><span class="p">,</span> <span class="n">jd2</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">body</span> <span class="o">==</span> <span class="s1">&#39;earth&#39;</span><span class="p">:</span>
+            <span class="n">body_pv_bary</span> <span class="o">=</span> <span class="n">earth_pv_bary</span>
+
+        <span class="k">elif</span> <span class="n">body</span> <span class="o">==</span> <span class="s1">&#39;moon&#39;</span><span class="p">:</span>
+            <span class="k">if</span> <span class="n">get_velocity</span><span class="p">:</span>
+                <span class="k">raise</span> <span class="ne">KeyError</span><span class="p">(</span><span class="s2">&quot;the Moon&#39;s velocity cannot be calculated with &quot;</span>
+                               <span class="s2">&quot;the &#39;</span><span class="si">{0}</span><span class="s2">&#39; ephemeris.&quot;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">ephemeris</span><span class="p">))</span>
+            <span class="k">return</span> <span class="n">calc_moon</span><span class="p">(</span><span class="n">time</span><span class="p">)</span><span class="o">.</span><span class="n">cartesian</span>
+
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">sun_pv_bary</span> <span class="o">=</span> <span class="n">earth_pv_bary</span> <span class="o">-</span> <span class="n">earth_pv_helio</span>
+            <span class="k">if</span> <span class="n">body</span> <span class="o">==</span> <span class="s1">&#39;sun&#39;</span><span class="p">:</span>
+                <span class="n">body_pv_bary</span> <span class="o">=</span> <span class="n">sun_pv_bary</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="k">try</span><span class="p">:</span>
+                    <span class="n">body_index</span> <span class="o">=</span> <span class="n">PLAN94_BODY_NAME_TO_PLANET_INDEX</span><span class="p">[</span><span class="n">body</span><span class="p">]</span>
+                <span class="k">except</span> <span class="ne">KeyError</span><span class="p">:</span>
+                    <span class="k">raise</span> <span class="ne">KeyError</span><span class="p">(</span><span class="s2">&quot;</span><span class="si">{0}</span><span class="s2">&#39;s position and velocity cannot be &quot;</span>
+                                   <span class="s2">&quot;calculated with the &#39;</span><span class="si">{1}</span><span class="s2">&#39; ephemeris.&quot;</span>
+                                   <span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">body</span><span class="p">,</span> <span class="n">ephemeris</span><span class="p">))</span>
+                <span class="n">body_pv_helio</span> <span class="o">=</span> <span class="n">erfa</span><span class="o">.</span><span class="n">plan94</span><span class="p">(</span><span class="n">jd1</span><span class="p">,</span> <span class="n">jd2</span><span class="p">,</span> <span class="n">body_index</span><span class="p">)</span>
+                <span class="n">body_pv_bary</span> <span class="o">=</span> <span class="n">body_pv_helio</span> <span class="o">+</span> <span class="n">sun_pv_bary</span>
+
+        <span class="n">body_pos_bary</span> <span class="o">=</span> <span class="n">CartesianRepresentation</span><span class="p">(</span>
+            <span class="n">body_pv_bary</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="p">:],</span> <span class="n">unit</span><span class="o">=</span><span class="n">u</span><span class="o">.</span><span class="n">au</span><span class="p">,</span> <span class="n">xyz_axis</span><span class="o">=-</span><span class="mi">1</span><span class="p">,</span> <span class="n">copy</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">get_velocity</span><span class="p">:</span>
+            <span class="n">body_vel_bary</span> <span class="o">=</span> <span class="n">CartesianRepresentation</span><span class="p">(</span>
+                <span class="n">body_pv_bary</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="p">:],</span> <span class="n">unit</span><span class="o">=</span><span class="n">u</span><span class="o">.</span><span class="n">au</span><span class="o">/</span><span class="n">u</span><span class="o">.</span><span class="n">day</span><span class="p">,</span> <span class="n">xyz_axis</span><span class="o">=-</span><span class="mi">1</span><span class="p">,</span>
+                <span class="n">copy</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
+
+    <span class="k">else</span><span class="p">:</span>
+        <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">body</span><span class="p">,</span> <span class="n">six</span><span class="o">.</span><span class="n">string_types</span><span class="p">):</span>
+            <span class="c1"># Look up kernel chain for JPL ephemeris, based on name</span>
+            <span class="k">try</span><span class="p">:</span>
+                <span class="n">kernel_spec</span> <span class="o">=</span> <span class="n">BODY_NAME_TO_KERNEL_SPEC</span><span class="p">[</span><span class="n">body</span><span class="o">.</span><span class="n">lower</span><span class="p">()]</span>
+            <span class="k">except</span> <span class="ne">KeyError</span><span class="p">:</span>
+                <span class="k">raise</span> <span class="ne">KeyError</span><span class="p">(</span><span class="s2">&quot;</span><span class="si">{0}</span><span class="s2">&#39;s position cannot be calculated with &quot;</span>
+                               <span class="s2">&quot;the </span><span class="si">{1}</span><span class="s2"> ephemeris.&quot;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">body</span><span class="p">,</span> <span class="n">ephemeris</span><span class="p">))</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="c1"># otherwise, assume the user knows what their doing and intentionally</span>
+            <span class="c1"># passed in a kernel chain</span>
+            <span class="n">kernel_spec</span> <span class="o">=</span> <span class="n">body</span>
+
+        <span class="c1"># jplephem cannot handle multi-D arrays, so convert to 1D here.</span>
+        <span class="n">jd1_shape</span> <span class="o">=</span> <span class="nb">getattr</span><span class="p">(</span><span class="n">jd1</span><span class="p">,</span> <span class="s1">&#39;shape&#39;</span><span class="p">,</span> <span class="p">())</span>
+        <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">jd1_shape</span><span class="p">)</span> <span class="o">&gt;</span> <span class="mi">1</span><span class="p">:</span>
+            <span class="n">jd1</span><span class="p">,</span> <span class="n">jd2</span> <span class="o">=</span> <span class="n">jd1</span><span class="o">.</span><span class="n">ravel</span><span class="p">(),</span> <span class="n">jd2</span><span class="o">.</span><span class="n">ravel</span><span class="p">()</span>
+        <span class="c1"># Note that we use the new jd1.shape here to create a 1D result array.</span>
+        <span class="c1"># It is reshaped below.</span>
+        <span class="n">body_posvel_bary</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">zeros</span><span class="p">((</span><span class="mi">2</span> <span class="k">if</span> <span class="n">get_velocity</span> <span class="k">else</span> <span class="mi">1</span><span class="p">,</span> <span class="mi">3</span><span class="p">)</span> <span class="o">+</span>
+                                     <span class="nb">getattr</span><span class="p">(</span><span class="n">jd1</span><span class="p">,</span> <span class="s1">&#39;shape&#39;</span><span class="p">,</span> <span class="p">()))</span>
+        <span class="k">for</span> <span class="n">pair</span> <span class="ow">in</span> <span class="n">kernel_spec</span><span class="p">:</span>
+            <span class="n">spk</span> <span class="o">=</span> <span class="n">kernel</span><span class="p">[</span><span class="n">pair</span><span class="p">]</span>
+            <span class="k">if</span> <span class="n">spk</span><span class="o">.</span><span class="n">data_type</span> <span class="o">==</span> <span class="mi">3</span><span class="p">:</span>
+                <span class="c1"># Type 3 kernels contain both position and velocity.</span>
+                <span class="n">posvel</span> <span class="o">=</span> <span class="n">spk</span><span class="o">.</span><span class="n">compute</span><span class="p">(</span><span class="n">jd1</span><span class="p">,</span> <span class="n">jd2</span><span class="p">)</span>
+                <span class="k">if</span> <span class="n">get_velocity</span><span class="p">:</span>
+                    <span class="n">body_posvel_bary</span> <span class="o">+=</span> <span class="n">posvel</span><span class="o">.</span><span class="n">reshape</span><span class="p">(</span><span class="n">body_posvel_bary</span><span class="o">.</span><span class="n">shape</span><span class="p">)</span>
+                <span class="k">else</span><span class="p">:</span>
+                    <span class="n">body_posvel_bary</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">+=</span> <span class="n">posvel</span><span class="p">[:</span><span class="mi">4</span><span class="p">]</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="c1"># spk.generate first yields the position and then the</span>
+                <span class="c1"># derivative. If no velocities are desired, body_posvel_bary</span>
+                <span class="c1"># has only one element and thus the loop ends after a single</span>
+                <span class="c1"># iteration, avoiding the velocity calculation.</span>
+                <span class="k">for</span> <span class="n">body_p_or_v</span><span class="p">,</span> <span class="n">p_or_v</span> <span class="ow">in</span> <span class="nb">zip</span><span class="p">(</span><span class="n">body_posvel_bary</span><span class="p">,</span>
+                                               <span class="n">spk</span><span class="o">.</span><span class="n">generate</span><span class="p">(</span><span class="n">jd1</span><span class="p">,</span> <span class="n">jd2</span><span class="p">)):</span>
+                    <span class="n">body_p_or_v</span> <span class="o">+=</span> <span class="n">p_or_v</span>
+
+        <span class="n">body_posvel_bary</span><span class="o">.</span><span class="n">shape</span> <span class="o">=</span> <span class="n">body_posvel_bary</span><span class="o">.</span><span class="n">shape</span><span class="p">[:</span><span class="mi">2</span><span class="p">]</span> <span class="o">+</span> <span class="n">jd1_shape</span>
+        <span class="n">body_pos_bary</span> <span class="o">=</span> <span class="n">CartesianRepresentation</span><span class="p">(</span><span class="n">body_posvel_bary</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span>
+                                                <span class="n">unit</span><span class="o">=</span><span class="n">u</span><span class="o">.</span><span class="n">km</span><span class="p">,</span> <span class="n">copy</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">get_velocity</span><span class="p">:</span>
+            <span class="n">body_vel_bary</span> <span class="o">=</span> <span class="n">CartesianRepresentation</span><span class="p">(</span><span class="n">body_posvel_bary</span><span class="p">[</span><span class="mi">1</span><span class="p">],</span>
+                                                    <span class="n">unit</span><span class="o">=</span><span class="n">u</span><span class="o">.</span><span class="n">km</span><span class="o">/</span><span class="n">u</span><span class="o">.</span><span class="n">day</span><span class="p">,</span> <span class="n">copy</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
+
+    <span class="k">return</span> <span class="p">(</span><span class="n">body_pos_bary</span><span class="p">,</span> <span class="n">body_vel_bary</span><span class="p">)</span> <span class="k">if</span> <span class="n">get_velocity</span> <span class="k">else</span> <span class="n">body_pos_bary</span>
+
+
+<div class="viewcode-block" id="get_body_barycentric_posvel"><a class="viewcode-back" href="../../../api/astropy.coordinates.get_body_barycentric_posvel.html#astropy.coordinates.get_body_barycentric_posvel">[docs]</a><span class="k">def</span> <span class="nf">get_body_barycentric_posvel</span><span class="p">(</span><span class="n">body</span><span class="p">,</span> <span class="n">time</span><span class="p">,</span> <span class="n">ephemeris</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;Calculate the barycentric position and velocity of a solar system body.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    body : str or other</span>
+<span class="sd">        The solar system body for which to calculate positions.  Can also be a</span>
+<span class="sd">        kernel specifier (list of 2-tuples) if the ``ephemeris`` is a JPL</span>
+<span class="sd">        kernel.</span>
+<span class="sd">    time : `~astropy.time.Time`</span>
+<span class="sd">        Time of observation.</span>
+<span class="sd">    ephemeris : str, optional</span>
+<span class="sd">        Ephemeris to use.  By default, use the one set with</span>
+<span class="sd">        ``astropy.coordinates.solar_system_ephemeris.set``</span>
+
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+<span class="sd">    position, velocity : tuple of `~astropy.coordinates.CartesianRepresentation`</span>
+<span class="sd">        Tuple of barycentric (ICRS) position and velocity.</span>
+
+<span class="sd">    See also</span>
+<span class="sd">    --------</span>
+<span class="sd">    get_body_barycentric : to calculate position only.</span>
+<span class="sd">        This is faster by about a factor two for JPL kernels, but has no</span>
+<span class="sd">        speed advantage for the built-in ephemeris.</span>
+
+<span class="sd">    Notes</span>
+<span class="sd">    -----</span>
+<span class="sd">    The velocity cannot be calculated for the Moon.  To just get the position,</span>
+<span class="sd">    use :func:`~astropy.coordinates.get_body_barycentric`.</span>
+
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">return</span> <span class="n">_get_body_barycentric_posvel</span><span class="p">(</span><span class="n">body</span><span class="p">,</span> <span class="n">time</span><span class="p">,</span> <span class="n">ephemeris</span><span class="p">)</span></div>
+
+
+<span class="n">get_body_barycentric_posvel</span><span class="o">.</span><span class="n">__doc__</span> <span class="o">+=</span> <span class="n">indent</span><span class="p">(</span><span class="n">_EPHEMERIS_NOTE</span><span class="p">)[</span><span class="mi">4</span><span class="p">:]</span>
+
+
+<div class="viewcode-block" id="get_body_barycentric"><a class="viewcode-back" href="../../../api/astropy.coordinates.get_body_barycentric.html#astropy.coordinates.get_body_barycentric">[docs]</a><span class="k">def</span> <span class="nf">get_body_barycentric</span><span class="p">(</span><span class="n">body</span><span class="p">,</span> <span class="n">time</span><span class="p">,</span> <span class="n">ephemeris</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;Calculate the barycentric position of a solar system body.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    body : str or other</span>
+<span class="sd">        The solar system body for which to calculate positions.  Can also be a</span>
+<span class="sd">        kernel specifier (list of 2-tuples) if the ``ephemeris`` is a JPL</span>
+<span class="sd">        kernel.</span>
+<span class="sd">    time : `~astropy.time.Time`</span>
+<span class="sd">        Time of observation.</span>
+<span class="sd">    ephemeris : str, optional</span>
+<span class="sd">        Ephemeris to use.  By default, use the one set with</span>
+<span class="sd">        ``astropy.coordinates.solar_system_ephemeris.set``</span>
+
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+<span class="sd">    position : `~astropy.coordinates.CartesianRepresentation`</span>
+<span class="sd">        Barycentric (ICRS) position of the body in cartesian coordinates</span>
+
+<span class="sd">    See also</span>
+<span class="sd">    --------</span>
+<span class="sd">    get_body_barycentric_posvel : to calculate both position and velocity.</span>
+
+<span class="sd">    Notes</span>
+<span class="sd">    -----</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">return</span> <span class="n">_get_body_barycentric_posvel</span><span class="p">(</span><span class="n">body</span><span class="p">,</span> <span class="n">time</span><span class="p">,</span> <span class="n">ephemeris</span><span class="p">,</span>
+                                        <span class="n">get_velocity</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span></div>
+
+
+<span class="n">get_body_barycentric</span><span class="o">.</span><span class="n">__doc__</span> <span class="o">+=</span> <span class="n">indent</span><span class="p">(</span><span class="n">_EPHEMERIS_NOTE</span><span class="p">)[</span><span class="mi">4</span><span class="p">:]</span>
+
+
+<span class="k">def</span> <span class="nf">_get_apparent_body_position</span><span class="p">(</span><span class="n">body</span><span class="p">,</span> <span class="n">time</span><span class="p">,</span> <span class="n">ephemeris</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;Calculate the apparent position of body ``body`` relative to Earth.</span>
+
+<span class="sd">    This corrects for the light-travel time to the object.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    body : str or other</span>
+<span class="sd">        The solar system body for which to calculate positions.  Can also be a</span>
+<span class="sd">        kernel specifier (list of 2-tuples) if the ``ephemeris`` is a JPL</span>
+<span class="sd">        kernel.</span>
+<span class="sd">    time : `~astropy.time.Time`</span>
+<span class="sd">        Time of observation.</span>
+<span class="sd">    ephemeris : str, optional</span>
+<span class="sd">        Ephemeris to use.  By default, use the one set with</span>
+<span class="sd">        ``~astropy.coordinates.solar_system_ephemeris.set``</span>
+
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+<span class="sd">    cartesian_position : `~astropy.coordinates.CartesianRepresentation`</span>
+<span class="sd">        Barycentric (ICRS) apparent position of the body in cartesian coordinates</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">if</span> <span class="n">ephemeris</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="n">ephemeris</span> <span class="o">=</span> <span class="n">solar_system_ephemeris</span><span class="o">.</span><span class="n">get</span><span class="p">()</span>
+    <span class="c1"># builtin ephemeris and moon is a special case, with no need to account for</span>
+    <span class="c1"># light travel time, since this is already included in the Meeus algorithm</span>
+    <span class="c1"># used.</span>
+    <span class="k">if</span> <span class="n">ephemeris</span> <span class="o">==</span> <span class="s1">&#39;builtin&#39;</span> <span class="ow">and</span> <span class="n">body</span><span class="o">.</span><span class="n">lower</span><span class="p">()</span> <span class="o">==</span> <span class="s1">&#39;moon&#39;</span><span class="p">:</span>
+        <span class="k">return</span> <span class="n">get_body_barycentric</span><span class="p">(</span><span class="n">body</span><span class="p">,</span> <span class="n">time</span><span class="p">,</span> <span class="n">ephemeris</span><span class="p">)</span>
+
+    <span class="c1"># Calculate position given approximate light travel time.</span>
+    <span class="n">delta_light_travel_time</span> <span class="o">=</span> <span class="mf">20.</span> <span class="o">*</span> <span class="n">u</span><span class="o">.</span><span class="n">s</span>
+    <span class="n">emitted_time</span> <span class="o">=</span> <span class="n">time</span>
+    <span class="n">light_travel_time</span> <span class="o">=</span> <span class="mf">0.</span> <span class="o">*</span> <span class="n">u</span><span class="o">.</span><span class="n">s</span>
+    <span class="n">earth_loc</span> <span class="o">=</span> <span class="n">get_body_barycentric</span><span class="p">(</span><span class="s1">&#39;earth&#39;</span><span class="p">,</span> <span class="n">time</span><span class="p">,</span> <span class="n">ephemeris</span><span class="p">)</span>
+    <span class="k">while</span> <span class="n">np</span><span class="o">.</span><span class="n">any</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">fabs</span><span class="p">(</span><span class="n">delta_light_travel_time</span><span class="p">)</span> <span class="o">&gt;</span> <span class="mf">1.0e-8</span><span class="o">*</span><span class="n">u</span><span class="o">.</span><span class="n">s</span><span class="p">):</span>
+        <span class="n">body_loc</span> <span class="o">=</span> <span class="n">get_body_barycentric</span><span class="p">(</span><span class="n">body</span><span class="p">,</span> <span class="n">emitted_time</span><span class="p">,</span> <span class="n">ephemeris</span><span class="p">)</span>
+        <span class="n">earth_distance</span> <span class="o">=</span> <span class="p">(</span><span class="n">body_loc</span> <span class="o">-</span> <span class="n">earth_loc</span><span class="p">)</span><span class="o">.</span><span class="n">norm</span><span class="p">()</span>
+        <span class="n">delta_light_travel_time</span> <span class="o">=</span> <span class="p">(</span><span class="n">light_travel_time</span> <span class="o">-</span>
+                                   <span class="n">earth_distance</span><span class="o">/</span><span class="n">speed_of_light</span><span class="p">)</span>
+        <span class="n">light_travel_time</span> <span class="o">=</span> <span class="n">earth_distance</span><span class="o">/</span><span class="n">speed_of_light</span>
+        <span class="n">emitted_time</span> <span class="o">=</span> <span class="n">time</span> <span class="o">-</span> <span class="n">light_travel_time</span>
+
+    <span class="k">return</span> <span class="n">get_body_barycentric</span><span class="p">(</span><span class="n">body</span><span class="p">,</span> <span class="n">emitted_time</span><span class="p">,</span> <span class="n">ephemeris</span><span class="p">)</span>
+
+
+<span class="n">_get_apparent_body_position</span><span class="o">.</span><span class="n">__doc__</span> <span class="o">+=</span> <span class="n">indent</span><span class="p">(</span><span class="n">_EPHEMERIS_NOTE</span><span class="p">)[</span><span class="mi">4</span><span class="p">:]</span>
+
+
+<div class="viewcode-block" id="get_body"><a class="viewcode-back" href="../../../api/astropy.coordinates.get_body.html#astropy.coordinates.get_body">[docs]</a><span class="k">def</span> <span class="nf">get_body</span><span class="p">(</span><span class="n">body</span><span class="p">,</span> <span class="n">time</span><span class="p">,</span> <span class="n">location</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">ephemeris</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Get a `~astropy.coordinates.SkyCoord` for a solar system body as observed</span>
+<span class="sd">    from a location on Earth.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    body : str or other</span>
+<span class="sd">        The solar system body for which to calculate positions.  Can also be a</span>
+<span class="sd">        kernel specifier (list of 2-tuples) if the ``ephemeris`` is a JPL</span>
+<span class="sd">        kernel.</span>
+<span class="sd">    time : `~astropy.time.Time`</span>
+<span class="sd">        Time of observation.</span>
+<span class="sd">    location : `~astropy.coordinates.EarthLocation`, optional</span>
+<span class="sd">        Location of observer on the Earth.  If not given, will be taken from</span>
+<span class="sd">        ``time`` (if not present, a geocentric observer will be assumed).</span>
+<span class="sd">    ephemeris : str, optional</span>
+<span class="sd">        Ephemeris to use.  If not given, use the one set with</span>
+<span class="sd">        ``astropy.coordinates.solar_system_ephemeris.set`` (which is</span>
+<span class="sd">        set to &#39;builtin&#39; by default).</span>
+
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+<span class="sd">    skycoord : `~astropy.coordinates.SkyCoord`</span>
+<span class="sd">        GCRS Coordinate for the body</span>
+
+<span class="sd">    Notes</span>
+<span class="sd">    -----</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">if</span> <span class="n">location</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="n">location</span> <span class="o">=</span> <span class="n">time</span><span class="o">.</span><span class="n">location</span>
+
+    <span class="n">cartrep</span> <span class="o">=</span> <span class="n">_get_apparent_body_position</span><span class="p">(</span><span class="n">body</span><span class="p">,</span> <span class="n">time</span><span class="p">,</span> <span class="n">ephemeris</span><span class="p">)</span>
+    <span class="n">icrs</span> <span class="o">=</span> <span class="n">ICRS</span><span class="p">(</span><span class="n">cartrep</span><span class="p">)</span>
+    <span class="k">if</span> <span class="n">location</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="n">obsgeoloc</span><span class="p">,</span> <span class="n">obsgeovel</span> <span class="o">=</span> <span class="n">location</span><span class="o">.</span><span class="n">get_gcrs_posvel</span><span class="p">(</span><span class="n">time</span><span class="p">)</span>
+        <span class="n">gcrs</span> <span class="o">=</span> <span class="n">icrs</span><span class="o">.</span><span class="n">transform_to</span><span class="p">(</span><span class="n">GCRS</span><span class="p">(</span><span class="n">obstime</span><span class="o">=</span><span class="n">time</span><span class="p">,</span>
+                                      <span class="n">obsgeoloc</span><span class="o">=</span><span class="n">obsgeoloc</span><span class="p">,</span>
+                                      <span class="n">obsgeovel</span><span class="o">=</span><span class="n">obsgeovel</span><span class="p">))</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="n">gcrs</span> <span class="o">=</span> <span class="n">icrs</span><span class="o">.</span><span class="n">transform_to</span><span class="p">(</span><span class="n">GCRS</span><span class="p">(</span><span class="n">obstime</span><span class="o">=</span><span class="n">time</span><span class="p">))</span>
+    <span class="k">return</span> <span class="n">SkyCoord</span><span class="p">(</span><span class="n">gcrs</span><span class="p">)</span></div>
+
+
+<span class="n">get_body</span><span class="o">.</span><span class="n">__doc__</span> <span class="o">+=</span> <span class="n">indent</span><span class="p">(</span><span class="n">_EPHEMERIS_NOTE</span><span class="p">)[</span><span class="mi">4</span><span class="p">:]</span>
+
+
+<div class="viewcode-block" id="get_moon"><a class="viewcode-back" href="../../../api/astropy.coordinates.get_moon.html#astropy.coordinates.get_moon">[docs]</a><span class="k">def</span> <span class="nf">get_moon</span><span class="p">(</span><span class="n">time</span><span class="p">,</span> <span class="n">location</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">ephemeris</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Get a `~astropy.coordinates.SkyCoord` for the Earth&#39;s Moon as observed</span>
+<span class="sd">    from a location on Earth.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    time : `~astropy.time.Time`</span>
+<span class="sd">        Time of observation</span>
+<span class="sd">    location : `~astropy.coordinates.EarthLocation`</span>
+<span class="sd">        Location of observer on the Earth. If none is supplied, taken from</span>
+<span class="sd">        ``time`` (if not present, a geocentric observer will be assumed).</span>
+<span class="sd">    ephemeris : str, optional</span>
+<span class="sd">        Ephemeris to use.  If not given, use the one set with</span>
+<span class="sd">        ``astropy.coordinates.solar_system_ephemeris.set`` (which is</span>
+<span class="sd">        set to &#39;builtin&#39; by default).</span>
+
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+<span class="sd">    skycoord : `~astropy.coordinates.SkyCoord`</span>
+<span class="sd">        Coordinate for the Moon</span>
+
+<span class="sd">    Notes</span>
+<span class="sd">    -----</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="k">return</span> <span class="n">get_body</span><span class="p">(</span><span class="s1">&#39;moon&#39;</span><span class="p">,</span> <span class="n">time</span><span class="p">,</span> <span class="n">location</span><span class="o">=</span><span class="n">location</span><span class="p">,</span> <span class="n">ephemeris</span><span class="o">=</span><span class="n">ephemeris</span><span class="p">)</span></div>
+
+
+<span class="n">get_moon</span><span class="o">.</span><span class="n">__doc__</span> <span class="o">+=</span> <span class="n">indent</span><span class="p">(</span><span class="n">_EPHEMERIS_NOTE</span><span class="p">)[</span><span class="mi">4</span><span class="p">:]</span>
+
+
+<span class="k">def</span> <span class="nf">_apparent_position_in_true_coordinates</span><span class="p">(</span><span class="n">skycoord</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Convert Skycoord in GCRS frame into one in which RA and Dec</span>
+<span class="sd">    are defined w.r.t to the true equinox and poles of the Earth</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">jd1</span><span class="p">,</span> <span class="n">jd2</span> <span class="o">=</span> <span class="n">get_jd12</span><span class="p">(</span><span class="n">skycoord</span><span class="o">.</span><span class="n">obstime</span><span class="p">,</span> <span class="s1">&#39;tt&#39;</span><span class="p">)</span>
+    <span class="n">_</span><span class="p">,</span> <span class="n">_</span><span class="p">,</span> <span class="n">_</span><span class="p">,</span> <span class="n">_</span><span class="p">,</span> <span class="n">_</span><span class="p">,</span> <span class="n">_</span><span class="p">,</span> <span class="n">_</span><span class="p">,</span> <span class="n">rbpn</span> <span class="o">=</span> <span class="n">erfa</span><span class="o">.</span><span class="n">pn00a</span><span class="p">(</span><span class="n">jd1</span><span class="p">,</span> <span class="n">jd2</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">SkyCoord</span><span class="p">(</span><span class="n">skycoord</span><span class="o">.</span><span class="n">frame</span><span class="o">.</span><span class="n">realize_frame</span><span class="p">(</span>
+        <span class="n">skycoord</span><span class="o">.</span><span class="n">cartesian</span><span class="o">.</span><span class="n">transform</span><span class="p">(</span><span class="n">rbpn</span><span class="p">)))</span>
+</pre></div>
+
+          </div>
+        </div>
+      </div>
+      <div class="sphinxsidebar" role="navigation" aria-label="main navigation">
+        <div class="sphinxsidebarwrapper"><h3>Page Contents</h3>
+
+
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+<footer class="footer">
+  <p class="pull-right"> &nbsp;
+    <a href="#">Back to Top</a></p>
+  <p>
+    &copy; Copyright 2011-2016, The Astropy Developers.<br/>
+    Created using <a href="http://sphinx.pocoo.org/">Sphinx</a> 1.5.6. &nbsp;
+    Last built 05 Jul 2017. <br/>
+  </p>
+</footer>
+  </body>
+</html>

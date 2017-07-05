@@ -1,0 +1,416 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <head>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    
+    <title>astropy.config.paths &#8212; Astropy v3.0.dev19489</title>
+    
+    <link rel="stylesheet" href="../../../_static/bootstrap-astropy.css" type="text/css" />
+    <link rel="stylesheet" href="../../../_static/pygments.css" type="text/css" />
+    <link rel="stylesheet" href="../../../_static/gallery.css" type="text/css" />
+    
+    <script type="text/javascript">
+      var DOCUMENTATION_OPTIONS = {
+        URL_ROOT:    '../../../',
+        VERSION:     '3.0.dev19489',
+        COLLAPSE_INDEX: false,
+        FILE_SUFFIX: '.html',
+        HAS_SOURCE:  true,
+        SOURCELINK_SUFFIX: '.txt'
+      };
+    </script>
+    <script type="text/javascript" src="../../../_static/jquery.js"></script>
+    <script type="text/javascript" src="../../../_static/underscore.js"></script>
+    <script type="text/javascript" src="../../../_static/doctools.js"></script>
+    <script type="text/javascript" src="../../../_static/sidebar.js"></script>
+    <link rel="shortcut icon" href="../../../_static/astropy_logo.ico"/>
+    <link rel="index" title="Index" href="../../../genindex.html" />
+    <link rel="search" title="Search" href="../../../search.html" />
+<link href='https://fonts.googleapis.com/css?family=Source+Sans+Pro:200,600' rel='stylesheet' type='text/css'/>
+<script type="text/javascript" src="../../../_static/copybutton.js"></script>
+
+
+  </head>
+  <body role="document">
+<div class="topbar">
+  <a class="brand" title="Documentation Home" href="../../../index.html"><span id="logotext1">astro</span><span id="logotext2">py</span><span id="logotext3">:docs</span></a>
+  <ul>
+    <li><a class="homelink" title="Astropy Homepage" href="http://www.astropy.org"></a></li>
+    <li><a title="General Index" href="../../../genindex.html">Index</a></li>
+    <li><a title="Module Index" href="../../../py-modindex.html">Modules</a></li>
+    <li>
+      
+      
+<form action="../../../search.html" method="get">
+  <input type="text" name="q" placeholder="Search" />
+  <input type="hidden" name="check_keywords" value="yes" />
+  <input type="hidden" name="area" value="default" />
+</form>
+      
+    </li>
+  </ul>
+</div>
+
+<div class="related">
+    <h3>Navigation</h3>
+    <ul>
+      <li>
+	<a href="../../../index.html">Astropy v3.0.dev19489</a>
+	 &#187;
+      </li>
+      <li><a href="../../index.html" >Module code</a> &#187;</li>
+      <li><a href="../../astropy.html" accesskey="U">astropy</a> &#187;</li>
+      
+       
+    </ul>
+</div>
+  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          <div class="body" role="main">
+            
+  <h1>Source code for astropy.config.paths</h1><div class="highlight"><pre>
+<span></span><span class="c1"># Licensed under a 3-clause BSD style license - see LICENSE.rst</span>
+<span class="sd">&quot;&quot;&quot; This module contains functions to determine where configuration and</span>
+<span class="sd">data/cache files used by Astropy should be placed.</span>
+<span class="sd">&quot;&quot;&quot;</span>
+<span class="kn">from</span> <span class="nn">__future__</span> <span class="k">import</span> <span class="p">(</span><span class="n">absolute_import</span><span class="p">,</span> <span class="n">division</span><span class="p">,</span> <span class="n">print_function</span><span class="p">,</span>
+                        <span class="n">unicode_literals</span><span class="p">)</span>
+
+<span class="kn">from</span> <span class="nn">..extern</span> <span class="k">import</span> <span class="n">six</span>
+<span class="kn">from</span> <span class="nn">..utils.decorators</span> <span class="k">import</span> <span class="n">wraps</span>
+
+<span class="kn">import</span> <span class="nn">os</span>
+<span class="kn">import</span> <span class="nn">shutil</span>
+<span class="kn">import</span> <span class="nn">sys</span>
+
+
+<span class="n">__all__</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;get_config_dir&#39;</span><span class="p">,</span> <span class="s1">&#39;get_cache_dir&#39;</span><span class="p">,</span> <span class="s1">&#39;set_temp_config&#39;</span><span class="p">,</span>
+           <span class="s1">&#39;set_temp_cache&#39;</span><span class="p">]</span>
+
+
+<span class="k">def</span> <span class="nf">_find_home</span><span class="p">():</span>
+    <span class="sd">&quot;&quot;&quot; Locates and return the home directory (or best approximation) on this</span>
+<span class="sd">    system.</span>
+
+<span class="sd">    Raises</span>
+<span class="sd">    ------</span>
+<span class="sd">    OSError</span>
+<span class="sd">        If the home directory cannot be located - usually means you are running</span>
+<span class="sd">        Astropy on some obscure platform that doesn&#39;t have standard home</span>
+<span class="sd">        directories.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="c1"># this is used below to make fix up encoding issues that sometimes crop up</span>
+    <span class="c1"># in py2.x but not in py3.x</span>
+    <span class="k">if</span> <span class="n">six</span><span class="o">.</span><span class="n">PY2</span><span class="p">:</span>
+        <span class="n">decodepath</span> <span class="o">=</span> <span class="k">lambda</span> <span class="n">pth</span><span class="p">:</span> <span class="n">pth</span><span class="o">.</span><span class="n">decode</span><span class="p">(</span><span class="n">sys</span><span class="o">.</span><span class="n">getfilesystemencoding</span><span class="p">())</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="n">decodepath</span> <span class="o">=</span> <span class="k">lambda</span> <span class="n">pth</span><span class="p">:</span> <span class="n">pth</span>
+
+    <span class="c1"># First find the home directory - this is inspired by the scheme ipython</span>
+    <span class="c1"># uses to identify &quot;home&quot;</span>
+    <span class="k">if</span> <span class="n">os</span><span class="o">.</span><span class="n">name</span> <span class="o">==</span> <span class="s1">&#39;posix&#39;</span><span class="p">:</span>
+        <span class="c1"># Linux, Unix, AIX, OS X</span>
+        <span class="k">if</span> <span class="s1">&#39;HOME&#39;</span> <span class="ow">in</span> <span class="n">os</span><span class="o">.</span><span class="n">environ</span><span class="p">:</span>
+            <span class="n">homedir</span> <span class="o">=</span> <span class="n">decodepath</span><span class="p">(</span><span class="n">os</span><span class="o">.</span><span class="n">environ</span><span class="p">[</span><span class="s1">&#39;HOME&#39;</span><span class="p">])</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">OSError</span><span class="p">(</span><span class="s1">&#39;Could not find unix home directory to search for &#39;</span>
+                          <span class="s1">&#39;astropy config dir&#39;</span><span class="p">)</span>
+    <span class="k">elif</span> <span class="n">os</span><span class="o">.</span><span class="n">name</span> <span class="o">==</span> <span class="s1">&#39;nt&#39;</span><span class="p">:</span>  <span class="c1"># This is for all modern Windows (NT or after)</span>
+        <span class="k">if</span> <span class="s1">&#39;MSYSTEM&#39;</span> <span class="ow">in</span> <span class="n">os</span><span class="o">.</span><span class="n">environ</span> <span class="ow">and</span> <span class="n">os</span><span class="o">.</span><span class="n">environ</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;HOME&#39;</span><span class="p">):</span>
+            <span class="c1"># Likely using an msys shell; use whatever it is using for its</span>
+            <span class="c1"># $HOME directory</span>
+            <span class="n">homedir</span> <span class="o">=</span> <span class="n">decodepath</span><span class="p">(</span><span class="n">os</span><span class="o">.</span><span class="n">environ</span><span class="p">[</span><span class="s1">&#39;HOME&#39;</span><span class="p">])</span>
+        <span class="c1"># Next try for a network home</span>
+        <span class="k">elif</span> <span class="s1">&#39;HOMESHARE&#39;</span> <span class="ow">in</span> <span class="n">os</span><span class="o">.</span><span class="n">environ</span><span class="p">:</span>
+            <span class="n">homedir</span> <span class="o">=</span> <span class="n">decodepath</span><span class="p">(</span><span class="n">os</span><span class="o">.</span><span class="n">environ</span><span class="p">[</span><span class="s1">&#39;HOMESHARE&#39;</span><span class="p">])</span>
+        <span class="c1"># See if there&#39;s a local home</span>
+        <span class="k">elif</span> <span class="s1">&#39;HOMEDRIVE&#39;</span> <span class="ow">in</span> <span class="n">os</span><span class="o">.</span><span class="n">environ</span> <span class="ow">and</span> <span class="s1">&#39;HOMEPATH&#39;</span> <span class="ow">in</span> <span class="n">os</span><span class="o">.</span><span class="n">environ</span><span class="p">:</span>
+            <span class="n">homedir</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">os</span><span class="o">.</span><span class="n">environ</span><span class="p">[</span><span class="s1">&#39;HOMEDRIVE&#39;</span><span class="p">],</span>
+                                   <span class="n">os</span><span class="o">.</span><span class="n">environ</span><span class="p">[</span><span class="s1">&#39;HOMEPATH&#39;</span><span class="p">])</span>
+            <span class="n">homedir</span> <span class="o">=</span> <span class="n">decodepath</span><span class="p">(</span><span class="n">homedir</span><span class="p">)</span>
+        <span class="c1"># Maybe a user profile?</span>
+        <span class="k">elif</span> <span class="s1">&#39;USERPROFILE&#39;</span> <span class="ow">in</span> <span class="n">os</span><span class="o">.</span><span class="n">environ</span><span class="p">:</span>
+            <span class="n">homedir</span> <span class="o">=</span> <span class="n">decodepath</span><span class="p">(</span><span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">os</span><span class="o">.</span><span class="n">environ</span><span class="p">[</span><span class="s1">&#39;USERPROFILE&#39;</span><span class="p">]))</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">try</span><span class="p">:</span>
+                <span class="kn">from</span> <span class="nn">..extern.six.moves</span> <span class="k">import</span> <span class="n">winreg</span> <span class="k">as</span> <span class="n">wreg</span>
+                <span class="n">shell_folders</span> <span class="o">=</span> <span class="s1">r&#39;Software\Microsoft\Windows\CurrentVersion\Explorer\Shell Folders&#39;</span>
+                <span class="n">key</span> <span class="o">=</span> <span class="n">wreg</span><span class="o">.</span><span class="n">OpenKey</span><span class="p">(</span><span class="n">wreg</span><span class="o">.</span><span class="n">HKEY_CURRENT_USER</span><span class="p">,</span> <span class="n">shell_folders</span><span class="p">)</span>
+
+                <span class="n">homedir</span> <span class="o">=</span> <span class="n">wreg</span><span class="o">.</span><span class="n">QueryValueEx</span><span class="p">(</span><span class="n">key</span><span class="p">,</span> <span class="s1">&#39;Personal&#39;</span><span class="p">)[</span><span class="mi">0</span><span class="p">]</span>
+                <span class="n">homedir</span> <span class="o">=</span> <span class="n">decodepath</span><span class="p">(</span><span class="n">homedir</span><span class="p">)</span>
+                <span class="n">key</span><span class="o">.</span><span class="n">Close</span><span class="p">()</span>
+            <span class="k">except</span> <span class="ne">Exception</span><span class="p">:</span>
+                <span class="c1"># As a final possible resort, see if HOME is present</span>
+                <span class="k">if</span> <span class="s1">&#39;HOME&#39;</span> <span class="ow">in</span> <span class="n">os</span><span class="o">.</span><span class="n">environ</span><span class="p">:</span>
+                    <span class="n">homedir</span> <span class="o">=</span> <span class="n">decodepath</span><span class="p">(</span><span class="n">os</span><span class="o">.</span><span class="n">environ</span><span class="p">[</span><span class="s1">&#39;HOME&#39;</span><span class="p">])</span>
+                <span class="k">else</span><span class="p">:</span>
+                    <span class="k">raise</span> <span class="ne">OSError</span><span class="p">(</span><span class="s1">&#39;Could not find windows home directory to &#39;</span>
+                                  <span class="s1">&#39;search for astropy config dir&#39;</span><span class="p">)</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="c1"># for other platforms, try HOME, although it probably isn&#39;t there</span>
+        <span class="k">if</span> <span class="s1">&#39;HOME&#39;</span> <span class="ow">in</span> <span class="n">os</span><span class="o">.</span><span class="n">environ</span><span class="p">:</span>
+            <span class="n">homedir</span> <span class="o">=</span> <span class="n">decodepath</span><span class="p">(</span><span class="n">os</span><span class="o">.</span><span class="n">environ</span><span class="p">[</span><span class="s1">&#39;HOME&#39;</span><span class="p">])</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">OSError</span><span class="p">(</span><span class="s1">&#39;Could not find a home directory to search for &#39;</span>
+                          <span class="s1">&#39;astropy config dir - are you on an unspported &#39;</span>
+                          <span class="s1">&#39;platform?&#39;</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">homedir</span>
+
+
+<div class="viewcode-block" id="get_config_dir"><a class="viewcode-back" href="../../../api/astropy.config.get_config_dir.html#astropy.config.get_config_dir">[docs]</a><span class="k">def</span> <span class="nf">get_config_dir</span><span class="p">(</span><span class="n">create</span><span class="o">=</span><span class="kc">True</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Determines the Astropy configuration directory name and creates the</span>
+<span class="sd">    directory if it doesn&#39;t exist.</span>
+
+<span class="sd">    This directory is typically ``$HOME/.astropy/config``, but if the</span>
+<span class="sd">    XDG_CONFIG_HOME environment variable is set and the</span>
+<span class="sd">    ``$XDG_CONFIG_HOME/astropy`` directory exists, it will be that directory.</span>
+<span class="sd">    If neither exists, the former will be created and symlinked to the latter.</span>
+
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+<span class="sd">    configdir : str</span>
+<span class="sd">        The absolute path to the configuration directory.</span>
+
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="c1"># symlink will be set to this if the directory is created</span>
+    <span class="n">linkto</span> <span class="o">=</span> <span class="kc">None</span>
+
+    <span class="c1"># If using set_temp_config, that overrides all</span>
+    <span class="k">if</span> <span class="n">set_temp_config</span><span class="o">.</span><span class="n">_temp_path</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="n">xch</span> <span class="o">=</span> <span class="n">set_temp_config</span><span class="o">.</span><span class="n">_temp_path</span>
+        <span class="n">config_path</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">xch</span><span class="p">,</span> <span class="s1">&#39;astropy&#39;</span><span class="p">)</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">exists</span><span class="p">(</span><span class="n">config_path</span><span class="p">):</span>
+            <span class="n">os</span><span class="o">.</span><span class="n">mkdir</span><span class="p">(</span><span class="n">config_path</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">abspath</span><span class="p">(</span><span class="n">config_path</span><span class="p">)</span>
+
+    <span class="c1"># first look for XDG_CONFIG_HOME</span>
+    <span class="n">xch</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">environ</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;XDG_CONFIG_HOME&#39;</span><span class="p">)</span>
+
+    <span class="k">if</span> <span class="n">xch</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="ow">and</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">exists</span><span class="p">(</span><span class="n">xch</span><span class="p">):</span>
+        <span class="n">xchpth</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">xch</span><span class="p">,</span> <span class="s1">&#39;astropy&#39;</span><span class="p">)</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">islink</span><span class="p">(</span><span class="n">xchpth</span><span class="p">):</span>
+            <span class="k">if</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">exists</span><span class="p">(</span><span class="n">xchpth</span><span class="p">):</span>
+                <span class="k">return</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">abspath</span><span class="p">(</span><span class="n">xchpth</span><span class="p">)</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="n">linkto</span> <span class="o">=</span> <span class="n">xchpth</span>
+    <span class="k">return</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">abspath</span><span class="p">(</span><span class="n">_find_or_create_astropy_dir</span><span class="p">(</span><span class="s1">&#39;config&#39;</span><span class="p">,</span> <span class="n">linkto</span><span class="p">))</span></div>
+
+
+<div class="viewcode-block" id="get_cache_dir"><a class="viewcode-back" href="../../../api/astropy.config.get_cache_dir.html#astropy.config.get_cache_dir">[docs]</a><span class="k">def</span> <span class="nf">get_cache_dir</span><span class="p">():</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Determines the Astropy cache directory name and creates the directory if it</span>
+<span class="sd">    doesn&#39;t exist.</span>
+
+<span class="sd">    This directory is typically ``$HOME/.astropy/cache``, but if the</span>
+<span class="sd">    XDG_CACHE_HOME environment variable is set and the</span>
+<span class="sd">    ``$XDG_CACHE_HOME/astropy`` directory exists, it will be that directory.</span>
+<span class="sd">    If neither exists, the former will be created and symlinked to the latter.</span>
+
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+<span class="sd">    cachedir : str</span>
+<span class="sd">        The absolute path to the cache directory.</span>
+
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="c1"># symlink will be set to this if the directory is created</span>
+    <span class="n">linkto</span> <span class="o">=</span> <span class="kc">None</span>
+
+    <span class="c1"># If using set_temp_cache, that overrides all</span>
+    <span class="k">if</span> <span class="n">set_temp_cache</span><span class="o">.</span><span class="n">_temp_path</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="n">xch</span> <span class="o">=</span> <span class="n">set_temp_cache</span><span class="o">.</span><span class="n">_temp_path</span>
+        <span class="n">cache_path</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">xch</span><span class="p">,</span> <span class="s1">&#39;astropy&#39;</span><span class="p">)</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">exists</span><span class="p">(</span><span class="n">cache_path</span><span class="p">):</span>
+            <span class="n">os</span><span class="o">.</span><span class="n">mkdir</span><span class="p">(</span><span class="n">cache_path</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">abspath</span><span class="p">(</span><span class="n">cache_path</span><span class="p">)</span>
+
+    <span class="c1"># first look for XDG_CACHE_HOME</span>
+    <span class="n">xch</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">environ</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;XDG_CACHE_HOME&#39;</span><span class="p">)</span>
+
+    <span class="k">if</span> <span class="n">xch</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="ow">and</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">exists</span><span class="p">(</span><span class="n">xch</span><span class="p">):</span>
+        <span class="n">xchpth</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">xch</span><span class="p">,</span> <span class="s1">&#39;astropy&#39;</span><span class="p">)</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">islink</span><span class="p">(</span><span class="n">xchpth</span><span class="p">):</span>
+            <span class="k">if</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">exists</span><span class="p">(</span><span class="n">xchpth</span><span class="p">):</span>
+                <span class="k">return</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">abspath</span><span class="p">(</span><span class="n">xchpth</span><span class="p">)</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="n">linkto</span> <span class="o">=</span> <span class="n">xchpth</span>
+
+    <span class="k">return</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">abspath</span><span class="p">(</span><span class="n">_find_or_create_astropy_dir</span><span class="p">(</span><span class="s1">&#39;cache&#39;</span><span class="p">,</span> <span class="n">linkto</span><span class="p">))</span></div>
+
+
+<span class="k">class</span> <span class="nc">_SetTempPath</span><span class="p">(</span><span class="nb">object</span><span class="p">):</span>
+    <span class="n">_temp_path</span> <span class="o">=</span> <span class="kc">None</span>
+    <span class="n">_default_path_getter</span> <span class="o">=</span> <span class="kc">None</span>
+
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">path</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">delete</span><span class="o">=</span><span class="kc">False</span><span class="p">):</span>
+        <span class="k">if</span> <span class="n">path</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">path</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">abspath</span><span class="p">(</span><span class="n">path</span><span class="p">)</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">_path</span> <span class="o">=</span> <span class="n">path</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_delete</span> <span class="o">=</span> <span class="n">delete</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_prev_path</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">__class__</span><span class="o">.</span><span class="n">_temp_path</span>
+
+    <span class="k">def</span> <span class="nf">__enter__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">__class__</span><span class="o">.</span><span class="n">_temp_path</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_path</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_default_path_getter</span><span class="p">()</span>
+
+    <span class="k">def</span> <span class="nf">__exit__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">__class__</span><span class="o">.</span><span class="n">_temp_path</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_prev_path</span>
+
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_delete</span> <span class="ow">and</span> <span class="bp">self</span><span class="o">.</span><span class="n">_path</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">shutil</span><span class="o">.</span><span class="n">rmtree</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_path</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">__call__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">func</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Implements use as a decorator.&quot;&quot;&quot;</span>
+
+        <span class="nd">@wraps</span><span class="p">(</span><span class="n">func</span><span class="p">)</span>
+        <span class="k">def</span> <span class="nf">wrapper</span><span class="p">(</span><span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+            <span class="k">with</span> <span class="bp">self</span><span class="p">:</span>
+                <span class="n">func</span><span class="p">(</span><span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
+
+        <span class="k">return</span> <span class="n">wrapper</span>
+
+
+<div class="viewcode-block" id="set_temp_config"><a class="viewcode-back" href="../../../api/astropy.config.set_temp_config.html#astropy.config.set_temp_config">[docs]</a><span class="k">class</span> <span class="nc">set_temp_config</span><span class="p">(</span><span class="n">_SetTempPath</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Context manager to set a temporary path for the Astropy config, primarily</span>
+<span class="sd">    for use with testing.</span>
+
+<span class="sd">    If the path set by this context manager does not already exist it will be</span>
+<span class="sd">    created, if possible.</span>
+
+<span class="sd">    This may also be used as a decorator on a function to set the config path</span>
+<span class="sd">    just within that function.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+
+<span class="sd">    path : str, optional</span>
+<span class="sd">        The directory (which must exist) in which to find the Astropy config</span>
+<span class="sd">        files, or create them if they do not already exist.  If None, this</span>
+<span class="sd">        restores the config path to the user&#39;s default config path as returned</span>
+<span class="sd">        by `get_config_dir` as though this context manager were not in effect</span>
+<span class="sd">        (this is useful for testing).  In this case the ``delete`` argument is</span>
+<span class="sd">        always ignored.</span>
+
+<span class="sd">    delete : bool, optional</span>
+<span class="sd">        If True, cleans up the temporary directory after exiting the temp</span>
+<span class="sd">        context (default: False).</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="n">_default_path_getter</span> <span class="o">=</span> <span class="nb">staticmethod</span><span class="p">(</span><span class="n">get_config_dir</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">__enter__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="c1"># Special case for the config case, where we need to reset all the</span>
+        <span class="c1"># cached config objects</span>
+        <span class="kn">from</span> <span class="nn">.configuration</span> <span class="k">import</span> <span class="n">_cfgobjs</span>
+
+        <span class="n">path</span> <span class="o">=</span> <span class="nb">super</span><span class="p">(</span><span class="n">set_temp_config</span><span class="p">,</span> <span class="bp">self</span><span class="p">)</span><span class="o">.</span><span class="n">__enter__</span><span class="p">()</span>
+        <span class="n">_cfgobjs</span><span class="o">.</span><span class="n">clear</span><span class="p">()</span>
+        <span class="k">return</span> <span class="n">path</span>
+
+    <span class="k">def</span> <span class="nf">__exit__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">):</span>
+        <span class="kn">from</span> <span class="nn">.configuration</span> <span class="k">import</span> <span class="n">_cfgobjs</span>
+
+        <span class="nb">super</span><span class="p">(</span><span class="n">set_temp_config</span><span class="p">,</span> <span class="bp">self</span><span class="p">)</span><span class="o">.</span><span class="n">__exit__</span><span class="p">(</span><span class="o">*</span><span class="n">args</span><span class="p">)</span>
+        <span class="n">_cfgobjs</span><span class="o">.</span><span class="n">clear</span><span class="p">()</span></div>
+
+
+<div class="viewcode-block" id="set_temp_cache"><a class="viewcode-back" href="../../../api/astropy.config.set_temp_cache.html#astropy.config.set_temp_cache">[docs]</a><span class="k">class</span> <span class="nc">set_temp_cache</span><span class="p">(</span><span class="n">_SetTempPath</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Context manager to set a temporary path for the Astropy download cache,</span>
+<span class="sd">    primarily for use with testing (though there may be other applications</span>
+<span class="sd">    for setting a different cache directory, for example to switch to a cache</span>
+<span class="sd">    dedicated to large files).</span>
+
+<span class="sd">    If the path set by this context manager does not already exist it will be</span>
+<span class="sd">    created, if possible.</span>
+
+<span class="sd">    This may also be used as a decorator on a function to set the cache path</span>
+<span class="sd">    just within that function.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+
+<span class="sd">    path : str</span>
+<span class="sd">        The directory (which must exist) in which to find the Astropy cache</span>
+<span class="sd">        files, or create them if they do not already exist.  If None, this</span>
+<span class="sd">        restores the cache path to the user&#39;s default cache path as returned</span>
+<span class="sd">        by `get_cache_dir` as though this context manager were not in effect</span>
+<span class="sd">        (this is useful for testing).  In this case the ``delete`` argument is</span>
+<span class="sd">        always ignored.</span>
+
+<span class="sd">    delete : bool, optional</span>
+<span class="sd">        If True, cleans up the temporary directory after exiting the temp</span>
+<span class="sd">        context (default: False).</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="n">_default_path_getter</span> <span class="o">=</span> <span class="nb">staticmethod</span><span class="p">(</span><span class="n">get_cache_dir</span><span class="p">)</span></div>
+
+
+<span class="k">def</span> <span class="nf">_find_or_create_astropy_dir</span><span class="p">(</span><span class="n">dirnm</span><span class="p">,</span> <span class="n">linkto</span><span class="p">):</span>
+    <span class="n">innerdir</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">_find_home</span><span class="p">(),</span> <span class="s1">&#39;.astropy&#39;</span><span class="p">)</span>
+    <span class="n">maindir</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">_find_home</span><span class="p">(),</span> <span class="s1">&#39;.astropy&#39;</span><span class="p">,</span> <span class="n">dirnm</span><span class="p">)</span>
+
+    <span class="k">if</span> <span class="ow">not</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">exists</span><span class="p">(</span><span class="n">maindir</span><span class="p">):</span>
+        <span class="c1"># first create .astropy dir if needed</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">exists</span><span class="p">(</span><span class="n">innerdir</span><span class="p">):</span>
+            <span class="k">try</span><span class="p">:</span>
+                <span class="n">os</span><span class="o">.</span><span class="n">mkdir</span><span class="p">(</span><span class="n">innerdir</span><span class="p">)</span>
+            <span class="k">except</span> <span class="ne">OSError</span><span class="p">:</span>
+                <span class="k">if</span> <span class="ow">not</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">isdir</span><span class="p">(</span><span class="n">innerdir</span><span class="p">):</span>
+                    <span class="k">raise</span>
+        <span class="k">elif</span> <span class="ow">not</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">isdir</span><span class="p">(</span><span class="n">innerdir</span><span class="p">):</span>
+            <span class="n">msg</span> <span class="o">=</span> <span class="s1">&#39;Intended Astropy directory </span><span class="si">{0}</span><span class="s1"> is actually a file.&#39;</span>
+            <span class="k">raise</span> <span class="ne">IOError</span><span class="p">(</span><span class="n">msg</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">innerdir</span><span class="p">))</span>
+
+        <span class="k">try</span><span class="p">:</span>
+            <span class="n">os</span><span class="o">.</span><span class="n">mkdir</span><span class="p">(</span><span class="n">maindir</span><span class="p">)</span>
+        <span class="k">except</span> <span class="ne">OSError</span><span class="p">:</span>
+            <span class="k">if</span> <span class="ow">not</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">isdir</span><span class="p">(</span><span class="n">maindir</span><span class="p">):</span>
+                <span class="k">raise</span>
+
+        <span class="k">if</span> <span class="p">(</span><span class="ow">not</span> <span class="n">sys</span><span class="o">.</span><span class="n">platform</span><span class="o">.</span><span class="n">startswith</span><span class="p">(</span><span class="s1">&#39;win&#39;</span><span class="p">)</span> <span class="ow">and</span>
+            <span class="n">linkto</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="ow">and</span>
+                <span class="ow">not</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">exists</span><span class="p">(</span><span class="n">linkto</span><span class="p">)):</span>
+            <span class="n">os</span><span class="o">.</span><span class="n">symlink</span><span class="p">(</span><span class="n">maindir</span><span class="p">,</span> <span class="n">linkto</span><span class="p">)</span>
+
+    <span class="k">elif</span> <span class="ow">not</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">isdir</span><span class="p">(</span><span class="n">maindir</span><span class="p">):</span>
+        <span class="n">msg</span> <span class="o">=</span> <span class="s1">&#39;Intended Astropy </span><span class="si">{0}</span><span class="s1"> directory </span><span class="si">{1}</span><span class="s1"> is actually a file.&#39;</span>
+        <span class="k">raise</span> <span class="ne">IOError</span><span class="p">(</span><span class="n">msg</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">dirnm</span><span class="p">,</span> <span class="n">maindir</span><span class="p">))</span>
+
+    <span class="k">return</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">abspath</span><span class="p">(</span><span class="n">maindir</span><span class="p">)</span>
+</pre></div>
+
+          </div>
+        </div>
+      </div>
+      <div class="sphinxsidebar" role="navigation" aria-label="main navigation">
+        <div class="sphinxsidebarwrapper"><h3>Page Contents</h3>
+
+
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+<footer class="footer">
+  <p class="pull-right"> &nbsp;
+    <a href="#">Back to Top</a></p>
+  <p>
+    &copy; Copyright 2011-2016, The Astropy Developers.<br/>
+    Created using <a href="http://sphinx.pocoo.org/">Sphinx</a> 1.5.6. &nbsp;
+    Last built 05 Jul 2017. <br/>
+  </p>
+</footer>
+  </body>
+</html>

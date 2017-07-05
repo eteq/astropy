@@ -1,0 +1,595 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <head>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    
+    <title>astropy.tests.helper &#8212; Astropy v3.0.dev19489</title>
+    
+    <link rel="stylesheet" href="../../../_static/bootstrap-astropy.css" type="text/css" />
+    <link rel="stylesheet" href="../../../_static/pygments.css" type="text/css" />
+    <link rel="stylesheet" href="../../../_static/gallery.css" type="text/css" />
+    
+    <script type="text/javascript">
+      var DOCUMENTATION_OPTIONS = {
+        URL_ROOT:    '../../../',
+        VERSION:     '3.0.dev19489',
+        COLLAPSE_INDEX: false,
+        FILE_SUFFIX: '.html',
+        HAS_SOURCE:  true,
+        SOURCELINK_SUFFIX: '.txt'
+      };
+    </script>
+    <script type="text/javascript" src="../../../_static/jquery.js"></script>
+    <script type="text/javascript" src="../../../_static/underscore.js"></script>
+    <script type="text/javascript" src="../../../_static/doctools.js"></script>
+    <script type="text/javascript" src="../../../_static/sidebar.js"></script>
+    <link rel="shortcut icon" href="../../../_static/astropy_logo.ico"/>
+    <link rel="index" title="Index" href="../../../genindex.html" />
+    <link rel="search" title="Search" href="../../../search.html" />
+<link href='https://fonts.googleapis.com/css?family=Source+Sans+Pro:200,600' rel='stylesheet' type='text/css'/>
+<script type="text/javascript" src="../../../_static/copybutton.js"></script>
+
+
+  </head>
+  <body role="document">
+<div class="topbar">
+  <a class="brand" title="Documentation Home" href="../../../index.html"><span id="logotext1">astro</span><span id="logotext2">py</span><span id="logotext3">:docs</span></a>
+  <ul>
+    <li><a class="homelink" title="Astropy Homepage" href="http://www.astropy.org"></a></li>
+    <li><a title="General Index" href="../../../genindex.html">Index</a></li>
+    <li><a title="Module Index" href="../../../py-modindex.html">Modules</a></li>
+    <li>
+      
+      
+<form action="../../../search.html" method="get">
+  <input type="text" name="q" placeholder="Search" />
+  <input type="hidden" name="check_keywords" value="yes" />
+  <input type="hidden" name="area" value="default" />
+</form>
+      
+    </li>
+  </ul>
+</div>
+
+<div class="related">
+    <h3>Navigation</h3>
+    <ul>
+      <li>
+	<a href="../../../index.html">Astropy v3.0.dev19489</a>
+	 &#187;
+      </li>
+      <li><a href="../../index.html" >Module code</a> &#187;</li>
+      <li><a href="../../astropy.html" accesskey="U">astropy</a> &#187;</li>
+      
+       
+    </ul>
+</div>
+  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          <div class="body" role="main">
+            
+  <h1>Source code for astropy.tests.helper</h1><div class="highlight"><pre>
+<span></span><span class="c1"># Licensed under a 3-clause BSD style license - see LICENSE.rst</span>
+<span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">This module provides the tools used to internally run the astropy test suite</span>
+<span class="sd">from the installed astropy.  It makes use of the `pytest` testing framework.</span>
+<span class="sd">&quot;&quot;&quot;</span>
+<span class="kn">from</span> <span class="nn">__future__</span> <span class="k">import</span> <span class="p">(</span><span class="n">absolute_import</span><span class="p">,</span> <span class="n">division</span><span class="p">,</span> <span class="n">print_function</span><span class="p">,</span>
+                        <span class="n">unicode_literals</span><span class="p">)</span>
+
+<span class="kn">import</span> <span class="nn">functools</span>
+<span class="kn">import</span> <span class="nn">os</span>
+<span class="kn">import</span> <span class="nn">sys</span>
+<span class="kn">import</span> <span class="nn">types</span>
+<span class="kn">import</span> <span class="nn">warnings</span>
+
+<span class="kn">import</span> <span class="nn">pytest</span>
+
+<span class="kn">from</span> <span class="nn">..extern</span> <span class="k">import</span> <span class="n">six</span>
+<span class="kn">from</span> <span class="nn">..extern.six.moves</span> <span class="k">import</span> <span class="n">cPickle</span> <span class="k">as</span> <span class="n">pickle</span>
+
+<span class="k">try</span><span class="p">:</span>
+    <span class="c1"># Import pkg_resources to prevent it from issuing warnings upon being</span>
+    <span class="c1"># imported from within py.test.  See</span>
+    <span class="c1"># https://github.com/astropy/astropy/pull/537 for a detailed explanation.</span>
+    <span class="kn">import</span> <span class="nn">pkg_resources</span>  <span class="c1"># pylint: disable=W0611</span>
+<span class="k">except</span> <span class="ne">ImportError</span><span class="p">:</span>
+    <span class="k">pass</span>
+
+<span class="kn">from</span> <span class="nn">..utils.exceptions</span> <span class="k">import</span> <span class="p">(</span><span class="n">AstropyDeprecationWarning</span><span class="p">,</span>
+                                <span class="n">AstropyPendingDeprecationWarning</span><span class="p">)</span>
+
+
+<span class="c1"># For backward-compatibility with affiliated packages</span>
+<span class="kn">from</span> <span class="nn">.runner</span> <span class="k">import</span> <span class="n">TestRunner</span>  <span class="c1"># pylint: disable=W0611</span>
+
+<span class="n">__all__</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;raises&#39;</span><span class="p">,</span> <span class="s1">&#39;enable_deprecations_as_exceptions&#39;</span><span class="p">,</span> <span class="s1">&#39;remote_data&#39;</span><span class="p">,</span>
+           <span class="s1">&#39;treat_deprecations_as_exceptions&#39;</span><span class="p">,</span> <span class="s1">&#39;catch_warnings&#39;</span><span class="p">,</span>
+           <span class="s1">&#39;assert_follows_unicode_guidelines&#39;</span><span class="p">,</span> <span class="s1">&#39;quantity_allclose&#39;</span><span class="p">,</span>
+           <span class="s1">&#39;assert_quantity_allclose&#39;</span><span class="p">,</span> <span class="s1">&#39;check_pickling_recovery&#39;</span><span class="p">,</span>
+           <span class="s1">&#39;pickle_protocol&#39;</span><span class="p">,</span> <span class="s1">&#39;generic_recursive_equality_test&#39;</span><span class="p">]</span>
+
+<span class="c1"># pytest marker to mark tests which get data from the web</span>
+<span class="n">remote_data</span> <span class="o">=</span> <span class="n">pytest</span><span class="o">.</span><span class="n">mark</span><span class="o">.</span><span class="n">remote_data</span>
+
+
+<span class="c1"># This is for Python 2.x and 3.x compatibility.  distutils expects</span>
+<span class="c1"># options to all be byte strings on Python 2 and Unicode strings on</span>
+<span class="c1"># Python 3.</span>
+<span class="k">def</span> <span class="nf">_fix_user_options</span><span class="p">(</span><span class="n">options</span><span class="p">):</span>
+    <span class="k">def</span> <span class="nf">to_str_or_none</span><span class="p">(</span><span class="n">x</span><span class="p">):</span>
+        <span class="k">if</span> <span class="n">x</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="k">return</span> <span class="kc">None</span>
+        <span class="k">return</span> <span class="nb">str</span><span class="p">(</span><span class="n">x</span><span class="p">)</span>
+
+    <span class="k">return</span> <span class="p">[</span><span class="nb">tuple</span><span class="p">(</span><span class="n">to_str_or_none</span><span class="p">(</span><span class="n">x</span><span class="p">)</span> <span class="k">for</span> <span class="n">x</span> <span class="ow">in</span> <span class="n">y</span><span class="p">)</span> <span class="k">for</span> <span class="n">y</span> <span class="ow">in</span> <span class="n">options</span><span class="p">]</span>
+
+
+<span class="k">def</span> <span class="nf">_save_coverage</span><span class="p">(</span><span class="n">cov</span><span class="p">,</span> <span class="n">result</span><span class="p">,</span> <span class="n">rootdir</span><span class="p">,</span> <span class="n">testing_path</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    This method is called after the tests have been run in coverage mode</span>
+<span class="sd">    to cleanup and then save the coverage data and report.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="kn">from</span> <span class="nn">..utils.console</span> <span class="k">import</span> <span class="n">color_print</span>
+
+    <span class="k">if</span> <span class="n">result</span> <span class="o">!=</span> <span class="mi">0</span><span class="p">:</span>
+        <span class="k">return</span>
+
+    <span class="c1"># The coverage report includes the full path to the temporary</span>
+    <span class="c1"># directory, so we replace all the paths with the true source</span>
+    <span class="c1"># path. Note that this will not work properly for packages that still</span>
+    <span class="c1"># rely on 2to3.</span>
+    <span class="k">try</span><span class="p">:</span>
+        <span class="c1"># Coverage 4.0: _harvest_data has been renamed to get_data, the</span>
+        <span class="c1"># lines dict is private</span>
+        <span class="n">cov</span><span class="o">.</span><span class="n">get_data</span><span class="p">()</span>
+    <span class="k">except</span> <span class="ne">AttributeError</span><span class="p">:</span>
+        <span class="c1"># Coverage &lt; 4.0</span>
+        <span class="n">cov</span><span class="o">.</span><span class="n">_harvest_data</span><span class="p">()</span>
+        <span class="n">lines</span> <span class="o">=</span> <span class="n">cov</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">lines</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="n">lines</span> <span class="o">=</span> <span class="n">cov</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">_lines</span>
+
+    <span class="k">for</span> <span class="n">key</span> <span class="ow">in</span> <span class="nb">list</span><span class="p">(</span><span class="n">lines</span><span class="o">.</span><span class="n">keys</span><span class="p">()):</span>
+        <span class="n">new_path</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">relpath</span><span class="p">(</span>
+            <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">realpath</span><span class="p">(</span><span class="n">key</span><span class="p">),</span>
+            <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">realpath</span><span class="p">(</span><span class="n">testing_path</span><span class="p">))</span>
+        <span class="n">new_path</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">abspath</span><span class="p">(</span>
+            <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">rootdir</span><span class="p">,</span> <span class="n">new_path</span><span class="p">))</span>
+        <span class="n">lines</span><span class="p">[</span><span class="n">new_path</span><span class="p">]</span> <span class="o">=</span> <span class="n">lines</span><span class="o">.</span><span class="n">pop</span><span class="p">(</span><span class="n">key</span><span class="p">)</span>
+
+    <span class="n">color_print</span><span class="p">(</span><span class="s1">&#39;Saving coverage data in .coverage...&#39;</span><span class="p">,</span> <span class="s1">&#39;green&#39;</span><span class="p">)</span>
+    <span class="n">cov</span><span class="o">.</span><span class="n">save</span><span class="p">()</span>
+
+    <span class="n">color_print</span><span class="p">(</span><span class="s1">&#39;Saving HTML coverage report in htmlcov...&#39;</span><span class="p">,</span> <span class="s1">&#39;green&#39;</span><span class="p">)</span>
+    <span class="n">cov</span><span class="o">.</span><span class="n">html_report</span><span class="p">(</span><span class="n">directory</span><span class="o">=</span><span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">rootdir</span><span class="p">,</span> <span class="s1">&#39;htmlcov&#39;</span><span class="p">))</span>
+
+
+<div class="viewcode-block" id="raises"><a class="viewcode-back" href="../../../api/astropy.tests.helper.raises.html#astropy.tests.helper.raises">[docs]</a><span class="k">class</span> <span class="nc">raises</span><span class="p">(</span><span class="nb">object</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    A decorator to mark that a test should raise a given exception.</span>
+<span class="sd">    Use as follows::</span>
+
+<span class="sd">        @raises(ZeroDivisionError)</span>
+<span class="sd">        def test_foo():</span>
+<span class="sd">            x = 1/0</span>
+
+<span class="sd">    This can also be used a context manager, in which case it is just</span>
+<span class="sd">    an alias for the ``pytest.raises`` context manager (because the</span>
+<span class="sd">    two have the same name this help avoid confusion by being</span>
+<span class="sd">    flexible).</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="c1"># pep-8 naming exception -- this is a decorator class</span>
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">exc</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_exc</span> <span class="o">=</span> <span class="n">exc</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_ctx</span> <span class="o">=</span> <span class="kc">None</span>
+
+<div class="viewcode-block" id="raises.__call__"><a class="viewcode-back" href="../../../api/astropy.tests.helper.raises.html#astropy.tests.helper.raises.__call__">[docs]</a>    <span class="k">def</span> <span class="nf">__call__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">func</span><span class="p">):</span>
+        <span class="nd">@functools</span><span class="o">.</span><span class="n">wraps</span><span class="p">(</span><span class="n">func</span><span class="p">)</span>
+        <span class="k">def</span> <span class="nf">run_raises_test</span><span class="p">(</span><span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+            <span class="n">pytest</span><span class="o">.</span><span class="n">raises</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_exc</span><span class="p">,</span> <span class="n">func</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">run_raises_test</span></div>
+
+    <span class="k">def</span> <span class="nf">__enter__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_ctx</span> <span class="o">=</span> <span class="n">pytest</span><span class="o">.</span><span class="n">raises</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_exc</span><span class="p">)</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_ctx</span><span class="o">.</span><span class="n">__enter__</span><span class="p">()</span>
+
+    <span class="k">def</span> <span class="nf">__exit__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="o">*</span><span class="n">exc_info</span><span class="p">):</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_ctx</span><span class="o">.</span><span class="n">__exit__</span><span class="p">(</span><span class="o">*</span><span class="n">exc_info</span><span class="p">)</span></div>
+
+
+<span class="n">_deprecations_as_exceptions</span> <span class="o">=</span> <span class="kc">False</span>
+<span class="n">_include_astropy_deprecations</span> <span class="o">=</span> <span class="kc">True</span>
+<span class="n">_modules_to_ignore_on_import</span> <span class="o">=</span> <span class="nb">set</span><span class="p">([</span>
+    <span class="s1">&#39;compiler&#39;</span><span class="p">,</span>  <span class="c1"># A deprecated stdlib module used by py.test</span>
+    <span class="s1">&#39;scipy&#39;</span><span class="p">,</span>
+    <span class="s1">&#39;pygments&#39;</span><span class="p">,</span>
+    <span class="s1">&#39;ipykernel&#39;</span><span class="p">,</span>
+    <span class="s1">&#39;setuptools&#39;</span><span class="p">])</span>
+<span class="n">_warnings_to_ignore_by_pyver</span> <span class="o">=</span> <span class="p">{</span>
+    <span class="p">(</span><span class="mi">3</span><span class="p">,</span> <span class="mi">4</span><span class="p">):</span> <span class="nb">set</span><span class="p">([</span>
+        <span class="c1"># py.test reads files with the &#39;U&#39; flag, which is now</span>
+        <span class="c1"># deprecated in Python 3.4.</span>
+        <span class="s2">r&quot;&#39;U&#39; mode is deprecated&quot;</span><span class="p">,</span>
+        <span class="c1"># BeautifulSoup4 triggers warning in stdlib&#39;s html module.x</span>
+        <span class="s2">r&quot;The strict argument and mode are deprecated\.&quot;</span><span class="p">,</span>
+        <span class="s2">r&quot;The value of convert_charrefs will become True in 3\.5\. &quot;</span>
+        <span class="s2">r&quot;You are encouraged to set the value explicitly\.&quot;</span><span class="p">]),</span>
+    <span class="p">(</span><span class="mi">3</span><span class="p">,</span> <span class="mi">5</span><span class="p">):</span> <span class="nb">set</span><span class="p">([</span>
+        <span class="c1"># py.test raises this warning on Python 3.5.</span>
+        <span class="c1"># This can be removed when fixed in py.test.</span>
+        <span class="c1"># See https://github.com/pytest-dev/pytest/pull/1009</span>
+        <span class="s2">r&quot;inspect\.getargspec\(\) is deprecated, use &quot;</span>
+        <span class="s2">r&quot;inspect\.signature\(\) instead&quot;</span><span class="p">])}</span>
+
+
+<div class="viewcode-block" id="enable_deprecations_as_exceptions"><a class="viewcode-back" href="../../../api/astropy.tests.helper.enable_deprecations_as_exceptions.html#astropy.tests.helper.enable_deprecations_as_exceptions">[docs]</a><span class="k">def</span> <span class="nf">enable_deprecations_as_exceptions</span><span class="p">(</span><span class="n">include_astropy_deprecations</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
+                                      <span class="n">modules_to_ignore_on_import</span><span class="o">=</span><span class="p">[],</span>
+                                      <span class="n">warnings_to_ignore_by_pyver</span><span class="o">=</span><span class="p">{}):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Turn on the feature that turns deprecations into exceptions.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    include_astropy_deprecations : bool</span>
+<span class="sd">        If set to `True`, ``AstropyDeprecationWarning`` and</span>
+<span class="sd">        ``AstropyPendingDeprecationWarning`` are also turned into exceptions.</span>
+
+<span class="sd">    modules_to_ignore_on_import : list of str</span>
+<span class="sd">        List of additional modules that generate deprecation warnings</span>
+<span class="sd">        on import, which are to be ignored. By default, these are already</span>
+<span class="sd">        included: ``compiler``, ``scipy``, ``pygments``, ``ipykernel``, and</span>
+<span class="sd">        ``setuptools``.</span>
+
+<span class="sd">    warnings_to_ignore_by_pyver : dict</span>
+<span class="sd">        Dictionary mapping tuple of ``(major, minor)`` Python version to</span>
+<span class="sd">        a list of deprecation warning messages to ignore. This is in</span>
+<span class="sd">        addition of those already ignored by default</span>
+<span class="sd">        (see ``_warnings_to_ignore_by_pyver`` values).</span>
+
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">global</span> <span class="n">_deprecations_as_exceptions</span>
+    <span class="n">_deprecations_as_exceptions</span> <span class="o">=</span> <span class="kc">True</span>
+
+    <span class="k">global</span> <span class="n">_include_astropy_deprecations</span>
+    <span class="n">_include_astropy_deprecations</span> <span class="o">=</span> <span class="n">include_astropy_deprecations</span>
+
+    <span class="k">global</span> <span class="n">_modules_to_ignore_on_import</span>
+    <span class="n">_modules_to_ignore_on_import</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="n">modules_to_ignore_on_import</span><span class="p">)</span>
+
+    <span class="k">global</span> <span class="n">_warnings_to_ignore_by_pyver</span>
+    <span class="k">for</span> <span class="n">key</span><span class="p">,</span> <span class="n">val</span> <span class="ow">in</span> <span class="n">six</span><span class="o">.</span><span class="n">iteritems</span><span class="p">(</span><span class="n">warnings_to_ignore_by_pyver</span><span class="p">):</span>
+        <span class="k">if</span> <span class="n">key</span> <span class="ow">in</span> <span class="n">_warnings_to_ignore_by_pyver</span><span class="p">:</span>
+            <span class="n">_warnings_to_ignore_by_pyver</span><span class="p">[</span><span class="n">key</span><span class="p">]</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="n">val</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">_warnings_to_ignore_by_pyver</span><span class="p">[</span><span class="n">key</span><span class="p">]</span> <span class="o">=</span> <span class="nb">set</span><span class="p">(</span><span class="n">val</span><span class="p">)</span></div>
+
+
+<div class="viewcode-block" id="treat_deprecations_as_exceptions"><a class="viewcode-back" href="../../../api/astropy.tests.helper.treat_deprecations_as_exceptions.html#astropy.tests.helper.treat_deprecations_as_exceptions">[docs]</a><span class="k">def</span> <span class="nf">treat_deprecations_as_exceptions</span><span class="p">():</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Turn all DeprecationWarnings (which indicate deprecated uses of</span>
+<span class="sd">    Python itself or Numpy, but not within Astropy, where we use our</span>
+<span class="sd">    own deprecation warning class) into exceptions so that we find</span>
+<span class="sd">    out about them early.</span>
+
+<span class="sd">    This completely resets the warning filters and any &quot;already seen&quot;</span>
+<span class="sd">    warning state.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="c1"># First, totally reset the warning state. The modules may change during</span>
+    <span class="c1"># this iteration thus we copy the original state to a list to iterate</span>
+    <span class="c1"># on. See https://github.com/astropy/astropy/pull/5513.</span>
+    <span class="k">for</span> <span class="n">module</span> <span class="ow">in</span> <span class="nb">list</span><span class="p">(</span><span class="n">six</span><span class="o">.</span><span class="n">itervalues</span><span class="p">(</span><span class="n">sys</span><span class="o">.</span><span class="n">modules</span><span class="p">)):</span>
+        <span class="c1"># We don&#39;t want to deal with six.MovedModules, only &quot;real&quot;</span>
+        <span class="c1"># modules.</span>
+        <span class="k">if</span> <span class="p">(</span><span class="nb">isinstance</span><span class="p">(</span><span class="n">module</span><span class="p">,</span> <span class="n">types</span><span class="o">.</span><span class="n">ModuleType</span><span class="p">)</span> <span class="ow">and</span>
+                <span class="nb">hasattr</span><span class="p">(</span><span class="n">module</span><span class="p">,</span> <span class="s1">&#39;__warningregistry__&#39;</span><span class="p">)):</span>
+            <span class="k">del</span> <span class="n">module</span><span class="o">.</span><span class="n">__warningregistry__</span>
+
+    <span class="k">if</span> <span class="ow">not</span> <span class="n">_deprecations_as_exceptions</span><span class="p">:</span>
+        <span class="k">return</span>
+
+    <span class="n">warnings</span><span class="o">.</span><span class="n">resetwarnings</span><span class="p">()</span>
+
+    <span class="c1"># Hide the next couple of DeprecationWarnings</span>
+    <span class="n">warnings</span><span class="o">.</span><span class="n">simplefilter</span><span class="p">(</span><span class="s1">&#39;ignore&#39;</span><span class="p">,</span> <span class="ne">DeprecationWarning</span><span class="p">)</span>
+    <span class="c1"># Here&#39;s the wrinkle: a couple of our third-party dependencies</span>
+    <span class="c1"># (py.test and scipy) are still using deprecated features</span>
+    <span class="c1"># themselves, and we&#39;d like to ignore those.  Fortunately, those</span>
+    <span class="c1"># show up only at import time, so if we import those things *now*,</span>
+    <span class="c1"># before we turn the warnings into exceptions, we&#39;re golden.</span>
+    <span class="k">for</span> <span class="n">m</span> <span class="ow">in</span> <span class="n">_modules_to_ignore_on_import</span><span class="p">:</span>
+        <span class="k">try</span><span class="p">:</span>
+            <span class="nb">__import__</span><span class="p">(</span><span class="n">m</span><span class="p">)</span>
+        <span class="k">except</span> <span class="ne">ImportError</span><span class="p">:</span>
+            <span class="k">pass</span>
+
+    <span class="c1"># Now, start over again with the warning filters</span>
+    <span class="n">warnings</span><span class="o">.</span><span class="n">resetwarnings</span><span class="p">()</span>
+    <span class="c1"># Now, turn DeprecationWarnings into exceptions</span>
+    <span class="n">warnings</span><span class="o">.</span><span class="n">filterwarnings</span><span class="p">(</span><span class="s2">&quot;error&quot;</span><span class="p">,</span> <span class="s2">&quot;.*&quot;</span><span class="p">,</span> <span class="ne">DeprecationWarning</span><span class="p">)</span>
+
+    <span class="c1"># Only turn astropy deprecation warnings into exceptions if requested</span>
+    <span class="k">if</span> <span class="n">_include_astropy_deprecations</span><span class="p">:</span>
+        <span class="n">warnings</span><span class="o">.</span><span class="n">filterwarnings</span><span class="p">(</span><span class="s2">&quot;error&quot;</span><span class="p">,</span> <span class="s2">&quot;.*&quot;</span><span class="p">,</span> <span class="n">AstropyDeprecationWarning</span><span class="p">)</span>
+        <span class="n">warnings</span><span class="o">.</span><span class="n">filterwarnings</span><span class="p">(</span><span class="s2">&quot;error&quot;</span><span class="p">,</span> <span class="s2">&quot;.*&quot;</span><span class="p">,</span> <span class="n">AstropyPendingDeprecationWarning</span><span class="p">)</span>
+
+    <span class="k">for</span> <span class="n">v</span> <span class="ow">in</span> <span class="n">_warnings_to_ignore_by_pyver</span><span class="p">:</span>
+        <span class="k">if</span> <span class="n">sys</span><span class="o">.</span><span class="n">version_info</span><span class="p">[:</span><span class="mi">2</span><span class="p">]</span> <span class="o">&gt;=</span> <span class="n">v</span><span class="p">:</span>
+            <span class="k">for</span> <span class="n">s</span> <span class="ow">in</span> <span class="n">_warnings_to_ignore_by_pyver</span><span class="p">[</span><span class="n">v</span><span class="p">]:</span>
+                <span class="n">warnings</span><span class="o">.</span><span class="n">filterwarnings</span><span class="p">(</span><span class="s2">&quot;ignore&quot;</span><span class="p">,</span> <span class="n">s</span><span class="p">,</span> <span class="ne">DeprecationWarning</span><span class="p">)</span></div>
+
+
+<div class="viewcode-block" id="catch_warnings"><a class="viewcode-back" href="../../../api/astropy.tests.helper.catch_warnings.html#astropy.tests.helper.catch_warnings">[docs]</a><span class="k">class</span> <span class="nc">catch_warnings</span><span class="p">(</span><span class="n">warnings</span><span class="o">.</span><span class="n">catch_warnings</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    A high-powered version of warnings.catch_warnings to use for testing</span>
+<span class="sd">    and to make sure that there is no dependence on the order in which</span>
+<span class="sd">    the tests are run.</span>
+
+<span class="sd">    This completely blitzes any memory of any warnings that have</span>
+<span class="sd">    appeared before so that all warnings will be caught and displayed.</span>
+
+<span class="sd">    ``*args`` is a set of warning classes to collect.  If no arguments are</span>
+<span class="sd">    provided, all warnings are collected.</span>
+
+<span class="sd">    Use as follows::</span>
+
+<span class="sd">        with catch_warnings(MyCustomWarning) as w:</span>
+<span class="sd">            do.something.bad()</span>
+<span class="sd">        assert len(w) &gt; 0</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="o">*</span><span class="n">classes</span><span class="p">):</span>
+        <span class="nb">super</span><span class="p">(</span><span class="n">catch_warnings</span><span class="p">,</span> <span class="bp">self</span><span class="p">)</span><span class="o">.</span><span class="n">__init__</span><span class="p">(</span><span class="n">record</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">classes</span> <span class="o">=</span> <span class="n">classes</span>
+
+    <span class="k">def</span> <span class="nf">__enter__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="n">warning_list</span> <span class="o">=</span> <span class="nb">super</span><span class="p">(</span><span class="n">catch_warnings</span><span class="p">,</span> <span class="bp">self</span><span class="p">)</span><span class="o">.</span><span class="n">__enter__</span><span class="p">()</span>
+        <span class="n">treat_deprecations_as_exceptions</span><span class="p">()</span>
+        <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">classes</span><span class="p">)</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
+            <span class="n">warnings</span><span class="o">.</span><span class="n">simplefilter</span><span class="p">(</span><span class="s1">&#39;always&#39;</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">warnings</span><span class="o">.</span><span class="n">simplefilter</span><span class="p">(</span><span class="s1">&#39;ignore&#39;</span><span class="p">)</span>
+            <span class="k">for</span> <span class="n">cls</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">classes</span><span class="p">:</span>
+                <span class="n">warnings</span><span class="o">.</span><span class="n">simplefilter</span><span class="p">(</span><span class="s1">&#39;always&#39;</span><span class="p">,</span> <span class="n">cls</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">warning_list</span>
+
+    <span class="k">def</span> <span class="nf">__exit__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="nb">type</span><span class="p">,</span> <span class="n">value</span><span class="p">,</span> <span class="n">traceback</span><span class="p">):</span>
+        <span class="n">treat_deprecations_as_exceptions</span><span class="p">()</span></div>
+
+
+<span class="k">class</span> <span class="nc">ignore_warnings</span><span class="p">(</span><span class="n">catch_warnings</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    This can be used either as a context manager or function decorator to</span>
+<span class="sd">    ignore all warnings that occur within a function or block of code.</span>
+
+<span class="sd">    An optional category option can be supplied to only ignore warnings of a</span>
+<span class="sd">    certain category or categories (if a list is provided).</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">category</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+        <span class="nb">super</span><span class="p">(</span><span class="n">ignore_warnings</span><span class="p">,</span> <span class="bp">self</span><span class="p">)</span><span class="o">.</span><span class="n">__init__</span><span class="p">()</span>
+
+        <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">category</span><span class="p">,</span> <span class="nb">type</span><span class="p">)</span> <span class="ow">and</span> <span class="nb">issubclass</span><span class="p">(</span><span class="n">category</span><span class="p">,</span> <span class="ne">Warning</span><span class="p">):</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">category</span> <span class="o">=</span> <span class="p">[</span><span class="n">category</span><span class="p">]</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">category</span> <span class="o">=</span> <span class="n">category</span>
+
+    <span class="k">def</span> <span class="nf">__call__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">func</span><span class="p">):</span>
+        <span class="nd">@functools</span><span class="o">.</span><span class="n">wraps</span><span class="p">(</span><span class="n">func</span><span class="p">)</span>
+        <span class="k">def</span> <span class="nf">wrapper</span><span class="p">(</span><span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+            <span class="c1"># Originally this just reused self, but that doesn&#39;t work if the</span>
+            <span class="c1"># function is called more than once so we need to make a new</span>
+            <span class="c1"># context manager instance for each call</span>
+            <span class="k">with</span> <span class="bp">self</span><span class="o">.</span><span class="n">__class__</span><span class="p">(</span><span class="n">category</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">category</span><span class="p">):</span>
+                <span class="k">return</span> <span class="n">func</span><span class="p">(</span><span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
+
+        <span class="k">return</span> <span class="n">wrapper</span>
+
+    <span class="k">def</span> <span class="nf">__enter__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="n">retval</span> <span class="o">=</span> <span class="nb">super</span><span class="p">(</span><span class="n">ignore_warnings</span><span class="p">,</span> <span class="bp">self</span><span class="p">)</span><span class="o">.</span><span class="n">__enter__</span><span class="p">()</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">category</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="k">for</span> <span class="n">category</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">category</span><span class="p">:</span>
+                <span class="n">warnings</span><span class="o">.</span><span class="n">simplefilter</span><span class="p">(</span><span class="s1">&#39;ignore&#39;</span><span class="p">,</span> <span class="n">category</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">warnings</span><span class="o">.</span><span class="n">simplefilter</span><span class="p">(</span><span class="s1">&#39;ignore&#39;</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">retval</span>
+
+
+<div class="viewcode-block" id="assert_follows_unicode_guidelines"><a class="viewcode-back" href="../../../api/astropy.tests.helper.assert_follows_unicode_guidelines.html#astropy.tests.helper.assert_follows_unicode_guidelines">[docs]</a><span class="k">def</span> <span class="nf">assert_follows_unicode_guidelines</span><span class="p">(</span>
+        <span class="n">x</span><span class="p">,</span> <span class="n">roundtrip</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Test that an object follows our Unicode policy.  See</span>
+<span class="sd">    &quot;Unicode guidelines&quot; in the coding guidelines.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    x : object</span>
+<span class="sd">        The instance to test</span>
+
+<span class="sd">    roundtrip : module, optional</span>
+<span class="sd">        When provided, this namespace will be used to evaluate</span>
+<span class="sd">        ``repr(x)`` and ensure that it roundtrips.  It will also</span>
+<span class="sd">        ensure that ``__bytes__(x)`` and ``__unicode__(x)`` roundtrip.</span>
+<span class="sd">        If not provided, no roundtrip testing will be performed.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="kn">from</span> <span class="nn">..</span> <span class="k">import</span> <span class="n">conf</span>
+    <span class="kn">from</span> <span class="nn">..extern</span> <span class="k">import</span> <span class="n">six</span>
+
+    <span class="k">with</span> <span class="n">conf</span><span class="o">.</span><span class="n">set_temp</span><span class="p">(</span><span class="s1">&#39;unicode_output&#39;</span><span class="p">,</span> <span class="kc">False</span><span class="p">):</span>
+        <span class="n">bytes_x</span> <span class="o">=</span> <span class="nb">bytes</span><span class="p">(</span><span class="n">x</span><span class="p">)</span>
+        <span class="n">unicode_x</span> <span class="o">=</span> <span class="n">six</span><span class="o">.</span><span class="n">text_type</span><span class="p">(</span><span class="n">x</span><span class="p">)</span>
+        <span class="n">repr_x</span> <span class="o">=</span> <span class="nb">repr</span><span class="p">(</span><span class="n">x</span><span class="p">)</span>
+
+        <span class="k">assert</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">bytes_x</span><span class="p">,</span> <span class="nb">bytes</span><span class="p">)</span>
+        <span class="n">bytes_x</span><span class="o">.</span><span class="n">decode</span><span class="p">(</span><span class="s1">&#39;ascii&#39;</span><span class="p">)</span>
+        <span class="k">assert</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">unicode_x</span><span class="p">,</span> <span class="n">six</span><span class="o">.</span><span class="n">text_type</span><span class="p">)</span>
+        <span class="n">unicode_x</span><span class="o">.</span><span class="n">encode</span><span class="p">(</span><span class="s1">&#39;ascii&#39;</span><span class="p">)</span>
+        <span class="k">assert</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">repr_x</span><span class="p">,</span> <span class="n">six</span><span class="o">.</span><span class="n">string_types</span><span class="p">)</span>
+        <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">repr_x</span><span class="p">,</span> <span class="nb">bytes</span><span class="p">):</span>
+            <span class="n">repr_x</span><span class="o">.</span><span class="n">decode</span><span class="p">(</span><span class="s1">&#39;ascii&#39;</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">repr_x</span><span class="o">.</span><span class="n">encode</span><span class="p">(</span><span class="s1">&#39;ascii&#39;</span><span class="p">)</span>
+
+        <span class="k">if</span> <span class="n">roundtrip</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="k">assert</span> <span class="n">x</span><span class="o">.</span><span class="n">__class__</span><span class="p">(</span><span class="n">bytes_x</span><span class="p">)</span> <span class="o">==</span> <span class="n">x</span>
+            <span class="k">assert</span> <span class="n">x</span><span class="o">.</span><span class="n">__class__</span><span class="p">(</span><span class="n">unicode_x</span><span class="p">)</span> <span class="o">==</span> <span class="n">x</span>
+            <span class="k">assert</span> <span class="nb">eval</span><span class="p">(</span><span class="n">repr_x</span><span class="p">,</span> <span class="n">roundtrip</span><span class="p">)</span> <span class="o">==</span> <span class="n">x</span>
+
+    <span class="k">with</span> <span class="n">conf</span><span class="o">.</span><span class="n">set_temp</span><span class="p">(</span><span class="s1">&#39;unicode_output&#39;</span><span class="p">,</span> <span class="kc">True</span><span class="p">):</span>
+        <span class="n">bytes_x</span> <span class="o">=</span> <span class="nb">bytes</span><span class="p">(</span><span class="n">x</span><span class="p">)</span>
+        <span class="n">unicode_x</span> <span class="o">=</span> <span class="n">six</span><span class="o">.</span><span class="n">text_type</span><span class="p">(</span><span class="n">x</span><span class="p">)</span>
+        <span class="n">repr_x</span> <span class="o">=</span> <span class="nb">repr</span><span class="p">(</span><span class="n">x</span><span class="p">)</span>
+
+        <span class="k">assert</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">bytes_x</span><span class="p">,</span> <span class="nb">bytes</span><span class="p">)</span>
+        <span class="n">bytes_x</span><span class="o">.</span><span class="n">decode</span><span class="p">(</span><span class="s1">&#39;ascii&#39;</span><span class="p">)</span>
+        <span class="k">assert</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">unicode_x</span><span class="p">,</span> <span class="n">six</span><span class="o">.</span><span class="n">text_type</span><span class="p">)</span>
+        <span class="k">assert</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">repr_x</span><span class="p">,</span> <span class="n">six</span><span class="o">.</span><span class="n">string_types</span><span class="p">)</span>
+        <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">repr_x</span><span class="p">,</span> <span class="nb">bytes</span><span class="p">):</span>
+            <span class="n">repr_x</span><span class="o">.</span><span class="n">decode</span><span class="p">(</span><span class="s1">&#39;ascii&#39;</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">repr_x</span><span class="o">.</span><span class="n">encode</span><span class="p">(</span><span class="s1">&#39;ascii&#39;</span><span class="p">)</span>
+
+        <span class="k">if</span> <span class="n">roundtrip</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="k">assert</span> <span class="n">x</span><span class="o">.</span><span class="n">__class__</span><span class="p">(</span><span class="n">bytes_x</span><span class="p">)</span> <span class="o">==</span> <span class="n">x</span>
+            <span class="k">assert</span> <span class="n">x</span><span class="o">.</span><span class="n">__class__</span><span class="p">(</span><span class="n">unicode_x</span><span class="p">)</span> <span class="o">==</span> <span class="n">x</span>
+            <span class="k">assert</span> <span class="nb">eval</span><span class="p">(</span><span class="n">repr_x</span><span class="p">,</span> <span class="n">roundtrip</span><span class="p">)</span> <span class="o">==</span> <span class="n">x</span></div>
+
+
+<span class="nd">@pytest</span><span class="o">.</span><span class="n">fixture</span><span class="p">(</span><span class="n">params</span><span class="o">=</span><span class="p">[</span><span class="mi">0</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="o">-</span><span class="mi">1</span><span class="p">])</span>
+<div class="viewcode-block" id="pickle_protocol"><a class="viewcode-back" href="../../../api/astropy.tests.helper.pickle_protocol.html#astropy.tests.helper.pickle_protocol">[docs]</a><span class="k">def</span> <span class="nf">pickle_protocol</span><span class="p">(</span><span class="n">request</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Fixture to run all the tests for protocols 0 and 1, and -1 (most advanced).</span>
+<span class="sd">    (Originally from astropy.table.tests.test_pickle)</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">return</span> <span class="n">request</span><span class="o">.</span><span class="n">param</span></div>
+
+
+<div class="viewcode-block" id="generic_recursive_equality_test"><a class="viewcode-back" href="../../../api/astropy.tests.helper.generic_recursive_equality_test.html#astropy.tests.helper.generic_recursive_equality_test">[docs]</a><span class="k">def</span> <span class="nf">generic_recursive_equality_test</span><span class="p">(</span><span class="n">a</span><span class="p">,</span> <span class="n">b</span><span class="p">,</span> <span class="n">class_history</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Check if the attributes of a and b are equal. Then,</span>
+<span class="sd">    check if the attributes of the attributes are equal.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">dict_a</span> <span class="o">=</span> <span class="n">a</span><span class="o">.</span><span class="n">__dict__</span>
+    <span class="n">dict_b</span> <span class="o">=</span> <span class="n">b</span><span class="o">.</span><span class="n">__dict__</span>
+    <span class="k">for</span> <span class="n">key</span> <span class="ow">in</span> <span class="n">dict_a</span><span class="p">:</span>
+        <span class="k">assert</span> <span class="n">key</span> <span class="ow">in</span> <span class="n">dict_b</span><span class="p">,</span>\
+          <span class="s2">&quot;Did not pickle </span><span class="si">{0}</span><span class="s2">&quot;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">key</span><span class="p">)</span>
+        <span class="k">if</span> <span class="nb">hasattr</span><span class="p">(</span><span class="n">dict_a</span><span class="p">[</span><span class="n">key</span><span class="p">],</span> <span class="s1">&#39;__eq__&#39;</span><span class="p">):</span>
+            <span class="n">eq</span> <span class="o">=</span> <span class="p">(</span><span class="n">dict_a</span><span class="p">[</span><span class="n">key</span><span class="p">]</span> <span class="o">==</span> <span class="n">dict_b</span><span class="p">[</span><span class="n">key</span><span class="p">])</span>
+            <span class="k">if</span> <span class="s1">&#39;__iter__&#39;</span> <span class="ow">in</span> <span class="nb">dir</span><span class="p">(</span><span class="n">eq</span><span class="p">):</span>
+                <span class="n">eq</span> <span class="o">=</span> <span class="p">(</span><span class="kc">False</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">eq</span><span class="p">)</span>
+            <span class="k">assert</span> <span class="n">eq</span><span class="p">,</span> <span class="s2">&quot;Value of </span><span class="si">{0}</span><span class="s2"> changed by pickling&quot;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">key</span><span class="p">)</span>
+
+        <span class="k">if</span> <span class="nb">hasattr</span><span class="p">(</span><span class="n">dict_a</span><span class="p">[</span><span class="n">key</span><span class="p">],</span> <span class="s1">&#39;__dict__&#39;</span><span class="p">):</span>
+            <span class="k">if</span> <span class="n">dict_a</span><span class="p">[</span><span class="n">key</span><span class="p">]</span><span class="o">.</span><span class="n">__class__</span> <span class="ow">in</span> <span class="n">class_history</span><span class="p">:</span>
+                <span class="c1"># attempt to prevent infinite recursion</span>
+                <span class="k">pass</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="n">new_class_history</span> <span class="o">=</span> <span class="p">[</span><span class="n">dict_a</span><span class="p">[</span><span class="n">key</span><span class="p">]</span><span class="o">.</span><span class="n">__class__</span><span class="p">]</span>
+                <span class="n">new_class_history</span><span class="o">.</span><span class="n">extend</span><span class="p">(</span><span class="n">class_history</span><span class="p">)</span>
+                <span class="n">generic_recursive_equality_test</span><span class="p">(</span><span class="n">dict_a</span><span class="p">[</span><span class="n">key</span><span class="p">],</span>
+                                                <span class="n">dict_b</span><span class="p">[</span><span class="n">key</span><span class="p">],</span>
+                                                <span class="n">new_class_history</span><span class="p">)</span></div>
+
+
+<div class="viewcode-block" id="check_pickling_recovery"><a class="viewcode-back" href="../../../api/astropy.tests.helper.check_pickling_recovery.html#astropy.tests.helper.check_pickling_recovery">[docs]</a><span class="k">def</span> <span class="nf">check_pickling_recovery</span><span class="p">(</span><span class="n">original</span><span class="p">,</span> <span class="n">protocol</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Try to pickle an object. If successful, make sure</span>
+<span class="sd">    the object&#39;s attributes survived pickling and unpickling.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">f</span> <span class="o">=</span> <span class="n">pickle</span><span class="o">.</span><span class="n">dumps</span><span class="p">(</span><span class="n">original</span><span class="p">,</span> <span class="n">protocol</span><span class="o">=</span><span class="n">protocol</span><span class="p">)</span>
+    <span class="n">unpickled</span> <span class="o">=</span> <span class="n">pickle</span><span class="o">.</span><span class="n">loads</span><span class="p">(</span><span class="n">f</span><span class="p">)</span>
+    <span class="n">class_history</span> <span class="o">=</span> <span class="p">[</span><span class="n">original</span><span class="o">.</span><span class="n">__class__</span><span class="p">]</span>
+    <span class="n">generic_recursive_equality_test</span><span class="p">(</span><span class="n">original</span><span class="p">,</span> <span class="n">unpickled</span><span class="p">,</span>
+                                    <span class="n">class_history</span><span class="p">)</span></div>
+
+
+<div class="viewcode-block" id="assert_quantity_allclose"><a class="viewcode-back" href="../../../api/astropy.tests.helper.assert_quantity_allclose.html#astropy.tests.helper.assert_quantity_allclose">[docs]</a><span class="k">def</span> <span class="nf">assert_quantity_allclose</span><span class="p">(</span><span class="n">actual</span><span class="p">,</span> <span class="n">desired</span><span class="p">,</span> <span class="n">rtol</span><span class="o">=</span><span class="mf">1.e-7</span><span class="p">,</span> <span class="n">atol</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+                             <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Raise an assertion if two objects are not equal up to desired tolerance.</span>
+
+<span class="sd">    This is a :class:`~astropy.units.Quantity`-aware version of</span>
+<span class="sd">    :func:`numpy.testing.assert_allclose`.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="kn">import</span> <span class="nn">numpy</span> <span class="k">as</span> <span class="nn">np</span>
+    <span class="n">np</span><span class="o">.</span><span class="n">testing</span><span class="o">.</span><span class="n">assert_allclose</span><span class="p">(</span><span class="o">*</span><span class="n">_unquantify_allclose_arguments</span><span class="p">(</span><span class="n">actual</span><span class="p">,</span> <span class="n">desired</span><span class="p">,</span>
+                                                               <span class="n">rtol</span><span class="p">,</span> <span class="n">atol</span><span class="p">),</span>
+                               <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span></div>
+
+
+<div class="viewcode-block" id="quantity_allclose"><a class="viewcode-back" href="../../../api/astropy.tests.helper.quantity_allclose.html#astropy.tests.helper.quantity_allclose">[docs]</a><span class="k">def</span> <span class="nf">quantity_allclose</span><span class="p">(</span><span class="n">a</span><span class="p">,</span> <span class="n">b</span><span class="p">,</span> <span class="n">rtol</span><span class="o">=</span><span class="mf">1.e-5</span><span class="p">,</span> <span class="n">atol</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Returns True if two arrays are element-wise equal within a tolerance.</span>
+
+<span class="sd">    This is a :class:`~astropy.units.Quantity`-aware version of</span>
+<span class="sd">    :func:`numpy.allclose`.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="kn">import</span> <span class="nn">numpy</span> <span class="k">as</span> <span class="nn">np</span>
+    <span class="k">return</span> <span class="n">np</span><span class="o">.</span><span class="n">allclose</span><span class="p">(</span><span class="o">*</span><span class="n">_unquantify_allclose_arguments</span><span class="p">(</span><span class="n">a</span><span class="p">,</span> <span class="n">b</span><span class="p">,</span> <span class="n">rtol</span><span class="p">,</span> <span class="n">atol</span><span class="p">),</span>
+                       <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span></div>
+
+
+<span class="k">def</span> <span class="nf">_unquantify_allclose_arguments</span><span class="p">(</span><span class="n">actual</span><span class="p">,</span> <span class="n">desired</span><span class="p">,</span> <span class="n">rtol</span><span class="p">,</span> <span class="n">atol</span><span class="p">):</span>
+    <span class="kn">from</span> <span class="nn">..</span> <span class="k">import</span> <span class="n">units</span> <span class="k">as</span> <span class="n">u</span>
+
+    <span class="n">actual</span> <span class="o">=</span> <span class="n">u</span><span class="o">.</span><span class="n">Quantity</span><span class="p">(</span><span class="n">actual</span><span class="p">,</span> <span class="n">subok</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">copy</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
+
+    <span class="n">desired</span> <span class="o">=</span> <span class="n">u</span><span class="o">.</span><span class="n">Quantity</span><span class="p">(</span><span class="n">desired</span><span class="p">,</span> <span class="n">subok</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">copy</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
+    <span class="k">try</span><span class="p">:</span>
+        <span class="n">desired</span> <span class="o">=</span> <span class="n">desired</span><span class="o">.</span><span class="n">to</span><span class="p">(</span><span class="n">actual</span><span class="o">.</span><span class="n">unit</span><span class="p">)</span>
+    <span class="k">except</span> <span class="n">u</span><span class="o">.</span><span class="n">UnitsError</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="n">u</span><span class="o">.</span><span class="n">UnitsError</span><span class="p">(</span><span class="s2">&quot;Units for &#39;desired&#39; (</span><span class="si">{0}</span><span class="s2">) and &#39;actual&#39; (</span><span class="si">{1}</span><span class="s2">) &quot;</span>
+                           <span class="s2">&quot;are not convertible&quot;</span>
+                           <span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">desired</span><span class="o">.</span><span class="n">unit</span><span class="p">,</span> <span class="n">actual</span><span class="o">.</span><span class="n">unit</span><span class="p">))</span>
+
+    <span class="k">if</span> <span class="n">atol</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="c1"># by default, we assume an absolute tolerance of 0</span>
+        <span class="n">atol</span> <span class="o">=</span> <span class="n">u</span><span class="o">.</span><span class="n">Quantity</span><span class="p">(</span><span class="mi">0</span><span class="p">)</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="n">atol</span> <span class="o">=</span> <span class="n">u</span><span class="o">.</span><span class="n">Quantity</span><span class="p">(</span><span class="n">atol</span><span class="p">,</span> <span class="n">subok</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">copy</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
+        <span class="k">try</span><span class="p">:</span>
+            <span class="n">atol</span> <span class="o">=</span> <span class="n">atol</span><span class="o">.</span><span class="n">to</span><span class="p">(</span><span class="n">actual</span><span class="o">.</span><span class="n">unit</span><span class="p">)</span>
+        <span class="k">except</span> <span class="n">u</span><span class="o">.</span><span class="n">UnitsError</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="n">u</span><span class="o">.</span><span class="n">UnitsError</span><span class="p">(</span><span class="s2">&quot;Units for &#39;atol&#39; (</span><span class="si">{0}</span><span class="s2">) and &#39;actual&#39; (</span><span class="si">{1}</span><span class="s2">) &quot;</span>
+                               <span class="s2">&quot;are not convertible&quot;</span>
+                               <span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">atol</span><span class="o">.</span><span class="n">unit</span><span class="p">,</span> <span class="n">actual</span><span class="o">.</span><span class="n">unit</span><span class="p">))</span>
+
+    <span class="n">rtol</span> <span class="o">=</span> <span class="n">u</span><span class="o">.</span><span class="n">Quantity</span><span class="p">(</span><span class="n">rtol</span><span class="p">,</span> <span class="n">subok</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">copy</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
+    <span class="k">try</span><span class="p">:</span>
+        <span class="n">rtol</span> <span class="o">=</span> <span class="n">rtol</span><span class="o">.</span><span class="n">to</span><span class="p">(</span><span class="n">u</span><span class="o">.</span><span class="n">dimensionless_unscaled</span><span class="p">)</span>
+    <span class="k">except</span> <span class="ne">Exception</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="n">u</span><span class="o">.</span><span class="n">UnitsError</span><span class="p">(</span><span class="s2">&quot;`rtol` should be dimensionless&quot;</span><span class="p">)</span>
+
+    <span class="k">return</span> <span class="n">actual</span><span class="o">.</span><span class="n">value</span><span class="p">,</span> <span class="n">desired</span><span class="o">.</span><span class="n">value</span><span class="p">,</span> <span class="n">rtol</span><span class="o">.</span><span class="n">value</span><span class="p">,</span> <span class="n">atol</span><span class="o">.</span><span class="n">value</span>
+</pre></div>
+
+          </div>
+        </div>
+      </div>
+      <div class="sphinxsidebar" role="navigation" aria-label="main navigation">
+        <div class="sphinxsidebarwrapper"><h3>Page Contents</h3>
+
+
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+<footer class="footer">
+  <p class="pull-right"> &nbsp;
+    <a href="#">Back to Top</a></p>
+  <p>
+    &copy; Copyright 2011-2016, The Astropy Developers.<br/>
+    Created using <a href="http://sphinx.pocoo.org/">Sphinx</a> 1.5.6. &nbsp;
+    Last built 05 Jul 2017. <br/>
+  </p>
+</footer>
+  </body>
+</html>

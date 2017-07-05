@@ -1,0 +1,1 @@
+ax.imshow(hdu.data, vmin=-2.e-5, vmax=2.e-4, origin='lower')

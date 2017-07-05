@@ -1,0 +1,305 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <head>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    
+    <title>astropy.table.np_utils &#8212; Astropy v3.0.dev19489</title>
+    
+    <link rel="stylesheet" href="../../../_static/bootstrap-astropy.css" type="text/css" />
+    <link rel="stylesheet" href="../../../_static/pygments.css" type="text/css" />
+    <link rel="stylesheet" href="../../../_static/gallery.css" type="text/css" />
+    
+    <script type="text/javascript">
+      var DOCUMENTATION_OPTIONS = {
+        URL_ROOT:    '../../../',
+        VERSION:     '3.0.dev19489',
+        COLLAPSE_INDEX: false,
+        FILE_SUFFIX: '.html',
+        HAS_SOURCE:  true,
+        SOURCELINK_SUFFIX: '.txt'
+      };
+    </script>
+    <script type="text/javascript" src="../../../_static/jquery.js"></script>
+    <script type="text/javascript" src="../../../_static/underscore.js"></script>
+    <script type="text/javascript" src="../../../_static/doctools.js"></script>
+    <script type="text/javascript" src="../../../_static/sidebar.js"></script>
+    <link rel="shortcut icon" href="../../../_static/astropy_logo.ico"/>
+    <link rel="index" title="Index" href="../../../genindex.html" />
+    <link rel="search" title="Search" href="../../../search.html" />
+<link href='https://fonts.googleapis.com/css?family=Source+Sans+Pro:200,600' rel='stylesheet' type='text/css'/>
+<script type="text/javascript" src="../../../_static/copybutton.js"></script>
+
+
+  </head>
+  <body role="document">
+<div class="topbar">
+  <a class="brand" title="Documentation Home" href="../../../index.html"><span id="logotext1">astro</span><span id="logotext2">py</span><span id="logotext3">:docs</span></a>
+  <ul>
+    <li><a class="homelink" title="Astropy Homepage" href="http://www.astropy.org"></a></li>
+    <li><a title="General Index" href="../../../genindex.html">Index</a></li>
+    <li><a title="Module Index" href="../../../py-modindex.html">Modules</a></li>
+    <li>
+      
+      
+<form action="../../../search.html" method="get">
+  <input type="text" name="q" placeholder="Search" />
+  <input type="hidden" name="check_keywords" value="yes" />
+  <input type="hidden" name="area" value="default" />
+</form>
+      
+    </li>
+  </ul>
+</div>
+
+<div class="related">
+    <h3>Navigation</h3>
+    <ul>
+      <li>
+	<a href="../../../index.html">Astropy v3.0.dev19489</a>
+	 &#187;
+      </li>
+      <li><a href="../../index.html" >Module code</a> &#187;</li>
+      <li><a href="../../astropy.html" >astropy</a> &#187;</li>
+      <li><a href="../table.html" accesskey="U">astropy.table</a> &#187;</li>
+      
+       
+    </ul>
+</div>
+  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          <div class="body" role="main">
+            
+  <h1>Source code for astropy.table.np_utils</h1><div class="highlight"><pre>
+<span></span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">High-level operations for numpy structured arrays.</span>
+
+<span class="sd">Some code and inspiration taken from numpy.lib.recfunctions.join_by().</span>
+<span class="sd">Redistribution license restrictions apply.</span>
+<span class="sd">&quot;&quot;&quot;</span>
+<span class="kn">from</span> <span class="nn">__future__</span> <span class="k">import</span> <span class="p">(</span><span class="n">absolute_import</span><span class="p">,</span> <span class="n">division</span><span class="p">,</span> <span class="n">print_function</span><span class="p">,</span>
+                        <span class="n">unicode_literals</span><span class="p">)</span>
+<span class="kn">from</span> <span class="nn">..extern</span> <span class="k">import</span> <span class="n">six</span>
+<span class="kn">from</span> <span class="nn">..extern.six.moves</span> <span class="k">import</span> <span class="nb">zip</span><span class="p">,</span> <span class="nb">range</span>
+
+<span class="kn">from</span> <span class="nn">itertools</span> <span class="k">import</span> <span class="n">chain</span>
+<span class="kn">import</span> <span class="nn">collections</span>
+<span class="kn">from</span> <span class="nn">collections</span> <span class="k">import</span> <span class="n">OrderedDict</span><span class="p">,</span> <span class="n">Counter</span>
+
+<span class="kn">import</span> <span class="nn">numpy</span> <span class="k">as</span> <span class="nn">np</span>
+<span class="kn">import</span> <span class="nn">numpy.ma</span> <span class="k">as</span> <span class="nn">ma</span>
+
+<span class="kn">from</span> <span class="nn">.</span> <span class="k">import</span> <span class="n">_np_utils</span>
+
+<span class="n">__all__</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;TableMergeError&#39;</span><span class="p">]</span>
+
+
+<div class="viewcode-block" id="TableMergeError"><a class="viewcode-back" href="../../../api/astropy.table.TableMergeError.html#astropy.table.TableMergeError">[docs]</a><span class="k">class</span> <span class="nc">TableMergeError</span><span class="p">(</span><span class="ne">ValueError</span><span class="p">):</span>
+    <span class="k">pass</span></div>
+
+
+<span class="k">def</span> <span class="nf">get_col_name_map</span><span class="p">(</span><span class="n">arrays</span><span class="p">,</span> <span class="n">common_names</span><span class="p">,</span> <span class="n">uniq_col_name</span><span class="o">=</span><span class="s1">&#39;</span><span class="si">{col_name}</span><span class="s1">_</span><span class="si">{table_name}</span><span class="s1">&#39;</span><span class="p">,</span>
+                     <span class="n">table_names</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Find the column names mapping when merging the list of structured ndarrays</span>
+<span class="sd">    ``arrays``.  It is assumed that col names in ``common_names`` are to be</span>
+<span class="sd">    merged into a single column while the rest will be uniquely represented</span>
+<span class="sd">    in the output.  The args ``uniq_col_name`` and ``table_names`` specify</span>
+<span class="sd">    how to rename columns in case of conflicts.</span>
+
+<span class="sd">    Returns a dict mapping each output column name to the input(s).  This takes the form</span>
+<span class="sd">    {outname : (col_name_0, col_name_1, ...), ... }.  For key columns all of input names</span>
+<span class="sd">    will be present, while for the other non-key columns the value will be (col_name_0,</span>
+<span class="sd">    None, ..) or (None, col_name_1, ..) etc.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="n">col_name_map</span> <span class="o">=</span> <span class="n">collections</span><span class="o">.</span><span class="n">defaultdict</span><span class="p">(</span><span class="k">lambda</span><span class="p">:</span> <span class="p">[</span><span class="kc">None</span><span class="p">]</span> <span class="o">*</span> <span class="nb">len</span><span class="p">(</span><span class="n">arrays</span><span class="p">))</span>
+    <span class="n">col_name_list</span> <span class="o">=</span> <span class="p">[]</span>
+
+    <span class="k">if</span> <span class="n">table_names</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="n">table_names</span> <span class="o">=</span> <span class="p">[</span><span class="n">six</span><span class="o">.</span><span class="n">text_type</span><span class="p">(</span><span class="n">ii</span> <span class="o">+</span> <span class="mi">1</span><span class="p">)</span> <span class="k">for</span> <span class="n">ii</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">arrays</span><span class="p">))]</span>
+
+    <span class="k">for</span> <span class="n">idx</span><span class="p">,</span> <span class="n">array</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="n">arrays</span><span class="p">):</span>
+        <span class="n">table_name</span> <span class="o">=</span> <span class="n">table_names</span><span class="p">[</span><span class="n">idx</span><span class="p">]</span>
+        <span class="k">for</span> <span class="n">name</span> <span class="ow">in</span> <span class="n">array</span><span class="o">.</span><span class="n">dtype</span><span class="o">.</span><span class="n">names</span><span class="p">:</span>
+            <span class="n">out_name</span> <span class="o">=</span> <span class="n">name</span>
+
+            <span class="k">if</span> <span class="n">name</span> <span class="ow">in</span> <span class="n">common_names</span><span class="p">:</span>
+                <span class="c1"># If name is in the list of common_names then insert into</span>
+                <span class="c1"># the column name list, but just once.</span>
+                <span class="k">if</span> <span class="n">name</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">col_name_list</span><span class="p">:</span>
+                    <span class="n">col_name_list</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">name</span><span class="p">)</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="c1"># If name is not one of the common column outputs, and it collides</span>
+                <span class="c1"># with the names in one of the other arrays, then rename</span>
+                <span class="n">others</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="n">arrays</span><span class="p">)</span>
+                <span class="n">others</span><span class="o">.</span><span class="n">pop</span><span class="p">(</span><span class="n">idx</span><span class="p">)</span>
+                <span class="k">if</span> <span class="nb">any</span><span class="p">(</span><span class="n">name</span> <span class="ow">in</span> <span class="n">other</span><span class="o">.</span><span class="n">dtype</span><span class="o">.</span><span class="n">names</span> <span class="k">for</span> <span class="n">other</span> <span class="ow">in</span> <span class="n">others</span><span class="p">):</span>
+                    <span class="n">out_name</span> <span class="o">=</span> <span class="n">uniq_col_name</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">table_name</span><span class="o">=</span><span class="n">table_name</span><span class="p">,</span> <span class="n">col_name</span><span class="o">=</span><span class="n">name</span><span class="p">)</span>
+                <span class="n">col_name_list</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">out_name</span><span class="p">)</span>
+
+            <span class="n">col_name_map</span><span class="p">[</span><span class="n">out_name</span><span class="p">][</span><span class="n">idx</span><span class="p">]</span> <span class="o">=</span> <span class="n">name</span>
+
+    <span class="c1"># Check for duplicate output column names</span>
+    <span class="n">col_name_count</span> <span class="o">=</span> <span class="n">Counter</span><span class="p">(</span><span class="n">col_name_list</span><span class="p">)</span>
+    <span class="n">repeated_names</span> <span class="o">=</span> <span class="p">[</span><span class="n">name</span> <span class="k">for</span> <span class="n">name</span><span class="p">,</span> <span class="n">count</span> <span class="ow">in</span> <span class="n">six</span><span class="o">.</span><span class="n">iteritems</span><span class="p">(</span><span class="n">col_name_count</span><span class="p">)</span> <span class="k">if</span> <span class="n">count</span> <span class="o">&gt;</span> <span class="mi">1</span><span class="p">]</span>
+    <span class="k">if</span> <span class="n">repeated_names</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="n">TableMergeError</span><span class="p">(</span><span class="s1">&#39;Merging column names resulted in duplicates: </span><span class="si">{0}</span><span class="s1">.  &#39;</span>
+                              <span class="s1">&#39;Change uniq_col_name or table_names args to fix this.&#39;</span>
+                              <span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">repeated_names</span><span class="p">))</span>
+
+    <span class="c1"># Convert col_name_map to a regular dict with tuple (immutable) values</span>
+    <span class="n">col_name_map</span> <span class="o">=</span> <span class="n">OrderedDict</span><span class="p">((</span><span class="n">name</span><span class="p">,</span> <span class="n">col_name_map</span><span class="p">[</span><span class="n">name</span><span class="p">])</span> <span class="k">for</span> <span class="n">name</span> <span class="ow">in</span> <span class="n">col_name_list</span><span class="p">)</span>
+
+    <span class="k">return</span> <span class="n">col_name_map</span>
+
+
+<span class="k">def</span> <span class="nf">get_descrs</span><span class="p">(</span><span class="n">arrays</span><span class="p">,</span> <span class="n">col_name_map</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Find the dtypes descrs resulting from merging the list of arrays&#39; dtypes,</span>
+<span class="sd">    using the column name mapping ``col_name_map``.</span>
+
+<span class="sd">    Return a list of descrs for the output.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="n">out_descrs</span> <span class="o">=</span> <span class="p">[]</span>
+
+    <span class="k">for</span> <span class="n">out_name</span><span class="p">,</span> <span class="n">in_names</span> <span class="ow">in</span> <span class="n">six</span><span class="o">.</span><span class="n">iteritems</span><span class="p">(</span><span class="n">col_name_map</span><span class="p">):</span>
+        <span class="c1"># List of input arrays that contribute to this output column</span>
+        <span class="n">in_cols</span> <span class="o">=</span> <span class="p">[</span><span class="n">arr</span><span class="p">[</span><span class="n">name</span><span class="p">]</span> <span class="k">for</span> <span class="n">arr</span><span class="p">,</span> <span class="n">name</span> <span class="ow">in</span> <span class="nb">zip</span><span class="p">(</span><span class="n">arrays</span><span class="p">,</span> <span class="n">in_names</span><span class="p">)</span> <span class="k">if</span> <span class="n">name</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">]</span>
+
+        <span class="c1"># List of names of the columns that contribute to this output column.</span>
+        <span class="n">names</span> <span class="o">=</span> <span class="p">[</span><span class="n">name</span> <span class="k">for</span> <span class="n">name</span> <span class="ow">in</span> <span class="n">in_names</span> <span class="k">if</span> <span class="n">name</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">]</span>
+
+        <span class="c1"># Output dtype is the superset of all dtypes in in_arrays</span>
+        <span class="k">try</span><span class="p">:</span>
+            <span class="n">dtype</span> <span class="o">=</span> <span class="n">common_dtype</span><span class="p">(</span><span class="n">in_cols</span><span class="p">)</span>
+        <span class="k">except</span> <span class="n">TableMergeError</span> <span class="k">as</span> <span class="n">tme</span><span class="p">:</span>
+            <span class="c1"># Beautify the error message when we are trying to merge columns with incompatible</span>
+            <span class="c1"># types by including the name of the columns that originated the error.</span>
+            <span class="k">raise</span> <span class="n">TableMergeError</span><span class="p">(</span><span class="s2">&quot;The &#39;</span><span class="si">{0}</span><span class="s2">&#39; columns have incompatible types: </span><span class="si">{1}</span><span class="s2">&quot;</span>
+                                  <span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">names</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="n">tme</span><span class="o">.</span><span class="n">_incompat_types</span><span class="p">))</span>
+
+        <span class="c1"># Make sure all input shapes are the same</span>
+        <span class="n">uniq_shapes</span> <span class="o">=</span> <span class="nb">set</span><span class="p">(</span><span class="n">col</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">1</span><span class="p">:]</span> <span class="k">for</span> <span class="n">col</span> <span class="ow">in</span> <span class="n">in_cols</span><span class="p">)</span>
+        <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">uniq_shapes</span><span class="p">)</span> <span class="o">!=</span> <span class="mi">1</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="n">TableMergeError</span><span class="p">(</span><span class="s1">&#39;Key columns </span><span class="si">{0!r}</span><span class="s1"> have different shape&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">name</span><span class="p">))</span>
+        <span class="n">shape</span> <span class="o">=</span> <span class="n">uniq_shapes</span><span class="o">.</span><span class="n">pop</span><span class="p">()</span>
+
+        <span class="n">out_descrs</span><span class="o">.</span><span class="n">append</span><span class="p">((</span><span class="n">fix_column_name</span><span class="p">(</span><span class="n">out_name</span><span class="p">),</span> <span class="n">dtype</span><span class="p">,</span> <span class="n">shape</span><span class="p">))</span>
+
+    <span class="k">return</span> <span class="n">out_descrs</span>
+
+
+<span class="k">def</span> <span class="nf">common_dtype</span><span class="p">(</span><span class="n">cols</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Use numpy to find the common dtype for a list of structured ndarray columns.</span>
+
+<span class="sd">    Only allow columns within the following fundamental numpy data types:</span>
+<span class="sd">    np.bool_, np.object_, np.number, np.character, np.void</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">np_types</span> <span class="o">=</span> <span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">bool_</span><span class="p">,</span> <span class="n">np</span><span class="o">.</span><span class="n">object_</span><span class="p">,</span> <span class="n">np</span><span class="o">.</span><span class="n">number</span><span class="p">,</span> <span class="n">np</span><span class="o">.</span><span class="n">character</span><span class="p">,</span> <span class="n">np</span><span class="o">.</span><span class="n">void</span><span class="p">)</span>
+    <span class="n">uniq_types</span> <span class="o">=</span> <span class="nb">set</span><span class="p">(</span><span class="nb">tuple</span><span class="p">(</span><span class="nb">issubclass</span><span class="p">(</span><span class="n">col</span><span class="o">.</span><span class="n">dtype</span><span class="o">.</span><span class="n">type</span><span class="p">,</span> <span class="n">np_type</span><span class="p">)</span> <span class="k">for</span> <span class="n">np_type</span> <span class="ow">in</span> <span class="n">np_types</span><span class="p">)</span>
+                     <span class="k">for</span> <span class="n">col</span> <span class="ow">in</span> <span class="n">cols</span><span class="p">)</span>
+    <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">uniq_types</span><span class="p">)</span> <span class="o">&gt;</span> <span class="mi">1</span><span class="p">:</span>
+        <span class="c1"># Embed into the exception the actual list of incompatible types.</span>
+        <span class="n">incompat_types</span> <span class="o">=</span> <span class="p">[</span><span class="n">col</span><span class="o">.</span><span class="n">dtype</span><span class="o">.</span><span class="n">name</span> <span class="k">for</span> <span class="n">col</span> <span class="ow">in</span> <span class="n">cols</span><span class="p">]</span>
+        <span class="n">tme</span> <span class="o">=</span> <span class="n">TableMergeError</span><span class="p">(</span><span class="s1">&#39;Columns have incompatible types </span><span class="si">{0}</span><span class="s1">&#39;</span>
+                              <span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">incompat_types</span><span class="p">))</span>
+        <span class="n">tme</span><span class="o">.</span><span class="n">_incompat_types</span> <span class="o">=</span> <span class="n">incompat_types</span>
+        <span class="k">raise</span> <span class="n">tme</span>
+
+    <span class="n">arrs</span> <span class="o">=</span> <span class="p">[</span><span class="n">np</span><span class="o">.</span><span class="n">empty</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="n">col</span><span class="o">.</span><span class="n">dtype</span><span class="p">)</span> <span class="k">for</span> <span class="n">col</span> <span class="ow">in</span> <span class="n">cols</span><span class="p">]</span>
+
+    <span class="c1"># For string-type arrays need to explicitly fill in non-zero</span>
+    <span class="c1"># values or the final arr_common = .. step is unpredictable.</span>
+    <span class="k">for</span> <span class="n">arr</span> <span class="ow">in</span> <span class="n">arrs</span><span class="p">:</span>
+        <span class="k">if</span> <span class="n">arr</span><span class="o">.</span><span class="n">dtype</span><span class="o">.</span><span class="n">kind</span> <span class="ow">in</span> <span class="p">(</span><span class="s1">&#39;S&#39;</span><span class="p">,</span> <span class="s1">&#39;U&#39;</span><span class="p">):</span>
+            <span class="n">arr</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">=</span> <span class="s1">&#39;0&#39;</span> <span class="o">*</span> <span class="n">arr</span><span class="o">.</span><span class="n">itemsize</span>
+
+    <span class="n">arr_common</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">([</span><span class="n">arr</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="k">for</span> <span class="n">arr</span> <span class="ow">in</span> <span class="n">arrs</span><span class="p">])</span>
+    <span class="k">return</span> <span class="n">arr_common</span><span class="o">.</span><span class="n">dtype</span><span class="o">.</span><span class="n">str</span>
+
+
+<span class="k">def</span> <span class="nf">_check_for_sequence_of_structured_arrays</span><span class="p">(</span><span class="n">arrays</span><span class="p">):</span>
+    <span class="n">err</span> <span class="o">=</span> <span class="s1">&#39;`arrays` arg must be a sequence (e.g. list) of structured arrays&#39;</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">arrays</span><span class="p">,</span> <span class="n">collections</span><span class="o">.</span><span class="n">Sequence</span><span class="p">):</span>
+        <span class="k">raise</span> <span class="ne">TypeError</span><span class="p">(</span><span class="n">err</span><span class="p">)</span>
+    <span class="k">for</span> <span class="n">array</span> <span class="ow">in</span> <span class="n">arrays</span><span class="p">:</span>
+        <span class="c1"># Must be structured array</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">array</span><span class="p">,</span> <span class="n">np</span><span class="o">.</span><span class="n">ndarray</span><span class="p">)</span> <span class="ow">or</span> <span class="n">array</span><span class="o">.</span><span class="n">dtype</span><span class="o">.</span><span class="n">names</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">TypeError</span><span class="p">(</span><span class="n">err</span><span class="p">)</span>
+    <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">arrays</span><span class="p">)</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s1">&#39;`arrays` arg must include at least one array&#39;</span><span class="p">)</span>
+
+
+<span class="k">def</span> <span class="nf">fix_column_name</span><span class="p">(</span><span class="n">val</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Fixes column names so that they are compatible with Numpy on</span>
+<span class="sd">    Python 2.  Raises a ValueError exception if the column name</span>
+<span class="sd">    contains Unicode characters, which can not reasonably be used as a</span>
+<span class="sd">    column name.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">if</span> <span class="n">val</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="k">try</span><span class="p">:</span>
+            <span class="n">val</span> <span class="o">=</span> <span class="nb">str</span><span class="p">(</span><span class="n">val</span><span class="p">)</span>
+        <span class="k">except</span> <span class="ne">UnicodeEncodeError</span><span class="p">:</span>
+            <span class="k">if</span> <span class="n">six</span><span class="o">.</span><span class="n">PY2</span><span class="p">:</span>
+                <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
+                    <span class="s2">&quot;Column names must not contain Unicode characters &quot;</span>
+                    <span class="s2">&quot;on Python 2&quot;</span><span class="p">)</span>
+            <span class="k">raise</span>
+
+    <span class="k">return</span> <span class="n">val</span>
+
+
+<span class="k">def</span> <span class="nf">recarray_fromrecords</span><span class="p">(</span><span class="n">rec_list</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Partial replacement for `~numpy.core.records.fromrecords` which includes</span>
+<span class="sd">    a workaround for the bug with unicode arrays described at:</span>
+<span class="sd">    https://github.com/astropy/astropy/issues/3052</span>
+
+<span class="sd">    This should not serve as a full replacement for the original function;</span>
+<span class="sd">    this only does enough to fulfill the needs of the table module.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="c1"># Note: This is just copying what Numpy does for converting arbitrary rows</span>
+    <span class="c1"># to column arrays in the recarray module; it could be there is a better</span>
+    <span class="c1"># way</span>
+    <span class="n">nfields</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="n">rec_list</span><span class="p">[</span><span class="mi">0</span><span class="p">])</span>
+    <span class="n">obj</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">(</span><span class="n">rec_list</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="nb">object</span><span class="p">)</span>
+    <span class="n">array_list</span> <span class="o">=</span> <span class="p">[</span><span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">(</span><span class="n">obj</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="n">i</span><span class="p">]</span><span class="o">.</span><span class="n">tolist</span><span class="p">())</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">nfields</span><span class="p">)]</span>
+    <span class="n">formats</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="k">for</span> <span class="n">obj</span> <span class="ow">in</span> <span class="n">array_list</span><span class="p">:</span>
+        <span class="n">formats</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">obj</span><span class="o">.</span><span class="n">dtype</span><span class="o">.</span><span class="n">str</span><span class="p">)</span>
+    <span class="n">formats</span> <span class="o">=</span> <span class="s1">&#39;,&#39;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">formats</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">np</span><span class="o">.</span><span class="n">rec</span><span class="o">.</span><span class="n">fromarrays</span><span class="p">(</span><span class="n">array_list</span><span class="p">,</span> <span class="n">formats</span><span class="o">=</span><span class="n">formats</span><span class="p">)</span>
+</pre></div>
+
+          </div>
+        </div>
+      </div>
+      <div class="sphinxsidebar" role="navigation" aria-label="main navigation">
+        <div class="sphinxsidebarwrapper"><h3>Page Contents</h3>
+
+
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+<footer class="footer">
+  <p class="pull-right"> &nbsp;
+    <a href="#">Back to Top</a></p>
+  <p>
+    &copy; Copyright 2011-2016, The Astropy Developers.<br/>
+    Created using <a href="http://sphinx.pocoo.org/">Sphinx</a> 1.5.6. &nbsp;
+    Last built 05 Jul 2017. <br/>
+  </p>
+</footer>
+  </body>
+</html>

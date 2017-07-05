@@ -1,0 +1,307 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <head>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    
+    <title>astropy.samp.hub_proxy &#8212; Astropy v3.0.dev19489</title>
+    
+    <link rel="stylesheet" href="../../../_static/bootstrap-astropy.css" type="text/css" />
+    <link rel="stylesheet" href="../../../_static/pygments.css" type="text/css" />
+    <link rel="stylesheet" href="../../../_static/gallery.css" type="text/css" />
+    
+    <script type="text/javascript">
+      var DOCUMENTATION_OPTIONS = {
+        URL_ROOT:    '../../../',
+        VERSION:     '3.0.dev19489',
+        COLLAPSE_INDEX: false,
+        FILE_SUFFIX: '.html',
+        HAS_SOURCE:  true,
+        SOURCELINK_SUFFIX: '.txt'
+      };
+    </script>
+    <script type="text/javascript" src="../../../_static/jquery.js"></script>
+    <script type="text/javascript" src="../../../_static/underscore.js"></script>
+    <script type="text/javascript" src="../../../_static/doctools.js"></script>
+    <script type="text/javascript" src="../../../_static/sidebar.js"></script>
+    <link rel="shortcut icon" href="../../../_static/astropy_logo.ico"/>
+    <link rel="index" title="Index" href="../../../genindex.html" />
+    <link rel="search" title="Search" href="../../../search.html" />
+<link href='https://fonts.googleapis.com/css?family=Source+Sans+Pro:200,600' rel='stylesheet' type='text/css'/>
+<script type="text/javascript" src="../../../_static/copybutton.js"></script>
+
+
+  </head>
+  <body role="document">
+<div class="topbar">
+  <a class="brand" title="Documentation Home" href="../../../index.html"><span id="logotext1">astro</span><span id="logotext2">py</span><span id="logotext3">:docs</span></a>
+  <ul>
+    <li><a class="homelink" title="Astropy Homepage" href="http://www.astropy.org"></a></li>
+    <li><a title="General Index" href="../../../genindex.html">Index</a></li>
+    <li><a title="Module Index" href="../../../py-modindex.html">Modules</a></li>
+    <li>
+      
+      
+<form action="../../../search.html" method="get">
+  <input type="text" name="q" placeholder="Search" />
+  <input type="hidden" name="check_keywords" value="yes" />
+  <input type="hidden" name="area" value="default" />
+</form>
+      
+    </li>
+  </ul>
+</div>
+
+<div class="related">
+    <h3>Navigation</h3>
+    <ul>
+      <li>
+	<a href="../../../index.html">Astropy v3.0.dev19489</a>
+	 &#187;
+      </li>
+      <li><a href="../../index.html" >Module code</a> &#187;</li>
+      <li><a href="../../astropy.html" >astropy</a> &#187;</li>
+      <li><a href="../samp.html" accesskey="U">astropy.samp</a> &#187;</li>
+      
+       
+    </ul>
+</div>
+  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          <div class="body" role="main">
+            
+  <h1>Source code for astropy.samp.hub_proxy</h1><div class="highlight"><pre>
+<span></span><span class="c1"># Licensed under a 3-clause BSD style license - see LICENSE.rst</span>
+
+<span class="kn">from</span> <span class="nn">__future__</span> <span class="k">import</span> <span class="p">(</span><span class="n">absolute_import</span><span class="p">,</span> <span class="n">division</span><span class="p">,</span> <span class="n">print_function</span><span class="p">,</span>
+                        <span class="n">unicode_literals</span><span class="p">)</span>
+
+<span class="kn">import</span> <span class="nn">copy</span>
+
+<span class="kn">from</span> <span class="nn">..extern.six.moves</span> <span class="k">import</span> <span class="n">xmlrpc_client</span> <span class="k">as</span> <span class="n">xmlrpc</span>
+
+<span class="kn">from</span> <span class="nn">.errors</span> <span class="k">import</span> <span class="n">SAMPHubError</span>
+<span class="kn">from</span> <span class="nn">.utils</span> <span class="k">import</span> <span class="n">ServerProxyPool</span>
+<span class="kn">from</span> <span class="nn">.lockfile_helpers</span> <span class="k">import</span> <span class="n">get_main_running_hub</span>
+
+
+<span class="n">__all__</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;SAMPHubProxy&#39;</span><span class="p">]</span>
+
+
+<div class="viewcode-block" id="SAMPHubProxy"><a class="viewcode-back" href="../../../api/astropy.samp.SAMPHubProxy.html#astropy.samp.SAMPHubProxy">[docs]</a><span class="k">class</span> <span class="nc">SAMPHubProxy</span><span class="p">(</span><span class="nb">object</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Proxy class to simplify the client interaction with a SAMP hub (via the</span>
+<span class="sd">    standard profile).</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">proxy</span> <span class="o">=</span> <span class="kc">None</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_connected</span> <span class="o">=</span> <span class="kc">False</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">is_connected</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Whether the hub proxy is currently connected to a hub.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_connected</span>
+
+<div class="viewcode-block" id="SAMPHubProxy.connect"><a class="viewcode-back" href="../../../api/astropy.samp.SAMPHubProxy.html#astropy.samp.SAMPHubProxy.connect">[docs]</a>    <span class="k">def</span> <span class="nf">connect</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">hub</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">hub_params</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">pool_size</span><span class="o">=</span><span class="mi">20</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Connect to the current SAMP Hub.</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        hub : `~astropy.samp.SAMPHubServer`, optional</span>
+<span class="sd">            The hub to connect to.</span>
+
+<span class="sd">        hub_params : dict, optional</span>
+<span class="sd">            Optional dictionary containing the lock-file content of the Hub</span>
+<span class="sd">            with which to connect. This dictionary has the form</span>
+<span class="sd">            ``{&lt;token-name&gt;: &lt;token-string&gt;, ...}``.</span>
+
+<span class="sd">        pool_size : int, optional</span>
+<span class="sd">            The number of socket connections opened to communicate with the</span>
+<span class="sd">            Hub.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">_connected</span> <span class="o">=</span> <span class="kc">False</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">lockfile</span> <span class="o">=</span> <span class="p">{}</span>
+
+        <span class="k">if</span> <span class="n">hub</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="ow">and</span> <span class="n">hub_params</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;Cannot specify both hub and hub_params&quot;</span><span class="p">)</span>
+
+        <span class="k">if</span> <span class="n">hub_params</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+
+            <span class="k">if</span> <span class="n">hub</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+                <span class="k">if</span> <span class="ow">not</span> <span class="n">hub</span><span class="o">.</span><span class="n">is_running</span><span class="p">:</span>
+                    <span class="k">raise</span> <span class="n">SAMPHubError</span><span class="p">(</span><span class="s2">&quot;Hub is not running&quot;</span><span class="p">)</span>
+                <span class="k">else</span><span class="p">:</span>
+                    <span class="n">hub_params</span> <span class="o">=</span> <span class="n">hub</span><span class="o">.</span><span class="n">params</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="n">hub_params</span> <span class="o">=</span> <span class="n">get_main_running_hub</span><span class="p">()</span>
+
+        <span class="k">try</span><span class="p">:</span>
+
+            <span class="n">url</span> <span class="o">=</span> <span class="n">hub_params</span><span class="p">[</span><span class="s2">&quot;samp.hub.xmlrpc.url&quot;</span><span class="p">]</span><span class="o">.</span><span class="n">replace</span><span class="p">(</span><span class="s2">&quot;</span><span class="se">\\</span><span class="s2">&quot;</span><span class="p">,</span> <span class="s2">&quot;&quot;</span><span class="p">)</span>
+
+            <span class="bp">self</span><span class="o">.</span><span class="n">proxy</span> <span class="o">=</span> <span class="n">ServerProxyPool</span><span class="p">(</span><span class="n">pool_size</span><span class="p">,</span> <span class="n">xmlrpc</span><span class="o">.</span><span class="n">ServerProxy</span><span class="p">,</span>
+                                         <span class="n">url</span><span class="p">,</span> <span class="n">allow_none</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span>
+
+            <span class="bp">self</span><span class="o">.</span><span class="n">ping</span><span class="p">()</span>
+
+            <span class="bp">self</span><span class="o">.</span><span class="n">lockfile</span> <span class="o">=</span> <span class="n">copy</span><span class="o">.</span><span class="n">deepcopy</span><span class="p">(</span><span class="n">hub_params</span><span class="p">)</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_connected</span> <span class="o">=</span> <span class="kc">True</span>
+
+        <span class="k">except</span> <span class="n">xmlrpc</span><span class="o">.</span><span class="n">ProtocolError</span> <span class="k">as</span> <span class="n">p</span><span class="p">:</span>
+            <span class="c1"># 401 Unauthorized</span>
+            <span class="k">if</span> <span class="n">p</span><span class="o">.</span><span class="n">errcode</span> <span class="o">==</span> <span class="mi">401</span><span class="p">:</span>
+                <span class="k">raise</span> <span class="n">SAMPHubError</span><span class="p">(</span><span class="s2">&quot;Unauthorized access. Basic Authentication &quot;</span>
+                                   <span class="s2">&quot;required or failed.&quot;</span><span class="p">)</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="k">raise</span> <span class="n">SAMPHubError</span><span class="p">(</span><span class="s2">&quot;Protocol Error </span><span class="si">{}</span><span class="s2">: </span><span class="si">{}</span><span class="s2">&quot;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">p</span><span class="o">.</span><span class="n">errcode</span><span class="p">,</span>
+                                                                  <span class="n">p</span><span class="o">.</span><span class="n">errmsg</span><span class="p">))</span></div>
+
+<div class="viewcode-block" id="SAMPHubProxy.disconnect"><a class="viewcode-back" href="../../../api/astropy.samp.SAMPHubProxy.html#astropy.samp.SAMPHubProxy.disconnect">[docs]</a>    <span class="k">def</span> <span class="nf">disconnect</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Disconnect from the current SAMP Hub.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">proxy</span> <span class="o">=</span> <span class="kc">None</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_connected</span> <span class="o">=</span> <span class="kc">False</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">lockfile</span> <span class="o">=</span> <span class="p">{}</span></div>
+
+<div class="viewcode-block" id="SAMPHubProxy.server_close"><a class="viewcode-back" href="../../../api/astropy.samp.SAMPHubProxy.html#astropy.samp.SAMPHubProxy.server_close">[docs]</a>    <span class="k">def</span> <span class="nf">server_close</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">proxy</span><span class="o">.</span><span class="n">server_close</span><span class="p">()</span></div>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">_samp_hub</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Property to abstract away the path to the hub, which allows this class</span>
+<span class="sd">        to be used for other profiles.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">proxy</span><span class="o">.</span><span class="n">samp</span><span class="o">.</span><span class="n">hub</span>
+
+<div class="viewcode-block" id="SAMPHubProxy.ping"><a class="viewcode-back" href="../../../api/astropy.samp.SAMPHubProxy.html#astropy.samp.SAMPHubProxy.ping">[docs]</a>    <span class="k">def</span> <span class="nf">ping</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Proxy to ``ping`` SAMP Hub method (Standard Profile only).</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_samp_hub</span><span class="o">.</span><span class="n">ping</span><span class="p">()</span></div>
+
+<div class="viewcode-block" id="SAMPHubProxy.set_xmlrpc_callback"><a class="viewcode-back" href="../../../api/astropy.samp.SAMPHubProxy.html#astropy.samp.SAMPHubProxy.set_xmlrpc_callback">[docs]</a>    <span class="k">def</span> <span class="nf">set_xmlrpc_callback</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">private_key</span><span class="p">,</span> <span class="n">xmlrpc_addr</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Proxy to ``setXmlrpcCallback`` SAMP Hub method (Standard Profile only).</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_samp_hub</span><span class="o">.</span><span class="n">setXmlrpcCallback</span><span class="p">(</span><span class="n">private_key</span><span class="p">,</span> <span class="n">xmlrpc_addr</span><span class="p">)</span></div>
+
+<div class="viewcode-block" id="SAMPHubProxy.register"><a class="viewcode-back" href="../../../api/astropy.samp.SAMPHubProxy.html#astropy.samp.SAMPHubProxy.register">[docs]</a>    <span class="k">def</span> <span class="nf">register</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">secret</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Proxy to ``register`` SAMP Hub method.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_samp_hub</span><span class="o">.</span><span class="n">register</span><span class="p">(</span><span class="n">secret</span><span class="p">)</span></div>
+
+<div class="viewcode-block" id="SAMPHubProxy.unregister"><a class="viewcode-back" href="../../../api/astropy.samp.SAMPHubProxy.html#astropy.samp.SAMPHubProxy.unregister">[docs]</a>    <span class="k">def</span> <span class="nf">unregister</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">private_key</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Proxy to ``unregister`` SAMP Hub method.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_samp_hub</span><span class="o">.</span><span class="n">unregister</span><span class="p">(</span><span class="n">private_key</span><span class="p">)</span></div>
+
+<div class="viewcode-block" id="SAMPHubProxy.declare_metadata"><a class="viewcode-back" href="../../../api/astropy.samp.SAMPHubProxy.html#astropy.samp.SAMPHubProxy.declare_metadata">[docs]</a>    <span class="k">def</span> <span class="nf">declare_metadata</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">private_key</span><span class="p">,</span> <span class="n">metadata</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Proxy to ``declareMetadata`` SAMP Hub method.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_samp_hub</span><span class="o">.</span><span class="n">declareMetadata</span><span class="p">(</span><span class="n">private_key</span><span class="p">,</span> <span class="n">metadata</span><span class="p">)</span></div>
+
+<div class="viewcode-block" id="SAMPHubProxy.get_metadata"><a class="viewcode-back" href="../../../api/astropy.samp.SAMPHubProxy.html#astropy.samp.SAMPHubProxy.get_metadata">[docs]</a>    <span class="k">def</span> <span class="nf">get_metadata</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">private_key</span><span class="p">,</span> <span class="n">client_id</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Proxy to ``getMetadata`` SAMP Hub method.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_samp_hub</span><span class="o">.</span><span class="n">getMetadata</span><span class="p">(</span><span class="n">private_key</span><span class="p">,</span> <span class="n">client_id</span><span class="p">)</span></div>
+
+<div class="viewcode-block" id="SAMPHubProxy.declare_subscriptions"><a class="viewcode-back" href="../../../api/astropy.samp.SAMPHubProxy.html#astropy.samp.SAMPHubProxy.declare_subscriptions">[docs]</a>    <span class="k">def</span> <span class="nf">declare_subscriptions</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">private_key</span><span class="p">,</span> <span class="n">subscriptions</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Proxy to ``declareSubscriptions`` SAMP Hub method.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_samp_hub</span><span class="o">.</span><span class="n">declareSubscriptions</span><span class="p">(</span><span class="n">private_key</span><span class="p">,</span> <span class="n">subscriptions</span><span class="p">)</span></div>
+
+<div class="viewcode-block" id="SAMPHubProxy.get_subscriptions"><a class="viewcode-back" href="../../../api/astropy.samp.SAMPHubProxy.html#astropy.samp.SAMPHubProxy.get_subscriptions">[docs]</a>    <span class="k">def</span> <span class="nf">get_subscriptions</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">private_key</span><span class="p">,</span> <span class="n">client_id</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Proxy to ``getSubscriptions`` SAMP Hub method.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_samp_hub</span><span class="o">.</span><span class="n">getSubscriptions</span><span class="p">(</span><span class="n">private_key</span><span class="p">,</span> <span class="n">client_id</span><span class="p">)</span></div>
+
+<div class="viewcode-block" id="SAMPHubProxy.get_registered_clients"><a class="viewcode-back" href="../../../api/astropy.samp.SAMPHubProxy.html#astropy.samp.SAMPHubProxy.get_registered_clients">[docs]</a>    <span class="k">def</span> <span class="nf">get_registered_clients</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">private_key</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Proxy to ``getRegisteredClients`` SAMP Hub method.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_samp_hub</span><span class="o">.</span><span class="n">getRegisteredClients</span><span class="p">(</span><span class="n">private_key</span><span class="p">)</span></div>
+
+<div class="viewcode-block" id="SAMPHubProxy.get_subscribed_clients"><a class="viewcode-back" href="../../../api/astropy.samp.SAMPHubProxy.html#astropy.samp.SAMPHubProxy.get_subscribed_clients">[docs]</a>    <span class="k">def</span> <span class="nf">get_subscribed_clients</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">private_key</span><span class="p">,</span> <span class="n">mtype</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Proxy to ``getSubscribedClients`` SAMP Hub method.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_samp_hub</span><span class="o">.</span><span class="n">getSubscribedClients</span><span class="p">(</span><span class="n">private_key</span><span class="p">,</span> <span class="n">mtype</span><span class="p">)</span></div>
+
+<div class="viewcode-block" id="SAMPHubProxy.notify"><a class="viewcode-back" href="../../../api/astropy.samp.SAMPHubProxy.html#astropy.samp.SAMPHubProxy.notify">[docs]</a>    <span class="k">def</span> <span class="nf">notify</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">private_key</span><span class="p">,</span> <span class="n">recipient_id</span><span class="p">,</span> <span class="n">message</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Proxy to ``notify`` SAMP Hub method.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_samp_hub</span><span class="o">.</span><span class="n">notify</span><span class="p">(</span><span class="n">private_key</span><span class="p">,</span> <span class="n">recipient_id</span><span class="p">,</span> <span class="n">message</span><span class="p">)</span></div>
+
+<div class="viewcode-block" id="SAMPHubProxy.notify_all"><a class="viewcode-back" href="../../../api/astropy.samp.SAMPHubProxy.html#astropy.samp.SAMPHubProxy.notify_all">[docs]</a>    <span class="k">def</span> <span class="nf">notify_all</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">private_key</span><span class="p">,</span> <span class="n">message</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Proxy to ``notifyAll`` SAMP Hub method.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_samp_hub</span><span class="o">.</span><span class="n">notifyAll</span><span class="p">(</span><span class="n">private_key</span><span class="p">,</span> <span class="n">message</span><span class="p">)</span></div>
+
+<div class="viewcode-block" id="SAMPHubProxy.call"><a class="viewcode-back" href="../../../api/astropy.samp.SAMPHubProxy.html#astropy.samp.SAMPHubProxy.call">[docs]</a>    <span class="k">def</span> <span class="nf">call</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">private_key</span><span class="p">,</span> <span class="n">recipient_id</span><span class="p">,</span> <span class="n">msg_tag</span><span class="p">,</span> <span class="n">message</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Proxy to ``call`` SAMP Hub method.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_samp_hub</span><span class="o">.</span><span class="n">call</span><span class="p">(</span><span class="n">private_key</span><span class="p">,</span> <span class="n">recipient_id</span><span class="p">,</span> <span class="n">msg_tag</span><span class="p">,</span> <span class="n">message</span><span class="p">)</span></div>
+
+<div class="viewcode-block" id="SAMPHubProxy.call_all"><a class="viewcode-back" href="../../../api/astropy.samp.SAMPHubProxy.html#astropy.samp.SAMPHubProxy.call_all">[docs]</a>    <span class="k">def</span> <span class="nf">call_all</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">private_key</span><span class="p">,</span> <span class="n">msg_tag</span><span class="p">,</span> <span class="n">message</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Proxy to ``callAll`` SAMP Hub method.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_samp_hub</span><span class="o">.</span><span class="n">callAll</span><span class="p">(</span><span class="n">private_key</span><span class="p">,</span> <span class="n">msg_tag</span><span class="p">,</span> <span class="n">message</span><span class="p">)</span></div>
+
+<div class="viewcode-block" id="SAMPHubProxy.call_and_wait"><a class="viewcode-back" href="../../../api/astropy.samp.SAMPHubProxy.html#astropy.samp.SAMPHubProxy.call_and_wait">[docs]</a>    <span class="k">def</span> <span class="nf">call_and_wait</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">private_key</span><span class="p">,</span> <span class="n">recipient_id</span><span class="p">,</span> <span class="n">message</span><span class="p">,</span> <span class="n">timeout</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Proxy to ``callAndWait`` SAMP Hub method.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_samp_hub</span><span class="o">.</span><span class="n">callAndWait</span><span class="p">(</span><span class="n">private_key</span><span class="p">,</span> <span class="n">recipient_id</span><span class="p">,</span> <span class="n">message</span><span class="p">,</span>
+                                          <span class="n">timeout</span><span class="p">)</span></div>
+
+<div class="viewcode-block" id="SAMPHubProxy.reply"><a class="viewcode-back" href="../../../api/astropy.samp.SAMPHubProxy.html#astropy.samp.SAMPHubProxy.reply">[docs]</a>    <span class="k">def</span> <span class="nf">reply</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">private_key</span><span class="p">,</span> <span class="n">msg_id</span><span class="p">,</span> <span class="n">response</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Proxy to ``reply`` SAMP Hub method.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_samp_hub</span><span class="o">.</span><span class="n">reply</span><span class="p">(</span><span class="n">private_key</span><span class="p">,</span> <span class="n">msg_id</span><span class="p">,</span> <span class="n">response</span><span class="p">)</span></div></div>
+</pre></div>
+
+          </div>
+        </div>
+      </div>
+      <div class="sphinxsidebar" role="navigation" aria-label="main navigation">
+        <div class="sphinxsidebarwrapper"><h3>Page Contents</h3>
+
+
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+<footer class="footer">
+  <p class="pull-right"> &nbsp;
+    <a href="#">Back to Top</a></p>
+  <p>
+    &copy; Copyright 2011-2016, The Astropy Developers.<br/>
+    Created using <a href="http://sphinx.pocoo.org/">Sphinx</a> 1.5.6. &nbsp;
+    Last built 05 Jul 2017. <br/>
+  </p>
+</footer>
+  </body>
+</html>

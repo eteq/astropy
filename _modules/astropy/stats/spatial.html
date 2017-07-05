@@ -1,0 +1,432 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <head>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    
+    <title>astropy.stats.spatial &#8212; Astropy v3.0.dev19489</title>
+    
+    <link rel="stylesheet" href="../../../_static/bootstrap-astropy.css" type="text/css" />
+    <link rel="stylesheet" href="../../../_static/pygments.css" type="text/css" />
+    <link rel="stylesheet" href="../../../_static/gallery.css" type="text/css" />
+    
+    <script type="text/javascript">
+      var DOCUMENTATION_OPTIONS = {
+        URL_ROOT:    '../../../',
+        VERSION:     '3.0.dev19489',
+        COLLAPSE_INDEX: false,
+        FILE_SUFFIX: '.html',
+        HAS_SOURCE:  true,
+        SOURCELINK_SUFFIX: '.txt'
+      };
+    </script>
+    <script type="text/javascript" src="../../../_static/jquery.js"></script>
+    <script type="text/javascript" src="../../../_static/underscore.js"></script>
+    <script type="text/javascript" src="../../../_static/doctools.js"></script>
+    <script type="text/javascript" src="../../../_static/sidebar.js"></script>
+    <link rel="shortcut icon" href="../../../_static/astropy_logo.ico"/>
+    <link rel="index" title="Index" href="../../../genindex.html" />
+    <link rel="search" title="Search" href="../../../search.html" />
+<link href='https://fonts.googleapis.com/css?family=Source+Sans+Pro:200,600' rel='stylesheet' type='text/css'/>
+<script type="text/javascript" src="../../../_static/copybutton.js"></script>
+
+
+  </head>
+  <body role="document">
+<div class="topbar">
+  <a class="brand" title="Documentation Home" href="../../../index.html"><span id="logotext1">astro</span><span id="logotext2">py</span><span id="logotext3">:docs</span></a>
+  <ul>
+    <li><a class="homelink" title="Astropy Homepage" href="http://www.astropy.org"></a></li>
+    <li><a title="General Index" href="../../../genindex.html">Index</a></li>
+    <li><a title="Module Index" href="../../../py-modindex.html">Modules</a></li>
+    <li>
+      
+      
+<form action="../../../search.html" method="get">
+  <input type="text" name="q" placeholder="Search" />
+  <input type="hidden" name="check_keywords" value="yes" />
+  <input type="hidden" name="area" value="default" />
+</form>
+      
+    </li>
+  </ul>
+</div>
+
+<div class="related">
+    <h3>Navigation</h3>
+    <ul>
+      <li>
+	<a href="../../../index.html">Astropy v3.0.dev19489</a>
+	 &#187;
+      </li>
+      <li><a href="../../index.html" >Module code</a> &#187;</li>
+      <li><a href="../../astropy.html" accesskey="U">astropy</a> &#187;</li>
+      
+       
+    </ul>
+</div>
+  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          <div class="body" role="main">
+            
+  <h1>Source code for astropy.stats.spatial</h1><div class="highlight"><pre>
+<span></span><span class="c1"># Licensed under a 3-clause BSD style license - see LICENSE.rst</span>
+<span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">This module implements functions and classes for spatial statistics.</span>
+<span class="sd">&quot;&quot;&quot;</span>
+
+<span class="kn">from</span> <span class="nn">__future__</span> <span class="k">import</span> <span class="p">(</span><span class="n">absolute_import</span><span class="p">,</span> <span class="n">division</span><span class="p">,</span> <span class="n">print_function</span><span class="p">,</span>
+                        <span class="n">unicode_literals</span><span class="p">)</span>
+
+<span class="kn">import</span> <span class="nn">numpy</span> <span class="k">as</span> <span class="nn">np</span>
+<span class="kn">import</span> <span class="nn">math</span>
+
+
+<div class="viewcode-block" id="RipleysKEstimator"><a class="viewcode-back" href="../../../api/astropy.stats.RipleysKEstimator.html#astropy.stats.RipleysKEstimator">[docs]</a><span class="k">class</span> <span class="nc">RipleysKEstimator</span><span class="p">(</span><span class="nb">object</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Estimators for Ripley&#39;s K function for two-dimensional spatial data.</span>
+<span class="sd">    See [1]_, [2]_, [3]_, [4]_, [5]_ for detailed mathematical and</span>
+<span class="sd">    practical aspects of those estimators.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    area : float</span>
+<span class="sd">        Area of study from which the points where observed.</span>
+<span class="sd">    x_max, y_max : float, float, optional</span>
+<span class="sd">        Maximum rectangular coordinates of the area of study.</span>
+<span class="sd">        Required if ``mode == &#39;translation&#39;`` or ``mode == ohser``.</span>
+<span class="sd">    x_min, y_min : float, float, optional</span>
+<span class="sd">        Minimum rectangular coordinates of the area of study.</span>
+<span class="sd">        Required if ``mode == &#39;variable-width&#39;`` or ``mode == ohser``.</span>
+
+<span class="sd">    Examples</span>
+<span class="sd">    --------</span>
+<span class="sd">    &gt;&gt;&gt; import numpy as np</span>
+<span class="sd">    &gt;&gt;&gt; from matplotlib import pyplot as plt # doctest: +SKIP</span>
+<span class="sd">    &gt;&gt;&gt; from astropy.stats import RipleysKEstimator</span>
+<span class="sd">    &gt;&gt;&gt; z = np.random.uniform(low=5, high=10, size=(100, 2))</span>
+<span class="sd">    &gt;&gt;&gt; Kest = RipleysKEstimator(area=25, x_max=10, y_max=10,</span>
+<span class="sd">    ... x_min=5, y_min=5)</span>
+<span class="sd">    &gt;&gt;&gt; r = np.linspace(0, 2.5, 100)</span>
+<span class="sd">    &gt;&gt;&gt; plt.plot(r, Kest.poisson(r)) # doctest: +SKIP</span>
+<span class="sd">    &gt;&gt;&gt; plt.plot(r, Kest(data=z, radii=r, mode=&#39;none&#39;)) # doctest: +SKIP</span>
+<span class="sd">    &gt;&gt;&gt; plt.plot(r, Kest(data=z, radii=r, mode=&#39;translation&#39;)) # doctest: +SKIP</span>
+<span class="sd">    &gt;&gt;&gt; plt.plot(r, Kest(data=z, radii=r, mode=&#39;ohser&#39;)) # doctest: +SKIP</span>
+<span class="sd">    &gt;&gt;&gt; plt.plot(r, Kest(data=z, radii=r, mode=&#39;var-width&#39;)) # doctest: +SKIP</span>
+<span class="sd">    &gt;&gt;&gt; plt.plot(r, Kest(data=z, radii=r, mode=&#39;ripley&#39;)) # doctest: +SKIP</span>
+
+<span class="sd">    References</span>
+<span class="sd">    ----------</span>
+<span class="sd">    .. [1] Peebles, P.J.E. *The large scale structure of the universe*.</span>
+<span class="sd">       &lt;http://adsabs.harvard.edu/cgi-bin/nph-bib_query?bibcode=1980lssu.book.....P&amp;db_key=AST&gt;</span>
+<span class="sd">    .. [2] Spatial descriptive statistics.</span>
+<span class="sd">       &lt;https://en.wikipedia.org/wiki/Spatial_descriptive_statistics&gt;</span>
+<span class="sd">    .. [3] Package spatstat.</span>
+<span class="sd">       &lt;https://cran.r-project.org/web/packages/spatstat/spatstat.pdf&gt;</span>
+<span class="sd">    .. [4] Cressie, N.A.C. (1991). Statistics for Spatial Data,</span>
+<span class="sd">       Wiley, New York.</span>
+<span class="sd">    .. [5] Stoyan, D., Stoyan, H. (1992). Fractals, Random Shapes and</span>
+<span class="sd">       Point Fields, Akademie Verlag GmbH, Chichester.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">area</span><span class="p">,</span> <span class="n">x_max</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">y_max</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">x_min</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">y_min</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">area</span> <span class="o">=</span> <span class="n">area</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">x_max</span> <span class="o">=</span> <span class="n">x_max</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">y_max</span> <span class="o">=</span> <span class="n">y_max</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">x_min</span> <span class="o">=</span> <span class="n">x_min</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">y_min</span> <span class="o">=</span> <span class="n">y_min</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">area</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_area</span>
+
+    <span class="nd">@area</span><span class="o">.</span><span class="n">setter</span>
+    <span class="k">def</span> <span class="nf">area</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">value</span><span class="p">):</span>
+        <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">value</span><span class="p">,</span> <span class="p">(</span><span class="nb">float</span><span class="p">,</span> <span class="nb">int</span><span class="p">))</span> <span class="ow">and</span> <span class="n">value</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_area</span> <span class="o">=</span> <span class="n">value</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s1">&#39;area is expected to be a positive number. &#39;</span>
+                             <span class="s1">&#39;Got </span><span class="si">{}</span><span class="s1">.&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">value</span><span class="p">))</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">y_max</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_y_max</span>
+
+    <span class="nd">@y_max</span><span class="o">.</span><span class="n">setter</span>
+    <span class="k">def</span> <span class="nf">y_max</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">value</span><span class="p">):</span>
+        <span class="k">if</span> <span class="n">value</span> <span class="ow">is</span> <span class="kc">None</span> <span class="ow">or</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">value</span><span class="p">,</span> <span class="p">(</span><span class="nb">float</span><span class="p">,</span> <span class="nb">int</span><span class="p">)):</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_y_max</span> <span class="o">=</span> <span class="n">value</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s1">&#39;y_max is expected to be a real number &#39;</span>
+                             <span class="s1">&#39;or None. Got </span><span class="si">{}</span><span class="s1">.&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">value</span><span class="p">))</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">x_max</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_x_max</span>
+
+    <span class="nd">@x_max</span><span class="o">.</span><span class="n">setter</span>
+    <span class="k">def</span> <span class="nf">x_max</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">value</span><span class="p">):</span>
+        <span class="k">if</span> <span class="n">value</span> <span class="ow">is</span> <span class="kc">None</span> <span class="ow">or</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">value</span><span class="p">,</span> <span class="p">(</span><span class="nb">float</span><span class="p">,</span> <span class="nb">int</span><span class="p">)):</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_x_max</span> <span class="o">=</span> <span class="n">value</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s1">&#39;x_max is expected to be a real number &#39;</span>
+                             <span class="s1">&#39;or None. Got </span><span class="si">{}</span><span class="s1">.&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">value</span><span class="p">))</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">y_min</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_y_min</span>
+
+    <span class="nd">@y_min</span><span class="o">.</span><span class="n">setter</span>
+    <span class="k">def</span> <span class="nf">y_min</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">value</span><span class="p">):</span>
+        <span class="k">if</span> <span class="n">value</span> <span class="ow">is</span> <span class="kc">None</span> <span class="ow">or</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">value</span><span class="p">,</span> <span class="p">(</span><span class="nb">float</span><span class="p">,</span> <span class="nb">int</span><span class="p">)):</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_y_min</span> <span class="o">=</span> <span class="n">value</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s1">&#39;y_min is expected to be a real number. &#39;</span>
+                             <span class="s1">&#39;Got </span><span class="si">{}</span><span class="s1">.&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">value</span><span class="p">))</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">x_min</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_x_min</span>
+
+    <span class="nd">@x_min</span><span class="o">.</span><span class="n">setter</span>
+    <span class="k">def</span> <span class="nf">x_min</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">value</span><span class="p">):</span>
+        <span class="k">if</span> <span class="n">value</span> <span class="ow">is</span> <span class="kc">None</span> <span class="ow">or</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">value</span><span class="p">,</span> <span class="p">(</span><span class="nb">float</span><span class="p">,</span> <span class="nb">int</span><span class="p">)):</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_x_min</span> <span class="o">=</span> <span class="n">value</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s1">&#39;x_min is expected to be a real number. &#39;</span>
+                             <span class="s1">&#39;Got </span><span class="si">{}</span><span class="s1">.&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">value</span><span class="p">))</span>
+
+<div class="viewcode-block" id="RipleysKEstimator.__call__"><a class="viewcode-back" href="../../../api/astropy.stats.RipleysKEstimator.html#astropy.stats.RipleysKEstimator.__call__">[docs]</a>    <span class="k">def</span> <span class="nf">__call__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">data</span><span class="p">,</span> <span class="n">radii</span><span class="p">,</span> <span class="n">mode</span><span class="o">=</span><span class="s1">&#39;none&#39;</span><span class="p">):</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">evaluate</span><span class="p">(</span><span class="n">data</span><span class="o">=</span><span class="n">data</span><span class="p">,</span> <span class="n">radii</span><span class="o">=</span><span class="n">radii</span><span class="p">,</span> <span class="n">mode</span><span class="o">=</span><span class="n">mode</span><span class="p">)</span></div>
+
+    <span class="k">def</span> <span class="nf">_pairwise_diffs</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">data</span><span class="p">):</span>
+        <span class="n">npts</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="n">data</span><span class="p">)</span>
+        <span class="n">diff</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">zeros</span><span class="p">(</span><span class="n">shape</span><span class="o">=</span><span class="p">(</span><span class="n">npts</span> <span class="o">*</span> <span class="p">(</span><span class="n">npts</span> <span class="o">-</span> <span class="mi">1</span><span class="p">)</span> <span class="o">//</span> <span class="mi">2</span><span class="p">,</span> <span class="mi">2</span><span class="p">),</span> <span class="n">dtype</span><span class="o">=</span><span class="n">np</span><span class="o">.</span><span class="n">double</span><span class="p">)</span>
+        <span class="n">k</span> <span class="o">=</span> <span class="mi">0</span>
+        <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">npts</span> <span class="o">-</span> <span class="mi">1</span><span class="p">):</span>
+            <span class="n">size</span> <span class="o">=</span> <span class="n">npts</span> <span class="o">-</span> <span class="n">i</span> <span class="o">-</span> <span class="mi">1</span>
+            <span class="n">diff</span><span class="p">[</span><span class="n">k</span><span class="p">:</span><span class="n">k</span> <span class="o">+</span> <span class="n">size</span><span class="p">]</span> <span class="o">=</span> <span class="nb">abs</span><span class="p">(</span><span class="n">data</span><span class="p">[</span><span class="n">i</span><span class="p">]</span> <span class="o">-</span> <span class="n">data</span><span class="p">[</span><span class="n">i</span><span class="o">+</span><span class="mi">1</span><span class="p">:])</span>
+            <span class="n">k</span> <span class="o">+=</span> <span class="n">size</span>
+
+        <span class="k">return</span> <span class="n">diff</span>
+
+<div class="viewcode-block" id="RipleysKEstimator.poisson"><a class="viewcode-back" href="../../../api/astropy.stats.RipleysKEstimator.html#astropy.stats.RipleysKEstimator.poisson">[docs]</a>    <span class="k">def</span> <span class="nf">poisson</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">radii</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Evaluates the Ripley K function for the homongeneous Poisson process,</span>
+<span class="sd">        also known as Complete State of Randomness (CSR).</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        radii : 1D array</span>
+<span class="sd">            Set of distances in which Ripley&#39;s K function will be evaluated.</span>
+
+<span class="sd">        Returns</span>
+<span class="sd">        -------</span>
+<span class="sd">        output : 1D array</span>
+<span class="sd">            Ripley&#39;s K function evaluated at ``radii``.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+
+        <span class="k">return</span> <span class="n">np</span><span class="o">.</span><span class="n">pi</span> <span class="o">*</span> <span class="n">radii</span> <span class="o">*</span> <span class="n">radii</span></div>
+
+<div class="viewcode-block" id="RipleysKEstimator.Lfunction"><a class="viewcode-back" href="../../../api/astropy.stats.RipleysKEstimator.html#astropy.stats.RipleysKEstimator.Lfunction">[docs]</a>    <span class="k">def</span> <span class="nf">Lfunction</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">data</span><span class="p">,</span> <span class="n">radii</span><span class="p">,</span> <span class="n">mode</span><span class="o">=</span><span class="s1">&#39;none&#39;</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Evaluates the L function at ``radii``. For parameter description</span>
+<span class="sd">        see ``evaluate`` method.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+
+        <span class="k">return</span> <span class="n">np</span><span class="o">.</span><span class="n">sqrt</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">evaluate</span><span class="p">(</span><span class="n">data</span><span class="p">,</span> <span class="n">radii</span><span class="p">,</span> <span class="n">mode</span><span class="o">=</span><span class="n">mode</span><span class="p">)</span> <span class="o">/</span> <span class="n">np</span><span class="o">.</span><span class="n">pi</span><span class="p">)</span></div>
+
+<div class="viewcode-block" id="RipleysKEstimator.Hfunction"><a class="viewcode-back" href="../../../api/astropy.stats.RipleysKEstimator.html#astropy.stats.RipleysKEstimator.Hfunction">[docs]</a>    <span class="k">def</span> <span class="nf">Hfunction</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">data</span><span class="p">,</span> <span class="n">radii</span><span class="p">,</span> <span class="n">mode</span><span class="o">=</span><span class="s1">&#39;none&#39;</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Evaluates the H function at ``radii``. For parameter description</span>
+<span class="sd">        see ``evaluate`` method.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">Lfunction</span><span class="p">(</span><span class="n">data</span><span class="p">,</span> <span class="n">radii</span><span class="p">,</span> <span class="n">mode</span><span class="o">=</span><span class="n">mode</span><span class="p">)</span> <span class="o">-</span> <span class="n">radii</span></div>
+
+<div class="viewcode-block" id="RipleysKEstimator.evaluate"><a class="viewcode-back" href="../../../api/astropy.stats.RipleysKEstimator.html#astropy.stats.RipleysKEstimator.evaluate">[docs]</a>    <span class="k">def</span> <span class="nf">evaluate</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">data</span><span class="p">,</span> <span class="n">radii</span><span class="p">,</span> <span class="n">mode</span><span class="o">=</span><span class="s1">&#39;none&#39;</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Evaluates the Ripley K estimator for a given set of values ``radii``.</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        data : 2D array</span>
+<span class="sd">            Set of observed points in as a n by 2 array which will be used to</span>
+<span class="sd">            estimate Ripley&#39;s K function.</span>
+<span class="sd">        radii : 1D array</span>
+<span class="sd">            Set of distances in which Ripley&#39;s K estimator will be evaluated.</span>
+<span class="sd">            Usually, it&#39;s common to consider max(radii) &lt; (area/2)**0.5.</span>
+<span class="sd">        mode : str</span>
+<span class="sd">            Keyword which indicates the method for edge effects correction.</span>
+<span class="sd">            Available methods are &#39;none&#39;, &#39;translation&#39;, &#39;ohser&#39;, &#39;var-width&#39;,</span>
+<span class="sd">            and &#39;ripley&#39;.</span>
+
+<span class="sd">            * &#39;none&#39;</span>
+<span class="sd">                this method does not take into account any edge effects</span>
+<span class="sd">                whatsoever.</span>
+<span class="sd">            * &#39;translation&#39;</span>
+<span class="sd">                computes the intersection of rectangular areas centered at</span>
+<span class="sd">                the given points provided the upper bounds of the</span>
+<span class="sd">                dimensions of the rectangular area of study. It assumes that</span>
+<span class="sd">                all the points lie in a bounded rectangular region satisfying</span>
+<span class="sd">                x_min &lt; x_i &lt; x_max; y_min &lt; y_i &lt; y_max. A detailed</span>
+<span class="sd">                description of this method can be found on ref [4].</span>
+<span class="sd">            * &#39;ohser&#39;</span>
+<span class="sd">                this method uses the isotropized set covariance function of</span>
+<span class="sd">                the window of study as a weigth to correct for</span>
+<span class="sd">                edge-effects. A detailed description of this method can be</span>
+<span class="sd">                found on ref [4].</span>
+<span class="sd">            * &#39;var-width&#39;</span>
+<span class="sd">                this method considers the distance of each observed point to</span>
+<span class="sd">                the nearest boundary of the study window as a factor to</span>
+<span class="sd">                account for edge-effects. See [3] for a brief description of</span>
+<span class="sd">                this method.</span>
+<span class="sd">            * &#39;ripley&#39;</span>
+<span class="sd">                this method is known as Ripley&#39;s edge-corrected estimator.</span>
+<span class="sd">                The weight for edge-correction is a function of the</span>
+<span class="sd">                proportions of circumferences centered at each data point</span>
+<span class="sd">                which crosses another data point of interest. See [3] for</span>
+<span class="sd">                a detailed description of this method.</span>
+
+<span class="sd">        Returns</span>
+<span class="sd">        -------</span>
+<span class="sd">        ripley : 1D array</span>
+<span class="sd">            Ripley&#39;s K function estimator evaluated at ``radii``.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+
+        <span class="n">data</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span><span class="n">data</span><span class="p">)</span>
+
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">data</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span> <span class="o">==</span> <span class="mi">2</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s1">&#39;data must be an n by 2 array, where n is the &#39;</span>
+                             <span class="s1">&#39;number of observed points.&#39;</span><span class="p">)</span>
+
+        <span class="n">npts</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="n">data</span><span class="p">)</span>
+        <span class="n">ripley</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">zeros</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">radii</span><span class="p">))</span>
+
+        <span class="k">if</span> <span class="n">mode</span> <span class="o">==</span> <span class="s1">&#39;none&#39;</span><span class="p">:</span>
+            <span class="n">diff</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_pairwise_diffs</span><span class="p">(</span><span class="n">data</span><span class="p">)</span>
+            <span class="n">distances</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">hypot</span><span class="p">(</span><span class="n">diff</span><span class="p">[:,</span> <span class="mi">0</span><span class="p">],</span> <span class="n">diff</span><span class="p">[:,</span> <span class="mi">1</span><span class="p">])</span>
+            <span class="k">for</span> <span class="n">r</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">radii</span><span class="p">)):</span>
+                <span class="n">ripley</span><span class="p">[</span><span class="n">r</span><span class="p">]</span> <span class="o">=</span> <span class="p">(</span><span class="n">distances</span> <span class="o">&lt;</span> <span class="n">radii</span><span class="p">[</span><span class="n">r</span><span class="p">])</span><span class="o">.</span><span class="n">sum</span><span class="p">()</span>
+
+            <span class="n">ripley</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">area</span> <span class="o">*</span> <span class="mf">2.</span> <span class="o">*</span> <span class="n">ripley</span> <span class="o">/</span> <span class="p">(</span><span class="n">npts</span> <span class="o">*</span> <span class="p">(</span><span class="n">npts</span> <span class="o">-</span> <span class="mi">1</span><span class="p">))</span>
+        <span class="c1"># eq. 15.11 Stoyan book page 283</span>
+        <span class="k">elif</span> <span class="n">mode</span> <span class="o">==</span> <span class="s1">&#39;translation&#39;</span><span class="p">:</span>
+            <span class="n">diff</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_pairwise_diffs</span><span class="p">(</span><span class="n">data</span><span class="p">)</span>
+            <span class="n">distances</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">hypot</span><span class="p">(</span><span class="n">diff</span><span class="p">[:,</span> <span class="mi">0</span><span class="p">],</span> <span class="n">diff</span><span class="p">[:,</span> <span class="mi">1</span><span class="p">])</span>
+            <span class="n">intersec_area</span> <span class="o">=</span> <span class="p">(((</span><span class="bp">self</span><span class="o">.</span><span class="n">x_max</span> <span class="o">-</span> <span class="bp">self</span><span class="o">.</span><span class="n">x_min</span><span class="p">)</span> <span class="o">-</span> <span class="n">diff</span><span class="p">[:,</span> <span class="mi">0</span><span class="p">])</span> <span class="o">*</span>
+                             <span class="p">((</span><span class="bp">self</span><span class="o">.</span><span class="n">y_max</span> <span class="o">-</span> <span class="bp">self</span><span class="o">.</span><span class="n">y_min</span><span class="p">)</span> <span class="o">-</span> <span class="n">diff</span><span class="p">[:,</span> <span class="mi">1</span><span class="p">]))</span>
+
+            <span class="k">for</span> <span class="n">r</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">radii</span><span class="p">)):</span>
+                <span class="n">dist_indicator</span> <span class="o">=</span> <span class="n">distances</span> <span class="o">&lt;</span> <span class="n">radii</span><span class="p">[</span><span class="n">r</span><span class="p">]</span>
+                <span class="n">ripley</span><span class="p">[</span><span class="n">r</span><span class="p">]</span> <span class="o">=</span> <span class="p">((</span><span class="mi">1</span> <span class="o">/</span> <span class="n">intersec_area</span><span class="p">)</span> <span class="o">*</span> <span class="n">dist_indicator</span><span class="p">)</span><span class="o">.</span><span class="n">sum</span><span class="p">()</span>
+
+            <span class="n">ripley</span> <span class="o">=</span> <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">area</span><span class="o">**</span><span class="mi">2</span> <span class="o">/</span> <span class="p">(</span><span class="n">npts</span> <span class="o">*</span> <span class="p">(</span><span class="n">npts</span> <span class="o">-</span> <span class="mi">1</span><span class="p">)))</span> <span class="o">*</span> <span class="mi">2</span> <span class="o">*</span> <span class="n">ripley</span>
+        <span class="c1"># Stoyan book page 123 and eq 15.13</span>
+        <span class="k">elif</span> <span class="n">mode</span> <span class="o">==</span> <span class="s1">&#39;ohser&#39;</span><span class="p">:</span>
+            <span class="n">diff</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_pairwise_diffs</span><span class="p">(</span><span class="n">data</span><span class="p">)</span>
+            <span class="n">distances</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">hypot</span><span class="p">(</span><span class="n">diff</span><span class="p">[:,</span> <span class="mi">0</span><span class="p">],</span> <span class="n">diff</span><span class="p">[:,</span> <span class="mi">1</span><span class="p">])</span>
+            <span class="n">a</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">area</span>
+            <span class="n">b</span> <span class="o">=</span> <span class="nb">max</span><span class="p">((</span><span class="bp">self</span><span class="o">.</span><span class="n">y_max</span> <span class="o">-</span> <span class="bp">self</span><span class="o">.</span><span class="n">y_min</span><span class="p">)</span> <span class="o">/</span> <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">x_max</span> <span class="o">-</span> <span class="bp">self</span><span class="o">.</span><span class="n">x_min</span><span class="p">),</span>
+                    <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">x_max</span> <span class="o">-</span> <span class="bp">self</span><span class="o">.</span><span class="n">x_min</span><span class="p">)</span> <span class="o">/</span> <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">y_max</span> <span class="o">-</span> <span class="bp">self</span><span class="o">.</span><span class="n">y_min</span><span class="p">))</span>
+            <span class="n">x</span> <span class="o">=</span> <span class="n">distances</span> <span class="o">/</span> <span class="n">math</span><span class="o">.</span><span class="n">sqrt</span><span class="p">(</span><span class="n">a</span> <span class="o">/</span> <span class="n">b</span><span class="p">)</span>
+            <span class="n">u</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">sqrt</span><span class="p">((</span><span class="n">x</span> <span class="o">*</span> <span class="n">x</span> <span class="o">-</span> <span class="mi">1</span><span class="p">)</span> <span class="o">*</span> <span class="p">(</span><span class="n">x</span> <span class="o">&gt;</span> <span class="mi">1</span><span class="p">))</span>
+            <span class="n">v</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">sqrt</span><span class="p">((</span><span class="n">x</span> <span class="o">*</span> <span class="n">x</span> <span class="o">-</span> <span class="n">b</span> <span class="o">**</span> <span class="mi">2</span><span class="p">)</span> <span class="o">*</span> <span class="p">(</span><span class="n">x</span> <span class="o">&lt;</span> <span class="n">math</span><span class="o">.</span><span class="n">sqrt</span><span class="p">(</span><span class="n">b</span> <span class="o">**</span> <span class="mi">2</span> <span class="o">+</span> <span class="mi">1</span><span class="p">))</span> <span class="o">*</span> <span class="p">(</span><span class="n">x</span> <span class="o">&gt;</span> <span class="n">b</span><span class="p">))</span>
+            <span class="n">c1</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">pi</span> <span class="o">-</span> <span class="mi">2</span> <span class="o">*</span> <span class="n">x</span> <span class="o">*</span> <span class="p">(</span><span class="mi">1</span> <span class="o">+</span> <span class="mi">1</span> <span class="o">/</span> <span class="n">b</span><span class="p">)</span> <span class="o">+</span> <span class="n">x</span> <span class="o">*</span> <span class="n">x</span> <span class="o">/</span> <span class="n">b</span>
+            <span class="n">c2</span> <span class="o">=</span> <span class="mi">2</span> <span class="o">*</span> <span class="n">np</span><span class="o">.</span><span class="n">arcsin</span><span class="p">((</span><span class="mi">1</span> <span class="o">/</span> <span class="n">x</span><span class="p">)</span> <span class="o">*</span> <span class="p">(</span><span class="n">x</span> <span class="o">&gt;</span> <span class="mi">1</span><span class="p">))</span> <span class="o">-</span> <span class="mi">1</span> <span class="o">/</span> <span class="n">b</span> <span class="o">-</span> <span class="mi">2</span> <span class="o">*</span> <span class="p">(</span><span class="n">x</span> <span class="o">-</span> <span class="n">u</span><span class="p">)</span>
+            <span class="n">c3</span> <span class="o">=</span> <span class="p">(</span><span class="mi">2</span> <span class="o">*</span> <span class="n">np</span><span class="o">.</span><span class="n">arcsin</span><span class="p">(((</span><span class="n">b</span> <span class="o">-</span> <span class="n">u</span> <span class="o">*</span> <span class="n">v</span><span class="p">)</span> <span class="o">/</span> <span class="p">(</span><span class="n">x</span> <span class="o">*</span> <span class="n">x</span><span class="p">))</span>
+                                <span class="o">*</span> <span class="p">(</span><span class="n">x</span> <span class="o">&gt;</span> <span class="n">b</span><span class="p">)</span> <span class="o">*</span> <span class="p">(</span><span class="n">x</span> <span class="o">&lt;</span> <span class="n">math</span><span class="o">.</span><span class="n">sqrt</span><span class="p">(</span><span class="n">b</span> <span class="o">**</span> <span class="mi">2</span> <span class="o">+</span> <span class="mi">1</span><span class="p">)))</span>
+                  <span class="o">+</span> <span class="mi">2</span> <span class="o">*</span> <span class="n">u</span> <span class="o">+</span> <span class="mi">2</span> <span class="o">*</span> <span class="n">v</span> <span class="o">/</span> <span class="n">b</span> <span class="o">-</span> <span class="n">b</span> <span class="o">-</span> <span class="p">(</span><span class="mi">1</span> <span class="o">+</span> <span class="n">x</span> <span class="o">*</span> <span class="n">x</span><span class="p">)</span> <span class="o">/</span> <span class="n">b</span><span class="p">)</span>
+
+            <span class="n">cov_func</span> <span class="o">=</span> <span class="p">((</span><span class="n">a</span> <span class="o">/</span> <span class="n">np</span><span class="o">.</span><span class="n">pi</span><span class="p">)</span> <span class="o">*</span> <span class="p">(</span><span class="n">c1</span> <span class="o">*</span> <span class="p">(</span><span class="n">x</span> <span class="o">&gt;=</span> <span class="mi">0</span><span class="p">)</span> <span class="o">*</span> <span class="p">(</span><span class="n">x</span> <span class="o">&lt;=</span> <span class="mi">1</span><span class="p">)</span>
+                        <span class="o">+</span> <span class="n">c2</span> <span class="o">*</span> <span class="p">(</span><span class="n">x</span> <span class="o">&gt;</span> <span class="mi">1</span><span class="p">)</span> <span class="o">*</span> <span class="p">(</span><span class="n">x</span> <span class="o">&lt;=</span> <span class="n">b</span><span class="p">)</span>
+                        <span class="o">+</span> <span class="n">c3</span> <span class="o">*</span> <span class="p">(</span><span class="n">b</span> <span class="o">&lt;</span> <span class="n">x</span><span class="p">)</span> <span class="o">*</span> <span class="p">(</span><span class="n">x</span> <span class="o">&lt;</span> <span class="n">math</span><span class="o">.</span><span class="n">sqrt</span><span class="p">(</span><span class="n">b</span> <span class="o">**</span> <span class="mi">2</span> <span class="o">+</span> <span class="mi">1</span><span class="p">))))</span>
+
+            <span class="k">for</span> <span class="n">r</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">radii</span><span class="p">)):</span>
+                <span class="n">dist_indicator</span> <span class="o">=</span> <span class="n">distances</span> <span class="o">&lt;</span> <span class="n">radii</span><span class="p">[</span><span class="n">r</span><span class="p">]</span>
+                <span class="n">ripley</span><span class="p">[</span><span class="n">r</span><span class="p">]</span> <span class="o">=</span> <span class="p">((</span><span class="mi">1</span> <span class="o">/</span> <span class="n">cov_func</span><span class="p">)</span> <span class="o">*</span> <span class="n">dist_indicator</span><span class="p">)</span><span class="o">.</span><span class="n">sum</span><span class="p">()</span>
+
+            <span class="n">ripley</span> <span class="o">=</span> <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">area</span><span class="o">**</span><span class="mi">2</span> <span class="o">/</span> <span class="p">(</span><span class="n">npts</span> <span class="o">*</span> <span class="p">(</span><span class="n">npts</span> <span class="o">-</span> <span class="mi">1</span><span class="p">)))</span> <span class="o">*</span> <span class="mi">2</span> <span class="o">*</span> <span class="n">ripley</span>
+        <span class="c1"># Cressie book eq 8.2.20 page 616</span>
+        <span class="k">elif</span> <span class="n">mode</span> <span class="o">==</span> <span class="s1">&#39;var-width&#39;</span><span class="p">:</span>
+            <span class="n">lt_dist</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">minimum</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">minimum</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">x_max</span> <span class="o">-</span> <span class="n">data</span><span class="p">[:,</span> <span class="mi">0</span><span class="p">],</span> <span class="bp">self</span><span class="o">.</span><span class="n">y_max</span> <span class="o">-</span> <span class="n">data</span><span class="p">[:,</span> <span class="mi">1</span><span class="p">]),</span>
+                                 <span class="n">np</span><span class="o">.</span><span class="n">minimum</span><span class="p">(</span><span class="n">data</span><span class="p">[:,</span> <span class="mi">0</span><span class="p">]</span> <span class="o">-</span> <span class="bp">self</span><span class="o">.</span><span class="n">x_min</span><span class="p">,</span> <span class="n">data</span><span class="p">[:,</span> <span class="mi">1</span><span class="p">]</span> <span class="o">-</span> <span class="bp">self</span><span class="o">.</span><span class="n">y_min</span><span class="p">))</span>
+
+            <span class="k">for</span> <span class="n">r</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">radii</span><span class="p">)):</span>
+                <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">npts</span><span class="p">):</span>
+                    <span class="k">for</span> <span class="n">j</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">npts</span><span class="p">):</span>
+                        <span class="k">if</span> <span class="n">i</span> <span class="o">!=</span> <span class="n">j</span><span class="p">:</span>
+                            <span class="n">diff</span> <span class="o">=</span> <span class="nb">abs</span><span class="p">(</span><span class="n">data</span><span class="p">[</span><span class="n">i</span><span class="p">]</span> <span class="o">-</span> <span class="n">data</span><span class="p">[</span><span class="n">j</span><span class="p">])</span>
+                            <span class="n">dist</span> <span class="o">=</span> <span class="n">math</span><span class="o">.</span><span class="n">sqrt</span><span class="p">((</span><span class="n">diff</span> <span class="o">*</span> <span class="n">diff</span><span class="p">)</span><span class="o">.</span><span class="n">sum</span><span class="p">())</span>
+                            <span class="k">if</span> <span class="n">dist</span> <span class="o">&lt;</span> <span class="n">radii</span><span class="p">[</span><span class="n">r</span><span class="p">]</span> <span class="ow">and</span> <span class="n">lt_dist</span><span class="p">[</span><span class="n">i</span><span class="p">]</span> <span class="o">&gt;</span> <span class="n">radii</span><span class="p">[</span><span class="n">r</span><span class="p">]:</span>
+                                <span class="n">ripley</span><span class="p">[</span><span class="n">r</span><span class="p">]</span> <span class="o">=</span> <span class="n">ripley</span><span class="p">[</span><span class="n">r</span><span class="p">]</span> <span class="o">+</span> <span class="mi">1</span>
+                <span class="n">lt_dist_sum</span> <span class="o">=</span> <span class="p">(</span><span class="n">lt_dist</span> <span class="o">&gt;</span> <span class="n">radii</span><span class="p">[</span><span class="n">r</span><span class="p">])</span><span class="o">.</span><span class="n">sum</span><span class="p">()</span>
+                <span class="k">if</span> <span class="ow">not</span> <span class="n">lt_dist_sum</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
+                    <span class="n">ripley</span><span class="p">[</span><span class="n">r</span><span class="p">]</span> <span class="o">=</span> <span class="n">ripley</span><span class="p">[</span><span class="n">r</span><span class="p">]</span> <span class="o">/</span> <span class="n">lt_dist_sum</span>
+
+            <span class="n">ripley</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">area</span> <span class="o">*</span> <span class="n">ripley</span> <span class="o">/</span> <span class="n">npts</span>
+        <span class="c1"># Cressie book eq 8.4.22 page 640</span>
+        <span class="k">elif</span> <span class="n">mode</span> <span class="o">==</span> <span class="s1">&#39;ripley&#39;</span><span class="p">:</span>
+            <span class="n">hor_dist</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">zeros</span><span class="p">(</span><span class="n">shape</span><span class="o">=</span><span class="p">(</span><span class="n">npts</span> <span class="o">*</span> <span class="p">(</span><span class="n">npts</span> <span class="o">-</span> <span class="mi">1</span><span class="p">))</span> <span class="o">//</span> <span class="mi">2</span><span class="p">,</span>
+                                <span class="n">dtype</span><span class="o">=</span><span class="n">np</span><span class="o">.</span><span class="n">double</span><span class="p">)</span>
+            <span class="n">ver_dist</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">zeros</span><span class="p">(</span><span class="n">shape</span><span class="o">=</span><span class="p">(</span><span class="n">npts</span> <span class="o">*</span> <span class="p">(</span><span class="n">npts</span> <span class="o">-</span> <span class="mi">1</span><span class="p">))</span> <span class="o">//</span> <span class="mi">2</span><span class="p">,</span>
+                                <span class="n">dtype</span><span class="o">=</span><span class="n">np</span><span class="o">.</span><span class="n">double</span><span class="p">)</span>
+
+            <span class="k">for</span> <span class="n">k</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">npts</span> <span class="o">-</span> <span class="mi">1</span><span class="p">):</span>
+                <span class="n">min_hor_dist</span> <span class="o">=</span> <span class="nb">min</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">x_max</span> <span class="o">-</span> <span class="n">data</span><span class="p">[</span><span class="n">k</span><span class="p">][</span><span class="mi">0</span><span class="p">],</span>
+                                   <span class="n">data</span><span class="p">[</span><span class="n">k</span><span class="p">][</span><span class="mi">0</span><span class="p">]</span> <span class="o">-</span> <span class="bp">self</span><span class="o">.</span><span class="n">x_min</span><span class="p">)</span>
+                <span class="n">min_ver_dist</span> <span class="o">=</span> <span class="nb">min</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">y_max</span> <span class="o">-</span> <span class="n">data</span><span class="p">[</span><span class="n">k</span><span class="p">][</span><span class="mi">1</span><span class="p">],</span>
+                                   <span class="n">data</span><span class="p">[</span><span class="n">k</span><span class="p">][</span><span class="mi">1</span><span class="p">]</span> <span class="o">-</span> <span class="bp">self</span><span class="o">.</span><span class="n">y_min</span><span class="p">)</span>
+                <span class="n">start</span> <span class="o">=</span> <span class="p">(</span><span class="n">k</span> <span class="o">*</span> <span class="p">(</span><span class="mi">2</span> <span class="o">*</span> <span class="p">(</span><span class="n">npts</span> <span class="o">-</span> <span class="mi">1</span><span class="p">)</span> <span class="o">-</span> <span class="p">(</span><span class="n">k</span> <span class="o">-</span> <span class="mi">1</span><span class="p">)))</span> <span class="o">//</span> <span class="mi">2</span>
+                <span class="n">end</span> <span class="o">=</span> <span class="p">((</span><span class="n">k</span> <span class="o">+</span> <span class="mi">1</span><span class="p">)</span> <span class="o">*</span> <span class="p">(</span><span class="mi">2</span> <span class="o">*</span> <span class="p">(</span><span class="n">npts</span> <span class="o">-</span> <span class="mi">1</span><span class="p">)</span> <span class="o">-</span> <span class="n">k</span><span class="p">))</span> <span class="o">//</span> <span class="mi">2</span>
+                <span class="n">hor_dist</span><span class="p">[</span><span class="n">start</span><span class="p">:</span> <span class="n">end</span><span class="p">]</span> <span class="o">=</span> <span class="n">min_hor_dist</span> <span class="o">*</span> <span class="n">np</span><span class="o">.</span><span class="n">ones</span><span class="p">(</span><span class="n">npts</span> <span class="o">-</span> <span class="mi">1</span> <span class="o">-</span> <span class="n">k</span><span class="p">)</span>
+                <span class="n">ver_dist</span><span class="p">[</span><span class="n">start</span><span class="p">:</span> <span class="n">end</span><span class="p">]</span> <span class="o">=</span> <span class="n">min_ver_dist</span> <span class="o">*</span> <span class="n">np</span><span class="o">.</span><span class="n">ones</span><span class="p">(</span><span class="n">npts</span> <span class="o">-</span> <span class="mi">1</span> <span class="o">-</span> <span class="n">k</span><span class="p">)</span>
+
+            <span class="n">diff</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_pairwise_diffs</span><span class="p">(</span><span class="n">data</span><span class="p">)</span>
+            <span class="n">dist</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">hypot</span><span class="p">(</span><span class="n">diff</span><span class="p">[:,</span> <span class="mi">0</span><span class="p">],</span> <span class="n">diff</span><span class="p">[:,</span> <span class="mi">1</span><span class="p">])</span>
+            <span class="n">dist_ind</span> <span class="o">=</span> <span class="n">dist</span> <span class="o">&lt;=</span> <span class="n">np</span><span class="o">.</span><span class="n">hypot</span><span class="p">(</span><span class="n">hor_dist</span><span class="p">,</span> <span class="n">ver_dist</span><span class="p">)</span>
+
+            <span class="n">w1</span> <span class="o">=</span> <span class="p">(</span><span class="mi">1</span> <span class="o">-</span> <span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">arccos</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">minimum</span><span class="p">(</span><span class="n">ver_dist</span><span class="p">,</span> <span class="n">dist</span><span class="p">)</span> <span class="o">/</span> <span class="n">dist</span><span class="p">)</span> <span class="o">+</span>
+                       <span class="n">np</span><span class="o">.</span><span class="n">arccos</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">minimum</span><span class="p">(</span><span class="n">hor_dist</span><span class="p">,</span> <span class="n">dist</span><span class="p">)</span> <span class="o">/</span> <span class="n">dist</span><span class="p">))</span> <span class="o">/</span> <span class="n">np</span><span class="o">.</span><span class="n">pi</span><span class="p">)</span>
+            <span class="n">w2</span> <span class="o">=</span> <span class="p">(</span><span class="mi">3</span> <span class="o">/</span> <span class="mi">4</span> <span class="o">-</span> <span class="mf">0.5</span> <span class="o">*</span> <span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">arccos</span><span class="p">(</span><span class="n">ver_dist</span> <span class="o">/</span> <span class="n">dist</span> <span class="o">*</span> <span class="o">~</span><span class="n">dist_ind</span><span class="p">)</span> <span class="o">+</span>
+                            <span class="n">np</span><span class="o">.</span><span class="n">arccos</span><span class="p">(</span><span class="n">hor_dist</span> <span class="o">/</span> <span class="n">dist</span> <span class="o">*</span> <span class="o">~</span><span class="n">dist_ind</span><span class="p">))</span> <span class="o">/</span> <span class="n">np</span><span class="o">.</span><span class="n">pi</span><span class="p">)</span>
+
+            <span class="n">weight</span> <span class="o">=</span> <span class="n">dist_ind</span> <span class="o">*</span> <span class="n">w1</span> <span class="o">+</span> <span class="o">~</span><span class="n">dist_ind</span> <span class="o">*</span> <span class="n">w2</span>
+
+            <span class="k">for</span> <span class="n">r</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">radii</span><span class="p">)):</span>
+                <span class="n">ripley</span><span class="p">[</span><span class="n">r</span><span class="p">]</span> <span class="o">=</span> <span class="p">((</span><span class="n">dist</span> <span class="o">&lt;</span> <span class="n">radii</span><span class="p">[</span><span class="n">r</span><span class="p">])</span> <span class="o">/</span> <span class="n">weight</span><span class="p">)</span><span class="o">.</span><span class="n">sum</span><span class="p">()</span>
+
+            <span class="n">ripley</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">area</span> <span class="o">*</span> <span class="mf">2.</span> <span class="o">*</span> <span class="n">ripley</span> <span class="o">/</span> <span class="p">(</span><span class="n">npts</span> <span class="o">*</span> <span class="p">(</span><span class="n">npts</span> <span class="o">-</span> <span class="mi">1</span><span class="p">))</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s1">&#39;mode </span><span class="si">{}</span><span class="s1"> is not implemented.&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">mode</span><span class="p">))</span>
+
+        <span class="k">return</span> <span class="n">ripley</span></div></div>
+</pre></div>
+
+          </div>
+        </div>
+      </div>
+      <div class="sphinxsidebar" role="navigation" aria-label="main navigation">
+        <div class="sphinxsidebarwrapper"><h3>Page Contents</h3>
+
+
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+<footer class="footer">
+  <p class="pull-right"> &nbsp;
+    <a href="#">Back to Top</a></p>
+  <p>
+    &copy; Copyright 2011-2016, The Astropy Developers.<br/>
+    Created using <a href="http://sphinx.pocoo.org/">Sphinx</a> 1.5.6. &nbsp;
+    Last built 05 Jul 2017. <br/>
+  </p>
+</footer>
+  </body>
+</html>

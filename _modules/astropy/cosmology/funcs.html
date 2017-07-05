@@ -1,0 +1,247 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <head>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    
+    <title>astropy.cosmology.funcs &#8212; Astropy v3.0.dev19489</title>
+    
+    <link rel="stylesheet" href="../../../_static/bootstrap-astropy.css" type="text/css" />
+    <link rel="stylesheet" href="../../../_static/pygments.css" type="text/css" />
+    <link rel="stylesheet" href="../../../_static/gallery.css" type="text/css" />
+    
+    <script type="text/javascript">
+      var DOCUMENTATION_OPTIONS = {
+        URL_ROOT:    '../../../',
+        VERSION:     '3.0.dev19489',
+        COLLAPSE_INDEX: false,
+        FILE_SUFFIX: '.html',
+        HAS_SOURCE:  true,
+        SOURCELINK_SUFFIX: '.txt'
+      };
+    </script>
+    <script type="text/javascript" src="../../../_static/jquery.js"></script>
+    <script type="text/javascript" src="../../../_static/underscore.js"></script>
+    <script type="text/javascript" src="../../../_static/doctools.js"></script>
+    <script type="text/javascript" src="../../../_static/sidebar.js"></script>
+    <link rel="shortcut icon" href="../../../_static/astropy_logo.ico"/>
+    <link rel="index" title="Index" href="../../../genindex.html" />
+    <link rel="search" title="Search" href="../../../search.html" />
+<link href='https://fonts.googleapis.com/css?family=Source+Sans+Pro:200,600' rel='stylesheet' type='text/css'/>
+<script type="text/javascript" src="../../../_static/copybutton.js"></script>
+
+
+  </head>
+  <body role="document">
+<div class="topbar">
+  <a class="brand" title="Documentation Home" href="../../../index.html"><span id="logotext1">astro</span><span id="logotext2">py</span><span id="logotext3">:docs</span></a>
+  <ul>
+    <li><a class="homelink" title="Astropy Homepage" href="http://www.astropy.org"></a></li>
+    <li><a title="General Index" href="../../../genindex.html">Index</a></li>
+    <li><a title="Module Index" href="../../../py-modindex.html">Modules</a></li>
+    <li>
+      
+      
+<form action="../../../search.html" method="get">
+  <input type="text" name="q" placeholder="Search" />
+  <input type="hidden" name="check_keywords" value="yes" />
+  <input type="hidden" name="area" value="default" />
+</form>
+      
+    </li>
+  </ul>
+</div>
+
+<div class="related">
+    <h3>Navigation</h3>
+    <ul>
+      <li>
+	<a href="../../../index.html">Astropy v3.0.dev19489</a>
+	 &#187;
+      </li>
+      <li><a href="../../index.html" >Module code</a> &#187;</li>
+      <li><a href="../../astropy.html" accesskey="U">astropy</a> &#187;</li>
+      
+       
+    </ul>
+</div>
+  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          <div class="body" role="main">
+            
+  <h1>Source code for astropy.cosmology.funcs</h1><div class="highlight"><pre>
+<span></span><span class="c1"># Licensed under a 3-clause BSD style license - see LICENSE.rst</span>
+<span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">Convenience functions for `astropy.cosmology`.</span>
+<span class="sd">&quot;&quot;&quot;</span>
+<span class="kn">from</span> <span class="nn">__future__</span> <span class="k">import</span> <span class="p">(</span><span class="n">absolute_import</span><span class="p">,</span> <span class="n">division</span><span class="p">,</span> <span class="n">print_function</span><span class="p">,</span>
+                        <span class="n">unicode_literals</span><span class="p">)</span>
+
+<span class="kn">import</span> <span class="nn">warnings</span>
+<span class="kn">import</span> <span class="nn">numpy</span> <span class="k">as</span> <span class="nn">np</span>
+
+<span class="kn">from</span> <span class="nn">.core</span> <span class="k">import</span> <span class="n">CosmologyError</span>
+<span class="kn">from</span> <span class="nn">..units</span> <span class="k">import</span> <span class="n">Quantity</span>
+
+<span class="n">__all__</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;z_at_value&#39;</span><span class="p">]</span>
+
+<span class="n">__doctest_requires__</span> <span class="o">=</span> <span class="p">{</span><span class="s1">&#39;*&#39;</span><span class="p">:</span> <span class="p">[</span><span class="s1">&#39;scipy.integrate&#39;</span><span class="p">]}</span>
+
+
+<div class="viewcode-block" id="z_at_value"><a class="viewcode-back" href="../../../api/astropy.cosmology.z_at_value.html#astropy.cosmology.z_at_value">[docs]</a><span class="k">def</span> <span class="nf">z_at_value</span><span class="p">(</span><span class="n">func</span><span class="p">,</span> <span class="n">fval</span><span class="p">,</span> <span class="n">zmin</span><span class="o">=</span><span class="mi">1</span><span class="n">e</span><span class="o">-</span><span class="mi">8</span><span class="p">,</span> <span class="n">zmax</span><span class="o">=</span><span class="mi">1000</span><span class="p">,</span> <span class="n">ztol</span><span class="o">=</span><span class="mi">1</span><span class="n">e</span><span class="o">-</span><span class="mi">8</span><span class="p">,</span> <span class="n">maxfun</span><span class="o">=</span><span class="mi">500</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot; Find the redshift ``z`` at which ``func(z) = fval``.</span>
+
+<span class="sd">    This finds the redshift at which one of the cosmology functions or</span>
+<span class="sd">    methods (for example Planck13.distmod) is equal to a known value.</span>
+
+<span class="sd">    .. warning::</span>
+<span class="sd">      Make sure you understand the behaviour of the function that you</span>
+<span class="sd">      are trying to invert! Depending on the cosmology, there may not</span>
+<span class="sd">      be a unique solution. For example, in the standard Lambda CDM</span>
+<span class="sd">      cosmology, there are two redshifts which give an angular</span>
+<span class="sd">      diameter distance of 1500 Mpc, z ~ 0.7 and z ~ 3.8. To force</span>
+<span class="sd">      ``z_at_value`` to find the solution you are interested in, use the</span>
+<span class="sd">      ``zmin`` and ``zmax`` keywords to limit the search range (see the</span>
+<span class="sd">      example below).</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    func : function or method</span>
+<span class="sd">       A function that takes a redshift as input.</span>
+<span class="sd">    fval : astropy.Quantity instance</span>
+<span class="sd">       The value of ``func(z)``.</span>
+<span class="sd">    zmin : float, optional</span>
+<span class="sd">       The lower search limit for ``z``.  Beware of divergences</span>
+<span class="sd">       in some cosmological functions, such as distance moduli,</span>
+<span class="sd">       at z=0 (default 1e-8).</span>
+<span class="sd">    zmax : float, optional</span>
+<span class="sd">       The upper search limit for ``z`` (default 1000).</span>
+<span class="sd">    ztol : float, optional</span>
+<span class="sd">       The relative error in ``z`` acceptable for convergence.</span>
+<span class="sd">    maxfun : int, optional</span>
+<span class="sd">       The maximum number of function evaluations allowed in the</span>
+<span class="sd">       optimization routine (default 500).</span>
+
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+<span class="sd">    z : float</span>
+<span class="sd">      The redshift ``z`` satisfying ``zmin &lt; z &lt; zmax`` and ``func(z) =</span>
+<span class="sd">      fval`` within ``ztol``.</span>
+
+<span class="sd">    Notes</span>
+<span class="sd">    -----</span>
+<span class="sd">    This works for any arbitrary input cosmology, but is inefficient</span>
+<span class="sd">    if you want to invert a large number of values for the same</span>
+<span class="sd">    cosmology. In this case, it is faster to instead generate an array</span>
+<span class="sd">    of values at many closely-spaced redshifts that cover the relevant</span>
+<span class="sd">    redshift range, and then use interpolation to find the redshift at</span>
+<span class="sd">    each value you&#39;re interested in. For example, to efficiently find</span>
+<span class="sd">    the redshifts corresponding to 10^6 values of the distance modulus</span>
+<span class="sd">    in a Planck13 cosmology, you could do the following:</span>
+
+<span class="sd">    &gt;&gt;&gt; import astropy.units as u</span>
+<span class="sd">    &gt;&gt;&gt; from astropy.cosmology import Planck13, z_at_value</span>
+
+<span class="sd">    Generate 10^6 distance moduli between 24 and 43 for which we</span>
+<span class="sd">    want to find the corresponding redshifts:</span>
+
+<span class="sd">    &gt;&gt;&gt; Dvals = (24 + np.random.rand(1e6) * 20) * u.mag</span>
+
+<span class="sd">    Make a grid of distance moduli covering the redshift range we</span>
+<span class="sd">    need using 50 equally log-spaced values between zmin and</span>
+<span class="sd">    zmax. We use log spacing to adequately sample the steep part of</span>
+<span class="sd">    the curve at low distance moduli:</span>
+
+<span class="sd">    &gt;&gt;&gt; zmin = z_at_value(Planck13.distmod, Dvals.min())</span>
+<span class="sd">    &gt;&gt;&gt; zmax = z_at_value(Planck13.distmod, Dvals.max())</span>
+<span class="sd">    &gt;&gt;&gt; zgrid = np.logspace(np.log10(zmin), np.log10(zmax), 50)</span>
+<span class="sd">    &gt;&gt;&gt; Dgrid = Planck13.distmod(zgrid)</span>
+
+<span class="sd">    Finally interpolate to find the redshift at each distance modulus:</span>
+
+<span class="sd">    &gt;&gt;&gt; zvals = np.interp(Dvals.value, zgrid, Dgrid.value)</span>
+
+<span class="sd">    Examples</span>
+<span class="sd">    --------</span>
+<span class="sd">    &gt;&gt;&gt; import astropy.units as u</span>
+<span class="sd">    &gt;&gt;&gt; from astropy.cosmology import Planck13, z_at_value</span>
+
+<span class="sd">    The age and lookback time are monotonic with redshift, and so a</span>
+<span class="sd">    unique solution can be found:</span>
+
+<span class="sd">    &gt;&gt;&gt; z_at_value(Planck13.age, 2 * u.Gyr)</span>
+<span class="sd">    3.19812268...</span>
+
+<span class="sd">    The angular diameter is not monotonic however, and there are two</span>
+<span class="sd">    redshifts that give a value of 1500 Mpc. Use the zmin and zmax keywords</span>
+<span class="sd">    to find the one you&#39;re interested in:</span>
+
+<span class="sd">    &gt;&gt;&gt; z_at_value(Planck13.angular_diameter_distance, 1500 * u.Mpc, zmax=1.5)</span>
+<span class="sd">    0.6812769577...</span>
+<span class="sd">    &gt;&gt;&gt; z_at_value(Planck13.angular_diameter_distance, 1500 * u.Mpc, zmin=2.5)</span>
+<span class="sd">    3.7914913242...</span>
+
+<span class="sd">    Also note that the luminosity distance and distance modulus (two</span>
+<span class="sd">    other commonly inverted quantities) are monotonic in flat and open</span>
+<span class="sd">    universes, but not in closed universes.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="kn">from</span> <span class="nn">scipy.optimize</span> <span class="k">import</span> <span class="n">fminbound</span>
+
+    <span class="n">fval_zmin</span> <span class="o">=</span> <span class="n">func</span><span class="p">(</span><span class="n">zmin</span><span class="p">)</span>
+    <span class="n">fval_zmax</span> <span class="o">=</span> <span class="n">func</span><span class="p">(</span><span class="n">zmax</span><span class="p">)</span>
+    <span class="k">if</span> <span class="n">np</span><span class="o">.</span><span class="n">sign</span><span class="p">(</span><span class="n">fval</span> <span class="o">-</span> <span class="n">fval_zmin</span><span class="p">)</span> <span class="o">!=</span> <span class="n">np</span><span class="o">.</span><span class="n">sign</span><span class="p">(</span><span class="n">fval_zmax</span> <span class="o">-</span> <span class="n">fval</span><span class="p">):</span>
+        <span class="n">warnings</span><span class="o">.</span><span class="n">warn</span><span class="p">(</span><span class="s2">&quot;&quot;&quot;</span><span class="se">\</span>
+<span class="s2">fval is not bracketed by func(zmin) and func(zmax). This means either</span>
+<span class="s2">there is no solution, or that there is more than one solution between</span>
+<span class="s2">zmin and zmax satisfying fval = func(z).&quot;&quot;&quot;</span><span class="p">)</span>
+
+    <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">fval_zmin</span><span class="p">,</span> <span class="n">Quantity</span><span class="p">):</span>
+        <span class="n">val</span> <span class="o">=</span> <span class="n">fval</span><span class="o">.</span><span class="n">to_value</span><span class="p">(</span><span class="n">fval_zmin</span><span class="o">.</span><span class="n">unit</span><span class="p">)</span>
+        <span class="n">f</span> <span class="o">=</span> <span class="k">lambda</span> <span class="n">z</span><span class="p">:</span> <span class="nb">abs</span><span class="p">(</span><span class="n">func</span><span class="p">(</span><span class="n">z</span><span class="p">)</span><span class="o">.</span><span class="n">value</span> <span class="o">-</span> <span class="n">val</span><span class="p">)</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="n">f</span> <span class="o">=</span> <span class="k">lambda</span> <span class="n">z</span><span class="p">:</span> <span class="nb">abs</span><span class="p">(</span><span class="n">func</span><span class="p">(</span><span class="n">z</span><span class="p">)</span> <span class="o">-</span> <span class="n">fval</span><span class="p">)</span>
+
+    <span class="n">zbest</span><span class="p">,</span> <span class="n">resval</span><span class="p">,</span> <span class="n">ierr</span><span class="p">,</span> <span class="n">ncall</span> <span class="o">=</span> <span class="n">fminbound</span><span class="p">(</span><span class="n">f</span><span class="p">,</span> <span class="n">zmin</span><span class="p">,</span> <span class="n">zmax</span><span class="p">,</span> <span class="n">maxfun</span><span class="o">=</span><span class="n">maxfun</span><span class="p">,</span>
+                                           <span class="n">full_output</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span> <span class="n">xtol</span><span class="o">=</span><span class="n">ztol</span><span class="p">)</span>
+
+    <span class="k">if</span> <span class="n">ierr</span> <span class="o">!=</span> <span class="mi">0</span><span class="p">:</span>
+        <span class="n">warnings</span><span class="o">.</span><span class="n">warn</span><span class="p">(</span><span class="s1">&#39;Maximum number of function calls (</span><span class="si">{}</span><span class="s1">) reached&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span>
+            <span class="n">ncall</span><span class="p">))</span>
+
+    <span class="k">if</span> <span class="n">np</span><span class="o">.</span><span class="n">allclose</span><span class="p">(</span><span class="n">zbest</span><span class="p">,</span> <span class="n">zmax</span><span class="p">):</span>
+        <span class="k">raise</span> <span class="n">CosmologyError</span><span class="p">(</span><span class="s2">&quot;Best guess z is very close the upper z limit.</span><span class="se">\n</span><span class="s2">&quot;</span>
+                             <span class="s2">&quot;Try re-running with a different zmax.&quot;</span><span class="p">)</span>
+    <span class="k">elif</span> <span class="n">np</span><span class="o">.</span><span class="n">allclose</span><span class="p">(</span><span class="n">zbest</span><span class="p">,</span> <span class="n">zmin</span><span class="p">):</span>
+        <span class="k">raise</span> <span class="n">CosmologyError</span><span class="p">(</span><span class="s2">&quot;Best guess z is very close the lower z limit.</span><span class="se">\n</span><span class="s2">&quot;</span>
+                             <span class="s2">&quot;Try re-running with a different zmin.&quot;</span><span class="p">)</span>
+
+    <span class="k">return</span> <span class="n">zbest</span></div>
+</pre></div>
+
+          </div>
+        </div>
+      </div>
+      <div class="sphinxsidebar" role="navigation" aria-label="main navigation">
+        <div class="sphinxsidebarwrapper"><h3>Page Contents</h3>
+
+
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+<footer class="footer">
+  <p class="pull-right"> &nbsp;
+    <a href="#">Back to Top</a></p>
+  <p>
+    &copy; Copyright 2011-2016, The Astropy Developers.<br/>
+    Created using <a href="http://sphinx.pocoo.org/">Sphinx</a> 1.5.6. &nbsp;
+    Last built 05 Jul 2017. <br/>
+  </p>
+</footer>
+  </body>
+</html>

@@ -1,0 +1,1350 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <head>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    
+    <title>astropy.stats.funcs &#8212; Astropy v3.0.dev19489</title>
+    
+    <link rel="stylesheet" href="../../../_static/bootstrap-astropy.css" type="text/css" />
+    <link rel="stylesheet" href="../../../_static/pygments.css" type="text/css" />
+    <link rel="stylesheet" href="../../../_static/gallery.css" type="text/css" />
+    
+    <script type="text/javascript">
+      var DOCUMENTATION_OPTIONS = {
+        URL_ROOT:    '../../../',
+        VERSION:     '3.0.dev19489',
+        COLLAPSE_INDEX: false,
+        FILE_SUFFIX: '.html',
+        HAS_SOURCE:  true,
+        SOURCELINK_SUFFIX: '.txt'
+      };
+    </script>
+    <script type="text/javascript" src="../../../_static/jquery.js"></script>
+    <script type="text/javascript" src="../../../_static/underscore.js"></script>
+    <script type="text/javascript" src="../../../_static/doctools.js"></script>
+    <script type="text/javascript" src="../../../_static/sidebar.js"></script>
+    <link rel="shortcut icon" href="../../../_static/astropy_logo.ico"/>
+    <link rel="index" title="Index" href="../../../genindex.html" />
+    <link rel="search" title="Search" href="../../../search.html" />
+<link href='https://fonts.googleapis.com/css?family=Source+Sans+Pro:200,600' rel='stylesheet' type='text/css'/>
+<script type="text/javascript" src="../../../_static/copybutton.js"></script>
+
+
+  </head>
+  <body role="document">
+<div class="topbar">
+  <a class="brand" title="Documentation Home" href="../../../index.html"><span id="logotext1">astro</span><span id="logotext2">py</span><span id="logotext3">:docs</span></a>
+  <ul>
+    <li><a class="homelink" title="Astropy Homepage" href="http://www.astropy.org"></a></li>
+    <li><a title="General Index" href="../../../genindex.html">Index</a></li>
+    <li><a title="Module Index" href="../../../py-modindex.html">Modules</a></li>
+    <li>
+      
+      
+<form action="../../../search.html" method="get">
+  <input type="text" name="q" placeholder="Search" />
+  <input type="hidden" name="check_keywords" value="yes" />
+  <input type="hidden" name="area" value="default" />
+</form>
+      
+    </li>
+  </ul>
+</div>
+
+<div class="related">
+    <h3>Navigation</h3>
+    <ul>
+      <li>
+	<a href="../../../index.html">Astropy v3.0.dev19489</a>
+	 &#187;
+      </li>
+      <li><a href="../../index.html" >Module code</a> &#187;</li>
+      <li><a href="../../astropy.html" accesskey="U">astropy</a> &#187;</li>
+      
+       
+    </ul>
+</div>
+  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          <div class="body" role="main">
+            
+  <h1>Source code for astropy.stats.funcs</h1><div class="highlight"><pre>
+<span></span><span class="c1"># Licensed under a 3-clause BSD style license - see LICENSE.rst</span>
+<span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">This module contains simple statistical algorithms that are</span>
+<span class="sd">straightforwardly implemented as a single python function (or family of</span>
+<span class="sd">functions).</span>
+
+<span class="sd">This module should generally not be used directly.  Everything in</span>
+<span class="sd">`__all__` is imported into `astropy.stats`, and hence that package</span>
+<span class="sd">should be used for access.</span>
+<span class="sd">&quot;&quot;&quot;</span>
+
+<span class="kn">from</span> <span class="nn">__future__</span> <span class="k">import</span> <span class="p">(</span><span class="n">absolute_import</span><span class="p">,</span> <span class="n">division</span><span class="p">,</span> <span class="n">print_function</span><span class="p">,</span>
+                        <span class="n">unicode_literals</span><span class="p">)</span>
+
+<span class="kn">import</span> <span class="nn">math</span>
+<span class="kn">import</span> <span class="nn">numpy</span> <span class="k">as</span> <span class="nn">np</span>
+
+<span class="kn">from</span> <span class="nn">warnings</span> <span class="k">import</span> <span class="n">warn</span>
+
+<span class="kn">from</span> <span class="nn">..utils.compat</span> <span class="k">import</span> <span class="n">NUMPY_LT_1_10</span>
+<span class="kn">from</span> <span class="nn">..utils.decorators</span> <span class="k">import</span> <span class="n">deprecated_renamed_argument</span>
+<span class="kn">from</span> <span class="nn">..utils</span> <span class="k">import</span> <span class="n">isiterable</span>
+<span class="kn">from</span> <span class="nn">..extern.six.moves</span> <span class="k">import</span> <span class="nb">range</span>
+
+
+<span class="n">__all__</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;gaussian_fwhm_to_sigma&#39;</span><span class="p">,</span> <span class="s1">&#39;gaussian_sigma_to_fwhm&#39;</span><span class="p">,</span>
+           <span class="s1">&#39;binom_conf_interval&#39;</span><span class="p">,</span> <span class="s1">&#39;binned_binom_proportion&#39;</span><span class="p">,</span>
+           <span class="s1">&#39;poisson_conf_interval&#39;</span><span class="p">,</span> <span class="s1">&#39;median_absolute_deviation&#39;</span><span class="p">,</span> <span class="s1">&#39;mad_std&#39;</span><span class="p">,</span>
+           <span class="s1">&#39;signal_to_noise_oir_ccd&#39;</span><span class="p">,</span> <span class="s1">&#39;bootstrap&#39;</span><span class="p">]</span>
+
+<span class="n">__doctest_skip__</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;binned_binom_proportion&#39;</span><span class="p">]</span>
+<span class="n">__doctest_requires__</span> <span class="o">=</span> <span class="p">{</span><span class="s1">&#39;binom_conf_interval&#39;</span><span class="p">:</span> <span class="p">[</span><span class="s1">&#39;scipy.special&#39;</span><span class="p">],</span>
+                        <span class="s1">&#39;poisson_conf_interval&#39;</span><span class="p">:</span> <span class="p">[</span><span class="s1">&#39;scipy.special&#39;</span><span class="p">,</span>
+                                                  <span class="s1">&#39;scipy.optimize&#39;</span><span class="p">,</span>
+                                                  <span class="s1">&#39;scipy.integrate&#39;</span><span class="p">]}</span>
+
+
+<span class="n">gaussian_sigma_to_fwhm</span> <span class="o">=</span> <span class="mf">2.0</span> <span class="o">*</span> <span class="n">np</span><span class="o">.</span><span class="n">sqrt</span><span class="p">(</span><span class="mf">2.0</span> <span class="o">*</span> <span class="n">np</span><span class="o">.</span><span class="n">log</span><span class="p">(</span><span class="mf">2.0</span><span class="p">))</span>
+<span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">Factor with which to multiply Gaussian 1-sigma standard deviation to</span>
+<span class="sd">convert it to full width at half maximum (FWHM).</span>
+<span class="sd">&quot;&quot;&quot;</span>
+
+<span class="n">gaussian_fwhm_to_sigma</span> <span class="o">=</span> <span class="mf">1.</span> <span class="o">/</span> <span class="n">gaussian_sigma_to_fwhm</span>
+<span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">Factor with which to multiply Gaussian full width at half maximum (FWHM)</span>
+<span class="sd">to convert it to 1-sigma standard deviation.</span>
+<span class="sd">&quot;&quot;&quot;</span>
+
+
+<span class="c1"># TODO Note scipy dependency</span>
+<div class="viewcode-block" id="binom_conf_interval"><a class="viewcode-back" href="../../../api/astropy.stats.binom_conf_interval.html#astropy.stats.binom_conf_interval">[docs]</a><span class="k">def</span> <span class="nf">binom_conf_interval</span><span class="p">(</span><span class="n">k</span><span class="p">,</span> <span class="n">n</span><span class="p">,</span> <span class="n">conf</span><span class="o">=</span><span class="mf">0.68269</span><span class="p">,</span> <span class="n">interval</span><span class="o">=</span><span class="s1">&#39;wilson&#39;</span><span class="p">):</span>
+    <span class="sd">r&quot;&quot;&quot;Binomial proportion confidence interval given k successes,</span>
+<span class="sd">    n trials.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    k : int or numpy.ndarray</span>
+<span class="sd">        Number of successes (0 &lt;= ``k`` &lt;= ``n``).</span>
+<span class="sd">    n : int or numpy.ndarray</span>
+<span class="sd">        Number of trials (``n`` &gt; 0).  If both ``k`` and ``n`` are arrays,</span>
+<span class="sd">        they must have the same shape.</span>
+<span class="sd">    conf : float in [0, 1], optional</span>
+<span class="sd">        Desired probability content of interval. Default is 0.68269,</span>
+<span class="sd">        corresponding to 1 sigma in a 1-dimensional Gaussian distribution.</span>
+<span class="sd">    interval : {&#39;wilson&#39;, &#39;jeffreys&#39;, &#39;flat&#39;, &#39;wald&#39;}, optional</span>
+<span class="sd">        Formula used for confidence interval. See notes for details.  The</span>
+<span class="sd">        ``&#39;wilson&#39;`` and ``&#39;jeffreys&#39;`` intervals generally give similar</span>
+<span class="sd">        results, while &#39;flat&#39; is somewhat different, especially for small</span>
+<span class="sd">        values of ``n``.  ``&#39;wilson&#39;`` should be somewhat faster than</span>
+<span class="sd">        ``&#39;flat&#39;`` or ``&#39;jeffreys&#39;``.  The &#39;wald&#39; interval is generally not</span>
+<span class="sd">        recommended.  It is provided for comparison purposes.  Default is</span>
+<span class="sd">        ``&#39;wilson&#39;``.</span>
+
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+<span class="sd">    conf_interval : numpy.ndarray</span>
+<span class="sd">        ``conf_interval[0]`` and ``conf_interval[1]`` correspond to the lower</span>
+<span class="sd">        and upper limits, respectively, for each element in ``k``, ``n``.</span>
+
+<span class="sd">    Notes</span>
+<span class="sd">    -----</span>
+<span class="sd">    In situations where a probability of success is not known, it can</span>
+<span class="sd">    be estimated from a number of trials (N) and number of</span>
+<span class="sd">    observed successes (k). For example, this is done in Monte</span>
+<span class="sd">    Carlo experiments designed to estimate a detection efficiency. It</span>
+<span class="sd">    is simple to take the sample proportion of successes (k/N)</span>
+<span class="sd">    as a reasonable best estimate of the true probability</span>
+<span class="sd">    :math:`\epsilon`. However, deriving an accurate confidence</span>
+<span class="sd">    interval on :math:`\epsilon` is non-trivial. There are several</span>
+<span class="sd">    formulas for this interval (see [1]_). Four intervals are implemented</span>
+<span class="sd">    here:</span>
+
+<span class="sd">    **1. The Wilson Interval.** This interval, attributed to Wilson [2]_,</span>
+<span class="sd">    is given by</span>
+
+<span class="sd">    .. math::</span>
+
+<span class="sd">        CI_{\rm Wilson} = \frac{k + \kappa^2/2}{N + \kappa^2}</span>
+<span class="sd">        \pm \frac{\kappa n^{1/2}}{n + \kappa^2}</span>
+<span class="sd">        ((\hat{\epsilon}(1 - \hat{\epsilon}) + \kappa^2/(4n))^{1/2}</span>
+
+<span class="sd">    where :math:`\hat{\epsilon} = k / N` and :math:`\kappa` is the</span>
+<span class="sd">    number of standard deviations corresponding to the desired</span>
+<span class="sd">    confidence interval for a *normal* distribution (for example,</span>
+<span class="sd">    1.0 for a confidence interval of 68.269%). For a</span>
+<span class="sd">    confidence interval of 100(1 - :math:`\alpha`)%,</span>
+
+<span class="sd">    .. math::</span>
+
+<span class="sd">        \kappa = \Phi^{-1}(1-\alpha/2) = \sqrt{2}{\rm erf}^{-1}(1-\alpha).</span>
+
+<span class="sd">    **2. The Jeffreys Interval.** This interval is derived by applying</span>
+<span class="sd">    Bayes&#39; theorem to the binomial distribution with the</span>
+<span class="sd">    noninformative Jeffreys prior [3]_, [4]_. The noninformative Jeffreys</span>
+<span class="sd">    prior is the Beta distribution, Beta(1/2, 1/2), which has the density</span>
+<span class="sd">    function</span>
+
+<span class="sd">    .. math::</span>
+
+<span class="sd">        f(\epsilon) = \pi^{-1} \epsilon^{-1/2}(1-\epsilon)^{-1/2}.</span>
+
+<span class="sd">    The justification for this prior is that it is invariant under</span>
+<span class="sd">    reparameterizations of the binomial proportion.</span>
+<span class="sd">    The posterior density function is also a Beta distribution: Beta(k</span>
+<span class="sd">    + 1/2, N - k + 1/2). The interval is then chosen so that it is</span>
+<span class="sd">    *equal-tailed*: Each tail (outside the interval) contains</span>
+<span class="sd">    :math:`\alpha`/2 of the posterior probability, and the interval</span>
+<span class="sd">    itself contains 1 - :math:`\alpha`. This interval must be</span>
+<span class="sd">    calculated numerically. Additionally, when k = 0 the lower limit</span>
+<span class="sd">    is set to 0 and when k = N the upper limit is set to 1, so that in</span>
+<span class="sd">    these cases, there is only one tail containing :math:`\alpha`/2</span>
+<span class="sd">    and the interval itself contains 1 - :math:`\alpha`/2 rather than</span>
+<span class="sd">    the nominal 1 - :math:`\alpha`.</span>
+
+<span class="sd">    **3. A Flat prior.** This is similar to the Jeffreys interval,</span>
+<span class="sd">    but uses a flat (uniform) prior on the binomial proportion</span>
+<span class="sd">    over the range 0 to 1 rather than the reparametrization-invariant</span>
+<span class="sd">    Jeffreys prior.  The posterior density function is a Beta distribution:</span>
+<span class="sd">    Beta(k + 1, N - k + 1).  The same comments about the nature of the</span>
+<span class="sd">    interval (equal-tailed, etc.) also apply to this option.</span>
+
+<span class="sd">    **4. The Wald Interval.** This interval is given by</span>
+
+<span class="sd">    .. math::</span>
+
+<span class="sd">       CI_{\rm Wald} = \hat{\epsilon} \pm</span>
+<span class="sd">       \kappa \sqrt{\frac{\hat{\epsilon}(1-\hat{\epsilon})}{N}}</span>
+
+<span class="sd">    The Wald interval gives acceptable results in some limiting</span>
+<span class="sd">    cases. Particularly, when N is very large, and the true proportion</span>
+<span class="sd">    :math:`\epsilon` is not &quot;too close&quot; to 0 or 1. However, as the</span>
+<span class="sd">    later is not verifiable when trying to estimate :math:`\epsilon`,</span>
+<span class="sd">    this is not very helpful. Its use is not recommended, but it is</span>
+<span class="sd">    provided here for comparison purposes due to its prevalence in</span>
+<span class="sd">    everyday practical statistics.</span>
+
+<span class="sd">    References</span>
+<span class="sd">    ----------</span>
+<span class="sd">    .. [1] Brown, Lawrence D.; Cai, T. Tony; DasGupta, Anirban (2001).</span>
+<span class="sd">       &quot;Interval Estimation for a Binomial Proportion&quot;. Statistical</span>
+<span class="sd">       Science 16 (2): 101-133. doi:10.1214/ss/1009213286</span>
+
+<span class="sd">    .. [2] Wilson, E. B. (1927). &quot;Probable inference, the law of</span>
+<span class="sd">       succession, and statistical inference&quot;. Journal of the American</span>
+<span class="sd">       Statistical Association 22: 209-212.</span>
+
+<span class="sd">    .. [3] Jeffreys, Harold (1946). &quot;An Invariant Form for the Prior</span>
+<span class="sd">       Probability in Estimation Problems&quot;. Proc. R. Soc. Lond.. A 24 186</span>
+<span class="sd">       (1007): 453-461. doi:10.1098/rspa.1946.0056</span>
+
+<span class="sd">    .. [4] Jeffreys, Harold (1998). Theory of Probability. Oxford</span>
+<span class="sd">       University Press, 3rd edition. ISBN 978-0198503682</span>
+
+<span class="sd">    Examples</span>
+<span class="sd">    --------</span>
+<span class="sd">    Integer inputs return an array with shape (2,):</span>
+
+<span class="sd">    &gt;&gt;&gt; binom_conf_interval(4, 5, interval=&#39;wilson&#39;)</span>
+<span class="sd">    array([ 0.57921724,  0.92078259])</span>
+
+<span class="sd">    Arrays of arbitrary dimension are supported. The Wilson and Jeffreys</span>
+<span class="sd">    intervals give similar results, even for small k, N:</span>
+
+<span class="sd">    &gt;&gt;&gt; binom_conf_interval([0, 1, 2, 5], 5, interval=&#39;wilson&#39;)</span>
+<span class="sd">    array([[ 0.        ,  0.07921741,  0.21597328,  0.83333304],</span>
+<span class="sd">           [ 0.16666696,  0.42078276,  0.61736012,  1.        ]])</span>
+
+<span class="sd">    &gt;&gt;&gt; binom_conf_interval([0, 1, 2, 5], 5, interval=&#39;jeffreys&#39;)</span>
+<span class="sd">    array([[ 0.        ,  0.0842525 ,  0.21789949,  0.82788246],</span>
+<span class="sd">           [ 0.17211754,  0.42218001,  0.61753691,  1.        ]])</span>
+
+<span class="sd">    &gt;&gt;&gt; binom_conf_interval([0, 1, 2, 5], 5, interval=&#39;flat&#39;)</span>
+<span class="sd">    array([[ 0.        ,  0.12139799,  0.24309021,  0.73577037],</span>
+<span class="sd">           [ 0.26422963,  0.45401727,  0.61535699,  1.        ]])</span>
+
+<span class="sd">    In contrast, the Wald interval gives poor results for small k, N.</span>
+<span class="sd">    For k = 0 or k = N, the interval always has zero length.</span>
+
+<span class="sd">    &gt;&gt;&gt; binom_conf_interval([0, 1, 2, 5], 5, interval=&#39;wald&#39;)</span>
+<span class="sd">    array([[ 0.        ,  0.02111437,  0.18091075,  1.        ],</span>
+<span class="sd">           [ 0.        ,  0.37888563,  0.61908925,  1.        ]])</span>
+
+<span class="sd">    For confidence intervals approaching 1, the Wald interval for</span>
+<span class="sd">    0 &lt; k &lt; N can give intervals that extend outside [0, 1]:</span>
+
+<span class="sd">    &gt;&gt;&gt; binom_conf_interval([0, 1, 2, 5], 5, interval=&#39;wald&#39;, conf=0.99)</span>
+<span class="sd">    array([[ 0.        , -0.26077835, -0.16433593,  1.        ],</span>
+<span class="sd">           [ 0.        ,  0.66077835,  0.96433593,  1.        ]])</span>
+
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="k">if</span> <span class="n">conf</span> <span class="o">&lt;</span> <span class="mf">0.</span> <span class="ow">or</span> <span class="n">conf</span> <span class="o">&gt;</span> <span class="mf">1.</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s1">&#39;conf must be between 0. and 1.&#39;</span><span class="p">)</span>
+    <span class="n">alpha</span> <span class="o">=</span> <span class="mf">1.</span> <span class="o">-</span> <span class="n">conf</span>
+
+    <span class="n">k</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span><span class="n">k</span><span class="p">)</span><span class="o">.</span><span class="n">astype</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">int</span><span class="p">)</span>
+    <span class="n">n</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span><span class="n">n</span><span class="p">)</span><span class="o">.</span><span class="n">astype</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">int</span><span class="p">)</span>
+
+    <span class="k">if</span> <span class="p">(</span><span class="n">n</span> <span class="o">&lt;=</span> <span class="mi">0</span><span class="p">)</span><span class="o">.</span><span class="n">any</span><span class="p">():</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s1">&#39;n must be positive&#39;</span><span class="p">)</span>
+    <span class="k">if</span> <span class="p">(</span><span class="n">k</span> <span class="o">&lt;</span> <span class="mi">0</span><span class="p">)</span><span class="o">.</span><span class="n">any</span><span class="p">()</span> <span class="ow">or</span> <span class="p">(</span><span class="n">k</span> <span class="o">&gt;</span> <span class="n">n</span><span class="p">)</span><span class="o">.</span><span class="n">any</span><span class="p">():</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s1">&#39;k must be in {0, 1, .., n}&#39;</span><span class="p">)</span>
+
+    <span class="k">if</span> <span class="n">interval</span> <span class="o">==</span> <span class="s1">&#39;wilson&#39;</span> <span class="ow">or</span> <span class="n">interval</span> <span class="o">==</span> <span class="s1">&#39;wald&#39;</span><span class="p">:</span>
+        <span class="kn">from</span> <span class="nn">scipy.special</span> <span class="k">import</span> <span class="n">erfinv</span>
+        <span class="n">kappa</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">sqrt</span><span class="p">(</span><span class="mf">2.</span><span class="p">)</span> <span class="o">*</span> <span class="nb">min</span><span class="p">(</span><span class="n">erfinv</span><span class="p">(</span><span class="n">conf</span><span class="p">),</span> <span class="mf">1.e10</span><span class="p">)</span>  <span class="c1"># Avoid overflows.</span>
+        <span class="n">k</span> <span class="o">=</span> <span class="n">k</span><span class="o">.</span><span class="n">astype</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">float</span><span class="p">)</span>
+        <span class="n">n</span> <span class="o">=</span> <span class="n">n</span><span class="o">.</span><span class="n">astype</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">float</span><span class="p">)</span>
+        <span class="n">p</span> <span class="o">=</span> <span class="n">k</span> <span class="o">/</span> <span class="n">n</span>
+
+        <span class="k">if</span> <span class="n">interval</span> <span class="o">==</span> <span class="s1">&#39;wilson&#39;</span><span class="p">:</span>
+            <span class="n">midpoint</span> <span class="o">=</span> <span class="p">(</span><span class="n">k</span> <span class="o">+</span> <span class="n">kappa</span> <span class="o">**</span> <span class="mi">2</span> <span class="o">/</span> <span class="mf">2.</span><span class="p">)</span> <span class="o">/</span> <span class="p">(</span><span class="n">n</span> <span class="o">+</span> <span class="n">kappa</span> <span class="o">**</span> <span class="mi">2</span><span class="p">)</span>
+            <span class="n">halflength</span> <span class="o">=</span> <span class="p">(</span><span class="n">kappa</span> <span class="o">*</span> <span class="n">np</span><span class="o">.</span><span class="n">sqrt</span><span class="p">(</span><span class="n">n</span><span class="p">))</span> <span class="o">/</span> <span class="p">(</span><span class="n">n</span> <span class="o">+</span> <span class="n">kappa</span> <span class="o">**</span> <span class="mi">2</span><span class="p">)</span> <span class="o">*</span> \
+                <span class="n">np</span><span class="o">.</span><span class="n">sqrt</span><span class="p">(</span><span class="n">p</span> <span class="o">*</span> <span class="p">(</span><span class="mi">1</span> <span class="o">-</span> <span class="n">p</span><span class="p">)</span> <span class="o">+</span> <span class="n">kappa</span> <span class="o">**</span> <span class="mi">2</span> <span class="o">/</span> <span class="p">(</span><span class="mi">4</span> <span class="o">*</span> <span class="n">n</span><span class="p">))</span>
+            <span class="n">conf_interval</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">([</span><span class="n">midpoint</span> <span class="o">-</span> <span class="n">halflength</span><span class="p">,</span>
+                                      <span class="n">midpoint</span> <span class="o">+</span> <span class="n">halflength</span><span class="p">])</span>
+
+            <span class="c1"># Correct intervals out of range due to floating point errors.</span>
+            <span class="n">conf_interval</span><span class="p">[</span><span class="n">conf_interval</span> <span class="o">&lt;</span> <span class="mf">0.</span><span class="p">]</span> <span class="o">=</span> <span class="mf">0.</span>
+            <span class="n">conf_interval</span><span class="p">[</span><span class="n">conf_interval</span> <span class="o">&gt;</span> <span class="mf">1.</span><span class="p">]</span> <span class="o">=</span> <span class="mf">1.</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">midpoint</span> <span class="o">=</span> <span class="n">p</span>
+            <span class="n">halflength</span> <span class="o">=</span> <span class="n">kappa</span> <span class="o">*</span> <span class="n">np</span><span class="o">.</span><span class="n">sqrt</span><span class="p">(</span><span class="n">p</span> <span class="o">*</span> <span class="p">(</span><span class="mf">1.</span> <span class="o">-</span> <span class="n">p</span><span class="p">)</span> <span class="o">/</span> <span class="n">n</span><span class="p">)</span>
+            <span class="n">conf_interval</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">([</span><span class="n">midpoint</span> <span class="o">-</span> <span class="n">halflength</span><span class="p">,</span>
+                                      <span class="n">midpoint</span> <span class="o">+</span> <span class="n">halflength</span><span class="p">])</span>
+
+    <span class="k">elif</span> <span class="n">interval</span> <span class="o">==</span> <span class="s1">&#39;jeffreys&#39;</span> <span class="ow">or</span> <span class="n">interval</span> <span class="o">==</span> <span class="s1">&#39;flat&#39;</span><span class="p">:</span>
+        <span class="kn">from</span> <span class="nn">scipy.special</span> <span class="k">import</span> <span class="n">betaincinv</span>
+
+        <span class="k">if</span> <span class="n">interval</span> <span class="o">==</span> <span class="s1">&#39;jeffreys&#39;</span><span class="p">:</span>
+            <span class="n">lowerbound</span> <span class="o">=</span> <span class="n">betaincinv</span><span class="p">(</span><span class="n">k</span> <span class="o">+</span> <span class="mf">0.5</span><span class="p">,</span> <span class="n">n</span> <span class="o">-</span> <span class="n">k</span> <span class="o">+</span> <span class="mf">0.5</span><span class="p">,</span> <span class="mf">0.5</span> <span class="o">*</span> <span class="n">alpha</span><span class="p">)</span>
+            <span class="n">upperbound</span> <span class="o">=</span> <span class="n">betaincinv</span><span class="p">(</span><span class="n">k</span> <span class="o">+</span> <span class="mf">0.5</span><span class="p">,</span> <span class="n">n</span> <span class="o">-</span> <span class="n">k</span> <span class="o">+</span> <span class="mf">0.5</span><span class="p">,</span> <span class="mf">1.</span> <span class="o">-</span> <span class="mf">0.5</span> <span class="o">*</span> <span class="n">alpha</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">lowerbound</span> <span class="o">=</span> <span class="n">betaincinv</span><span class="p">(</span><span class="n">k</span> <span class="o">+</span> <span class="mi">1</span><span class="p">,</span> <span class="n">n</span> <span class="o">-</span> <span class="n">k</span> <span class="o">+</span> <span class="mi">1</span><span class="p">,</span> <span class="mf">0.5</span> <span class="o">*</span> <span class="n">alpha</span><span class="p">)</span>
+            <span class="n">upperbound</span> <span class="o">=</span> <span class="n">betaincinv</span><span class="p">(</span><span class="n">k</span> <span class="o">+</span> <span class="mi">1</span><span class="p">,</span> <span class="n">n</span> <span class="o">-</span> <span class="n">k</span> <span class="o">+</span> <span class="mi">1</span><span class="p">,</span> <span class="mf">1.</span> <span class="o">-</span> <span class="mf">0.5</span> <span class="o">*</span> <span class="n">alpha</span><span class="p">)</span>
+
+        <span class="c1"># Set lower or upper bound to k/n when k/n = 0 or 1</span>
+        <span class="c1">#  We have to treat the special case of k/n being scalars,</span>
+        <span class="c1">#  which is an ugly kludge</span>
+        <span class="k">if</span> <span class="n">lowerbound</span><span class="o">.</span><span class="n">ndim</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
+            <span class="k">if</span> <span class="n">k</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
+                <span class="n">lowerbound</span> <span class="o">=</span> <span class="mf">0.</span>
+            <span class="k">elif</span> <span class="n">k</span> <span class="o">==</span> <span class="n">n</span><span class="p">:</span>
+                <span class="n">upperbound</span> <span class="o">=</span> <span class="mf">1.</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">lowerbound</span><span class="p">[</span><span class="n">k</span> <span class="o">==</span> <span class="mi">0</span><span class="p">]</span> <span class="o">=</span> <span class="mi">0</span>
+            <span class="n">upperbound</span><span class="p">[</span><span class="n">k</span> <span class="o">==</span> <span class="n">n</span><span class="p">]</span> <span class="o">=</span> <span class="mi">1</span>
+
+        <span class="n">conf_interval</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">([</span><span class="n">lowerbound</span><span class="p">,</span> <span class="n">upperbound</span><span class="p">])</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s1">&#39;Unrecognized interval: </span><span class="si">{0:s}</span><span class="s1">&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">interval</span><span class="p">))</span>
+
+    <span class="k">return</span> <span class="n">conf_interval</span></div>
+
+
+<span class="c1"># TODO Note scipy dependency (needed in binom_conf_interval)</span>
+<div class="viewcode-block" id="binned_binom_proportion"><a class="viewcode-back" href="../../../api/astropy.stats.binned_binom_proportion.html#astropy.stats.binned_binom_proportion">[docs]</a><span class="k">def</span> <span class="nf">binned_binom_proportion</span><span class="p">(</span><span class="n">x</span><span class="p">,</span> <span class="n">success</span><span class="p">,</span> <span class="n">bins</span><span class="o">=</span><span class="mi">10</span><span class="p">,</span> <span class="nb">range</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">conf</span><span class="o">=</span><span class="mf">0.68269</span><span class="p">,</span>
+                            <span class="n">interval</span><span class="o">=</span><span class="s1">&#39;wilson&#39;</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;Binomial proportion and confidence interval in bins of a continuous</span>
+<span class="sd">    variable ``x``.</span>
+
+<span class="sd">    Given a set of datapoint pairs where the ``x`` values are</span>
+<span class="sd">    continuously distributed and the ``success`` values are binomial</span>
+<span class="sd">    (&quot;success / failure&quot; or &quot;true / false&quot;), place the pairs into</span>
+<span class="sd">    bins according to ``x`` value and calculate the binomial proportion</span>
+<span class="sd">    (fraction of successes) and confidence interval in each bin.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    x : list_like</span>
+<span class="sd">        Values.</span>
+<span class="sd">    success : list_like (bool)</span>
+<span class="sd">        Success (`True`) or failure (`False`) corresponding to each value</span>
+<span class="sd">        in ``x``.  Must be same length as ``x``.</span>
+<span class="sd">    bins : int or sequence of scalars, optional</span>
+<span class="sd">        If bins is an int, it defines the number of equal-width bins</span>
+<span class="sd">        in the given range (10, by default). If bins is a sequence, it</span>
+<span class="sd">        defines the bin edges, including the rightmost edge, allowing</span>
+<span class="sd">        for non-uniform bin widths (in this case, &#39;range&#39; is ignored).</span>
+<span class="sd">    range : (float, float), optional</span>
+<span class="sd">        The lower and upper range of the bins. If `None` (default),</span>
+<span class="sd">        the range is set to ``(x.min(), x.max())``. Values outside the</span>
+<span class="sd">        range are ignored.</span>
+<span class="sd">    conf : float in [0, 1], optional</span>
+<span class="sd">        Desired probability content in the confidence</span>
+<span class="sd">        interval ``(p - perr[0], p + perr[1])`` in each bin. Default is</span>
+<span class="sd">        0.68269.</span>
+<span class="sd">    interval : {&#39;wilson&#39;, &#39;jeffreys&#39;, &#39;flat&#39;, &#39;wald&#39;}, optional</span>
+<span class="sd">        Formula used to calculate confidence interval on the</span>
+<span class="sd">        binomial proportion in each bin. See `binom_conf_interval` for</span>
+<span class="sd">        definition of the intervals.  The &#39;wilson&#39;, &#39;jeffreys&#39;,</span>
+<span class="sd">        and &#39;flat&#39; intervals generally give similar results.  &#39;wilson&#39;</span>
+<span class="sd">        should be somewhat faster, while &#39;jeffreys&#39; and &#39;flat&#39; are</span>
+<span class="sd">        marginally superior, but differ in the assumed prior.</span>
+<span class="sd">        The &#39;wald&#39; interval is generally not recommended.</span>
+<span class="sd">        It is provided for comparison purposes. Default is &#39;wilson&#39;.</span>
+
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+<span class="sd">    bin_ctr : numpy.ndarray</span>
+<span class="sd">        Central value of bins. Bins without any entries are not returned.</span>
+<span class="sd">    bin_halfwidth : numpy.ndarray</span>
+<span class="sd">        Half-width of each bin such that ``bin_ctr - bin_halfwidth`` and</span>
+<span class="sd">        ``bin_ctr + bins_halfwidth`` give the left and right side of each bin,</span>
+<span class="sd">        respectively.</span>
+<span class="sd">    p : numpy.ndarray</span>
+<span class="sd">        Efficiency in each bin.</span>
+<span class="sd">    perr : numpy.ndarray</span>
+<span class="sd">        2-d array of shape (2, len(p)) representing the upper and lower</span>
+<span class="sd">        uncertainty on p in each bin.</span>
+
+<span class="sd">    See Also</span>
+<span class="sd">    --------</span>
+<span class="sd">    binom_conf_interval : Function used to estimate confidence interval in</span>
+<span class="sd">                          each bin.</span>
+
+
+<span class="sd">    Examples</span>
+<span class="sd">    --------</span>
+<span class="sd">    Suppose we wish to estimate the efficiency of a survey in</span>
+<span class="sd">    detecting astronomical sources as a function of magnitude (i.e.,</span>
+<span class="sd">    the probability of detecting a source given its magnitude). In a</span>
+<span class="sd">    realistic case, we might prepare a large number of sources with</span>
+<span class="sd">    randomly selected magnitudes, inject them into simulated images,</span>
+<span class="sd">    and then record which were detected at the end of the reduction</span>
+<span class="sd">    pipeline. As a toy example, we generate 100 data points with</span>
+<span class="sd">    randomly selected magnitudes between 20 and 30 and &quot;observe&quot; them</span>
+<span class="sd">    with a known detection function (here, the error function, with</span>
+<span class="sd">    50% detection probability at magnitude 25):</span>
+
+<span class="sd">    &gt;&gt;&gt; from scipy.special import erf</span>
+<span class="sd">    &gt;&gt;&gt; from scipy.stats.distributions import binom</span>
+<span class="sd">    &gt;&gt;&gt; def true_efficiency(x):</span>
+<span class="sd">    ...     return 0.5 - 0.5 * erf((x - 25.) / 2.)</span>
+<span class="sd">    &gt;&gt;&gt; mag = 20. + 10. * np.random.rand(100)</span>
+<span class="sd">    &gt;&gt;&gt; detected = binom.rvs(1, true_efficiency(mag))</span>
+<span class="sd">    &gt;&gt;&gt; bins, binshw, p, perr = binned_binom_proportion(mag, detected, bins=20)</span>
+<span class="sd">    &gt;&gt;&gt; plt.errorbar(bins, p, xerr=binshw, yerr=perr, ls=&#39;none&#39;, marker=&#39;o&#39;,</span>
+<span class="sd">    ...              label=&#39;estimate&#39;)</span>
+
+<span class="sd">    .. plot::</span>
+
+<span class="sd">       import numpy as np</span>
+<span class="sd">       from scipy.special import erf</span>
+<span class="sd">       from scipy.stats.distributions import binom</span>
+<span class="sd">       import matplotlib.pyplot as plt</span>
+<span class="sd">       from astropy.stats import binned_binom_proportion</span>
+<span class="sd">       def true_efficiency(x):</span>
+<span class="sd">           return 0.5 - 0.5 * erf((x - 25.) / 2.)</span>
+<span class="sd">       np.random.seed(400)</span>
+<span class="sd">       mag = 20. + 10. * np.random.rand(100)</span>
+<span class="sd">       np.random.seed(600)</span>
+<span class="sd">       detected = binom.rvs(1, true_efficiency(mag))</span>
+<span class="sd">       bins, binshw, p, perr = binned_binom_proportion(mag, detected, bins=20)</span>
+<span class="sd">       plt.errorbar(bins, p, xerr=binshw, yerr=perr, ls=&#39;none&#39;, marker=&#39;o&#39;,</span>
+<span class="sd">                    label=&#39;estimate&#39;)</span>
+<span class="sd">       X = np.linspace(20., 30., 1000)</span>
+<span class="sd">       plt.plot(X, true_efficiency(X), label=&#39;true efficiency&#39;)</span>
+<span class="sd">       plt.ylim(0., 1.)</span>
+<span class="sd">       plt.title(&#39;Detection efficiency vs magnitude&#39;)</span>
+<span class="sd">       plt.xlabel(&#39;Magnitude&#39;)</span>
+<span class="sd">       plt.ylabel(&#39;Detection efficiency&#39;)</span>
+<span class="sd">       plt.legend()</span>
+<span class="sd">       plt.show()</span>
+
+<span class="sd">    The above example uses the Wilson confidence interval to calculate</span>
+<span class="sd">    the uncertainty ``perr`` in each bin (see the definition of various</span>
+<span class="sd">    confidence intervals in `binom_conf_interval`). A commonly used</span>
+<span class="sd">    alternative is the Wald interval. However, the Wald interval can</span>
+<span class="sd">    give nonsensical uncertainties when the efficiency is near 0 or 1,</span>
+<span class="sd">    and is therefore **not** recommended. As an illustration, the</span>
+<span class="sd">    following example shows the same data as above but uses the Wald</span>
+<span class="sd">    interval rather than the Wilson interval to calculate ``perr``:</span>
+
+<span class="sd">    &gt;&gt;&gt; bins, binshw, p, perr = binned_binom_proportion(mag, detected, bins=20,</span>
+<span class="sd">    ...                                                 interval=&#39;wald&#39;)</span>
+<span class="sd">    &gt;&gt;&gt; plt.errorbar(bins, p, xerr=binshw, yerr=perr, ls=&#39;none&#39;, marker=&#39;o&#39;,</span>
+<span class="sd">    ...              label=&#39;estimate&#39;)</span>
+
+<span class="sd">    .. plot::</span>
+
+<span class="sd">       import numpy as np</span>
+<span class="sd">       from scipy.special import erf</span>
+<span class="sd">       from scipy.stats.distributions import binom</span>
+<span class="sd">       import matplotlib.pyplot as plt</span>
+<span class="sd">       from astropy.stats import binned_binom_proportion</span>
+<span class="sd">       def true_efficiency(x):</span>
+<span class="sd">           return 0.5 - 0.5 * erf((x - 25.) / 2.)</span>
+<span class="sd">       np.random.seed(400)</span>
+<span class="sd">       mag = 20. + 10. * np.random.rand(100)</span>
+<span class="sd">       np.random.seed(600)</span>
+<span class="sd">       detected = binom.rvs(1, true_efficiency(mag))</span>
+<span class="sd">       bins, binshw, p, perr = binned_binom_proportion(mag, detected, bins=20,</span>
+<span class="sd">                                                       interval=&#39;wald&#39;)</span>
+<span class="sd">       plt.errorbar(bins, p, xerr=binshw, yerr=perr, ls=&#39;none&#39;, marker=&#39;o&#39;,</span>
+<span class="sd">                    label=&#39;estimate&#39;)</span>
+<span class="sd">       X = np.linspace(20., 30., 1000)</span>
+<span class="sd">       plt.plot(X, true_efficiency(X), label=&#39;true efficiency&#39;)</span>
+<span class="sd">       plt.ylim(0., 1.)</span>
+<span class="sd">       plt.title(&#39;The Wald interval can give nonsensical uncertainties&#39;)</span>
+<span class="sd">       plt.xlabel(&#39;Magnitude&#39;)</span>
+<span class="sd">       plt.ylabel(&#39;Detection efficiency&#39;)</span>
+<span class="sd">       plt.legend()</span>
+<span class="sd">       plt.show()</span>
+
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="n">x</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">ravel</span><span class="p">(</span><span class="n">x</span><span class="p">)</span>
+    <span class="n">success</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">ravel</span><span class="p">(</span><span class="n">success</span><span class="p">)</span><span class="o">.</span><span class="n">astype</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">bool</span><span class="p">)</span>
+    <span class="k">if</span> <span class="n">x</span><span class="o">.</span><span class="n">shape</span> <span class="o">!=</span> <span class="n">success</span><span class="o">.</span><span class="n">shape</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s1">&#39;sizes of x and success must match&#39;</span><span class="p">)</span>
+
+    <span class="c1"># Put values into a histogram (`n`). Put &quot;successful&quot; values</span>
+    <span class="c1"># into a second histogram (`k`) with identical binning.</span>
+    <span class="n">n</span><span class="p">,</span> <span class="n">bin_edges</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">histogram</span><span class="p">(</span><span class="n">x</span><span class="p">,</span> <span class="n">bins</span><span class="o">=</span><span class="n">bins</span><span class="p">,</span> <span class="nb">range</span><span class="o">=</span><span class="nb">range</span><span class="p">)</span>
+    <span class="n">k</span><span class="p">,</span> <span class="n">bin_edges</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">histogram</span><span class="p">(</span><span class="n">x</span><span class="p">[</span><span class="n">success</span><span class="p">],</span> <span class="n">bins</span><span class="o">=</span><span class="n">bin_edges</span><span class="p">)</span>
+    <span class="n">bin_ctr</span> <span class="o">=</span> <span class="p">(</span><span class="n">bin_edges</span><span class="p">[:</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span> <span class="o">+</span> <span class="n">bin_edges</span><span class="p">[</span><span class="mi">1</span><span class="p">:])</span> <span class="o">/</span> <span class="mf">2.</span>
+    <span class="n">bin_halfwidth</span> <span class="o">=</span> <span class="n">bin_ctr</span> <span class="o">-</span> <span class="n">bin_edges</span><span class="p">[:</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span>
+
+    <span class="c1"># Remove bins with zero entries.</span>
+    <span class="n">valid</span> <span class="o">=</span> <span class="n">n</span> <span class="o">&gt;</span> <span class="mi">0</span>
+    <span class="n">bin_ctr</span> <span class="o">=</span> <span class="n">bin_ctr</span><span class="p">[</span><span class="n">valid</span><span class="p">]</span>
+    <span class="n">bin_halfwidth</span> <span class="o">=</span> <span class="n">bin_halfwidth</span><span class="p">[</span><span class="n">valid</span><span class="p">]</span>
+    <span class="n">n</span> <span class="o">=</span> <span class="n">n</span><span class="p">[</span><span class="n">valid</span><span class="p">]</span>
+    <span class="n">k</span> <span class="o">=</span> <span class="n">k</span><span class="p">[</span><span class="n">valid</span><span class="p">]</span>
+
+    <span class="n">p</span> <span class="o">=</span> <span class="n">k</span> <span class="o">/</span> <span class="n">n</span>
+    <span class="n">bounds</span> <span class="o">=</span> <span class="n">binom_conf_interval</span><span class="p">(</span><span class="n">k</span><span class="p">,</span> <span class="n">n</span><span class="p">,</span> <span class="n">conf</span><span class="o">=</span><span class="n">conf</span><span class="p">,</span> <span class="n">interval</span><span class="o">=</span><span class="n">interval</span><span class="p">)</span>
+    <span class="n">perr</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">abs</span><span class="p">(</span><span class="n">bounds</span> <span class="o">-</span> <span class="n">p</span><span class="p">)</span>
+
+    <span class="k">return</span> <span class="n">bin_ctr</span><span class="p">,</span> <span class="n">bin_halfwidth</span><span class="p">,</span> <span class="n">p</span><span class="p">,</span> <span class="n">perr</span></div>
+
+
+<span class="k">def</span> <span class="nf">_check_poisson_conf_inputs</span><span class="p">(</span><span class="n">sigma</span><span class="p">,</span> <span class="n">background</span><span class="p">,</span> <span class="n">conflevel</span><span class="p">,</span> <span class="n">name</span><span class="p">):</span>
+    <span class="k">if</span> <span class="n">sigma</span> <span class="o">!=</span> <span class="mi">1</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;Only sigma=1 supported for interval </span><span class="si">{0}</span><span class="s2">&quot;</span>
+                         <span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">name</span><span class="p">))</span>
+    <span class="k">if</span> <span class="n">background</span> <span class="o">!=</span> <span class="mi">0</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;background not supported for interval </span><span class="si">{0}</span><span class="s2">&quot;</span>
+                         <span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">name</span><span class="p">))</span>
+    <span class="k">if</span> <span class="n">conflevel</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;conflevel not supported for interval </span><span class="si">{0}</span><span class="s2">&quot;</span>
+                         <span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">name</span><span class="p">))</span>
+
+
+<div class="viewcode-block" id="poisson_conf_interval"><a class="viewcode-back" href="../../../api/astropy.stats.poisson_conf_interval.html#astropy.stats.poisson_conf_interval">[docs]</a><span class="k">def</span> <span class="nf">poisson_conf_interval</span><span class="p">(</span><span class="n">n</span><span class="p">,</span> <span class="n">interval</span><span class="o">=</span><span class="s1">&#39;root-n&#39;</span><span class="p">,</span> <span class="n">sigma</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span> <span class="n">background</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span>
+                          <span class="n">conflevel</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+    <span class="sd">r&quot;&quot;&quot;Poisson parameter confidence interval given observed counts</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    n : int or numpy.ndarray</span>
+<span class="sd">        Number of counts (0 &lt;= ``n``).</span>
+<span class="sd">    interval : {&#39;root-n&#39;,&#39;root-n-0&#39;,&#39;pearson&#39;,&#39;sherpagehrels&#39;,&#39;frequentist-confidence&#39;, &#39;kraft-burrows-nousek&#39;}, optional</span>
+<span class="sd">        Formula used for confidence interval. See notes for details.</span>
+<span class="sd">        Default is ``&#39;root-n&#39;``.</span>
+<span class="sd">    sigma : float, optional</span>
+<span class="sd">        Number of sigma for confidence interval; only supported for</span>
+<span class="sd">        the &#39;frequentist-confidence&#39; mode.</span>
+<span class="sd">    background : float, optional</span>
+<span class="sd">        Number of counts expected from the background; only supported for</span>
+<span class="sd">        the &#39;kraft-burrows-nousek&#39; mode. This number is assumed to be determined</span>
+<span class="sd">        from a large region so that the uncertainty on its value is negligible.</span>
+<span class="sd">    conflevel : float, optional</span>
+<span class="sd">        Confidence level between 0 and 1; only supported for the</span>
+<span class="sd">        &#39;kraft-burrows-nousek&#39; mode.</span>
+
+
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+<span class="sd">    conf_interval : numpy.ndarray</span>
+<span class="sd">        ``conf_interval[0]`` and ``conf_interval[1]`` correspond to the lower</span>
+<span class="sd">        and upper limits, respectively, for each element in ``n``.</span>
+
+<span class="sd">    Notes</span>
+<span class="sd">    -----</span>
+
+<span class="sd">    The &quot;right&quot; confidence interval to use for Poisson data is a</span>
+<span class="sd">    matter of debate. The CDF working group [recommends][pois_eb]</span>
+<span class="sd">    using root-n throughout, largely in the interest of</span>
+<span class="sd">    comprehensibility, but discusses other possibilities. The ATLAS</span>
+<span class="sd">    group also [discusses][ErrorBars] several possibilities but</span>
+<span class="sd">    concludes that no single representation is suitable for all cases.</span>
+<span class="sd">    The suggestion has also been [floated][ac12] that error bars should be</span>
+<span class="sd">    attached to theoretical predictions instead of observed data,</span>
+<span class="sd">    which this function will not help with (but it&#39;s easy; then you</span>
+<span class="sd">    really should use the square root of the theoretical prediction).</span>
+
+<span class="sd">    The intervals implemented here are:</span>
+
+<span class="sd">    **1. &#39;root-n&#39;** This is a very widely used standard rule derived</span>
+<span class="sd">    from the maximum-likelihood estimator for the mean of the Poisson</span>
+<span class="sd">    process. While it produces questionable results for small n and</span>
+<span class="sd">    outright wrong results for n=0, it is standard enough that people are</span>
+<span class="sd">    (supposedly) used to interpreting these wonky values. The interval is</span>
+
+<span class="sd">    .. math::</span>
+
+<span class="sd">        CI = (n-\sqrt{n}, n+\sqrt{n})</span>
+
+<span class="sd">    **2. &#39;root-n-0&#39;** This is identical to the above except that where</span>
+<span class="sd">    n is zero the interval returned is (0,1).</span>
+
+<span class="sd">    **3. &#39;pearson&#39;** This is an only-slightly-more-complicated rule</span>
+<span class="sd">    based on Pearson&#39;s chi-squared rule (as [explained][pois_eb] by</span>
+<span class="sd">    the CDF working group). It also has the nice feature that</span>
+<span class="sd">    if your theory curve touches an endpoint of the interval, then your</span>
+<span class="sd">    data point is indeed one sigma away. The interval is</span>
+
+<span class="sd">    .. math::</span>
+
+<span class="sd">        CI = (n+0.5-\sqrt{n+0.25}, n+0.5+\sqrt{n+0.25})</span>
+
+<span class="sd">    **4. &#39;sherpagehrels&#39;** This rule is used by default in the fitting</span>
+<span class="sd">    package &#39;sherpa&#39;. The [documentation][sherpa_gehrels] claims it is</span>
+<span class="sd">    based on a numerical approximation published in</span>
+<span class="sd">    [Gehrels 1986][gehrels86] but it does not actually appear there.</span>
+<span class="sd">    It is symmetrical, and while the upper limits</span>
+<span class="sd">    are within about 1% of those given by &#39;frequentist-confidence&#39;, the</span>
+<span class="sd">    lower limits can be badly wrong. The interval is</span>
+
+<span class="sd">    .. math::</span>
+
+<span class="sd">        CI = (n-1-\sqrt{n+0.75}, n+1+\sqrt{n+0.75})</span>
+
+<span class="sd">    **5. &#39;frequentist-confidence&#39;** These are frequentist central</span>
+<span class="sd">    confidence intervals:</span>
+
+<span class="sd">    .. math::</span>
+
+<span class="sd">        CI = (0.5 F_{\chi^2}^{-1}(\alpha;2n),</span>
+<span class="sd">              0.5 F_{\chi^2}^{-1}(1-\alpha;2(n+1)))</span>
+
+<span class="sd">    where :math:`F_{\chi^2}^{-1}` is the quantile of the chi-square</span>
+<span class="sd">    distribution with the indicated number of degrees of freedom and</span>
+<span class="sd">    :math:`\alpha` is the one-tailed probability of the normal</span>
+<span class="sd">    distribution (at the point given by the parameter &#39;sigma&#39;). See</span>
+<span class="sd">    [Maxwell 2011][maxw11] for further details.</span>
+
+<span class="sd">    **6. &#39;kraft-burrows-nousek&#39;** This is a Bayesian approach which allows</span>
+<span class="sd">    for the presence of a known background :math:`B` in the source signal</span>
+<span class="sd">    :math:`N`.</span>
+<span class="sd">    For a given confidence level :math:`CL` the confidence interval</span>
+<span class="sd">    :math:`[S_\mathrm{min}, S_\mathrm{max}]` is given by:</span>
+
+<span class="sd">    .. math::</span>
+
+<span class="sd">       CL = \int^{S_\mathrm{max}}_{S_\mathrm{min}} f_{N,B}(S)dS</span>
+
+<span class="sd">    where the function :math:`f_{N,B}` is:</span>
+
+<span class="sd">    .. math::</span>
+
+<span class="sd">       f_{N,B}(S) = C \frac{e^{-(S+B)}(S+B)^N}{N!}</span>
+
+<span class="sd">    and the normalization constant :math:`C`:</span>
+
+<span class="sd">    .. math::</span>
+
+<span class="sd">       C = \left[ \int_0^\infty \frac{e^{-(S+B)}(S+B)^N}{N!} dS \right] ^{-1}</span>
+<span class="sd">       = \left( \sum^N_{n=0} \frac{e^{-B}B^n}{n!}  \right)^{-1}</span>
+
+<span class="sd">    See [KraftBurrowsNousek][kbn1991] for further details.</span>
+
+<span class="sd">    These formulas implement a positive, uniform prior.</span>
+<span class="sd">    [KraftBurrowsNousek][kbn1991] discuss this choice in more detail and show</span>
+<span class="sd">    that the problem is relatively insensitive to the choice of prior.</span>
+
+<span class="sd">    This functions has an optional dependency: Either scipy or</span>
+<span class="sd">    `mpmath &lt;http://mpmath.org/&gt;`_  need to be available. (Scipy only works for</span>
+<span class="sd">    N &lt; 100).</span>
+
+
+<span class="sd">    Examples</span>
+<span class="sd">    --------</span>
+
+<span class="sd">    &gt;&gt;&gt; poisson_conf_interval(np.arange(10), interval=&#39;root-n&#39;).T</span>
+<span class="sd">    array([[  0.        ,   0.        ],</span>
+<span class="sd">           [  0.        ,   2.        ],</span>
+<span class="sd">           [  0.58578644,   3.41421356],</span>
+<span class="sd">           [  1.26794919,   4.73205081],</span>
+<span class="sd">           [  2.        ,   6.        ],</span>
+<span class="sd">           [  2.76393202,   7.23606798],</span>
+<span class="sd">           [  3.55051026,   8.44948974],</span>
+<span class="sd">           [  4.35424869,   9.64575131],</span>
+<span class="sd">           [  5.17157288,  10.82842712],</span>
+<span class="sd">           [  6.        ,  12.        ]])</span>
+
+<span class="sd">    &gt;&gt;&gt; poisson_conf_interval(np.arange(10), interval=&#39;root-n-0&#39;).T</span>
+<span class="sd">    array([[  0.        ,   1.        ],</span>
+<span class="sd">           [  0.        ,   2.        ],</span>
+<span class="sd">           [  0.58578644,   3.41421356],</span>
+<span class="sd">           [  1.26794919,   4.73205081],</span>
+<span class="sd">           [  2.        ,   6.        ],</span>
+<span class="sd">           [  2.76393202,   7.23606798],</span>
+<span class="sd">           [  3.55051026,   8.44948974],</span>
+<span class="sd">           [  4.35424869,   9.64575131],</span>
+<span class="sd">           [  5.17157288,  10.82842712],</span>
+<span class="sd">           [  6.        ,  12.        ]])</span>
+
+<span class="sd">    &gt;&gt;&gt; poisson_conf_interval(np.arange(10), interval=&#39;pearson&#39;).T</span>
+<span class="sd">    array([[  0.        ,   1.        ],</span>
+<span class="sd">           [  0.38196601,   2.61803399],</span>
+<span class="sd">           [  1.        ,   4.        ],</span>
+<span class="sd">           [  1.69722436,   5.30277564],</span>
+<span class="sd">           [  2.43844719,   6.56155281],</span>
+<span class="sd">           [  3.20871215,   7.79128785],</span>
+<span class="sd">           [  4.        ,   9.        ],</span>
+<span class="sd">           [  4.8074176 ,  10.1925824 ],</span>
+<span class="sd">           [  5.62771868,  11.37228132],</span>
+<span class="sd">           [  6.45861873,  12.54138127]])</span>
+
+<span class="sd">    &gt;&gt;&gt; poisson_conf_interval(np.arange(10),</span>
+<span class="sd">    ...                       interval=&#39;frequentist-confidence&#39;).T</span>
+<span class="sd">    array([[  0.        ,   1.84102165],</span>
+<span class="sd">           [  0.17275378,   3.29952656],</span>
+<span class="sd">           [  0.70818544,   4.63785962],</span>
+<span class="sd">           [  1.36729531,   5.91818583],</span>
+<span class="sd">           [  2.08566081,   7.16275317],</span>
+<span class="sd">           [  2.84030886,   8.38247265],</span>
+<span class="sd">           [  3.62006862,   9.58364155],</span>
+<span class="sd">           [  4.41852954,  10.77028072],</span>
+<span class="sd">           [  5.23161394,  11.94514152],</span>
+<span class="sd">           [  6.05653896,  13.11020414]])</span>
+
+<span class="sd">    &gt;&gt;&gt; poisson_conf_interval(7,</span>
+<span class="sd">    ...                       interval=&#39;frequentist-confidence&#39;).T</span>
+<span class="sd">    array([  4.41852954,  10.77028072])</span>
+
+<span class="sd">    &gt;&gt;&gt; poisson_conf_interval(10, background=1.5, conflevel=0.95,</span>
+<span class="sd">    ...                       interval=&#39;kraft-burrows-nousek&#39;).T</span>
+<span class="sd">    array([  3.47894005, 16.113329533])   # doctest: +FLOAT_CMP</span>
+
+<span class="sd">    [pois_eb]: http://www-cdf.fnal.gov/physics/statistics/notes/pois_eb.txt</span>
+
+<span class="sd">    [ErrorBars]: http://www.pp.rhul.ac.uk/~cowan/atlas/ErrorBars.pdf</span>
+
+<span class="sd">    [ac12]: http://adsabs.harvard.edu/abs/2012EPJP..127...24A</span>
+
+<span class="sd">    [maxw11]: http://adsabs.harvard.edu/abs/2011arXiv1102.0822M</span>
+
+<span class="sd">    [gehrels86]: http://adsabs.harvard.edu/abs/1986ApJ...303..336G</span>
+
+<span class="sd">    [sherpa_gehrels]: http://cxc.harvard.edu/sherpa4.4/statistics/#chigehrels</span>
+
+<span class="sd">    [kbn1991]: http://adsabs.harvard.edu/abs/1991ApJ...374..344K</span>
+
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="k">if</span> <span class="ow">not</span> <span class="n">np</span><span class="o">.</span><span class="n">isscalar</span><span class="p">(</span><span class="n">n</span><span class="p">):</span>
+        <span class="n">n</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">asanyarray</span><span class="p">(</span><span class="n">n</span><span class="p">)</span>
+
+    <span class="k">if</span> <span class="n">interval</span> <span class="o">==</span> <span class="s1">&#39;root-n&#39;</span><span class="p">:</span>
+        <span class="n">_check_poisson_conf_inputs</span><span class="p">(</span><span class="n">sigma</span><span class="p">,</span> <span class="n">background</span><span class="p">,</span> <span class="n">conflevel</span><span class="p">,</span> <span class="n">interval</span><span class="p">)</span>
+        <span class="n">conf_interval</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">([</span><span class="n">n</span><span class="o">-</span><span class="n">np</span><span class="o">.</span><span class="n">sqrt</span><span class="p">(</span><span class="n">n</span><span class="p">),</span>
+                                  <span class="n">n</span><span class="o">+</span><span class="n">np</span><span class="o">.</span><span class="n">sqrt</span><span class="p">(</span><span class="n">n</span><span class="p">)])</span>
+    <span class="k">elif</span> <span class="n">interval</span> <span class="o">==</span> <span class="s1">&#39;root-n-0&#39;</span><span class="p">:</span>
+        <span class="n">_check_poisson_conf_inputs</span><span class="p">(</span><span class="n">sigma</span><span class="p">,</span> <span class="n">background</span><span class="p">,</span> <span class="n">conflevel</span><span class="p">,</span> <span class="n">interval</span><span class="p">)</span>
+        <span class="n">conf_interval</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">([</span><span class="n">n</span><span class="o">-</span><span class="n">np</span><span class="o">.</span><span class="n">sqrt</span><span class="p">(</span><span class="n">n</span><span class="p">),</span>
+                                  <span class="n">n</span><span class="o">+</span><span class="n">np</span><span class="o">.</span><span class="n">sqrt</span><span class="p">(</span><span class="n">n</span><span class="p">)])</span>
+        <span class="k">if</span> <span class="n">np</span><span class="o">.</span><span class="n">isscalar</span><span class="p">(</span><span class="n">n</span><span class="p">):</span>
+            <span class="k">if</span> <span class="n">n</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
+                <span class="n">conf_interval</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span> <span class="o">=</span> <span class="mi">1</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">conf_interval</span><span class="p">[</span><span class="mi">1</span><span class="p">,</span> <span class="n">n</span> <span class="o">==</span> <span class="mi">0</span><span class="p">]</span> <span class="o">=</span> <span class="mi">1</span>
+    <span class="k">elif</span> <span class="n">interval</span> <span class="o">==</span> <span class="s1">&#39;pearson&#39;</span><span class="p">:</span>
+        <span class="n">_check_poisson_conf_inputs</span><span class="p">(</span><span class="n">sigma</span><span class="p">,</span> <span class="n">background</span><span class="p">,</span> <span class="n">conflevel</span><span class="p">,</span> <span class="n">interval</span><span class="p">)</span>
+        <span class="n">conf_interval</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">([</span><span class="n">n</span><span class="o">+</span><span class="mf">0.5</span><span class="o">-</span><span class="n">np</span><span class="o">.</span><span class="n">sqrt</span><span class="p">(</span><span class="n">n</span><span class="o">+</span><span class="mf">0.25</span><span class="p">),</span>
+                                  <span class="n">n</span><span class="o">+</span><span class="mf">0.5</span><span class="o">+</span><span class="n">np</span><span class="o">.</span><span class="n">sqrt</span><span class="p">(</span><span class="n">n</span><span class="o">+</span><span class="mf">0.25</span><span class="p">)])</span>
+    <span class="k">elif</span> <span class="n">interval</span> <span class="o">==</span> <span class="s1">&#39;sherpagehrels&#39;</span><span class="p">:</span>
+        <span class="n">_check_poisson_conf_inputs</span><span class="p">(</span><span class="n">sigma</span><span class="p">,</span> <span class="n">background</span><span class="p">,</span> <span class="n">conflevel</span><span class="p">,</span> <span class="n">interval</span><span class="p">)</span>
+        <span class="n">conf_interval</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">([</span><span class="n">n</span><span class="o">-</span><span class="mi">1</span><span class="o">-</span><span class="n">np</span><span class="o">.</span><span class="n">sqrt</span><span class="p">(</span><span class="n">n</span><span class="o">+</span><span class="mf">0.75</span><span class="p">),</span>
+                                  <span class="n">n</span><span class="o">+</span><span class="mi">1</span><span class="o">+</span><span class="n">np</span><span class="o">.</span><span class="n">sqrt</span><span class="p">(</span><span class="n">n</span><span class="o">+</span><span class="mf">0.75</span><span class="p">)])</span>
+    <span class="k">elif</span> <span class="n">interval</span> <span class="o">==</span> <span class="s1">&#39;frequentist-confidence&#39;</span><span class="p">:</span>
+        <span class="n">_check_poisson_conf_inputs</span><span class="p">(</span><span class="mf">1.</span><span class="p">,</span> <span class="n">background</span><span class="p">,</span> <span class="n">conflevel</span><span class="p">,</span> <span class="n">interval</span><span class="p">)</span>
+        <span class="kn">import</span> <span class="nn">scipy.stats</span>
+        <span class="n">alpha</span> <span class="o">=</span> <span class="n">scipy</span><span class="o">.</span><span class="n">stats</span><span class="o">.</span><span class="n">norm</span><span class="o">.</span><span class="n">sf</span><span class="p">(</span><span class="n">sigma</span><span class="p">)</span>
+        <span class="n">conf_interval</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">([</span><span class="mf">0.5</span><span class="o">*</span><span class="n">scipy</span><span class="o">.</span><span class="n">stats</span><span class="o">.</span><span class="n">chi2</span><span class="p">(</span><span class="mi">2</span><span class="o">*</span><span class="n">n</span><span class="p">)</span><span class="o">.</span><span class="n">ppf</span><span class="p">(</span><span class="n">alpha</span><span class="p">),</span>
+                                  <span class="mf">0.5</span><span class="o">*</span><span class="n">scipy</span><span class="o">.</span><span class="n">stats</span><span class="o">.</span><span class="n">chi2</span><span class="p">(</span><span class="mi">2</span><span class="o">*</span><span class="n">n</span><span class="o">+</span><span class="mi">2</span><span class="p">)</span><span class="o">.</span><span class="n">isf</span><span class="p">(</span><span class="n">alpha</span><span class="p">)])</span>
+        <span class="k">if</span> <span class="n">np</span><span class="o">.</span><span class="n">isscalar</span><span class="p">(</span><span class="n">n</span><span class="p">):</span>
+            <span class="k">if</span> <span class="n">n</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
+                <span class="n">conf_interval</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">=</span> <span class="mi">0</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">conf_interval</span><span class="p">[</span><span class="mi">0</span><span class="p">,</span> <span class="n">n</span> <span class="o">==</span> <span class="mi">0</span><span class="p">]</span> <span class="o">=</span> <span class="mi">0</span>
+    <span class="k">elif</span> <span class="n">interval</span> <span class="o">==</span> <span class="s1">&#39;kraft-burrows-nousek&#39;</span><span class="p">:</span>
+        <span class="k">if</span> <span class="n">conflevel</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s1">&#39;Set conflevel for method </span><span class="si">{0}</span><span class="s1">. (sigma is &#39;</span>
+                             <span class="s1">&#39;ignored.)&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">interval</span><span class="p">))</span>
+        <span class="n">conflevel</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">asanyarray</span><span class="p">(</span><span class="n">conflevel</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">np</span><span class="o">.</span><span class="n">any</span><span class="p">(</span><span class="n">conflevel</span> <span class="o">&lt;=</span> <span class="mi">0</span><span class="p">)</span> <span class="ow">or</span> <span class="n">np</span><span class="o">.</span><span class="n">any</span><span class="p">(</span><span class="n">conflevel</span> <span class="o">&gt;=</span> <span class="mi">1</span><span class="p">):</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s1">&#39;Conflevel must be a number between 0 and 1.&#39;</span><span class="p">)</span>
+        <span class="n">background</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">asanyarray</span><span class="p">(</span><span class="n">background</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">np</span><span class="o">.</span><span class="n">any</span><span class="p">(</span><span class="n">background</span> <span class="o">&lt;</span> <span class="mi">0</span><span class="p">):</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s1">&#39;Background must be &gt;= 0.&#39;</span><span class="p">)</span>
+        <span class="n">conf_interval</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">vectorize</span><span class="p">(</span><span class="n">_kraft_burrows_nousek</span><span class="p">,</span>
+                                     <span class="n">cache</span><span class="o">=</span><span class="kc">True</span><span class="p">)(</span><span class="n">n</span><span class="p">,</span> <span class="n">background</span><span class="p">,</span> <span class="n">conflevel</span><span class="p">)</span>
+        <span class="n">conf_interval</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">vstack</span><span class="p">(</span><span class="n">conf_interval</span><span class="p">)</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;Invalid method for Poisson confidence intervals: &quot;</span>
+                         <span class="s2">&quot;</span><span class="si">{}</span><span class="s2">&quot;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">interval</span><span class="p">))</span>
+    <span class="k">return</span> <span class="n">conf_interval</span></div>
+
+
+<span class="nd">@deprecated_renamed_argument</span><span class="p">(</span><span class="s1">&#39;a&#39;</span><span class="p">,</span> <span class="s1">&#39;data&#39;</span><span class="p">,</span> <span class="s1">&#39;2.0&#39;</span><span class="p">)</span>
+<div class="viewcode-block" id="median_absolute_deviation"><a class="viewcode-back" href="../../../api/astropy.stats.median_absolute_deviation.html#astropy.stats.median_absolute_deviation">[docs]</a><span class="k">def</span> <span class="nf">median_absolute_deviation</span><span class="p">(</span><span class="n">data</span><span class="p">,</span> <span class="n">axis</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">func</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">ignore_nan</span><span class="o">=</span><span class="kc">False</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Calculate the median absolute deviation (MAD).</span>
+
+<span class="sd">    The MAD is defined as ``median(abs(a - median(a)))``.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    data : array-like</span>
+<span class="sd">        Input array or object that can be converted to an array.</span>
+<span class="sd">    axis : {int, sequence of int, None}, optional</span>
+<span class="sd">        Axis along which the MADs are computed.  The default (`None`) is</span>
+<span class="sd">        to compute the MAD of the flattened array.</span>
+<span class="sd">    func : callable, optional</span>
+<span class="sd">        The function used to compute the median. Defaults to `numpy.ma.median`</span>
+<span class="sd">        for masked arrays, otherwise to `numpy.median`.</span>
+<span class="sd">    ignore_nan : bool</span>
+<span class="sd">        Ignore NaN values (treat them as if they are not in the array) when</span>
+<span class="sd">        computing the median.  This will use `numpy.ma.median` if ``axis`` is</span>
+<span class="sd">        specified, or `numpy.nanmedian` if ``axis==None`` and numpy&#39;s version</span>
+<span class="sd">        is &gt;1.10 because nanmedian is slightly faster in this case.</span>
+
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+<span class="sd">    mad : float or `~numpy.ndarray`</span>
+<span class="sd">        The median absolute deviation of the input array.  If ``axis``</span>
+<span class="sd">        is `None` then a scalar will be returned, otherwise a</span>
+<span class="sd">        `~numpy.ndarray` will be returned.</span>
+
+<span class="sd">    Examples</span>
+<span class="sd">    --------</span>
+<span class="sd">    Generate random variates from a Gaussian distribution and return the</span>
+<span class="sd">    median absolute deviation for that distribution::</span>
+
+<span class="sd">        &gt;&gt;&gt; import numpy as np</span>
+<span class="sd">        &gt;&gt;&gt; from astropy.stats import median_absolute_deviation</span>
+<span class="sd">        &gt;&gt;&gt; rand = np.random.RandomState(12345)</span>
+<span class="sd">        &gt;&gt;&gt; from numpy.random import randn</span>
+<span class="sd">        &gt;&gt;&gt; mad = median_absolute_deviation(rand.randn(1000))</span>
+<span class="sd">        &gt;&gt;&gt; print(mad)    # doctest: +FLOAT_CMP</span>
+<span class="sd">        0.65244241428454486</span>
+
+<span class="sd">    See Also</span>
+<span class="sd">    --------</span>
+<span class="sd">    mad_std</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="k">if</span> <span class="n">func</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="c1"># Check if the array has a mask and if so use np.ma.median</span>
+        <span class="c1"># See https://github.com/numpy/numpy/issues/7330 why using np.ma.median</span>
+        <span class="c1"># for normal arrays should not be done (summary: np.ma.median always</span>
+        <span class="c1"># returns an masked array even if the result should be scalar). (#4658)</span>
+        <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">data</span><span class="p">,</span> <span class="n">np</span><span class="o">.</span><span class="n">ma</span><span class="o">.</span><span class="n">MaskedArray</span><span class="p">):</span>
+            <span class="n">is_masked</span> <span class="o">=</span> <span class="kc">True</span>
+            <span class="n">func</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">ma</span><span class="o">.</span><span class="n">median</span>
+            <span class="k">if</span> <span class="n">ignore_nan</span><span class="p">:</span>
+                <span class="n">data</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">ma</span><span class="o">.</span><span class="n">masked_invalid</span><span class="p">(</span><span class="n">data</span><span class="p">)</span>
+        <span class="k">elif</span> <span class="n">ignore_nan</span><span class="p">:</span>
+            <span class="n">is_masked</span> <span class="o">=</span> <span class="kc">False</span>
+            <span class="n">func</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">nanmedian</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">is_masked</span> <span class="o">=</span> <span class="kc">False</span>
+            <span class="n">func</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">median</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="n">is_masked</span> <span class="o">=</span> <span class="kc">None</span>
+
+    <span class="k">if</span> <span class="ow">not</span> <span class="n">ignore_nan</span> <span class="ow">and</span> <span class="n">NUMPY_LT_1_10</span> <span class="ow">and</span> <span class="n">np</span><span class="o">.</span><span class="n">any</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">isnan</span><span class="p">(</span><span class="n">data</span><span class="p">)):</span>
+        <span class="n">warn</span><span class="p">(</span><span class="s2">&quot;Numpy versions &lt;1.10 will return a number rather than NaN for &quot;</span>
+             <span class="s2">&quot;the median of arrays containing NaNs.  This behavior is &quot;</span>
+             <span class="s2">&quot;unlikely to be what you expect.&quot;</span><span class="p">)</span>
+
+    <span class="n">data</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">asanyarray</span><span class="p">(</span><span class="n">data</span><span class="p">)</span>
+    <span class="c1"># np.nanmedian has `keepdims`, which is a good option if we&#39;re not allowing</span>
+    <span class="c1"># user-passed functions here</span>
+    <span class="n">data_median</span> <span class="o">=</span> <span class="n">func</span><span class="p">(</span><span class="n">data</span><span class="p">,</span> <span class="n">axis</span><span class="o">=</span><span class="n">axis</span><span class="p">)</span>
+
+    <span class="c1"># broadcast the median array before subtraction</span>
+    <span class="k">if</span> <span class="n">axis</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="k">if</span> <span class="n">isiterable</span><span class="p">(</span><span class="n">axis</span><span class="p">):</span>
+            <span class="k">for</span> <span class="n">ax</span> <span class="ow">in</span> <span class="nb">sorted</span><span class="p">(</span><span class="nb">list</span><span class="p">(</span><span class="n">axis</span><span class="p">)):</span>
+                <span class="n">data_median</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">expand_dims</span><span class="p">(</span><span class="n">data_median</span><span class="p">,</span> <span class="n">axis</span><span class="o">=</span><span class="n">ax</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">data_median</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">expand_dims</span><span class="p">(</span><span class="n">data_median</span><span class="p">,</span> <span class="n">axis</span><span class="o">=</span><span class="n">axis</span><span class="p">)</span>
+
+    <span class="n">result</span> <span class="o">=</span> <span class="n">func</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">abs</span><span class="p">(</span><span class="n">data</span> <span class="o">-</span> <span class="n">data_median</span><span class="p">),</span> <span class="n">axis</span><span class="o">=</span><span class="n">axis</span><span class="p">,</span> <span class="n">overwrite_input</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+
+    <span class="k">if</span> <span class="n">axis</span> <span class="ow">is</span> <span class="kc">None</span> <span class="ow">and</span> <span class="n">np</span><span class="o">.</span><span class="n">ma</span><span class="o">.</span><span class="n">isMaskedArray</span><span class="p">(</span><span class="n">result</span><span class="p">):</span>
+        <span class="c1"># return scalar version</span>
+        <span class="n">result</span> <span class="o">=</span> <span class="n">result</span><span class="o">.</span><span class="n">item</span><span class="p">()</span>
+    <span class="k">elif</span> <span class="n">np</span><span class="o">.</span><span class="n">ma</span><span class="o">.</span><span class="n">isMaskedArray</span><span class="p">(</span><span class="n">result</span><span class="p">)</span> <span class="ow">and</span> <span class="ow">not</span> <span class="n">is_masked</span><span class="p">:</span>
+        <span class="c1"># if the input array was not a masked array, we don&#39;t want to return a</span>
+        <span class="c1"># masked array</span>
+        <span class="n">result</span> <span class="o">=</span> <span class="n">result</span><span class="o">.</span><span class="n">filled</span><span class="p">(</span><span class="n">fill_value</span><span class="o">=</span><span class="n">np</span><span class="o">.</span><span class="n">nan</span><span class="p">)</span>
+
+    <span class="k">return</span> <span class="n">result</span></div>
+
+
+<div class="viewcode-block" id="mad_std"><a class="viewcode-back" href="../../../api/astropy.stats.mad_std.html#astropy.stats.mad_std">[docs]</a><span class="k">def</span> <span class="nf">mad_std</span><span class="p">(</span><span class="n">data</span><span class="p">,</span> <span class="n">axis</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">func</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">ignore_nan</span><span class="o">=</span><span class="kc">False</span><span class="p">):</span>
+    <span class="sd">r&quot;&quot;&quot;</span>
+<span class="sd">    Calculate a robust standard deviation using the `median absolute</span>
+<span class="sd">    deviation (MAD)</span>
+<span class="sd">    &lt;http://en.wikipedia.org/wiki/Median_absolute_deviation&gt;`_.</span>
+
+<span class="sd">    The standard deviation estimator is given by:</span>
+
+<span class="sd">    .. math::</span>
+
+<span class="sd">        \sigma \approx \frac{\textrm{MAD}}{\Phi^{-1}(3/4)}</span>
+<span class="sd">            \approx 1.4826 \ \textrm{MAD}</span>
+
+<span class="sd">    where :math:`\Phi^{-1}(P)` is the normal inverse cumulative</span>
+<span class="sd">    distribution function evaluated at probability :math:`P = 3/4`.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    data : array-like</span>
+<span class="sd">        Data array or object that can be converted to an array.</span>
+<span class="sd">    axis : {int, sequence of int, None}, optional</span>
+<span class="sd">        Axis along which the robust standard deviations are computed.</span>
+<span class="sd">        The default (`None`) is to compute the robust standard deviation</span>
+<span class="sd">        of the flattened array.</span>
+<span class="sd">    func : callable, optional</span>
+<span class="sd">        The function used to compute the median. Defaults to `numpy.ma.median`</span>
+<span class="sd">        for masked arrays, otherwise to `numpy.median`.</span>
+<span class="sd">    ignore_nan : bool</span>
+<span class="sd">        Ignore NaN values (treat them as if they are not in the array) when</span>
+<span class="sd">        computing the median.  This will use `numpy.ma.median` if ``axis`` is</span>
+<span class="sd">        specified, or `numpy.nanmedian` if ``axis=None`` and numpy&#39;s version is</span>
+<span class="sd">        &gt;1.10 because nanmedian is slightly faster in this case.</span>
+
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+<span class="sd">    mad_std : float or `~numpy.ndarray`</span>
+<span class="sd">        The robust standard deviation of the input data.  If ``axis`` is</span>
+<span class="sd">        `None` then a scalar will be returned, otherwise a</span>
+<span class="sd">        `~numpy.ndarray` will be returned.</span>
+
+<span class="sd">    Examples</span>
+<span class="sd">    --------</span>
+<span class="sd">    &gt;&gt;&gt; import numpy as np</span>
+<span class="sd">    &gt;&gt;&gt; from astropy.stats import mad_std</span>
+<span class="sd">    &gt;&gt;&gt; rand = np.random.RandomState(12345)</span>
+<span class="sd">    &gt;&gt;&gt; madstd = mad_std(rand.normal(5, 2, (100, 100)))</span>
+<span class="sd">    &gt;&gt;&gt; print(madstd)    # doctest: +FLOAT_CMP</span>
+<span class="sd">    2.0232764659422626</span>
+
+<span class="sd">    See Also</span>
+<span class="sd">    --------</span>
+<span class="sd">    biweight_midvariance, biweight_midcovariance, median_absolute_deviation</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="c1"># NOTE: 1. / scipy.stats.norm.ppf(0.75) = 1.482602218505602</span>
+    <span class="n">MAD</span> <span class="o">=</span> <span class="n">median_absolute_deviation</span><span class="p">(</span><span class="n">data</span><span class="p">,</span> <span class="n">axis</span><span class="o">=</span><span class="n">axis</span><span class="p">,</span> <span class="n">func</span><span class="o">=</span><span class="n">func</span><span class="p">,</span> <span class="n">ignore_nan</span><span class="o">=</span><span class="n">ignore_nan</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">MAD</span> <span class="o">*</span> <span class="mf">1.482602218505602</span></div>
+
+
+<div class="viewcode-block" id="signal_to_noise_oir_ccd"><a class="viewcode-back" href="../../../api/astropy.stats.signal_to_noise_oir_ccd.html#astropy.stats.signal_to_noise_oir_ccd">[docs]</a><span class="k">def</span> <span class="nf">signal_to_noise_oir_ccd</span><span class="p">(</span><span class="n">t</span><span class="p">,</span> <span class="n">source_eps</span><span class="p">,</span> <span class="n">sky_eps</span><span class="p">,</span> <span class="n">dark_eps</span><span class="p">,</span> <span class="n">rd</span><span class="p">,</span> <span class="n">npix</span><span class="p">,</span>
+                            <span class="n">gain</span><span class="o">=</span><span class="mf">1.0</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;Computes the signal to noise ratio for source being observed in the</span>
+<span class="sd">    optical/IR using a CCD.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    t : float or numpy.ndarray</span>
+<span class="sd">        CCD integration time in seconds</span>
+<span class="sd">    source_eps : float</span>
+<span class="sd">        Number of electrons (photons) or DN per second in the aperture from the</span>
+<span class="sd">        source. Note that this should already have been scaled by the filter</span>
+<span class="sd">        transmission and the quantum efficiency of the CCD. If the input is in</span>
+<span class="sd">        DN, then be sure to set the gain to the proper value for the CCD.</span>
+<span class="sd">        If the input is in electrons per second, then keep the gain as its</span>
+<span class="sd">        default of 1.0.</span>
+<span class="sd">    sky_eps : float</span>
+<span class="sd">        Number of electrons (photons) or DN per second per pixel from the sky</span>
+<span class="sd">        background. Should already be scaled by filter transmission and QE.</span>
+<span class="sd">        This must be in the same units as source_eps for the calculation to</span>
+<span class="sd">        make sense.</span>
+<span class="sd">    dark_eps : float</span>
+<span class="sd">        Number of thermal electrons per second per pixel. If this is given in</span>
+<span class="sd">        DN or ADU, then multiply by the gain to get the value in electrons.</span>
+<span class="sd">    rd : float</span>
+<span class="sd">        Read noise of the CCD in electrons. If this is given in</span>
+<span class="sd">        DN or ADU, then multiply by the gain to get the value in electrons.</span>
+<span class="sd">    npix : float</span>
+<span class="sd">        Size of the aperture in pixels</span>
+<span class="sd">    gain : float, optional</span>
+<span class="sd">        Gain of the CCD. In units of electrons per DN.</span>
+
+<span class="sd">    Returns</span>
+<span class="sd">    ----------</span>
+<span class="sd">    SNR : float or numpy.ndarray</span>
+<span class="sd">        Signal to noise ratio calculated from the inputs</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">signal</span> <span class="o">=</span> <span class="n">t</span> <span class="o">*</span> <span class="n">source_eps</span> <span class="o">*</span> <span class="n">gain</span>
+    <span class="n">noise</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">sqrt</span><span class="p">(</span><span class="n">t</span> <span class="o">*</span> <span class="p">(</span><span class="n">source_eps</span> <span class="o">*</span> <span class="n">gain</span> <span class="o">+</span> <span class="n">npix</span> <span class="o">*</span>
+                         <span class="p">(</span><span class="n">sky_eps</span> <span class="o">*</span> <span class="n">gain</span> <span class="o">+</span> <span class="n">dark_eps</span><span class="p">))</span> <span class="o">+</span> <span class="n">npix</span> <span class="o">*</span> <span class="n">rd</span> <span class="o">**</span> <span class="mi">2</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">signal</span> <span class="o">/</span> <span class="n">noise</span></div>
+
+
+<div class="viewcode-block" id="bootstrap"><a class="viewcode-back" href="../../../api/astropy.stats.bootstrap.html#astropy.stats.bootstrap">[docs]</a><span class="k">def</span> <span class="nf">bootstrap</span><span class="p">(</span><span class="n">data</span><span class="p">,</span> <span class="n">bootnum</span><span class="o">=</span><span class="mi">100</span><span class="p">,</span> <span class="n">samples</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">bootfunc</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;Performs bootstrap resampling on numpy arrays.</span>
+
+<span class="sd">    Bootstrap resampling is used to understand confidence intervals of sample</span>
+<span class="sd">    estimates. This function returns versions of the dataset resampled with</span>
+<span class="sd">    replacement (&quot;case bootstrapping&quot;). These can all be run through a function</span>
+<span class="sd">    or statistic to produce a distribution of values which can then be used to</span>
+<span class="sd">    find the confidence intervals.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    data : numpy.ndarray</span>
+<span class="sd">        N-D array. The bootstrap resampling will be performed on the first</span>
+<span class="sd">        index, so the first index should access the relevant information</span>
+<span class="sd">        to be bootstrapped.</span>
+<span class="sd">    bootnum : int, optional</span>
+<span class="sd">        Number of bootstrap resamples</span>
+<span class="sd">    samples : int, optional</span>
+<span class="sd">        Number of samples in each resample. The default `None` sets samples to</span>
+<span class="sd">        the number of datapoints</span>
+<span class="sd">    bootfunc : function, optional</span>
+<span class="sd">        Function to reduce the resampled data. Each bootstrap resample will</span>
+<span class="sd">        be put through this function and the results returned. If `None`, the</span>
+<span class="sd">        bootstrapped data will be returned</span>
+
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+<span class="sd">    boot : numpy.ndarray</span>
+
+<span class="sd">        If bootfunc is None, then each row is a bootstrap resample of the data.</span>
+<span class="sd">        If bootfunc is specified, then the columns will correspond to the</span>
+<span class="sd">        outputs of bootfunc.</span>
+
+<span class="sd">    Examples</span>
+<span class="sd">    --------</span>
+<span class="sd">    Obtain a twice resampled array:</span>
+
+<span class="sd">    &gt;&gt;&gt; from astropy.stats import bootstrap</span>
+<span class="sd">    &gt;&gt;&gt; import numpy as np</span>
+<span class="sd">    &gt;&gt;&gt; from astropy.utils import NumpyRNGContext</span>
+<span class="sd">    &gt;&gt;&gt; bootarr = np.array([1, 2, 3, 4, 5, 6, 7, 8, 9, 0])</span>
+<span class="sd">    &gt;&gt;&gt; with NumpyRNGContext(1):</span>
+<span class="sd">    ...     bootresult = bootstrap(bootarr, 2)</span>
+<span class="sd">    ...</span>
+<span class="sd">    &gt;&gt;&gt; bootresult</span>
+<span class="sd">    array([[ 6.,  9.,  0.,  6.,  1.,  1.,  2.,  8.,  7.,  0.],</span>
+<span class="sd">           [ 3.,  5.,  6.,  3.,  5.,  3.,  5.,  8.,  8.,  0.]])</span>
+<span class="sd">    &gt;&gt;&gt; bootresult.shape</span>
+<span class="sd">    (2, 10)</span>
+
+<span class="sd">    Obtain a statistic on the array</span>
+
+<span class="sd">    &gt;&gt;&gt; with NumpyRNGContext(1):</span>
+<span class="sd">    ...     bootresult = bootstrap(bootarr, 2, bootfunc=np.mean)</span>
+<span class="sd">    ...</span>
+<span class="sd">    &gt;&gt;&gt; bootresult</span>
+<span class="sd">    array([ 4. ,  4.6])</span>
+
+<span class="sd">    Obtain a statistic with two outputs on the array</span>
+
+<span class="sd">    &gt;&gt;&gt; test_statistic = lambda x: (np.sum(x), np.mean(x))</span>
+<span class="sd">    &gt;&gt;&gt; with NumpyRNGContext(1):</span>
+<span class="sd">    ...     bootresult = bootstrap(bootarr, 3, bootfunc=test_statistic)</span>
+<span class="sd">    &gt;&gt;&gt; bootresult</span>
+<span class="sd">    array([[ 40. ,   4. ],</span>
+<span class="sd">           [ 46. ,   4.6],</span>
+<span class="sd">           [ 35. ,   3.5]])</span>
+<span class="sd">    &gt;&gt;&gt; bootresult.shape</span>
+<span class="sd">    (3, 2)</span>
+
+<span class="sd">    Obtain a statistic with two outputs on the array, keeping only the first</span>
+<span class="sd">    output</span>
+
+<span class="sd">    &gt;&gt;&gt; bootfunc = lambda x:test_statistic(x)[0]</span>
+<span class="sd">    &gt;&gt;&gt; with NumpyRNGContext(1):</span>
+<span class="sd">    ...     bootresult = bootstrap(bootarr, 3, bootfunc=bootfunc)</span>
+<span class="sd">    ...</span>
+<span class="sd">    &gt;&gt;&gt; bootresult</span>
+<span class="sd">    array([ 40.,  46.,  35.])</span>
+<span class="sd">    &gt;&gt;&gt; bootresult.shape</span>
+<span class="sd">    (3,)</span>
+
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">if</span> <span class="n">samples</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="n">samples</span> <span class="o">=</span> <span class="n">data</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+
+    <span class="c1"># make sure the input is sane</span>
+    <span class="k">if</span> <span class="n">samples</span> <span class="o">&lt;</span> <span class="mi">1</span> <span class="ow">or</span> <span class="n">bootnum</span> <span class="o">&lt;</span> <span class="mi">1</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;neither &#39;samples&#39; nor &#39;bootnum&#39; can be less than 1.&quot;</span><span class="p">)</span>
+
+    <span class="k">if</span> <span class="n">bootfunc</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="n">resultdims</span> <span class="o">=</span> <span class="p">(</span><span class="n">bootnum</span><span class="p">,)</span> <span class="o">+</span> <span class="p">(</span><span class="n">samples</span><span class="p">,)</span> <span class="o">+</span> <span class="n">data</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">1</span><span class="p">:]</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="c1"># test number of outputs from bootfunc, avoid single outputs which are</span>
+        <span class="c1"># array-like</span>
+        <span class="k">try</span><span class="p">:</span>
+            <span class="n">resultdims</span> <span class="o">=</span> <span class="p">(</span><span class="n">bootnum</span><span class="p">,</span> <span class="nb">len</span><span class="p">(</span><span class="n">bootfunc</span><span class="p">(</span><span class="n">data</span><span class="p">)))</span>
+        <span class="k">except</span> <span class="ne">TypeError</span><span class="p">:</span>
+            <span class="n">resultdims</span> <span class="o">=</span> <span class="p">(</span><span class="n">bootnum</span><span class="p">,)</span>
+
+    <span class="c1"># create empty boot array</span>
+    <span class="n">boot</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">empty</span><span class="p">(</span><span class="n">resultdims</span><span class="p">)</span>
+
+    <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">bootnum</span><span class="p">):</span>
+        <span class="n">bootarr</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">random</span><span class="o">.</span><span class="n">randint</span><span class="p">(</span><span class="n">low</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span> <span class="n">high</span><span class="o">=</span><span class="n">data</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="n">size</span><span class="o">=</span><span class="n">samples</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">bootfunc</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">boot</span><span class="p">[</span><span class="n">i</span><span class="p">]</span> <span class="o">=</span> <span class="n">data</span><span class="p">[</span><span class="n">bootarr</span><span class="p">]</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">boot</span><span class="p">[</span><span class="n">i</span><span class="p">]</span> <span class="o">=</span> <span class="n">bootfunc</span><span class="p">(</span><span class="n">data</span><span class="p">[</span><span class="n">bootarr</span><span class="p">])</span>
+
+    <span class="k">return</span> <span class="n">boot</span></div>
+
+
+<span class="k">def</span> <span class="nf">_scipy_kraft_burrows_nousek</span><span class="p">(</span><span class="n">N</span><span class="p">,</span> <span class="n">B</span><span class="p">,</span> <span class="n">CL</span><span class="p">):</span>
+    <span class="sd">&#39;&#39;&#39;Upper limit on a poisson count rate</span>
+
+<span class="sd">    The implementation is based on Kraft, Burrows and Nousek</span>
+<span class="sd">    `ApJ 374, 344 (1991) &lt;http://adsabs.harvard.edu/abs/1991ApJ...374..344K&gt;`_.</span>
+<span class="sd">    The XMM-Newton upper limit server uses the same formalism.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    N : int</span>
+<span class="sd">        Total observed count number</span>
+<span class="sd">    B : float</span>
+<span class="sd">        Background count rate (assumed to be known with negligible error</span>
+<span class="sd">        from a large background area).</span>
+<span class="sd">    CL : float</span>
+<span class="sd">       Confidence level (number between 0 and 1)</span>
+
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+<span class="sd">    S : source count limit</span>
+
+<span class="sd">    Notes</span>
+<span class="sd">    -----</span>
+<span class="sd">    Requires `scipy`. This implementation will cause Overflow Errors for about</span>
+<span class="sd">    N &gt; 100 (the exact limit depends on details of how scipy was compiled).</span>
+<span class="sd">    See `~astropy.stats.mpmath_poisson_upper_limit` for an implementation that</span>
+<span class="sd">    is slower, but can deal with arbitrarily high numbers since it is based on</span>
+<span class="sd">    the `mpmath &lt;http://mpmath.org/&gt;`_ library.</span>
+<span class="sd">    &#39;&#39;&#39;</span>
+
+    <span class="kn">from</span> <span class="nn">scipy.optimize</span> <span class="k">import</span> <span class="n">brentq</span>
+    <span class="kn">from</span> <span class="nn">scipy.integrate</span> <span class="k">import</span> <span class="n">quad</span>
+
+    <span class="kn">from</span> <span class="nn">math</span> <span class="k">import</span> <span class="n">exp</span>
+
+    <span class="k">def</span> <span class="nf">eqn8</span><span class="p">(</span><span class="n">N</span><span class="p">,</span> <span class="n">B</span><span class="p">):</span>
+        <span class="n">n</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">arange</span><span class="p">(</span><span class="n">N</span> <span class="o">+</span> <span class="mi">1</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="n">np</span><span class="o">.</span><span class="n">float64</span><span class="p">)</span>
+        <span class="c1"># Create an array containing the factorials. scipy.special.factorial</span>
+        <span class="c1"># requires SciPy 0.14 (#5064) therefore this is calculated by using</span>
+        <span class="c1"># numpy.cumprod. This could be replaced by factorial again as soon as</span>
+        <span class="c1"># older SciPy are not supported anymore but the cumprod alternative</span>
+        <span class="c1"># might also be a bit faster.</span>
+        <span class="n">factorial_n</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">ones</span><span class="p">(</span><span class="n">n</span><span class="o">.</span><span class="n">shape</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="n">np</span><span class="o">.</span><span class="n">float64</span><span class="p">)</span>
+        <span class="n">np</span><span class="o">.</span><span class="n">cumprod</span><span class="p">(</span><span class="n">n</span><span class="p">[</span><span class="mi">1</span><span class="p">:],</span> <span class="n">out</span><span class="o">=</span><span class="n">factorial_n</span><span class="p">[</span><span class="mi">1</span><span class="p">:])</span>
+        <span class="k">return</span> <span class="mf">1.</span> <span class="o">/</span> <span class="p">(</span><span class="n">exp</span><span class="p">(</span><span class="o">-</span><span class="n">B</span><span class="p">)</span> <span class="o">*</span> <span class="n">np</span><span class="o">.</span><span class="n">sum</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">power</span><span class="p">(</span><span class="n">B</span><span class="p">,</span> <span class="n">n</span><span class="p">)</span> <span class="o">/</span> <span class="n">factorial_n</span><span class="p">))</span>
+
+    <span class="c1"># The parameters of eqn8 do not vary between calls so we can calculate the</span>
+    <span class="c1"># result once and reuse it. The same is True for the factorial of N.</span>
+    <span class="c1"># eqn7 is called hundred times so &quot;caching&quot; these values yields a</span>
+    <span class="c1"># significant speedup (factor 10).</span>
+    <span class="n">eqn8_res</span> <span class="o">=</span> <span class="n">eqn8</span><span class="p">(</span><span class="n">N</span><span class="p">,</span> <span class="n">B</span><span class="p">)</span>
+    <span class="n">factorial_N</span> <span class="o">=</span> <span class="nb">float</span><span class="p">(</span><span class="n">math</span><span class="o">.</span><span class="n">factorial</span><span class="p">(</span><span class="n">N</span><span class="p">))</span>
+
+    <span class="k">def</span> <span class="nf">eqn7</span><span class="p">(</span><span class="n">S</span><span class="p">,</span> <span class="n">N</span><span class="p">,</span> <span class="n">B</span><span class="p">):</span>
+        <span class="n">SpB</span> <span class="o">=</span> <span class="n">S</span> <span class="o">+</span> <span class="n">B</span>
+        <span class="k">return</span> <span class="n">eqn8_res</span> <span class="o">*</span> <span class="p">(</span><span class="n">exp</span><span class="p">(</span><span class="o">-</span><span class="n">SpB</span><span class="p">)</span> <span class="o">*</span> <span class="n">SpB</span><span class="o">**</span><span class="n">N</span> <span class="o">/</span> <span class="n">factorial_N</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">eqn9_left</span><span class="p">(</span><span class="n">S_min</span><span class="p">,</span> <span class="n">S_max</span><span class="p">,</span> <span class="n">N</span><span class="p">,</span> <span class="n">B</span><span class="p">):</span>
+        <span class="k">return</span> <span class="n">quad</span><span class="p">(</span><span class="n">eqn7</span><span class="p">,</span> <span class="n">S_min</span><span class="p">,</span> <span class="n">S_max</span><span class="p">,</span> <span class="n">args</span><span class="o">=</span><span class="p">(</span><span class="n">N</span><span class="p">,</span> <span class="n">B</span><span class="p">),</span> <span class="n">limit</span><span class="o">=</span><span class="mi">500</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">find_s_min</span><span class="p">(</span><span class="n">S_max</span><span class="p">,</span> <span class="n">N</span><span class="p">,</span> <span class="n">B</span><span class="p">):</span>
+        <span class="sd">&#39;&#39;&#39;</span>
+<span class="sd">        Kraft, Burrows and Nousek suggest to integrate from N-B in both</span>
+<span class="sd">        directions at once, so that S_min and S_max move similarly (see</span>
+<span class="sd">        the article for details). Here, this is implemented differently:</span>
+<span class="sd">        Treat S_max as the optimization parameters in func and then</span>
+<span class="sd">        calculate the matching s_min that has has eqn7(S_max) =</span>
+<span class="sd">        eqn7(S_min) here.</span>
+<span class="sd">        &#39;&#39;&#39;</span>
+        <span class="n">y_S_max</span> <span class="o">=</span> <span class="n">eqn7</span><span class="p">(</span><span class="n">S_max</span><span class="p">,</span> <span class="n">N</span><span class="p">,</span> <span class="n">B</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">eqn7</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="n">N</span><span class="p">,</span> <span class="n">B</span><span class="p">)</span> <span class="o">&gt;=</span> <span class="n">y_S_max</span><span class="p">:</span>
+            <span class="k">return</span> <span class="mf">0.</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">return</span> <span class="n">brentq</span><span class="p">(</span><span class="k">lambda</span> <span class="n">x</span><span class="p">:</span> <span class="n">eqn7</span><span class="p">(</span><span class="n">x</span><span class="p">,</span> <span class="n">N</span><span class="p">,</span> <span class="n">B</span><span class="p">)</span> <span class="o">-</span> <span class="n">y_S_max</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="n">N</span> <span class="o">-</span> <span class="n">B</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">func</span><span class="p">(</span><span class="n">s</span><span class="p">):</span>
+        <span class="n">s_min</span> <span class="o">=</span> <span class="n">find_s_min</span><span class="p">(</span><span class="n">s</span><span class="p">,</span> <span class="n">N</span><span class="p">,</span> <span class="n">B</span><span class="p">)</span>
+        <span class="n">out</span> <span class="o">=</span> <span class="n">eqn9_left</span><span class="p">(</span><span class="n">s_min</span><span class="p">,</span> <span class="n">s</span><span class="p">,</span> <span class="n">N</span><span class="p">,</span> <span class="n">B</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">out</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">-</span> <span class="n">CL</span>
+
+    <span class="n">S_max</span> <span class="o">=</span> <span class="n">brentq</span><span class="p">(</span><span class="n">func</span><span class="p">,</span> <span class="n">N</span> <span class="o">-</span> <span class="n">B</span><span class="p">,</span> <span class="mi">100</span><span class="p">)</span>
+    <span class="n">S_min</span> <span class="o">=</span> <span class="n">find_s_min</span><span class="p">(</span><span class="n">S_max</span><span class="p">,</span> <span class="n">N</span><span class="p">,</span> <span class="n">B</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">S_min</span><span class="p">,</span> <span class="n">S_max</span>
+
+
+<span class="k">def</span> <span class="nf">_mpmath_kraft_burrows_nousek</span><span class="p">(</span><span class="n">N</span><span class="p">,</span> <span class="n">B</span><span class="p">,</span> <span class="n">CL</span><span class="p">):</span>
+    <span class="sd">&#39;&#39;&#39;Upper limit on a poisson count rate</span>
+
+<span class="sd">    The implementation is based on Kraft, Burrows and Nousek in</span>
+<span class="sd">    `ApJ 374, 344 (1991) &lt;http://adsabs.harvard.edu/abs/1991ApJ...374..344K&gt;`_.</span>
+<span class="sd">    The XMM-Newton upper limit server used the same formalism.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    N : int</span>
+<span class="sd">        Total observed count number</span>
+<span class="sd">    B : float</span>
+<span class="sd">        Background count rate (assumed to be known with negligible error</span>
+<span class="sd">        from a large background area).</span>
+<span class="sd">    CL : float</span>
+<span class="sd">       Confidence level (number between 0 and 1)</span>
+
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+<span class="sd">    S : source count limit</span>
+
+<span class="sd">    Notes</span>
+<span class="sd">    -----</span>
+<span class="sd">    Requires the `mpmath &lt;http://mpmath.org/&gt;`_ library.  See</span>
+<span class="sd">    `~astropy.stats.scipy_poisson_upper_limit` for an implementation</span>
+<span class="sd">    that is based on scipy and evaluates faster, but runs only to about</span>
+<span class="sd">    N = 100.</span>
+<span class="sd">    &#39;&#39;&#39;</span>
+    <span class="kn">from</span> <span class="nn">mpmath</span> <span class="k">import</span> <span class="n">mpf</span><span class="p">,</span> <span class="n">factorial</span><span class="p">,</span> <span class="n">findroot</span><span class="p">,</span> <span class="n">fsum</span><span class="p">,</span> <span class="n">power</span><span class="p">,</span> <span class="n">exp</span><span class="p">,</span> <span class="n">quad</span>
+
+    <span class="n">N</span> <span class="o">=</span> <span class="n">mpf</span><span class="p">(</span><span class="n">N</span><span class="p">)</span>
+    <span class="n">B</span> <span class="o">=</span> <span class="n">mpf</span><span class="p">(</span><span class="n">B</span><span class="p">)</span>
+    <span class="n">CL</span> <span class="o">=</span> <span class="n">mpf</span><span class="p">(</span><span class="n">CL</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">eqn8</span><span class="p">(</span><span class="n">N</span><span class="p">,</span> <span class="n">B</span><span class="p">):</span>
+        <span class="n">sumterms</span> <span class="o">=</span> <span class="p">[</span><span class="n">power</span><span class="p">(</span><span class="n">B</span><span class="p">,</span> <span class="n">n</span><span class="p">)</span> <span class="o">/</span> <span class="n">factorial</span><span class="p">(</span><span class="n">n</span><span class="p">)</span> <span class="k">for</span> <span class="n">n</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="nb">int</span><span class="p">(</span><span class="n">N</span><span class="p">)</span> <span class="o">+</span> <span class="mi">1</span><span class="p">)]</span>
+        <span class="k">return</span> <span class="mf">1.</span> <span class="o">/</span> <span class="p">(</span><span class="n">exp</span><span class="p">(</span><span class="o">-</span><span class="n">B</span><span class="p">)</span> <span class="o">*</span> <span class="n">fsum</span><span class="p">(</span><span class="n">sumterms</span><span class="p">))</span>
+
+    <span class="n">eqn8_res</span> <span class="o">=</span> <span class="n">eqn8</span><span class="p">(</span><span class="n">N</span><span class="p">,</span> <span class="n">B</span><span class="p">)</span>
+    <span class="n">factorial_N</span> <span class="o">=</span> <span class="n">factorial</span><span class="p">(</span><span class="n">N</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">eqn7</span><span class="p">(</span><span class="n">S</span><span class="p">,</span> <span class="n">N</span><span class="p">,</span> <span class="n">B</span><span class="p">):</span>
+        <span class="n">SpB</span> <span class="o">=</span> <span class="n">S</span> <span class="o">+</span> <span class="n">B</span>
+        <span class="k">return</span> <span class="n">eqn8_res</span> <span class="o">*</span> <span class="p">(</span><span class="n">exp</span><span class="p">(</span><span class="o">-</span><span class="n">SpB</span><span class="p">)</span> <span class="o">*</span> <span class="n">SpB</span><span class="o">**</span><span class="n">N</span> <span class="o">/</span> <span class="n">factorial_N</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">eqn9_left</span><span class="p">(</span><span class="n">S_min</span><span class="p">,</span> <span class="n">S_max</span><span class="p">,</span> <span class="n">N</span><span class="p">,</span> <span class="n">B</span><span class="p">):</span>
+        <span class="k">def</span> <span class="nf">eqn7NB</span><span class="p">(</span><span class="n">S</span><span class="p">):</span>
+            <span class="k">return</span> <span class="n">eqn7</span><span class="p">(</span><span class="n">S</span><span class="p">,</span> <span class="n">N</span><span class="p">,</span> <span class="n">B</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">quad</span><span class="p">(</span><span class="n">eqn7NB</span><span class="p">,</span> <span class="p">[</span><span class="n">S_min</span><span class="p">,</span> <span class="n">S_max</span><span class="p">])</span>
+
+    <span class="k">def</span> <span class="nf">find_s_min</span><span class="p">(</span><span class="n">S_max</span><span class="p">,</span> <span class="n">N</span><span class="p">,</span> <span class="n">B</span><span class="p">):</span>
+        <span class="sd">&#39;&#39;&#39;</span>
+<span class="sd">        Kraft, Burrows and Nousek suggest to integrate from N-B in both</span>
+<span class="sd">        directions at once, so that S_min and S_max move similarly (see</span>
+<span class="sd">        the article for details). Here, this is implemented differently:</span>
+<span class="sd">        Treat S_max as the optimization parameters in func and then</span>
+<span class="sd">        calculate the matching s_min that has has eqn7(S_max) =</span>
+<span class="sd">        eqn7(S_min) here.</span>
+<span class="sd">        &#39;&#39;&#39;</span>
+        <span class="n">y_S_max</span> <span class="o">=</span> <span class="n">eqn7</span><span class="p">(</span><span class="n">S_max</span><span class="p">,</span> <span class="n">N</span><span class="p">,</span> <span class="n">B</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">eqn7</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="n">N</span><span class="p">,</span> <span class="n">B</span><span class="p">)</span> <span class="o">&gt;=</span> <span class="n">y_S_max</span><span class="p">:</span>
+            <span class="k">return</span> <span class="mf">0.</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">def</span> <span class="nf">eqn7ysmax</span><span class="p">(</span><span class="n">x</span><span class="p">):</span>
+                <span class="k">return</span> <span class="n">eqn7</span><span class="p">(</span><span class="n">x</span><span class="p">,</span> <span class="n">N</span><span class="p">,</span> <span class="n">B</span><span class="p">)</span> <span class="o">-</span> <span class="n">y_S_max</span>
+            <span class="k">return</span> <span class="n">findroot</span><span class="p">(</span><span class="n">eqn7ysmax</span><span class="p">,</span> <span class="p">(</span><span class="n">N</span> <span class="o">-</span> <span class="n">B</span><span class="p">)</span> <span class="o">/</span> <span class="mf">2.</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">func</span><span class="p">(</span><span class="n">s</span><span class="p">):</span>
+        <span class="n">s_min</span> <span class="o">=</span> <span class="n">find_s_min</span><span class="p">(</span><span class="n">s</span><span class="p">,</span> <span class="n">N</span><span class="p">,</span> <span class="n">B</span><span class="p">)</span>
+        <span class="n">out</span> <span class="o">=</span> <span class="n">eqn9_left</span><span class="p">(</span><span class="n">s_min</span><span class="p">,</span> <span class="n">s</span><span class="p">,</span> <span class="n">N</span><span class="p">,</span> <span class="n">B</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">out</span> <span class="o">-</span> <span class="n">CL</span>
+
+    <span class="n">S_max</span> <span class="o">=</span> <span class="n">findroot</span><span class="p">(</span><span class="n">func</span><span class="p">,</span> <span class="n">N</span> <span class="o">-</span> <span class="n">B</span><span class="p">,</span> <span class="n">tol</span><span class="o">=</span><span class="mi">1</span><span class="n">e</span><span class="o">-</span><span class="mi">4</span><span class="p">)</span>
+    <span class="n">S_min</span> <span class="o">=</span> <span class="n">find_s_min</span><span class="p">(</span><span class="n">S_max</span><span class="p">,</span> <span class="n">N</span><span class="p">,</span> <span class="n">B</span><span class="p">)</span>
+    <span class="k">return</span> <span class="nb">float</span><span class="p">(</span><span class="n">S_min</span><span class="p">),</span> <span class="nb">float</span><span class="p">(</span><span class="n">S_max</span><span class="p">)</span>
+
+
+<span class="k">def</span> <span class="nf">_kraft_burrows_nousek</span><span class="p">(</span><span class="n">N</span><span class="p">,</span> <span class="n">B</span><span class="p">,</span> <span class="n">CL</span><span class="p">):</span>
+    <span class="sd">&#39;&#39;&#39;Upper limit on a poisson count rate</span>
+
+<span class="sd">    The implementation is based on Kraft, Burrows and Nousek in</span>
+<span class="sd">    `ApJ 374, 344 (1991) &lt;http://adsabs.harvard.edu/abs/1991ApJ...374..344K&gt;`_.</span>
+<span class="sd">    The XMM-Newton upper limit server used the same formalism.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    N : int</span>
+<span class="sd">        Total observed count number</span>
+<span class="sd">    B : float</span>
+<span class="sd">        Background count rate (assumed to be known with negligible error</span>
+<span class="sd">        from a large background area).</span>
+<span class="sd">    CL : float</span>
+<span class="sd">       Confidence level (number between 0 and 1)</span>
+
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+<span class="sd">    S : source count limit</span>
+
+<span class="sd">    Notes</span>
+<span class="sd">    -----</span>
+<span class="sd">    This functions has an optional dependency: Either `scipy` or `mpmath</span>
+<span class="sd">    &lt;http://mpmath.org/&gt;`_  need to be available. (Scipy only works for</span>
+<span class="sd">    N &lt; 100).</span>
+<span class="sd">    &#39;&#39;&#39;</span>
+    <span class="k">try</span><span class="p">:</span>
+        <span class="kn">import</span> <span class="nn">scipy</span>
+        <span class="n">HAS_SCIPY</span> <span class="o">=</span> <span class="kc">True</span>
+    <span class="k">except</span> <span class="ne">ImportError</span><span class="p">:</span>
+        <span class="n">HAS_SCIPY</span> <span class="o">=</span> <span class="kc">False</span>
+
+    <span class="k">try</span><span class="p">:</span>
+        <span class="kn">import</span> <span class="nn">mpmath</span>
+        <span class="n">HAS_MPMATH</span> <span class="o">=</span> <span class="kc">True</span>
+    <span class="k">except</span> <span class="ne">ImportError</span><span class="p">:</span>
+        <span class="n">HAS_MPMATH</span> <span class="o">=</span> <span class="kc">False</span>
+
+    <span class="k">if</span> <span class="n">HAS_SCIPY</span> <span class="ow">and</span> <span class="n">N</span> <span class="o">&lt;=</span> <span class="mi">100</span><span class="p">:</span>
+        <span class="k">try</span><span class="p">:</span>
+            <span class="k">return</span> <span class="n">_scipy_kraft_burrows_nousek</span><span class="p">(</span><span class="n">N</span><span class="p">,</span> <span class="n">B</span><span class="p">,</span> <span class="n">CL</span><span class="p">)</span>
+        <span class="k">except</span> <span class="ne">OverflowError</span><span class="p">:</span>
+            <span class="k">if</span> <span class="ow">not</span> <span class="n">HAS_MPMATH</span><span class="p">:</span>
+                <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s1">&#39;Need mpmath package for input numbers this &#39;</span>
+                                 <span class="s1">&#39;large.&#39;</span><span class="p">)</span>
+    <span class="k">if</span> <span class="n">HAS_MPMATH</span><span class="p">:</span>
+        <span class="k">return</span> <span class="n">_mpmath_kraft_burrows_nousek</span><span class="p">(</span><span class="n">N</span><span class="p">,</span> <span class="n">B</span><span class="p">,</span> <span class="n">CL</span><span class="p">)</span>
+
+    <span class="k">raise</span> <span class="ne">ImportError</span><span class="p">(</span><span class="s1">&#39;Either scipy or mpmath are required.&#39;</span><span class="p">)</span>
+</pre></div>
+
+          </div>
+        </div>
+      </div>
+      <div class="sphinxsidebar" role="navigation" aria-label="main navigation">
+        <div class="sphinxsidebarwrapper"><h3>Page Contents</h3>
+
+
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+<footer class="footer">
+  <p class="pull-right"> &nbsp;
+    <a href="#">Back to Top</a></p>
+  <p>
+    &copy; Copyright 2011-2016, The Astropy Developers.<br/>
+    Created using <a href="http://sphinx.pocoo.org/">Sphinx</a> 1.5.6. &nbsp;
+    Last built 05 Jul 2017. <br/>
+  </p>
+</footer>
+  </body>
+</html>

@@ -1,0 +1,231 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <head>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    
+    <title>astropy.io.votable.xmlutil &#8212; Astropy v3.0.dev19489</title>
+    
+    <link rel="stylesheet" href="../../../../_static/bootstrap-astropy.css" type="text/css" />
+    <link rel="stylesheet" href="../../../../_static/pygments.css" type="text/css" />
+    <link rel="stylesheet" href="../../../../_static/gallery.css" type="text/css" />
+    
+    <script type="text/javascript">
+      var DOCUMENTATION_OPTIONS = {
+        URL_ROOT:    '../../../../',
+        VERSION:     '3.0.dev19489',
+        COLLAPSE_INDEX: false,
+        FILE_SUFFIX: '.html',
+        HAS_SOURCE:  true,
+        SOURCELINK_SUFFIX: '.txt'
+      };
+    </script>
+    <script type="text/javascript" src="../../../../_static/jquery.js"></script>
+    <script type="text/javascript" src="../../../../_static/underscore.js"></script>
+    <script type="text/javascript" src="../../../../_static/doctools.js"></script>
+    <script type="text/javascript" src="../../../../_static/sidebar.js"></script>
+    <link rel="shortcut icon" href="../../../../_static/astropy_logo.ico"/>
+    <link rel="index" title="Index" href="../../../../genindex.html" />
+    <link rel="search" title="Search" href="../../../../search.html" />
+<link href='https://fonts.googleapis.com/css?family=Source+Sans+Pro:200,600' rel='stylesheet' type='text/css'/>
+<script type="text/javascript" src="../../../../_static/copybutton.js"></script>
+
+
+  </head>
+  <body role="document">
+<div class="topbar">
+  <a class="brand" title="Documentation Home" href="../../../../index.html"><span id="logotext1">astro</span><span id="logotext2">py</span><span id="logotext3">:docs</span></a>
+  <ul>
+    <li><a class="homelink" title="Astropy Homepage" href="http://www.astropy.org"></a></li>
+    <li><a title="General Index" href="../../../../genindex.html">Index</a></li>
+    <li><a title="Module Index" href="../../../../py-modindex.html">Modules</a></li>
+    <li>
+      
+      
+<form action="../../../../search.html" method="get">
+  <input type="text" name="q" placeholder="Search" />
+  <input type="hidden" name="check_keywords" value="yes" />
+  <input type="hidden" name="area" value="default" />
+</form>
+      
+    </li>
+  </ul>
+</div>
+
+<div class="related">
+    <h3>Navigation</h3>
+    <ul>
+      <li>
+	<a href="../../../../index.html">Astropy v3.0.dev19489</a>
+	 &#187;
+      </li>
+      <li><a href="../../../index.html" >Module code</a> &#187;</li>
+      <li><a href="../../../astropy.html" >astropy</a> &#187;</li>
+      <li><a href="../votable.html" accesskey="U">astropy.io.votable</a> &#187;</li>
+      
+       
+    </ul>
+</div>
+  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          <div class="body" role="main">
+            
+  <h1>Source code for astropy.io.votable.xmlutil</h1><div class="highlight"><pre>
+<span></span><span class="c1"># Licensed under a 3-clause BSD style license - see LICENSE.rst</span>
+<span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">Various XML-related utilities</span>
+<span class="sd">&quot;&quot;&quot;</span>
+
+<span class="kn">from</span> <span class="nn">__future__</span> <span class="k">import</span> <span class="n">absolute_import</span><span class="p">,</span> <span class="n">division</span><span class="p">,</span> <span class="n">print_function</span><span class="p">,</span> <span class="n">unicode_literals</span>
+
+<span class="c1"># ASTROPY</span>
+<span class="kn">from</span> <span class="nn">...logger</span> <span class="k">import</span> <span class="n">log</span>
+<span class="kn">from</span> <span class="nn">...utils</span> <span class="k">import</span> <span class="n">data</span>
+<span class="kn">from</span> <span class="nn">...utils.xml</span> <span class="k">import</span> <span class="n">check</span> <span class="k">as</span> <span class="n">xml_check</span>
+<span class="kn">from</span> <span class="nn">...utils.xml</span> <span class="k">import</span> <span class="n">validate</span>
+
+<span class="c1"># LOCAL</span>
+<span class="kn">from</span> <span class="nn">.exceptions</span> <span class="k">import</span> <span class="p">(</span><span class="n">warn_or_raise</span><span class="p">,</span> <span class="n">vo_warn</span><span class="p">,</span> <span class="n">W02</span><span class="p">,</span> <span class="n">W03</span><span class="p">,</span> <span class="n">W04</span><span class="p">,</span> <span class="n">W05</span><span class="p">)</span>
+
+
+<span class="n">__all__</span> <span class="o">=</span> <span class="p">[</span>
+    <span class="s1">&#39;check_id&#39;</span><span class="p">,</span> <span class="s1">&#39;fix_id&#39;</span><span class="p">,</span> <span class="s1">&#39;check_token&#39;</span><span class="p">,</span> <span class="s1">&#39;check_mime_content_type&#39;</span><span class="p">,</span>
+    <span class="s1">&#39;check_anyuri&#39;</span><span class="p">,</span> <span class="s1">&#39;validate_schema&#39;</span>
+    <span class="p">]</span>
+
+
+<div class="viewcode-block" id="check_id"><a class="viewcode-back" href="../../../../api/astropy.io.votable.xmlutil.check_id.html#astropy.io.votable.xmlutil.check_id">[docs]</a><span class="k">def</span> <span class="nf">check_id</span><span class="p">(</span><span class="n">ID</span><span class="p">,</span> <span class="n">name</span><span class="o">=</span><span class="s1">&#39;ID&#39;</span><span class="p">,</span> <span class="n">config</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">pos</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Raises a `~astropy.io.votable.exceptions.VOTableSpecError` if *ID*</span>
+<span class="sd">    is not a valid XML ID_.</span>
+
+<span class="sd">    *name* is the name of the attribute being checked (used only for</span>
+<span class="sd">    error messages).</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">if</span> <span class="p">(</span><span class="n">ID</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="ow">and</span> <span class="ow">not</span> <span class="n">xml_check</span><span class="o">.</span><span class="n">check_id</span><span class="p">(</span><span class="n">ID</span><span class="p">)):</span>
+        <span class="n">warn_or_raise</span><span class="p">(</span><span class="n">W02</span><span class="p">,</span> <span class="n">W02</span><span class="p">,</span> <span class="p">(</span><span class="n">name</span><span class="p">,</span> <span class="n">ID</span><span class="p">),</span> <span class="n">config</span><span class="p">,</span> <span class="n">pos</span><span class="p">)</span>
+        <span class="k">return</span> <span class="kc">False</span>
+    <span class="k">return</span> <span class="kc">True</span></div>
+
+
+<div class="viewcode-block" id="fix_id"><a class="viewcode-back" href="../../../../api/astropy.io.votable.xmlutil.fix_id.html#astropy.io.votable.xmlutil.fix_id">[docs]</a><span class="k">def</span> <span class="nf">fix_id</span><span class="p">(</span><span class="n">ID</span><span class="p">,</span> <span class="n">config</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">pos</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Given an arbitrary string, create one that can be used as an xml id.</span>
+
+<span class="sd">    This is rather simplistic at the moment, since it just replaces</span>
+<span class="sd">    non-valid characters with underscores.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">if</span> <span class="n">ID</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="k">return</span> <span class="kc">None</span>
+    <span class="n">corrected</span> <span class="o">=</span> <span class="n">xml_check</span><span class="o">.</span><span class="n">fix_id</span><span class="p">(</span><span class="n">ID</span><span class="p">)</span>
+    <span class="k">if</span> <span class="n">corrected</span> <span class="o">!=</span> <span class="n">ID</span><span class="p">:</span>
+        <span class="n">vo_warn</span><span class="p">(</span><span class="n">W03</span><span class="p">,</span> <span class="p">(</span><span class="n">ID</span><span class="p">,</span> <span class="n">corrected</span><span class="p">),</span> <span class="n">config</span><span class="p">,</span> <span class="n">pos</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">corrected</span></div>
+
+
+<span class="n">_token_regex</span> <span class="o">=</span> <span class="s2">r&quot;(?![\r\l\t ])[^\r\l\t]*(?![\r\l\t ])&quot;</span>
+
+
+<div class="viewcode-block" id="check_token"><a class="viewcode-back" href="../../../../api/astropy.io.votable.xmlutil.check_token.html#astropy.io.votable.xmlutil.check_token">[docs]</a><span class="k">def</span> <span class="nf">check_token</span><span class="p">(</span><span class="n">token</span><span class="p">,</span> <span class="n">attr_name</span><span class="p">,</span> <span class="n">config</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">pos</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Raises a `ValueError` if *token* is not a valid XML token.</span>
+
+<span class="sd">    As defined by XML Schema Part 2.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">if</span> <span class="p">(</span><span class="n">token</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="ow">and</span> <span class="ow">not</span> <span class="n">xml_check</span><span class="o">.</span><span class="n">check_token</span><span class="p">(</span><span class="n">token</span><span class="p">)):</span>
+        <span class="k">return</span> <span class="kc">False</span>
+    <span class="k">return</span> <span class="kc">True</span></div>
+
+
+<div class="viewcode-block" id="check_mime_content_type"><a class="viewcode-back" href="../../../../api/astropy.io.votable.xmlutil.check_mime_content_type.html#astropy.io.votable.xmlutil.check_mime_content_type">[docs]</a><span class="k">def</span> <span class="nf">check_mime_content_type</span><span class="p">(</span><span class="n">content_type</span><span class="p">,</span> <span class="n">config</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">pos</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Raises a `~astropy.io.votable.exceptions.VOTableSpecError` if</span>
+<span class="sd">    *content_type* is not a valid MIME content type.</span>
+
+<span class="sd">    As defined by RFC 2045 (syntactically, at least).</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">if</span> <span class="p">(</span><span class="n">content_type</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="ow">and</span>
+        <span class="ow">not</span> <span class="n">xml_check</span><span class="o">.</span><span class="n">check_mime_content_type</span><span class="p">(</span><span class="n">content_type</span><span class="p">)):</span>
+        <span class="n">warn_or_raise</span><span class="p">(</span><span class="n">W04</span><span class="p">,</span> <span class="n">W04</span><span class="p">,</span> <span class="n">content_type</span><span class="p">,</span> <span class="n">config</span><span class="p">,</span> <span class="n">pos</span><span class="p">)</span>
+        <span class="k">return</span> <span class="kc">False</span>
+    <span class="k">return</span> <span class="kc">True</span></div>
+
+
+<div class="viewcode-block" id="check_anyuri"><a class="viewcode-back" href="../../../../api/astropy.io.votable.xmlutil.check_anyuri.html#astropy.io.votable.xmlutil.check_anyuri">[docs]</a><span class="k">def</span> <span class="nf">check_anyuri</span><span class="p">(</span><span class="n">uri</span><span class="p">,</span> <span class="n">config</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">pos</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Raises a `~astropy.io.votable.exceptions.VOTableSpecError` if</span>
+<span class="sd">    *uri* is not a valid URI.</span>
+
+<span class="sd">    As defined in RFC 2396.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">if</span> <span class="p">(</span><span class="n">uri</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="ow">and</span> <span class="ow">not</span> <span class="n">xml_check</span><span class="o">.</span><span class="n">check_anyuri</span><span class="p">(</span><span class="n">uri</span><span class="p">)):</span>
+        <span class="n">warn_or_raise</span><span class="p">(</span><span class="n">W05</span><span class="p">,</span> <span class="n">W05</span><span class="p">,</span> <span class="n">uri</span><span class="p">,</span> <span class="n">config</span><span class="p">,</span> <span class="n">pos</span><span class="p">)</span>
+        <span class="k">return</span> <span class="kc">False</span>
+    <span class="k">return</span> <span class="kc">True</span></div>
+
+
+<div class="viewcode-block" id="validate_schema"><a class="viewcode-back" href="../../../../api/astropy.io.votable.xmlutil.validate_schema.html#astropy.io.votable.xmlutil.validate_schema">[docs]</a><span class="k">def</span> <span class="nf">validate_schema</span><span class="p">(</span><span class="n">filename</span><span class="p">,</span> <span class="n">version</span><span class="o">=</span><span class="s1">&#39;1.1&#39;</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Validates the given file against the appropriate VOTable schema.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    filename : str</span>
+<span class="sd">        The path to the XML file to validate</span>
+
+<span class="sd">    version : str, optional</span>
+<span class="sd">        The VOTABLE version to check, which must be a string \&quot;1.0\&quot;,</span>
+<span class="sd">        \&quot;1.1\&quot;, \&quot;1.2\&quot; or \&quot;1.3\&quot;.  If it is not one of these,</span>
+<span class="sd">        version \&quot;1.1\&quot; is assumed.</span>
+
+<span class="sd">        For version \&quot;1.0\&quot;, it is checked against a DTD, since that</span>
+<span class="sd">        version did not have an XML Schema.</span>
+
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+<span class="sd">    returncode, stdout, stderr : int, str, str</span>
+<span class="sd">        Returns the returncode from xmllint and the stdout and stderr</span>
+<span class="sd">        as strings</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">if</span> <span class="n">version</span> <span class="ow">not</span> <span class="ow">in</span> <span class="p">(</span><span class="s1">&#39;1.0&#39;</span><span class="p">,</span> <span class="s1">&#39;1.1&#39;</span><span class="p">,</span> <span class="s1">&#39;1.2&#39;</span><span class="p">,</span> <span class="s1">&#39;1.3&#39;</span><span class="p">):</span>
+        <span class="n">log</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s1">&#39;</span><span class="si">{0}</span><span class="s1"> has version </span><span class="si">{1}</span><span class="s1">, using schema 1.1&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span>
+            <span class="n">filename</span><span class="p">,</span> <span class="n">version</span><span class="p">))</span>
+        <span class="n">version</span> <span class="o">=</span> <span class="s1">&#39;1.1&#39;</span>
+
+    <span class="k">if</span> <span class="n">version</span> <span class="ow">in</span> <span class="p">(</span><span class="s1">&#39;1.1&#39;</span><span class="p">,</span> <span class="s1">&#39;1.2&#39;</span><span class="p">,</span> <span class="s1">&#39;1.3&#39;</span><span class="p">):</span>
+        <span class="n">schema_path</span> <span class="o">=</span> <span class="n">data</span><span class="o">.</span><span class="n">get_pkg_data_filename</span><span class="p">(</span>
+            <span class="s1">&#39;data/VOTable.v</span><span class="si">{0}</span><span class="s1">.xsd&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">version</span><span class="p">))</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="n">schema_path</span> <span class="o">=</span> <span class="n">data</span><span class="o">.</span><span class="n">get_pkg_data_filename</span><span class="p">(</span>
+            <span class="s1">&#39;data/VOTable.dtd&#39;</span><span class="p">)</span>
+
+    <span class="k">return</span> <span class="n">validate</span><span class="o">.</span><span class="n">validate_schema</span><span class="p">(</span><span class="n">filename</span><span class="p">,</span> <span class="n">schema_path</span><span class="p">)</span></div>
+</pre></div>
+
+          </div>
+        </div>
+      </div>
+      <div class="sphinxsidebar" role="navigation" aria-label="main navigation">
+        <div class="sphinxsidebarwrapper"><h3>Page Contents</h3>
+
+
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+<footer class="footer">
+  <p class="pull-right"> &nbsp;
+    <a href="#">Back to Top</a></p>
+  <p>
+    &copy; Copyright 2011-2016, The Astropy Developers.<br/>
+    Created using <a href="http://sphinx.pocoo.org/">Sphinx</a> 1.5.6. &nbsp;
+    Last built 05 Jul 2017. <br/>
+  </p>
+</footer>
+  </body>
+</html>

@@ -1,0 +1,1207 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <head>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    
+    <title>astropy.utils.misc &#8212; Astropy v3.0.dev19489</title>
+    
+    <link rel="stylesheet" href="../../../_static/bootstrap-astropy.css" type="text/css" />
+    <link rel="stylesheet" href="../../../_static/pygments.css" type="text/css" />
+    <link rel="stylesheet" href="../../../_static/gallery.css" type="text/css" />
+    
+    <script type="text/javascript">
+      var DOCUMENTATION_OPTIONS = {
+        URL_ROOT:    '../../../',
+        VERSION:     '3.0.dev19489',
+        COLLAPSE_INDEX: false,
+        FILE_SUFFIX: '.html',
+        HAS_SOURCE:  true,
+        SOURCELINK_SUFFIX: '.txt'
+      };
+    </script>
+    <script type="text/javascript" src="../../../_static/jquery.js"></script>
+    <script type="text/javascript" src="../../../_static/underscore.js"></script>
+    <script type="text/javascript" src="../../../_static/doctools.js"></script>
+    <script type="text/javascript" src="../../../_static/sidebar.js"></script>
+    <link rel="shortcut icon" href="../../../_static/astropy_logo.ico"/>
+    <link rel="index" title="Index" href="../../../genindex.html" />
+    <link rel="search" title="Search" href="../../../search.html" />
+<link href='https://fonts.googleapis.com/css?family=Source+Sans+Pro:200,600' rel='stylesheet' type='text/css'/>
+<script type="text/javascript" src="../../../_static/copybutton.js"></script>
+
+
+  </head>
+  <body role="document">
+<div class="topbar">
+  <a class="brand" title="Documentation Home" href="../../../index.html"><span id="logotext1">astro</span><span id="logotext2">py</span><span id="logotext3">:docs</span></a>
+  <ul>
+    <li><a class="homelink" title="Astropy Homepage" href="http://www.astropy.org"></a></li>
+    <li><a title="General Index" href="../../../genindex.html">Index</a></li>
+    <li><a title="Module Index" href="../../../py-modindex.html">Modules</a></li>
+    <li>
+      
+      
+<form action="../../../search.html" method="get">
+  <input type="text" name="q" placeholder="Search" />
+  <input type="hidden" name="check_keywords" value="yes" />
+  <input type="hidden" name="area" value="default" />
+</form>
+      
+    </li>
+  </ul>
+</div>
+
+<div class="related">
+    <h3>Navigation</h3>
+    <ul>
+      <li>
+	<a href="../../../index.html">Astropy v3.0.dev19489</a>
+	 &#187;
+      </li>
+      <li><a href="../../index.html" >Module code</a> &#187;</li>
+      <li><a href="../../astropy.html" accesskey="U">astropy</a> &#187;</li>
+      
+       
+    </ul>
+</div>
+  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          <div class="body" role="main">
+            
+  <h1>Source code for astropy.utils.misc</h1><div class="highlight"><pre>
+<span></span><span class="c1"># -*- coding: utf-8 -*-</span>
+<span class="c1"># Licensed under a 3-clause BSD style license - see LICENSE.rst</span>
+<span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">A &quot;grab bag&quot; of relatively small general-purpose utilities that don&#39;t have</span>
+<span class="sd">a clear module/package to live in.</span>
+<span class="sd">&quot;&quot;&quot;</span>
+
+<span class="kn">from</span> <span class="nn">__future__</span> <span class="k">import</span> <span class="p">(</span><span class="n">absolute_import</span><span class="p">,</span> <span class="n">division</span><span class="p">,</span> <span class="n">print_function</span><span class="p">,</span>
+                        <span class="n">unicode_literals</span><span class="p">)</span>
+
+
+<span class="kn">import</span> <span class="nn">abc</span>
+<span class="kn">import</span> <span class="nn">contextlib</span>
+<span class="kn">import</span> <span class="nn">difflib</span>
+<span class="kn">import</span> <span class="nn">inspect</span>
+<span class="kn">import</span> <span class="nn">json</span>
+<span class="kn">import</span> <span class="nn">os</span>
+<span class="kn">import</span> <span class="nn">signal</span>
+<span class="kn">import</span> <span class="nn">sys</span>
+<span class="kn">import</span> <span class="nn">traceback</span>
+<span class="kn">import</span> <span class="nn">unicodedata</span>
+<span class="kn">import</span> <span class="nn">locale</span>
+<span class="kn">import</span> <span class="nn">threading</span>
+
+<span class="kn">from</span> <span class="nn">contextlib</span> <span class="k">import</span> <span class="n">contextmanager</span>
+<span class="kn">from</span> <span class="nn">collections</span> <span class="k">import</span> <span class="n">defaultdict</span><span class="p">,</span> <span class="n">OrderedDict</span>
+
+<span class="kn">from</span> <span class="nn">..extern</span> <span class="k">import</span> <span class="n">six</span>
+<span class="kn">from</span> <span class="nn">..extern.six.moves</span> <span class="k">import</span> <span class="n">urllib</span><span class="p">,</span> <span class="nb">range</span><span class="p">,</span> <span class="n">zip_longest</span>
+
+
+<span class="n">__all__</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;isiterable&#39;</span><span class="p">,</span> <span class="s1">&#39;silence&#39;</span><span class="p">,</span> <span class="s1">&#39;format_exception&#39;</span><span class="p">,</span> <span class="s1">&#39;NumpyRNGContext&#39;</span><span class="p">,</span>
+           <span class="s1">&#39;find_api_page&#39;</span><span class="p">,</span> <span class="s1">&#39;is_path_hidden&#39;</span><span class="p">,</span> <span class="s1">&#39;walk_skip_hidden&#39;</span><span class="p">,</span>
+           <span class="s1">&#39;JsonCustomEncoder&#39;</span><span class="p">,</span> <span class="s1">&#39;indent&#39;</span><span class="p">,</span> <span class="s1">&#39;InheritDocstrings&#39;</span><span class="p">,</span>
+           <span class="s1">&#39;OrderedDescriptor&#39;</span><span class="p">,</span> <span class="s1">&#39;OrderedDescriptorContainer&#39;</span><span class="p">,</span> <span class="s1">&#39;set_locale&#39;</span><span class="p">,</span>
+           <span class="s1">&#39;ShapedLikeNDArray&#39;</span><span class="p">,</span> <span class="s1">&#39;check_broadcast&#39;</span><span class="p">,</span> <span class="s1">&#39;IncompatibleShapeError&#39;</span><span class="p">]</span>
+
+
+<div class="viewcode-block" id="isiterable"><a class="viewcode-back" href="../../../api/astropy.utils.misc.isiterable.html#astropy.time.isiterable">[docs]</a><span class="k">def</span> <span class="nf">isiterable</span><span class="p">(</span><span class="n">obj</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;Returns `True` if the given object is iterable.&quot;&quot;&quot;</span>
+
+    <span class="k">try</span><span class="p">:</span>
+        <span class="nb">iter</span><span class="p">(</span><span class="n">obj</span><span class="p">)</span>
+        <span class="k">return</span> <span class="kc">True</span>
+    <span class="k">except</span> <span class="ne">TypeError</span><span class="p">:</span>
+        <span class="k">return</span> <span class="kc">False</span></div>
+
+
+<div class="viewcode-block" id="indent"><a class="viewcode-back" href="../../../api/astropy.utils.misc.indent.html#astropy.time.indent">[docs]</a><span class="k">def</span> <span class="nf">indent</span><span class="p">(</span><span class="n">s</span><span class="p">,</span> <span class="n">shift</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span> <span class="n">width</span><span class="o">=</span><span class="mi">4</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;Indent a block of text.  The indentation is applied to each line.&quot;&quot;&quot;</span>
+
+    <span class="n">indented</span> <span class="o">=</span> <span class="s1">&#39;</span><span class="se">\n</span><span class="s1">&#39;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="s1">&#39; &#39;</span> <span class="o">*</span> <span class="p">(</span><span class="n">width</span> <span class="o">*</span> <span class="n">shift</span><span class="p">)</span> <span class="o">+</span> <span class="n">l</span> <span class="k">if</span> <span class="n">l</span> <span class="k">else</span> <span class="s1">&#39;&#39;</span>
+                         <span class="k">for</span> <span class="n">l</span> <span class="ow">in</span> <span class="n">s</span><span class="o">.</span><span class="n">splitlines</span><span class="p">())</span>
+    <span class="k">if</span> <span class="n">s</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span> <span class="o">==</span> <span class="s1">&#39;</span><span class="se">\n</span><span class="s1">&#39;</span><span class="p">:</span>
+        <span class="n">indented</span> <span class="o">+=</span> <span class="s1">&#39;</span><span class="se">\n</span><span class="s1">&#39;</span>
+
+    <span class="k">return</span> <span class="n">indented</span></div>
+
+
+<span class="k">class</span> <span class="nc">_DummyFile</span><span class="p">(</span><span class="nb">object</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;A noop writeable object.&quot;&quot;&quot;</span>
+
+    <span class="k">def</span> <span class="nf">write</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">s</span><span class="p">):</span>
+        <span class="k">pass</span>
+
+
+<span class="nd">@contextlib</span><span class="o">.</span><span class="n">contextmanager</span>
+<div class="viewcode-block" id="silence"><a class="viewcode-back" href="../../../api/astropy.utils.misc.silence.html#astropy.time.silence">[docs]</a><span class="k">def</span> <span class="nf">silence</span><span class="p">():</span>
+    <span class="sd">&quot;&quot;&quot;A context manager that silences sys.stdout and sys.stderr.&quot;&quot;&quot;</span>
+
+    <span class="n">old_stdout</span> <span class="o">=</span> <span class="n">sys</span><span class="o">.</span><span class="n">stdout</span>
+    <span class="n">old_stderr</span> <span class="o">=</span> <span class="n">sys</span><span class="o">.</span><span class="n">stderr</span>
+    <span class="n">sys</span><span class="o">.</span><span class="n">stdout</span> <span class="o">=</span> <span class="n">_DummyFile</span><span class="p">()</span>
+    <span class="n">sys</span><span class="o">.</span><span class="n">stderr</span> <span class="o">=</span> <span class="n">_DummyFile</span><span class="p">()</span>
+    <span class="k">yield</span>
+    <span class="n">sys</span><span class="o">.</span><span class="n">stdout</span> <span class="o">=</span> <span class="n">old_stdout</span>
+    <span class="n">sys</span><span class="o">.</span><span class="n">stderr</span> <span class="o">=</span> <span class="n">old_stderr</span></div>
+
+
+<div class="viewcode-block" id="format_exception"><a class="viewcode-back" href="../../../api/astropy.utils.misc.format_exception.html#astropy.time.format_exception">[docs]</a><span class="k">def</span> <span class="nf">format_exception</span><span class="p">(</span><span class="n">msg</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Given an exception message string, uses new-style formatting arguments</span>
+<span class="sd">    ``{filename}``, ``{lineno}``, ``{func}`` and/or ``{text}`` to fill in</span>
+<span class="sd">    information about the exception that occurred.  For example:</span>
+
+<span class="sd">        try:</span>
+<span class="sd">            1/0</span>
+<span class="sd">        except:</span>
+<span class="sd">            raise ZeroDivisionError(</span>
+<span class="sd">                format_except(&#39;A divide by zero occurred in {filename} at &#39;</span>
+<span class="sd">                              &#39;line {lineno} of function {func}.&#39;))</span>
+
+<span class="sd">    Any additional positional or keyword arguments passed to this function are</span>
+<span class="sd">    also used to format the message.</span>
+
+<span class="sd">    .. note::</span>
+<span class="sd">        This uses `sys.exc_info` to gather up the information needed to fill</span>
+<span class="sd">        in the formatting arguments. Python 2.x and 3.x have slightly</span>
+<span class="sd">        different behavior regarding `sys.exc_info` (the latter will not</span>
+<span class="sd">        carry it outside a handled exception), so it&#39;s not wise to use this</span>
+<span class="sd">        outside of an ``except`` clause - if it is, this will substitute</span>
+<span class="sd">        &#39;&lt;unkown&gt;&#39; for the 4 formatting arguments.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="n">tb</span> <span class="o">=</span> <span class="n">traceback</span><span class="o">.</span><span class="n">extract_tb</span><span class="p">(</span><span class="n">sys</span><span class="o">.</span><span class="n">exc_info</span><span class="p">()[</span><span class="mi">2</span><span class="p">],</span> <span class="n">limit</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span>
+    <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">tb</span><span class="p">)</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">:</span>
+        <span class="n">filename</span><span class="p">,</span> <span class="n">lineno</span><span class="p">,</span> <span class="n">func</span><span class="p">,</span> <span class="n">text</span> <span class="o">=</span> <span class="n">tb</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="n">filename</span> <span class="o">=</span> <span class="n">lineno</span> <span class="o">=</span> <span class="n">func</span> <span class="o">=</span> <span class="n">text</span> <span class="o">=</span> <span class="s1">&#39;&lt;unknown&gt;&#39;</span>
+
+    <span class="k">return</span> <span class="n">msg</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="n">filename</span><span class="o">=</span><span class="n">filename</span><span class="p">,</span> <span class="n">lineno</span><span class="o">=</span><span class="n">lineno</span><span class="p">,</span> <span class="n">func</span><span class="o">=</span><span class="n">func</span><span class="p">,</span>
+                      <span class="n">text</span><span class="o">=</span><span class="n">text</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span></div>
+
+
+<div class="viewcode-block" id="NumpyRNGContext"><a class="viewcode-back" href="../../../api/astropy.utils.misc.NumpyRNGContext.html#astropy.time.NumpyRNGContext">[docs]</a><span class="k">class</span> <span class="nc">NumpyRNGContext</span><span class="p">(</span><span class="nb">object</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    A context manager (for use with the ``with`` statement) that will seed the</span>
+<span class="sd">    numpy random number generator (RNG) to a specific value, and then restore</span>
+<span class="sd">    the RNG state back to whatever it was before.</span>
+
+<span class="sd">    This is primarily intended for use in the astropy testing suit, but it</span>
+<span class="sd">    may be useful in ensuring reproducibility of Monte Carlo simulations in a</span>
+<span class="sd">    science context.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    seed : int</span>
+<span class="sd">        The value to use to seed the numpy RNG</span>
+
+<span class="sd">    Examples</span>
+<span class="sd">    --------</span>
+<span class="sd">    A typical use case might be::</span>
+
+<span class="sd">        with NumpyRNGContext(&lt;some seed value you pick&gt;):</span>
+<span class="sd">            from numpy import random</span>
+
+<span class="sd">            randarr = random.randn(100)</span>
+<span class="sd">            ... run your test using `randarr` ...</span>
+
+<span class="sd">        #Any code using numpy.random at this indent level will act just as it</span>
+<span class="sd">        #would have if it had been before the with statement - e.g. whatever</span>
+<span class="sd">        #the default seed is.</span>
+
+
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">seed</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">seed</span> <span class="o">=</span> <span class="n">seed</span>
+
+    <span class="k">def</span> <span class="nf">__enter__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="kn">from</span> <span class="nn">numpy</span> <span class="k">import</span> <span class="n">random</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">startstate</span> <span class="o">=</span> <span class="n">random</span><span class="o">.</span><span class="n">get_state</span><span class="p">()</span>
+        <span class="n">random</span><span class="o">.</span><span class="n">seed</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">seed</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">__exit__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">exc_type</span><span class="p">,</span> <span class="n">exc_value</span><span class="p">,</span> <span class="n">traceback</span><span class="p">):</span>
+        <span class="kn">from</span> <span class="nn">numpy</span> <span class="k">import</span> <span class="n">random</span>
+
+        <span class="n">random</span><span class="o">.</span><span class="n">set_state</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">startstate</span><span class="p">)</span></div>
+
+
+<div class="viewcode-block" id="find_api_page"><a class="viewcode-back" href="../../../api/astropy.utils.misc.find_api_page.html#astropy.time.find_api_page">[docs]</a><span class="k">def</span> <span class="nf">find_api_page</span><span class="p">(</span><span class="n">obj</span><span class="p">,</span> <span class="n">version</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">openinbrowser</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">timeout</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Determines the URL of the API page for the specified object, and</span>
+<span class="sd">    optionally open that page in a web browser.</span>
+
+<span class="sd">    .. note::</span>
+<span class="sd">        You must be connected to the internet for this to function even if</span>
+<span class="sd">        ``openinbrowser`` is `False`, unless you provide a local version of</span>
+<span class="sd">        the documentation to ``version`` (e.g., ``file:///path/to/docs``).</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    obj</span>
+<span class="sd">        The object to open the docs for or its fully-qualified name</span>
+<span class="sd">        (as a str).</span>
+<span class="sd">    version : str</span>
+<span class="sd">        The doc version - either a version number like &#39;0.1&#39;, &#39;dev&#39; for</span>
+<span class="sd">        the development/latest docs, or a URL to point to a specific</span>
+<span class="sd">        location that should be the *base* of the documentation. Defaults to</span>
+<span class="sd">        latest if you are on aren&#39;t on a release, otherwise, the version you</span>
+<span class="sd">        are on.</span>
+<span class="sd">    openinbrowser : bool</span>
+<span class="sd">        If `True`, the `webbrowser` package will be used to open the doc</span>
+<span class="sd">        page in a new web browser window.</span>
+<span class="sd">    timeout : number, optional</span>
+<span class="sd">        The number of seconds to wait before timing-out the query to</span>
+<span class="sd">        the astropy documentation.  If not given, the default python</span>
+<span class="sd">        stdlib timeout will be used.</span>
+
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+<span class="sd">    url : str</span>
+<span class="sd">        The loaded URL</span>
+
+<span class="sd">    Raises</span>
+<span class="sd">    ------</span>
+<span class="sd">    ValueError</span>
+<span class="sd">        If the documentation can&#39;t be found</span>
+
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="kn">import</span> <span class="nn">webbrowser</span>
+
+    <span class="kn">from</span> <span class="nn">zlib</span> <span class="k">import</span> <span class="n">decompress</span>
+
+    <span class="k">if</span> <span class="p">(</span><span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">obj</span><span class="p">,</span> <span class="n">six</span><span class="o">.</span><span class="n">string_types</span><span class="p">)</span> <span class="ow">and</span>
+            <span class="nb">hasattr</span><span class="p">(</span><span class="n">obj</span><span class="p">,</span> <span class="s1">&#39;__module__&#39;</span><span class="p">)</span> <span class="ow">and</span>
+            <span class="nb">hasattr</span><span class="p">(</span><span class="n">obj</span><span class="p">,</span> <span class="s1">&#39;__name__&#39;</span><span class="p">)):</span>
+        <span class="n">obj</span> <span class="o">=</span> <span class="n">obj</span><span class="o">.</span><span class="n">__module__</span> <span class="o">+</span> <span class="s1">&#39;.&#39;</span> <span class="o">+</span> <span class="n">obj</span><span class="o">.</span><span class="n">__name__</span>
+    <span class="k">elif</span> <span class="n">inspect</span><span class="o">.</span><span class="n">ismodule</span><span class="p">(</span><span class="n">obj</span><span class="p">):</span>
+        <span class="n">obj</span> <span class="o">=</span> <span class="n">obj</span><span class="o">.</span><span class="n">__name__</span>
+
+    <span class="k">if</span> <span class="n">version</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="kn">from</span> <span class="nn">..</span> <span class="k">import</span> <span class="n">version</span>
+
+        <span class="k">if</span> <span class="n">version</span><span class="o">.</span><span class="n">release</span><span class="p">:</span>
+            <span class="n">version</span> <span class="o">=</span> <span class="s1">&#39;v&#39;</span> <span class="o">+</span> <span class="n">version</span><span class="o">.</span><span class="n">version</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">version</span> <span class="o">=</span> <span class="s1">&#39;dev&#39;</span>
+
+    <span class="k">if</span> <span class="s1">&#39;://&#39;</span> <span class="ow">in</span> <span class="n">version</span><span class="p">:</span>
+        <span class="k">if</span> <span class="n">version</span><span class="o">.</span><span class="n">endswith</span><span class="p">(</span><span class="s1">&#39;index.html&#39;</span><span class="p">):</span>
+            <span class="n">baseurl</span> <span class="o">=</span> <span class="n">version</span><span class="p">[:</span><span class="o">-</span><span class="mi">10</span><span class="p">]</span>
+        <span class="k">elif</span> <span class="n">version</span><span class="o">.</span><span class="n">endswith</span><span class="p">(</span><span class="s1">&#39;/&#39;</span><span class="p">):</span>
+            <span class="n">baseurl</span> <span class="o">=</span> <span class="n">version</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">baseurl</span> <span class="o">=</span> <span class="n">version</span> <span class="o">+</span> <span class="s1">&#39;/&#39;</span>
+    <span class="k">elif</span> <span class="n">version</span> <span class="o">==</span> <span class="s1">&#39;dev&#39;</span> <span class="ow">or</span> <span class="n">version</span> <span class="o">==</span> <span class="s1">&#39;latest&#39;</span><span class="p">:</span>
+        <span class="n">baseurl</span> <span class="o">=</span> <span class="s1">&#39;http://devdocs.astropy.org/&#39;</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="n">baseurl</span> <span class="o">=</span> <span class="s1">&#39;http://docs.astropy.org/en/</span><span class="si">{vers}</span><span class="s1">/&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">vers</span><span class="o">=</span><span class="n">version</span><span class="p">)</span>
+
+    <span class="k">if</span> <span class="n">timeout</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="n">uf</span> <span class="o">=</span> <span class="n">urllib</span><span class="o">.</span><span class="n">request</span><span class="o">.</span><span class="n">urlopen</span><span class="p">(</span><span class="n">baseurl</span> <span class="o">+</span> <span class="s1">&#39;objects.inv&#39;</span><span class="p">)</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="n">uf</span> <span class="o">=</span> <span class="n">urllib</span><span class="o">.</span><span class="n">request</span><span class="o">.</span><span class="n">urlopen</span><span class="p">(</span><span class="n">baseurl</span> <span class="o">+</span> <span class="s1">&#39;objects.inv&#39;</span><span class="p">,</span> <span class="n">timeout</span><span class="o">=</span><span class="n">timeout</span><span class="p">)</span>
+
+    <span class="k">try</span><span class="p">:</span>
+        <span class="n">oiread</span> <span class="o">=</span> <span class="n">uf</span><span class="o">.</span><span class="n">read</span><span class="p">()</span>
+
+        <span class="c1"># need to first read/remove the first four lines, which have info before</span>
+        <span class="c1"># the compressed section with the actual object inventory</span>
+        <span class="n">idx</span> <span class="o">=</span> <span class="o">-</span><span class="mi">1</span>
+        <span class="n">headerlines</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="k">for</span> <span class="n">_</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="mi">4</span><span class="p">):</span>
+            <span class="n">oldidx</span> <span class="o">=</span> <span class="n">idx</span>
+            <span class="n">idx</span> <span class="o">=</span> <span class="n">oiread</span><span class="o">.</span><span class="n">index</span><span class="p">(</span><span class="n">b</span><span class="s1">&#39;</span><span class="se">\n</span><span class="s1">&#39;</span><span class="p">,</span> <span class="n">oldidx</span> <span class="o">+</span> <span class="mi">1</span><span class="p">)</span>
+            <span class="n">headerlines</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">oiread</span><span class="p">[(</span><span class="n">oldidx</span><span class="o">+</span><span class="mi">1</span><span class="p">):</span><span class="n">idx</span><span class="p">]</span><span class="o">.</span><span class="n">decode</span><span class="p">(</span><span class="s1">&#39;utf-8&#39;</span><span class="p">))</span>
+
+        <span class="c1"># intersphinx version line, project name, and project version</span>
+        <span class="n">ivers</span><span class="p">,</span> <span class="n">proj</span><span class="p">,</span> <span class="n">vers</span><span class="p">,</span> <span class="n">compr</span> <span class="o">=</span> <span class="n">headerlines</span>
+        <span class="k">if</span> <span class="s1">&#39;The remainder of this file is compressed using zlib&#39;</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">compr</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s1">&#39;The file downloaded from </span><span class="si">{0}</span><span class="s1"> does not seem to be&#39;</span>
+                             <span class="s1">&#39;the usual Sphinx objects.inv format.  Maybe it &#39;</span>
+                             <span class="s1">&#39;has changed?&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">baseurl</span> <span class="o">+</span> <span class="s1">&#39;objects.inv&#39;</span><span class="p">))</span>
+
+        <span class="n">compressed</span> <span class="o">=</span> <span class="n">oiread</span><span class="p">[(</span><span class="n">idx</span><span class="o">+</span><span class="mi">1</span><span class="p">):]</span>
+    <span class="k">finally</span><span class="p">:</span>
+        <span class="n">uf</span><span class="o">.</span><span class="n">close</span><span class="p">()</span>
+
+    <span class="n">decompressed</span> <span class="o">=</span> <span class="n">decompress</span><span class="p">(</span><span class="n">compressed</span><span class="p">)</span><span class="o">.</span><span class="n">decode</span><span class="p">(</span><span class="s1">&#39;utf-8&#39;</span><span class="p">)</span>
+
+    <span class="n">resurl</span> <span class="o">=</span> <span class="kc">None</span>
+
+    <span class="k">for</span> <span class="n">l</span> <span class="ow">in</span> <span class="n">decompressed</span><span class="o">.</span><span class="n">strip</span><span class="p">()</span><span class="o">.</span><span class="n">splitlines</span><span class="p">():</span>
+        <span class="n">ls</span> <span class="o">=</span> <span class="n">l</span><span class="o">.</span><span class="n">split</span><span class="p">()</span>
+        <span class="n">name</span> <span class="o">=</span> <span class="n">ls</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+        <span class="n">loc</span> <span class="o">=</span> <span class="n">ls</span><span class="p">[</span><span class="mi">3</span><span class="p">]</span>
+        <span class="k">if</span> <span class="n">loc</span><span class="o">.</span><span class="n">endswith</span><span class="p">(</span><span class="s1">&#39;$&#39;</span><span class="p">):</span>
+            <span class="n">loc</span> <span class="o">=</span> <span class="n">loc</span><span class="p">[:</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span> <span class="o">+</span> <span class="n">name</span>
+
+        <span class="k">if</span> <span class="n">name</span> <span class="o">==</span> <span class="n">obj</span><span class="p">:</span>
+            <span class="n">resurl</span> <span class="o">=</span> <span class="n">baseurl</span> <span class="o">+</span> <span class="n">loc</span>
+            <span class="k">break</span>
+
+    <span class="k">if</span> <span class="n">resurl</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s1">&#39;Could not find the docs for the object </span><span class="si">{obj}</span><span class="s1">&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">obj</span><span class="o">=</span><span class="n">obj</span><span class="p">))</span>
+    <span class="k">elif</span> <span class="n">openinbrowser</span><span class="p">:</span>
+        <span class="n">webbrowser</span><span class="o">.</span><span class="n">open</span><span class="p">(</span><span class="n">resurl</span><span class="p">)</span>
+
+    <span class="k">return</span> <span class="n">resurl</span></div>
+
+
+<span class="k">def</span> <span class="nf">signal_number_to_name</span><span class="p">(</span><span class="n">signum</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Given an OS signal number, returns a signal name.  If the signal</span>
+<span class="sd">    number is unknown, returns ``&#39;UNKNOWN&#39;``.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="c1"># Since these numbers and names are platform specific, we use the</span>
+    <span class="c1"># builtin signal module and build a reverse mapping.</span>
+
+    <span class="n">signal_to_name_map</span> <span class="o">=</span> <span class="nb">dict</span><span class="p">((</span><span class="n">k</span><span class="p">,</span> <span class="n">v</span><span class="p">)</span> <span class="k">for</span> <span class="n">v</span><span class="p">,</span> <span class="n">k</span> <span class="ow">in</span> <span class="n">six</span><span class="o">.</span><span class="n">iteritems</span><span class="p">(</span><span class="n">signal</span><span class="o">.</span><span class="n">__dict__</span><span class="p">)</span>
+                              <span class="k">if</span> <span class="n">v</span><span class="o">.</span><span class="n">startswith</span><span class="p">(</span><span class="s1">&#39;SIG&#39;</span><span class="p">))</span>
+
+    <span class="k">return</span> <span class="n">signal_to_name_map</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">signum</span><span class="p">,</span> <span class="s1">&#39;UNKNOWN&#39;</span><span class="p">)</span>
+
+
+<span class="k">if</span> <span class="n">sys</span><span class="o">.</span><span class="n">platform</span> <span class="o">==</span> <span class="s1">&#39;win32&#39;</span><span class="p">:</span>
+    <span class="kn">import</span> <span class="nn">ctypes</span>
+
+    <span class="k">def</span> <span class="nf">_has_hidden_attribute</span><span class="p">(</span><span class="n">filepath</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Returns True if the given filepath has the hidden attribute on</span>
+<span class="sd">        MS-Windows.  Based on a post here:</span>
+<span class="sd">        http://stackoverflow.com/questions/284115/cross-platform-hidden-file-detection</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">filepath</span><span class="p">,</span> <span class="nb">bytes</span><span class="p">):</span>
+            <span class="n">filepath</span> <span class="o">=</span> <span class="n">filepath</span><span class="o">.</span><span class="n">decode</span><span class="p">(</span><span class="n">sys</span><span class="o">.</span><span class="n">getfilesystemencoding</span><span class="p">())</span>
+        <span class="k">try</span><span class="p">:</span>
+            <span class="n">attrs</span> <span class="o">=</span> <span class="n">ctypes</span><span class="o">.</span><span class="n">windll</span><span class="o">.</span><span class="n">kernel32</span><span class="o">.</span><span class="n">GetFileAttributesW</span><span class="p">(</span><span class="n">filepath</span><span class="p">)</span>
+            <span class="n">result</span> <span class="o">=</span> <span class="nb">bool</span><span class="p">(</span><span class="n">attrs</span> <span class="o">&amp;</span> <span class="mi">2</span><span class="p">)</span> <span class="ow">and</span> <span class="n">attrs</span> <span class="o">!=</span> <span class="o">-</span><span class="mi">1</span>
+        <span class="k">except</span> <span class="ne">AttributeError</span><span class="p">:</span>
+            <span class="n">result</span> <span class="o">=</span> <span class="kc">False</span>
+        <span class="k">return</span> <span class="n">result</span>
+<span class="k">else</span><span class="p">:</span>
+    <span class="k">def</span> <span class="nf">_has_hidden_attribute</span><span class="p">(</span><span class="n">filepath</span><span class="p">):</span>
+        <span class="k">return</span> <span class="kc">False</span>
+
+
+<div class="viewcode-block" id="is_path_hidden"><a class="viewcode-back" href="../../../api/astropy.utils.misc.is_path_hidden.html#astropy.time.is_path_hidden">[docs]</a><span class="k">def</span> <span class="nf">is_path_hidden</span><span class="p">(</span><span class="n">filepath</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Determines if a given file or directory is hidden.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    filepath : str</span>
+<span class="sd">        The path to a file or directory</span>
+
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+<span class="sd">    hidden : bool</span>
+<span class="sd">        Returns `True` if the file is hidden</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">name</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">basename</span><span class="p">(</span><span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">abspath</span><span class="p">(</span><span class="n">filepath</span><span class="p">))</span>
+    <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">name</span><span class="p">,</span> <span class="nb">bytes</span><span class="p">):</span>
+        <span class="n">is_dotted</span> <span class="o">=</span> <span class="n">name</span><span class="o">.</span><span class="n">startswith</span><span class="p">(</span><span class="n">b</span><span class="s1">&#39;.&#39;</span><span class="p">)</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="n">is_dotted</span> <span class="o">=</span> <span class="n">name</span><span class="o">.</span><span class="n">startswith</span><span class="p">(</span><span class="s1">&#39;.&#39;</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">is_dotted</span> <span class="ow">or</span> <span class="n">_has_hidden_attribute</span><span class="p">(</span><span class="n">filepath</span><span class="p">)</span></div>
+
+
+<div class="viewcode-block" id="walk_skip_hidden"><a class="viewcode-back" href="../../../api/astropy.utils.misc.walk_skip_hidden.html#astropy.time.walk_skip_hidden">[docs]</a><span class="k">def</span> <span class="nf">walk_skip_hidden</span><span class="p">(</span><span class="n">top</span><span class="p">,</span> <span class="n">onerror</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">followlinks</span><span class="o">=</span><span class="kc">False</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    A wrapper for `os.walk` that skips hidden files and directories.</span>
+
+<span class="sd">    This function does not have the parameter ``topdown`` from</span>
+<span class="sd">    `os.walk`: the directories must always be recursed top-down when</span>
+<span class="sd">    using this function.</span>
+
+<span class="sd">    See also</span>
+<span class="sd">    --------</span>
+<span class="sd">    os.walk : For a description of the parameters</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">for</span> <span class="n">root</span><span class="p">,</span> <span class="n">dirs</span><span class="p">,</span> <span class="n">files</span> <span class="ow">in</span> <span class="n">os</span><span class="o">.</span><span class="n">walk</span><span class="p">(</span>
+            <span class="n">top</span><span class="p">,</span> <span class="n">topdown</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">onerror</span><span class="o">=</span><span class="n">onerror</span><span class="p">,</span>
+            <span class="n">followlinks</span><span class="o">=</span><span class="n">followlinks</span><span class="p">):</span>
+        <span class="c1"># These lists must be updated in-place so os.walk will skip</span>
+        <span class="c1"># hidden directories</span>
+        <span class="n">dirs</span><span class="p">[:]</span> <span class="o">=</span> <span class="p">[</span><span class="n">d</span> <span class="k">for</span> <span class="n">d</span> <span class="ow">in</span> <span class="n">dirs</span> <span class="k">if</span> <span class="ow">not</span> <span class="n">is_path_hidden</span><span class="p">(</span><span class="n">d</span><span class="p">)]</span>
+        <span class="n">files</span><span class="p">[:]</span> <span class="o">=</span> <span class="p">[</span><span class="n">f</span> <span class="k">for</span> <span class="n">f</span> <span class="ow">in</span> <span class="n">files</span> <span class="k">if</span> <span class="ow">not</span> <span class="n">is_path_hidden</span><span class="p">(</span><span class="n">f</span><span class="p">)]</span>
+        <span class="k">yield</span> <span class="n">root</span><span class="p">,</span> <span class="n">dirs</span><span class="p">,</span> <span class="n">files</span></div>
+
+
+<div class="viewcode-block" id="JsonCustomEncoder"><a class="viewcode-back" href="../../../api/astropy.utils.misc.JsonCustomEncoder.html#astropy.time.JsonCustomEncoder">[docs]</a><span class="k">class</span> <span class="nc">JsonCustomEncoder</span><span class="p">(</span><span class="n">json</span><span class="o">.</span><span class="n">JSONEncoder</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;Support for data types that JSON default encoder</span>
+<span class="sd">    does not do.</span>
+
+<span class="sd">    This includes:</span>
+
+<span class="sd">        * Numpy array or number</span>
+<span class="sd">        * Complex number</span>
+<span class="sd">        * Set</span>
+<span class="sd">        * Bytes (Python 3)</span>
+
+<span class="sd">    Examples</span>
+<span class="sd">    --------</span>
+<span class="sd">    &gt;&gt;&gt; import json</span>
+<span class="sd">    &gt;&gt;&gt; import numpy as np</span>
+<span class="sd">    &gt;&gt;&gt; from astropy.utils.misc import JsonCustomEncoder</span>
+<span class="sd">    &gt;&gt;&gt; json.dumps(np.arange(3), cls=JsonCustomEncoder)</span>
+<span class="sd">    &#39;[0, 1, 2]&#39;</span>
+
+<span class="sd">    &quot;&quot;&quot;</span>
+
+<div class="viewcode-block" id="JsonCustomEncoder.default"><a class="viewcode-back" href="../../../api/astropy.utils.misc.JsonCustomEncoder.html#astropy.time.JsonCustomEncoder.default">[docs]</a>    <span class="k">def</span> <span class="nf">default</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">obj</span><span class="p">):</span>
+        <span class="kn">import</span> <span class="nn">numpy</span> <span class="k">as</span> <span class="nn">np</span>
+        <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">obj</span><span class="p">,</span> <span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">ndarray</span><span class="p">,</span> <span class="n">np</span><span class="o">.</span><span class="n">number</span><span class="p">)):</span>
+            <span class="k">return</span> <span class="n">obj</span><span class="o">.</span><span class="n">tolist</span><span class="p">()</span>
+        <span class="k">elif</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">obj</span><span class="p">,</span> <span class="p">(</span><span class="nb">complex</span><span class="p">,</span> <span class="n">np</span><span class="o">.</span><span class="n">complex</span><span class="p">)):</span>
+            <span class="k">return</span> <span class="p">[</span><span class="n">obj</span><span class="o">.</span><span class="n">real</span><span class="p">,</span> <span class="n">obj</span><span class="o">.</span><span class="n">imag</span><span class="p">]</span>
+        <span class="k">elif</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">obj</span><span class="p">,</span> <span class="nb">set</span><span class="p">):</span>
+            <span class="k">return</span> <span class="nb">list</span><span class="p">(</span><span class="n">obj</span><span class="p">)</span>
+        <span class="k">elif</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">obj</span><span class="p">,</span> <span class="nb">bytes</span><span class="p">):</span>  <span class="c1"># pragma: py3</span>
+            <span class="k">return</span> <span class="n">obj</span><span class="o">.</span><span class="n">decode</span><span class="p">()</span>
+        <span class="k">return</span> <span class="n">json</span><span class="o">.</span><span class="n">JSONEncoder</span><span class="o">.</span><span class="n">default</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">obj</span><span class="p">)</span></div></div>
+
+
+<span class="k">def</span> <span class="nf">strip_accents</span><span class="p">(</span><span class="n">s</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Remove accents from a Unicode string.</span>
+
+<span class="sd">    This helps with matching &quot;ångström&quot; to &quot;angstrom&quot;, for example.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">return</span> <span class="s1">&#39;&#39;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span>
+        <span class="n">c</span> <span class="k">for</span> <span class="n">c</span> <span class="ow">in</span> <span class="n">unicodedata</span><span class="o">.</span><span class="n">normalize</span><span class="p">(</span><span class="s1">&#39;NFD&#39;</span><span class="p">,</span> <span class="n">s</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">unicodedata</span><span class="o">.</span><span class="n">category</span><span class="p">(</span><span class="n">c</span><span class="p">)</span> <span class="o">!=</span> <span class="s1">&#39;Mn&#39;</span><span class="p">)</span>
+
+
+<span class="k">def</span> <span class="nf">did_you_mean</span><span class="p">(</span><span class="n">s</span><span class="p">,</span> <span class="n">candidates</span><span class="p">,</span> <span class="n">n</span><span class="o">=</span><span class="mi">3</span><span class="p">,</span> <span class="n">cutoff</span><span class="o">=</span><span class="mf">0.8</span><span class="p">,</span> <span class="n">fix</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    When a string isn&#39;t found in a set of candidates, we can be nice</span>
+<span class="sd">    to provide a list of alternatives in the exception.  This</span>
+<span class="sd">    convenience function helps to format that part of the exception.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    s : str</span>
+
+<span class="sd">    candidates : sequence of str or dict of str keys</span>
+
+<span class="sd">    n : int</span>
+<span class="sd">        The maximum number of results to include.  See</span>
+<span class="sd">        `difflib.get_close_matches`.</span>
+
+<span class="sd">    cutoff : float</span>
+<span class="sd">        In the range [0, 1]. Possibilities that don&#39;t score at least</span>
+<span class="sd">        that similar to word are ignored.  See</span>
+<span class="sd">        `difflib.get_close_matches`.</span>
+
+<span class="sd">    fix : callable</span>
+<span class="sd">        A callable to modify the results after matching.  It should</span>
+<span class="sd">        take a single string and return a sequence of strings</span>
+<span class="sd">        containing the fixed matches.</span>
+
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+<span class="sd">    message : str</span>
+<span class="sd">        Returns the string &quot;Did you mean X, Y, or Z?&quot;, or the empty</span>
+<span class="sd">        string if no alternatives were found.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">s</span><span class="p">,</span> <span class="n">six</span><span class="o">.</span><span class="n">text_type</span><span class="p">):</span>
+        <span class="n">s</span> <span class="o">=</span> <span class="n">strip_accents</span><span class="p">(</span><span class="n">s</span><span class="p">)</span>
+    <span class="n">s_lower</span> <span class="o">=</span> <span class="n">s</span><span class="o">.</span><span class="n">lower</span><span class="p">()</span>
+
+    <span class="c1"># Create a mapping from the lower case name to all capitalization</span>
+    <span class="c1"># variants of that name.</span>
+    <span class="n">candidates_lower</span> <span class="o">=</span> <span class="p">{}</span>
+    <span class="k">for</span> <span class="n">candidate</span> <span class="ow">in</span> <span class="n">candidates</span><span class="p">:</span>
+        <span class="n">candidate_lower</span> <span class="o">=</span> <span class="n">candidate</span><span class="o">.</span><span class="n">lower</span><span class="p">()</span>
+        <span class="n">candidates_lower</span><span class="o">.</span><span class="n">setdefault</span><span class="p">(</span><span class="n">candidate_lower</span><span class="p">,</span> <span class="p">[])</span>
+        <span class="n">candidates_lower</span><span class="p">[</span><span class="n">candidate_lower</span><span class="p">]</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">candidate</span><span class="p">)</span>
+
+    <span class="c1"># The heuristic here is to first try &quot;singularizing&quot; the word.  If</span>
+    <span class="c1"># that doesn&#39;t match anything use difflib to find close matches in</span>
+    <span class="c1"># original, lower and upper case.</span>
+    <span class="k">if</span> <span class="n">s_lower</span><span class="o">.</span><span class="n">endswith</span><span class="p">(</span><span class="s1">&#39;s&#39;</span><span class="p">)</span> <span class="ow">and</span> <span class="n">s_lower</span><span class="p">[:</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span> <span class="ow">in</span> <span class="n">candidates_lower</span><span class="p">:</span>
+        <span class="n">matches</span> <span class="o">=</span> <span class="p">[</span><span class="n">s_lower</span><span class="p">[:</span><span class="o">-</span><span class="mi">1</span><span class="p">]]</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="n">matches</span> <span class="o">=</span> <span class="n">difflib</span><span class="o">.</span><span class="n">get_close_matches</span><span class="p">(</span>
+            <span class="n">s_lower</span><span class="p">,</span> <span class="n">candidates_lower</span><span class="p">,</span> <span class="n">n</span><span class="o">=</span><span class="n">n</span><span class="p">,</span> <span class="n">cutoff</span><span class="o">=</span><span class="n">cutoff</span><span class="p">)</span>
+
+    <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">matches</span><span class="p">):</span>
+        <span class="n">capitalized_matches</span> <span class="o">=</span> <span class="nb">set</span><span class="p">()</span>
+        <span class="k">for</span> <span class="n">match</span> <span class="ow">in</span> <span class="n">matches</span><span class="p">:</span>
+            <span class="n">capitalized_matches</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="n">candidates_lower</span><span class="p">[</span><span class="n">match</span><span class="p">])</span>
+        <span class="n">matches</span> <span class="o">=</span> <span class="n">capitalized_matches</span>
+
+        <span class="k">if</span> <span class="n">fix</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">mapped_matches</span> <span class="o">=</span> <span class="p">[]</span>
+            <span class="k">for</span> <span class="n">match</span> <span class="ow">in</span> <span class="n">matches</span><span class="p">:</span>
+                <span class="n">mapped_matches</span><span class="o">.</span><span class="n">extend</span><span class="p">(</span><span class="n">fix</span><span class="p">(</span><span class="n">match</span><span class="p">))</span>
+            <span class="n">matches</span> <span class="o">=</span> <span class="n">mapped_matches</span>
+
+        <span class="n">matches</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="nb">set</span><span class="p">(</span><span class="n">matches</span><span class="p">))</span>
+        <span class="n">matches</span> <span class="o">=</span> <span class="nb">sorted</span><span class="p">(</span><span class="n">matches</span><span class="p">)</span>
+
+        <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">matches</span><span class="p">)</span> <span class="o">==</span> <span class="mi">1</span><span class="p">:</span>
+            <span class="n">matches</span> <span class="o">=</span> <span class="n">matches</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">matches</span> <span class="o">=</span> <span class="p">(</span><span class="s1">&#39;, &#39;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">matches</span><span class="p">[:</span><span class="o">-</span><span class="mi">1</span><span class="p">])</span> <span class="o">+</span> <span class="s1">&#39; or &#39;</span> <span class="o">+</span>
+                       <span class="n">matches</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">])</span>
+        <span class="k">return</span> <span class="s1">&#39;Did you mean </span><span class="si">{0}</span><span class="s1">?&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">matches</span><span class="p">)</span>
+
+    <span class="k">return</span> <span class="s1">&#39;&#39;</span>
+
+
+<div class="viewcode-block" id="InheritDocstrings"><a class="viewcode-back" href="../../../api/astropy.utils.misc.InheritDocstrings.html#astropy.time.InheritDocstrings">[docs]</a><span class="k">class</span> <span class="nc">InheritDocstrings</span><span class="p">(</span><span class="nb">type</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    This metaclass makes methods of a class automatically have their</span>
+<span class="sd">    docstrings filled in from the methods they override in the base</span>
+<span class="sd">    class.</span>
+
+<span class="sd">    If the class uses multiple inheritance, the docstring will be</span>
+<span class="sd">    chosen from the first class in the bases list, in the same way as</span>
+<span class="sd">    methods are normally resolved in Python.  If this results in</span>
+<span class="sd">    selecting the wrong docstring, the docstring will need to be</span>
+<span class="sd">    explicitly included on the method.</span>
+
+<span class="sd">    For example::</span>
+
+<span class="sd">        &gt;&gt;&gt; from astropy.utils.misc import InheritDocstrings</span>
+<span class="sd">        &gt;&gt;&gt; from astropy.extern import six</span>
+<span class="sd">        &gt;&gt;&gt; @six.add_metaclass(InheritDocstrings)</span>
+<span class="sd">        ... class A(object):</span>
+<span class="sd">        ...     def wiggle(self):</span>
+<span class="sd">        ...         &quot;Wiggle the thingamajig&quot;</span>
+<span class="sd">        ...         pass</span>
+<span class="sd">        &gt;&gt;&gt; class B(A):</span>
+<span class="sd">        ...     def wiggle(self):</span>
+<span class="sd">        ...         pass</span>
+<span class="sd">        &gt;&gt;&gt; B.wiggle.__doc__</span>
+<span class="sd">        u&#39;Wiggle the thingamajig&#39;</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="n">cls</span><span class="p">,</span> <span class="n">name</span><span class="p">,</span> <span class="n">bases</span><span class="p">,</span> <span class="n">dct</span><span class="p">):</span>
+        <span class="k">def</span> <span class="nf">is_public_member</span><span class="p">(</span><span class="n">key</span><span class="p">):</span>
+            <span class="k">return</span> <span class="p">(</span>
+                <span class="p">(</span><span class="n">key</span><span class="o">.</span><span class="n">startswith</span><span class="p">(</span><span class="s1">&#39;__&#39;</span><span class="p">)</span> <span class="ow">and</span> <span class="n">key</span><span class="o">.</span><span class="n">endswith</span><span class="p">(</span><span class="s1">&#39;__&#39;</span><span class="p">)</span>
+                 <span class="ow">and</span> <span class="nb">len</span><span class="p">(</span><span class="n">key</span><span class="p">)</span> <span class="o">&gt;</span> <span class="mi">4</span><span class="p">)</span> <span class="ow">or</span>
+                <span class="ow">not</span> <span class="n">key</span><span class="o">.</span><span class="n">startswith</span><span class="p">(</span><span class="s1">&#39;_&#39;</span><span class="p">))</span>
+
+        <span class="k">for</span> <span class="n">key</span><span class="p">,</span> <span class="n">val</span> <span class="ow">in</span> <span class="n">six</span><span class="o">.</span><span class="n">iteritems</span><span class="p">(</span><span class="n">dct</span><span class="p">):</span>
+            <span class="k">if</span> <span class="p">(</span><span class="n">inspect</span><span class="o">.</span><span class="n">isfunction</span><span class="p">(</span><span class="n">val</span><span class="p">)</span> <span class="ow">and</span>
+                <span class="n">is_public_member</span><span class="p">(</span><span class="n">key</span><span class="p">)</span> <span class="ow">and</span>
+                <span class="n">val</span><span class="o">.</span><span class="n">__doc__</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">):</span>
+                <span class="k">for</span> <span class="n">base</span> <span class="ow">in</span> <span class="n">cls</span><span class="o">.</span><span class="n">__mro__</span><span class="p">[</span><span class="mi">1</span><span class="p">:]:</span>
+                    <span class="n">super_method</span> <span class="o">=</span> <span class="nb">getattr</span><span class="p">(</span><span class="n">base</span><span class="p">,</span> <span class="n">key</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span>
+                    <span class="k">if</span> <span class="n">super_method</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+                        <span class="n">val</span><span class="o">.</span><span class="n">__doc__</span> <span class="o">=</span> <span class="n">super_method</span><span class="o">.</span><span class="n">__doc__</span>
+                        <span class="k">break</span>
+
+        <span class="nb">super</span><span class="p">(</span><span class="n">InheritDocstrings</span><span class="p">,</span> <span class="n">cls</span><span class="p">)</span><span class="o">.</span><span class="n">__init__</span><span class="p">(</span><span class="n">name</span><span class="p">,</span> <span class="n">bases</span><span class="p">,</span> <span class="n">dct</span><span class="p">)</span></div>
+
+
+<span class="nd">@six</span><span class="o">.</span><span class="n">add_metaclass</span><span class="p">(</span><span class="n">abc</span><span class="o">.</span><span class="n">ABCMeta</span><span class="p">)</span>
+<div class="viewcode-block" id="OrderedDescriptor"><a class="viewcode-back" href="../../../api/astropy.utils.misc.OrderedDescriptor.html#astropy.time.OrderedDescriptor">[docs]</a><span class="k">class</span> <span class="nc">OrderedDescriptor</span><span class="p">(</span><span class="nb">object</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Base class for descriptors whose order in the class body should be</span>
+<span class="sd">    preserved.  Intended for use in concert with the</span>
+<span class="sd">    `OrderedDescriptorContainer` metaclass.</span>
+
+<span class="sd">    Subclasses of `OrderedDescriptor` must define a value for a class attribute</span>
+<span class="sd">    called ``_class_attribute_``.  This is the name of a class attribute on the</span>
+<span class="sd">    *container* class for these descriptors, which will be set to an</span>
+<span class="sd">    `~collections.OrderedDict` at class creation time.  This</span>
+<span class="sd">    `~collections.OrderedDict` will contain a mapping of all class attributes</span>
+<span class="sd">    that were assigned instances of the `OrderedDescriptor` subclass, to the</span>
+<span class="sd">    instances themselves.  See the documentation for</span>
+<span class="sd">    `OrderedDescriptorContainer` for a concrete example.</span>
+
+<span class="sd">    Optionally, subclasses of `OrderedDescriptor` may define a value for a</span>
+<span class="sd">    class attribute called ``_name_attribute_``.  This should be the name of</span>
+<span class="sd">    an attribute on instances of the subclass.  When specified, during</span>
+<span class="sd">    creation of a class containing these descriptors, the name attribute on</span>
+<span class="sd">    each instance will be set to the name of the class attribute it was</span>
+<span class="sd">    assigned to on the class.</span>
+
+<span class="sd">    .. note::</span>
+
+<span class="sd">        Although this class is intended for use with *descriptors* (i.e.</span>
+<span class="sd">        classes that define any of the ``__get__``, ``__set__``, or</span>
+<span class="sd">        ``__delete__`` magic methods), this base class is not itself a</span>
+<span class="sd">        descriptor, and technically this could be used for classes that are</span>
+<span class="sd">        not descriptors too.  However, use with descriptors is the original</span>
+<span class="sd">        intended purpose.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="c1"># This id increments for each OrderedDescriptor instance created, so they</span>
+    <span class="c1"># are always ordered in the order they were created.  Class bodies are</span>
+    <span class="c1"># guaranteed to be executed from top to bottom.  Not sure if this is</span>
+    <span class="c1"># thread-safe though.</span>
+    <span class="n">_nextid</span> <span class="o">=</span> <span class="mi">1</span>
+
+    <span class="n">_class_attribute_</span> <span class="o">=</span> <span class="n">abc</span><span class="o">.</span><span class="n">abstractproperty</span><span class="p">()</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Subclasses should define this attribute to the name of an attribute on</span>
+<span class="sd">    classes containing this subclass.  That attribute will contain the mapping</span>
+<span class="sd">    of all instances of that `OrderedDescriptor` subclass defined in the class</span>
+<span class="sd">    body.  If the same descriptor needs to be used with different classes,</span>
+<span class="sd">    each with different names of this attribute, multiple subclasses will be</span>
+<span class="sd">    needed.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="n">_name_attribute_</span> <span class="o">=</span> <span class="kc">None</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Subclasses may optionally define this attribute to specify the name of an</span>
+<span class="sd">    attribute on instances of the class that should be filled with the</span>
+<span class="sd">    instance&#39;s attribute name at class creation time.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+        <span class="c1"># The _nextid attribute is shared across all subclasses so that</span>
+        <span class="c1"># different subclasses of OrderedDescriptors can be sorted correctly</span>
+        <span class="c1"># between themselves</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">__order</span> <span class="o">=</span> <span class="n">OrderedDescriptor</span><span class="o">.</span><span class="n">_nextid</span>
+        <span class="n">OrderedDescriptor</span><span class="o">.</span><span class="n">_nextid</span> <span class="o">+=</span> <span class="mi">1</span>
+        <span class="nb">super</span><span class="p">(</span><span class="n">OrderedDescriptor</span><span class="p">,</span> <span class="bp">self</span><span class="p">)</span><span class="o">.</span><span class="n">__init__</span><span class="p">()</span>
+
+    <span class="k">def</span> <span class="nf">__lt__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">other</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Defined for convenient sorting of `OrderedDescriptor` instances, which</span>
+<span class="sd">        are defined to sort in their creation order.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+
+        <span class="k">if</span> <span class="p">(</span><span class="nb">isinstance</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">OrderedDescriptor</span><span class="p">)</span> <span class="ow">and</span>
+                <span class="nb">isinstance</span><span class="p">(</span><span class="n">other</span><span class="p">,</span> <span class="n">OrderedDescriptor</span><span class="p">)):</span>
+            <span class="k">try</span><span class="p">:</span>
+                <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">__order</span> <span class="o">&lt;</span> <span class="n">other</span><span class="o">.</span><span class="n">__order</span>
+            <span class="k">except</span> <span class="ne">AttributeError</span><span class="p">:</span>
+                <span class="k">raise</span> <span class="ne">RuntimeError</span><span class="p">(</span>
+                    <span class="s1">&#39;Could not determine ordering for </span><span class="si">{0}</span><span class="s1"> and </span><span class="si">{1}</span><span class="s1">; at least &#39;</span>
+                    <span class="s1">&#39;one of them is not calling super().__init__ in its &#39;</span>
+                    <span class="s1">&#39;__init__.&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">other</span><span class="p">))</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">return</span> <span class="bp">NotImplemented</span></div>
+
+
+<div class="viewcode-block" id="OrderedDescriptorContainer"><a class="viewcode-back" href="../../../api/astropy.utils.misc.OrderedDescriptorContainer.html#astropy.time.OrderedDescriptorContainer">[docs]</a><span class="k">class</span> <span class="nc">OrderedDescriptorContainer</span><span class="p">(</span><span class="nb">type</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Classes should use this metaclass if they wish to use `OrderedDescriptor`</span>
+<span class="sd">    attributes, which are class attributes that &quot;remember&quot; the order in which</span>
+<span class="sd">    they were defined in the class body.</span>
+
+<span class="sd">    Every subclass of `OrderedDescriptor` has an attribute called</span>
+<span class="sd">    ``_class_attribute_``.  For example, if we have</span>
+
+<span class="sd">    .. code:: python</span>
+
+<span class="sd">        class ExampleDecorator(OrderedDescriptor):</span>
+<span class="sd">            _class_attribute_ = &#39;_examples_&#39;</span>
+
+<span class="sd">    Then when a class with the `OrderedDescriptorContainer` metaclass is</span>
+<span class="sd">    created, it will automatically be assigned a class attribute ``_examples_``</span>
+<span class="sd">    referencing an `~collections.OrderedDict` containing all instances of</span>
+<span class="sd">    ``ExampleDecorator`` defined in the class body, mapped to by the names of</span>
+<span class="sd">    the attributes they were assigned to.</span>
+
+<span class="sd">    When subclassing a class with this metaclass, the descriptor dict (i.e.</span>
+<span class="sd">    ``_examples_`` in the above example) will *not* contain descriptors</span>
+<span class="sd">    inherited from the base class.  That is, this only works by default with</span>
+<span class="sd">    decorators explicitly defined in the class body.  However, the subclass</span>
+<span class="sd">    *may* define an attribute ``_inherit_decorators_`` which lists</span>
+<span class="sd">    `OrderedDescriptor` classes that *should* be added from base classes.</span>
+<span class="sd">    See the examples section below for an example of this.</span>
+
+<span class="sd">    Examples</span>
+<span class="sd">    --------</span>
+
+<span class="sd">    &gt;&gt;&gt; from astropy.extern import six</span>
+<span class="sd">    &gt;&gt;&gt; from astropy.utils import OrderedDescriptor, OrderedDescriptorContainer</span>
+<span class="sd">    &gt;&gt;&gt; class TypedAttribute(OrderedDescriptor):</span>
+<span class="sd">    ...     \&quot;\&quot;\&quot;</span>
+<span class="sd">    ...     Attributes that may only be assigned objects of a specific type,</span>
+<span class="sd">    ...     or subclasses thereof.  For some reason we care about their order.</span>
+<span class="sd">    ...     \&quot;\&quot;\&quot;</span>
+<span class="sd">    ...</span>
+<span class="sd">    ...     _class_attribute_ = &#39;typed_attributes&#39;</span>
+<span class="sd">    ...     _name_attribute_ = &#39;name&#39;</span>
+<span class="sd">    ...     # A default name so that instances not attached to a class can</span>
+<span class="sd">    ...     # still be repr&#39;d; useful for debugging</span>
+<span class="sd">    ...     name = &#39;&lt;unbound&gt;&#39;</span>
+<span class="sd">    ...</span>
+<span class="sd">    ...     def __init__(self, type):</span>
+<span class="sd">    ...         # Make sure not to forget to call the super __init__</span>
+<span class="sd">    ...         super(TypedAttribute, self).__init__()</span>
+<span class="sd">    ...         self.type = type</span>
+<span class="sd">    ...</span>
+<span class="sd">    ...     def __get__(self, obj, objtype=None):</span>
+<span class="sd">    ...         if obj is None:</span>
+<span class="sd">    ...             return self</span>
+<span class="sd">    ...         if self.name in obj.__dict__:</span>
+<span class="sd">    ...             return obj.__dict__[self.name]</span>
+<span class="sd">    ...         else:</span>
+<span class="sd">    ...             raise AttributeError(self.name)</span>
+<span class="sd">    ...</span>
+<span class="sd">    ...     def __set__(self, obj, value):</span>
+<span class="sd">    ...         if not isinstance(value, self.type):</span>
+<span class="sd">    ...             raise ValueError(&#39;{0}.{1} must be of type {2!r}&#39;.format(</span>
+<span class="sd">    ...                 obj.__class__.__name__, self.name, self.type))</span>
+<span class="sd">    ...         obj.__dict__[self.name] = value</span>
+<span class="sd">    ...</span>
+<span class="sd">    ...     def __delete__(self, obj):</span>
+<span class="sd">    ...         if self.name in obj.__dict__:</span>
+<span class="sd">    ...             del obj.__dict__[self.name]</span>
+<span class="sd">    ...         else:</span>
+<span class="sd">    ...             raise AttributeError(self.name)</span>
+<span class="sd">    ...</span>
+<span class="sd">    ...     def __repr__(self):</span>
+<span class="sd">    ...         if isinstance(self.type, tuple) and len(self.type) &gt; 1:</span>
+<span class="sd">    ...             typestr = &#39;({0})&#39;.format(</span>
+<span class="sd">    ...                 &#39;, &#39;.join(t.__name__ for t in self.type))</span>
+<span class="sd">    ...         else:</span>
+<span class="sd">    ...             typestr = self.type.__name__</span>
+<span class="sd">    ...         return &#39;&lt;{0}(name={1}, type={2})&gt;&#39;.format(</span>
+<span class="sd">    ...                 self.__class__.__name__, self.name, typestr)</span>
+<span class="sd">    ...</span>
+
+<span class="sd">    Now let&#39;s create an example class that uses this ``TypedAttribute``::</span>
+
+<span class="sd">        &gt;&gt;&gt; @six.add_metaclass(OrderedDescriptorContainer)</span>
+<span class="sd">        ... class Point2D(object):</span>
+<span class="sd">        ...     x = TypedAttribute((float, int))</span>
+<span class="sd">        ...     y = TypedAttribute((float, int))</span>
+<span class="sd">        ...</span>
+<span class="sd">        ...     def __init__(self, x, y):</span>
+<span class="sd">        ...         self.x, self.y = x, y</span>
+<span class="sd">        ...</span>
+<span class="sd">        &gt;&gt;&gt; p1 = Point2D(1.0, 2.0)</span>
+<span class="sd">        &gt;&gt;&gt; p1.x</span>
+<span class="sd">        1.0</span>
+<span class="sd">        &gt;&gt;&gt; p1.y</span>
+<span class="sd">        2.0</span>
+<span class="sd">        &gt;&gt;&gt; p2 = Point2D(&#39;a&#39;, &#39;b&#39;)  # doctest: +IGNORE_EXCEPTION_DETAIL</span>
+<span class="sd">        Traceback (most recent call last):</span>
+<span class="sd">            ...</span>
+<span class="sd">        ValueError: Point2D.x must be of type (float, int&gt;)</span>
+
+<span class="sd">    We see that ``TypedAttribute`` works more or less as advertised, but</span>
+<span class="sd">    there&#39;s nothing special about that.  Let&#39;s see what</span>
+<span class="sd">    `OrderedDescriptorContainer` did for us::</span>
+
+<span class="sd">        &gt;&gt;&gt; Point2D.typed_attributes</span>
+<span class="sd">        OrderedDict([(&#39;x&#39;, &lt;TypedAttribute(name=x, type=(float, int))&gt;),</span>
+<span class="sd">        (&#39;y&#39;, &lt;TypedAttribute(name=y, type=(float, int))&gt;)])</span>
+
+<span class="sd">    If we create a subclass, it does *not* by default add inherited descriptors</span>
+<span class="sd">    to ``typed_attributes``::</span>
+
+<span class="sd">        &gt;&gt;&gt; class Point3D(Point2D):</span>
+<span class="sd">        ...     z = TypedAttribute((float, int))</span>
+<span class="sd">        ...</span>
+<span class="sd">        &gt;&gt;&gt; Point3D.typed_attributes</span>
+<span class="sd">        OrderedDict([(&#39;z&#39;, &lt;TypedAttribute(name=z, type=(float, int))&gt;)])</span>
+
+<span class="sd">    However, if we specify ``_inherit_descriptors_`` from ``Point2D`` then</span>
+<span class="sd">    it will do so::</span>
+
+<span class="sd">        &gt;&gt;&gt; class Point3D(Point2D):</span>
+<span class="sd">        ...     _inherit_descriptors_ = (TypedAttribute,)</span>
+<span class="sd">        ...     z = TypedAttribute((float, int))</span>
+<span class="sd">        ...</span>
+<span class="sd">        &gt;&gt;&gt; Point3D.typed_attributes</span>
+<span class="sd">        OrderedDict([(&#39;x&#39;, &lt;TypedAttribute(name=x, type=(float, int))&gt;),</span>
+<span class="sd">        (&#39;y&#39;, &lt;TypedAttribute(name=y, type=(float, int))&gt;),</span>
+<span class="sd">        (&#39;z&#39;, &lt;TypedAttribute(name=z, type=(float, int))&gt;)])</span>
+
+<span class="sd">    .. note::</span>
+
+<span class="sd">        Hopefully it is clear from these examples that this construction</span>
+<span class="sd">        also allows a class of type `OrderedDescriptorContainer` to use</span>
+<span class="sd">        multiple different `OrderedDescriptor` classes simultaneously.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="n">_inherit_descriptors_</span> <span class="o">=</span> <span class="p">()</span>
+
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="n">cls</span><span class="p">,</span> <span class="n">cls_name</span><span class="p">,</span> <span class="n">bases</span><span class="p">,</span> <span class="n">members</span><span class="p">):</span>
+        <span class="n">descriptors</span> <span class="o">=</span> <span class="n">defaultdict</span><span class="p">(</span><span class="nb">list</span><span class="p">)</span>
+        <span class="n">seen</span> <span class="o">=</span> <span class="nb">set</span><span class="p">()</span>
+        <span class="n">inherit_descriptors</span> <span class="o">=</span> <span class="p">()</span>
+        <span class="n">descr_bases</span> <span class="o">=</span> <span class="p">{}</span>
+
+        <span class="k">for</span> <span class="n">mro_cls</span> <span class="ow">in</span> <span class="n">cls</span><span class="o">.</span><span class="n">__mro__</span><span class="p">:</span>
+            <span class="k">for</span> <span class="n">name</span><span class="p">,</span> <span class="n">obj</span> <span class="ow">in</span> <span class="n">mro_cls</span><span class="o">.</span><span class="n">__dict__</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
+                <span class="k">if</span> <span class="n">name</span> <span class="ow">in</span> <span class="n">seen</span><span class="p">:</span>
+                    <span class="c1"># Checks if we&#39;ve already seen an attribute of the given</span>
+                    <span class="c1"># name (if so it will override anything of the same name in</span>
+                    <span class="c1"># any base class)</span>
+                    <span class="k">continue</span>
+
+                <span class="n">seen</span><span class="o">.</span><span class="n">add</span><span class="p">(</span><span class="n">name</span><span class="p">)</span>
+
+                <span class="k">if</span> <span class="p">(</span><span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">obj</span><span class="p">,</span> <span class="n">OrderedDescriptor</span><span class="p">)</span> <span class="ow">or</span>
+                        <span class="p">(</span><span class="n">inherit_descriptors</span> <span class="ow">and</span>
+                            <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">obj</span><span class="p">,</span> <span class="n">inherit_descriptors</span><span class="p">))):</span>
+                    <span class="c1"># The second condition applies when checking any</span>
+                    <span class="c1"># subclasses, to see if we can inherit any descriptors of</span>
+                    <span class="c1"># the given type from subclasses (by default inheritance is</span>
+                    <span class="c1"># disabled unless the class has _inherit_descriptors_</span>
+                    <span class="c1"># defined)</span>
+                    <span class="k">continue</span>
+
+                <span class="k">if</span> <span class="n">obj</span><span class="o">.</span><span class="n">_name_attribute_</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+                    <span class="nb">setattr</span><span class="p">(</span><span class="n">obj</span><span class="p">,</span> <span class="n">obj</span><span class="o">.</span><span class="n">_name_attribute_</span><span class="p">,</span> <span class="n">name</span><span class="p">)</span>
+
+                <span class="c1"># Don&#39;t just use the descriptor&#39;s class directly; instead go</span>
+                <span class="c1"># through its MRO and find the class on which _class_attribute_</span>
+                <span class="c1"># is defined directly.  This way subclasses of some</span>
+                <span class="c1"># OrderedDescriptor *may* override _class_attribute_ and have</span>
+                <span class="c1"># its own _class_attribute_, but by default all subclasses of</span>
+                <span class="c1"># some OrderedDescriptor are still grouped together</span>
+                <span class="c1"># TODO: It might be worth clarifying this in the docs</span>
+                <span class="k">if</span> <span class="n">obj</span><span class="o">.</span><span class="n">__class__</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">descr_bases</span><span class="p">:</span>
+                    <span class="k">for</span> <span class="n">obj_cls_base</span> <span class="ow">in</span> <span class="n">obj</span><span class="o">.</span><span class="n">__class__</span><span class="o">.</span><span class="n">__mro__</span><span class="p">:</span>
+                        <span class="k">if</span> <span class="s1">&#39;_class_attribute_&#39;</span> <span class="ow">in</span> <span class="n">obj_cls_base</span><span class="o">.</span><span class="n">__dict__</span><span class="p">:</span>
+                            <span class="n">descr_bases</span><span class="p">[</span><span class="n">obj</span><span class="o">.</span><span class="n">__class__</span><span class="p">]</span> <span class="o">=</span> <span class="n">obj_cls_base</span>
+                            <span class="n">descriptors</span><span class="p">[</span><span class="n">obj_cls_base</span><span class="p">]</span><span class="o">.</span><span class="n">append</span><span class="p">((</span><span class="n">obj</span><span class="p">,</span> <span class="n">name</span><span class="p">))</span>
+                            <span class="k">break</span>
+                <span class="k">else</span><span class="p">:</span>
+                    <span class="c1"># Make sure to put obj first for sorting purposes</span>
+                    <span class="n">obj_cls_base</span> <span class="o">=</span> <span class="n">descr_bases</span><span class="p">[</span><span class="n">obj</span><span class="o">.</span><span class="n">__class__</span><span class="p">]</span>
+                    <span class="n">descriptors</span><span class="p">[</span><span class="n">obj_cls_base</span><span class="p">]</span><span class="o">.</span><span class="n">append</span><span class="p">((</span><span class="n">obj</span><span class="p">,</span> <span class="n">name</span><span class="p">))</span>
+
+            <span class="k">if</span> <span class="ow">not</span> <span class="nb">getattr</span><span class="p">(</span><span class="n">mro_cls</span><span class="p">,</span> <span class="s1">&#39;_inherit_descriptors_&#39;</span><span class="p">,</span> <span class="kc">False</span><span class="p">):</span>
+                <span class="c1"># If _inherit_descriptors_ is undefined then we don&#39;t inherit</span>
+                <span class="c1"># any OrderedDescriptors from any of the base classes, and</span>
+                <span class="c1"># there&#39;s no reason to continue through the MRO</span>
+                <span class="k">break</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="n">inherit_descriptors</span> <span class="o">=</span> <span class="n">mro_cls</span><span class="o">.</span><span class="n">_inherit_descriptors_</span>
+
+        <span class="k">for</span> <span class="n">descriptor_cls</span><span class="p">,</span> <span class="n">instances</span> <span class="ow">in</span> <span class="n">descriptors</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
+            <span class="n">instances</span><span class="o">.</span><span class="n">sort</span><span class="p">()</span>
+            <span class="n">instances</span> <span class="o">=</span> <span class="n">OrderedDict</span><span class="p">((</span><span class="n">key</span><span class="p">,</span> <span class="n">value</span><span class="p">)</span> <span class="k">for</span> <span class="n">value</span><span class="p">,</span> <span class="n">key</span> <span class="ow">in</span> <span class="n">instances</span><span class="p">)</span>
+            <span class="nb">setattr</span><span class="p">(</span><span class="n">cls</span><span class="p">,</span> <span class="n">descriptor_cls</span><span class="o">.</span><span class="n">_class_attribute_</span><span class="p">,</span> <span class="n">instances</span><span class="p">)</span>
+
+        <span class="nb">super</span><span class="p">(</span><span class="n">OrderedDescriptorContainer</span><span class="p">,</span> <span class="n">cls</span><span class="p">)</span><span class="o">.</span><span class="n">__init__</span><span class="p">(</span><span class="n">cls_name</span><span class="p">,</span> <span class="n">bases</span><span class="p">,</span>
+                                                        <span class="n">members</span><span class="p">)</span></div>
+
+
+<span class="n">LOCALE_LOCK</span> <span class="o">=</span> <span class="n">threading</span><span class="o">.</span><span class="n">Lock</span><span class="p">()</span>
+
+
+<span class="nd">@contextmanager</span>
+<div class="viewcode-block" id="set_locale"><a class="viewcode-back" href="../../../api/astropy.utils.misc.set_locale.html#astropy.time.set_locale">[docs]</a><span class="k">def</span> <span class="nf">set_locale</span><span class="p">(</span><span class="n">name</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Context manager to temporarily set the locale to ``name``.</span>
+
+<span class="sd">    An example is setting locale to &quot;C&quot; so that the C strtod()</span>
+<span class="sd">    function will use &quot;.&quot; as the decimal point to enable consistent</span>
+<span class="sd">    numerical string parsing.</span>
+
+<span class="sd">    Note that one cannot nest multiple set_locale() context manager</span>
+<span class="sd">    statements as this causes a threading lock.</span>
+
+<span class="sd">    This code taken from http://stackoverflow.com/questions/18593661/.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ==========</span>
+<span class="sd">    name : str</span>
+<span class="sd">        Locale name, e.g. &quot;C&quot; or &quot;fr_FR&quot;.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">name</span> <span class="o">=</span> <span class="nb">str</span><span class="p">(</span><span class="n">name</span><span class="p">)</span>
+
+    <span class="k">with</span> <span class="n">LOCALE_LOCK</span><span class="p">:</span>
+        <span class="n">saved</span> <span class="o">=</span> <span class="n">locale</span><span class="o">.</span><span class="n">setlocale</span><span class="p">(</span><span class="n">locale</span><span class="o">.</span><span class="n">LC_ALL</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">saved</span> <span class="o">==</span> <span class="n">name</span><span class="p">:</span>
+            <span class="c1"># Don&#39;t do anything if locale is already the requested locale</span>
+            <span class="k">yield</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">try</span><span class="p">:</span>
+                <span class="n">locale</span><span class="o">.</span><span class="n">setlocale</span><span class="p">(</span><span class="n">locale</span><span class="o">.</span><span class="n">LC_ALL</span><span class="p">,</span> <span class="n">name</span><span class="p">)</span>
+                <span class="k">yield</span>
+            <span class="k">finally</span><span class="p">:</span>
+                <span class="n">locale</span><span class="o">.</span><span class="n">setlocale</span><span class="p">(</span><span class="n">locale</span><span class="o">.</span><span class="n">LC_ALL</span><span class="p">,</span> <span class="n">saved</span><span class="p">)</span></div>
+
+
+<span class="nd">@six</span><span class="o">.</span><span class="n">add_metaclass</span><span class="p">(</span><span class="n">abc</span><span class="o">.</span><span class="n">ABCMeta</span><span class="p">)</span>
+<div class="viewcode-block" id="ShapedLikeNDArray"><a class="viewcode-back" href="../../../api/astropy.utils.misc.ShapedLikeNDArray.html#astropy.time.ShapedLikeNDArray">[docs]</a><span class="k">class</span> <span class="nc">ShapedLikeNDArray</span><span class="p">(</span><span class="nb">object</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;Mixin class to provide shape-changing methods.</span>
+
+<span class="sd">    The class proper is assumed to have some underlying data, which are arrays</span>
+<span class="sd">    or array-like structures. It must define a ``shape`` property, which gives</span>
+<span class="sd">    the shape of those data, as well as an ``_apply`` method that creates a new</span>
+<span class="sd">    instance in which a `~numpy.ndarray` method has been applied to those.</span>
+
+<span class="sd">    Furthermore, for consistency with `~numpy.ndarray`, it is recommended to</span>
+<span class="sd">    define a setter for the ``shape`` property, which, like the</span>
+<span class="sd">    `~numpy.ndarray.shape` property allows in-place reshaping the internal data</span>
+<span class="sd">    (and, unlike the ``reshape`` method raises an exception if this is not</span>
+<span class="sd">    possible).</span>
+
+<span class="sd">    This class also defines default implementations for ``ndim`` and ``size``</span>
+<span class="sd">    properties, calculating those from the ``shape``.  These can be overridden</span>
+<span class="sd">    by subclasses if there are faster ways to obtain those numbers.</span>
+
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="c1"># Note to developers: if new methods are added here, be sure to check that</span>
+    <span class="c1"># they work properly with the classes that use this, such as Time and</span>
+    <span class="c1"># BaseRepresentation, i.e., look at their ``_apply`` methods and add</span>
+    <span class="c1"># relevant tests.  This is particularly important for methods that imply</span>
+    <span class="c1"># copies rather than views of data (see the special-case treatment of</span>
+    <span class="c1"># &#39;flatten&#39; in Time).</span>
+
+    <span class="nd">@abc</span><span class="o">.</span><span class="n">abstractproperty</span>
+    <span class="k">def</span> <span class="nf">shape</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;The shape of the instance and underlying arrays.&quot;&quot;&quot;</span>
+
+    <span class="nd">@abc</span><span class="o">.</span><span class="n">abstractmethod</span>
+    <span class="k">def</span> <span class="nf">_apply</span><span class="p">(</span><span class="n">method</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Create a new instance, with ``method`` applied to underlying data.</span>
+
+<span class="sd">        The method is any of the shape-changing methods for `~numpy.ndarray`</span>
+<span class="sd">        (``reshape``, ``swapaxes``, etc.), as well as those picking particular</span>
+<span class="sd">        elements (``__getitem__``, ``take``, etc.). It will be applied to the</span>
+<span class="sd">        underlying arrays (e.g., ``jd1`` and ``jd2`` in `~astropy.time.Time`),</span>
+<span class="sd">        with the results used to create a new instance.</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        method : str</span>
+<span class="sd">            Method to be applied to the instance&#39;s internal data arrays.</span>
+<span class="sd">        args : tuple</span>
+<span class="sd">            Any positional arguments for ``method``.</span>
+<span class="sd">        kwargs : dict</span>
+<span class="sd">            Any keyword arguments for ``method``.</span>
+
+<span class="sd">        &quot;&quot;&quot;</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">ndim</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;The number of dimensions of the instance and underlying arrays.&quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">shape</span><span class="p">)</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">size</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;The size of the object, as calculated from its shape.&quot;&quot;&quot;</span>
+        <span class="n">size</span> <span class="o">=</span> <span class="mi">1</span>
+        <span class="k">for</span> <span class="n">sh</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">shape</span><span class="p">:</span>
+            <span class="n">size</span> <span class="o">*=</span> <span class="n">sh</span>
+        <span class="k">return</span> <span class="n">size</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">isscalar</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">shape</span> <span class="o">==</span> <span class="p">()</span>
+
+    <span class="k">def</span> <span class="nf">__len__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">isscalar</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">TypeError</span><span class="p">(</span><span class="s2">&quot;Scalar </span><span class="si">{0!r}</span><span class="s2"> object has no len()&quot;</span>
+                            <span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">__class__</span><span class="o">.</span><span class="n">__name__</span><span class="p">))</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+
+    <span class="k">def</span> <span class="nf">__bool__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>  <span class="c1"># Python 3</span>
+        <span class="sd">&quot;&quot;&quot;Any instance should evaluate to True, except when it is empty.&quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">size</span> <span class="o">&gt;</span> <span class="mi">0</span>
+
+    <span class="k">def</span> <span class="nf">__nonzero__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>  <span class="c1"># Python 2</span>
+        <span class="sd">&quot;&quot;&quot;Any instance should evaluate to True, except when it is empty.&quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">size</span> <span class="o">&gt;</span> <span class="mi">0</span>
+
+    <span class="k">def</span> <span class="nf">__getitem__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">item</span><span class="p">):</span>
+        <span class="k">try</span><span class="p">:</span>
+            <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_apply</span><span class="p">(</span><span class="s1">&#39;__getitem__&#39;</span><span class="p">,</span> <span class="n">item</span><span class="p">)</span>
+        <span class="k">except</span> <span class="ne">IndexError</span><span class="p">:</span>
+            <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">isscalar</span><span class="p">:</span>
+                <span class="k">raise</span> <span class="ne">TypeError</span><span class="p">(</span><span class="s1">&#39;scalar </span><span class="si">{0!r}</span><span class="s1"> object is not subscriptable.&#39;</span>
+                                <span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">__class__</span><span class="o">.</span><span class="n">__name__</span><span class="p">))</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="k">raise</span>
+
+    <span class="k">def</span> <span class="nf">__iter__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">isscalar</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">TypeError</span><span class="p">(</span><span class="s1">&#39;scalar </span><span class="si">{0!r}</span><span class="s1"> object is not iterable.&#39;</span>
+                            <span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">__class__</span><span class="o">.</span><span class="n">__name__</span><span class="p">))</span>
+
+        <span class="c1"># We cannot just write a generator here, since then the above error</span>
+        <span class="c1"># would only be raised once we try to use the iterator, rather than</span>
+        <span class="c1"># upon its definition using iter(self).</span>
+        <span class="k">def</span> <span class="nf">self_iter</span><span class="p">():</span>
+            <span class="k">for</span> <span class="n">idx</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="p">)):</span>
+                <span class="k">yield</span> <span class="bp">self</span><span class="p">[</span><span class="n">idx</span><span class="p">]</span>
+
+        <span class="k">return</span> <span class="n">self_iter</span><span class="p">()</span>
+
+<div class="viewcode-block" id="ShapedLikeNDArray.copy"><a class="viewcode-back" href="../../../api/astropy.utils.misc.ShapedLikeNDArray.html#astropy.time.ShapedLikeNDArray.copy">[docs]</a>    <span class="k">def</span> <span class="nf">copy</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Return an instance containing copies of the internal data.</span>
+
+<span class="sd">        Parameters are as for :meth:`~numpy.ndarray.copy`.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_apply</span><span class="p">(</span><span class="s1">&#39;copy&#39;</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span></div>
+
+<div class="viewcode-block" id="ShapedLikeNDArray.reshape"><a class="viewcode-back" href="../../../api/astropy.utils.misc.ShapedLikeNDArray.html#astropy.time.ShapedLikeNDArray.reshape">[docs]</a>    <span class="k">def</span> <span class="nf">reshape</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Returns an instance containing the same data with a new shape.</span>
+
+<span class="sd">        Parameters are as for :meth:`~numpy.ndarray.reshape`.  Note that it is</span>
+<span class="sd">        not always possible to change the shape of an array without copying the</span>
+<span class="sd">        data (see :func:`~numpy.reshape` documentation). If you want an error</span>
+<span class="sd">        to be raise if the data is copied, you should assign the new shape to</span>
+<span class="sd">        the shape attribute (note: this may not be implemented for all classes</span>
+<span class="sd">        using ``ShapedLikeNDArray``).</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_apply</span><span class="p">(</span><span class="s1">&#39;reshape&#39;</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span></div>
+
+<div class="viewcode-block" id="ShapedLikeNDArray.ravel"><a class="viewcode-back" href="../../../api/astropy.utils.misc.ShapedLikeNDArray.html#astropy.time.ShapedLikeNDArray.ravel">[docs]</a>    <span class="k">def</span> <span class="nf">ravel</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Return an instance with the array collapsed into one dimension.</span>
+
+<span class="sd">        Parameters are as for :meth:`~numpy.ndarray.ravel`. Note that it is</span>
+<span class="sd">        not always possible to unravel an array without copying the data.</span>
+<span class="sd">        If you want an error to be raise if the data is copied, you should</span>
+<span class="sd">        should assign shape ``(-1,)`` to the shape attribute.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_apply</span><span class="p">(</span><span class="s1">&#39;ravel&#39;</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span></div>
+
+<div class="viewcode-block" id="ShapedLikeNDArray.flatten"><a class="viewcode-back" href="../../../api/astropy.utils.misc.ShapedLikeNDArray.html#astropy.time.ShapedLikeNDArray.flatten">[docs]</a>    <span class="k">def</span> <span class="nf">flatten</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Return a copy with the array collapsed into one dimension.</span>
+
+<span class="sd">        Parameters are as for :meth:`~numpy.ndarray.flatten`.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_apply</span><span class="p">(</span><span class="s1">&#39;flatten&#39;</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span></div>
+
+<div class="viewcode-block" id="ShapedLikeNDArray.transpose"><a class="viewcode-back" href="../../../api/astropy.utils.misc.ShapedLikeNDArray.html#astropy.time.ShapedLikeNDArray.transpose">[docs]</a>    <span class="k">def</span> <span class="nf">transpose</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Return an instance with the data transposed.</span>
+
+<span class="sd">        Parameters are as for :meth:`~numpy.ndarray.transpose`.  All internal</span>
+<span class="sd">        data are views of the data of the original.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_apply</span><span class="p">(</span><span class="s1">&#39;transpose&#39;</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span></div>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">T</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Return an instance with the data transposed.</span>
+
+<span class="sd">        Parameters are as for :attr:`~numpy.ndarray.T`.  All internal</span>
+<span class="sd">        data are views of the data of the original.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">ndim</span> <span class="o">&lt;</span> <span class="mi">2</span><span class="p">:</span>
+            <span class="k">return</span> <span class="bp">self</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">transpose</span><span class="p">()</span>
+
+<div class="viewcode-block" id="ShapedLikeNDArray.swapaxes"><a class="viewcode-back" href="../../../api/astropy.utils.misc.ShapedLikeNDArray.html#astropy.time.ShapedLikeNDArray.swapaxes">[docs]</a>    <span class="k">def</span> <span class="nf">swapaxes</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Return an instance with the given axes interchanged.</span>
+
+<span class="sd">        Parameters are as for :meth:`~numpy.ndarray.swapaxes`:</span>
+<span class="sd">        ``axis1, axis2``.  All internal data are views of the data of the</span>
+<span class="sd">        original.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_apply</span><span class="p">(</span><span class="s1">&#39;swapaxes&#39;</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span></div>
+
+<div class="viewcode-block" id="ShapedLikeNDArray.diagonal"><a class="viewcode-back" href="../../../api/astropy.utils.misc.ShapedLikeNDArray.html#astropy.time.ShapedLikeNDArray.diagonal">[docs]</a>    <span class="k">def</span> <span class="nf">diagonal</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Return an instance with the specified diagonals.</span>
+
+<span class="sd">        Parameters are as for :meth:`~numpy.ndarray.diagonal`.  All internal</span>
+<span class="sd">        data are views of the data of the original.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_apply</span><span class="p">(</span><span class="s1">&#39;diagonal&#39;</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span></div>
+
+<div class="viewcode-block" id="ShapedLikeNDArray.squeeze"><a class="viewcode-back" href="../../../api/astropy.utils.misc.ShapedLikeNDArray.html#astropy.time.ShapedLikeNDArray.squeeze">[docs]</a>    <span class="k">def</span> <span class="nf">squeeze</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Return an instance with single-dimensional shape entries removed</span>
+
+<span class="sd">        Parameters are as for :meth:`~numpy.ndarray.squeeze`.  All internal</span>
+<span class="sd">        data are views of the data of the original.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_apply</span><span class="p">(</span><span class="s1">&#39;squeeze&#39;</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span></div>
+
+<div class="viewcode-block" id="ShapedLikeNDArray.take"><a class="viewcode-back" href="../../../api/astropy.utils.misc.ShapedLikeNDArray.html#astropy.time.ShapedLikeNDArray.take">[docs]</a>    <span class="k">def</span> <span class="nf">take</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">indices</span><span class="p">,</span> <span class="n">axis</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">mode</span><span class="o">=</span><span class="s1">&#39;raise&#39;</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Return a new instance formed from the elements at the given indices.</span>
+
+<span class="sd">        Parameters are as for :meth:`~numpy.ndarray.take`, except that,</span>
+<span class="sd">        obviously, no output array can be given.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_apply</span><span class="p">(</span><span class="s1">&#39;take&#39;</span><span class="p">,</span> <span class="n">indices</span><span class="p">,</span> <span class="n">axis</span><span class="o">=</span><span class="n">axis</span><span class="p">,</span> <span class="n">mode</span><span class="o">=</span><span class="n">mode</span><span class="p">)</span></div></div>
+
+
+<div class="viewcode-block" id="IncompatibleShapeError"><a class="viewcode-back" href="../../../api/astropy.utils.misc.IncompatibleShapeError.html#astropy.time.IncompatibleShapeError">[docs]</a><span class="k">class</span> <span class="nc">IncompatibleShapeError</span><span class="p">(</span><span class="ne">ValueError</span><span class="p">):</span>
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">shape_a</span><span class="p">,</span> <span class="n">shape_a_idx</span><span class="p">,</span> <span class="n">shape_b</span><span class="p">,</span> <span class="n">shape_b_idx</span><span class="p">):</span>
+        <span class="nb">super</span><span class="p">(</span><span class="n">IncompatibleShapeError</span><span class="p">,</span> <span class="bp">self</span><span class="p">)</span><span class="o">.</span><span class="n">__init__</span><span class="p">(</span>
+                <span class="n">shape_a</span><span class="p">,</span> <span class="n">shape_a_idx</span><span class="p">,</span> <span class="n">shape_b</span><span class="p">,</span> <span class="n">shape_b_idx</span><span class="p">)</span></div>
+
+
+<div class="viewcode-block" id="check_broadcast"><a class="viewcode-back" href="../../../api/astropy.utils.misc.check_broadcast.html#astropy.time.check_broadcast">[docs]</a><span class="k">def</span> <span class="nf">check_broadcast</span><span class="p">(</span><span class="o">*</span><span class="n">shapes</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Determines whether two or more Numpy arrays can be broadcast with each</span>
+<span class="sd">    other based on their shape tuple alone.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    *shapes : tuple</span>
+<span class="sd">        All shapes to include in the comparison.  If only one shape is given it</span>
+<span class="sd">        is passed through unmodified.  If no shapes are given returns an empty</span>
+<span class="sd">        `tuple`.</span>
+
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+<span class="sd">    broadcast : `tuple`</span>
+<span class="sd">        If all shapes are mutually broadcastable, returns a tuple of the full</span>
+<span class="sd">        broadcast shape.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">shapes</span><span class="p">)</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
+        <span class="k">return</span> <span class="p">()</span>
+    <span class="k">elif</span> <span class="nb">len</span><span class="p">(</span><span class="n">shapes</span><span class="p">)</span> <span class="o">==</span> <span class="mi">1</span><span class="p">:</span>
+        <span class="k">return</span> <span class="n">shapes</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+
+    <span class="n">reversed_shapes</span> <span class="o">=</span> <span class="p">(</span><span class="nb">reversed</span><span class="p">(</span><span class="n">shape</span><span class="p">)</span> <span class="k">for</span> <span class="n">shape</span> <span class="ow">in</span> <span class="n">shapes</span><span class="p">)</span>
+
+    <span class="n">full_shape</span> <span class="o">=</span> <span class="p">[]</span>
+
+    <span class="k">for</span> <span class="n">dims</span> <span class="ow">in</span> <span class="n">zip_longest</span><span class="p">(</span><span class="o">*</span><span class="n">reversed_shapes</span><span class="p">,</span> <span class="n">fillvalue</span><span class="o">=</span><span class="mi">1</span><span class="p">):</span>
+        <span class="n">max_dim</span> <span class="o">=</span> <span class="mi">1</span>
+        <span class="n">max_dim_idx</span> <span class="o">=</span> <span class="kc">None</span>
+        <span class="k">for</span> <span class="n">idx</span><span class="p">,</span> <span class="n">dim</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="n">dims</span><span class="p">):</span>
+            <span class="k">if</span> <span class="n">dim</span> <span class="o">==</span> <span class="mi">1</span><span class="p">:</span>
+                <span class="k">continue</span>
+
+            <span class="k">if</span> <span class="n">max_dim</span> <span class="o">==</span> <span class="mi">1</span><span class="p">:</span>
+                <span class="c1"># The first dimension of size greater than 1</span>
+                <span class="n">max_dim</span> <span class="o">=</span> <span class="n">dim</span>
+                <span class="n">max_dim_idx</span> <span class="o">=</span> <span class="n">idx</span>
+            <span class="k">elif</span> <span class="n">dim</span> <span class="o">!=</span> <span class="n">max_dim</span><span class="p">:</span>
+                <span class="k">raise</span> <span class="n">IncompatibleShapeError</span><span class="p">(</span>
+                    <span class="n">shapes</span><span class="p">[</span><span class="n">max_dim_idx</span><span class="p">],</span> <span class="n">max_dim_idx</span><span class="p">,</span> <span class="n">shapes</span><span class="p">[</span><span class="n">idx</span><span class="p">],</span> <span class="n">idx</span><span class="p">)</span>
+
+        <span class="n">full_shape</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">max_dim</span><span class="p">)</span>
+
+    <span class="k">return</span> <span class="nb">tuple</span><span class="p">(</span><span class="n">full_shape</span><span class="p">[::</span><span class="o">-</span><span class="mi">1</span><span class="p">])</span></div>
+</pre></div>
+
+          </div>
+        </div>
+      </div>
+      <div class="sphinxsidebar" role="navigation" aria-label="main navigation">
+        <div class="sphinxsidebarwrapper"><h3>Page Contents</h3>
+
+
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+<footer class="footer">
+  <p class="pull-right"> &nbsp;
+    <a href="#">Back to Top</a></p>
+  <p>
+    &copy; Copyright 2011-2016, The Astropy Developers.<br/>
+    Created using <a href="http://sphinx.pocoo.org/">Sphinx</a> 1.5.6. &nbsp;
+    Last built 05 Jul 2017. <br/>
+  </p>
+</footer>
+  </body>
+</html>

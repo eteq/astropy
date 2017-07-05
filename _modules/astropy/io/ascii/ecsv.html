@@ -1,0 +1,353 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <head>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    
+    <title>astropy.io.ascii.ecsv &#8212; Astropy v3.0.dev19489</title>
+    
+    <link rel="stylesheet" href="../../../../_static/bootstrap-astropy.css" type="text/css" />
+    <link rel="stylesheet" href="../../../../_static/pygments.css" type="text/css" />
+    <link rel="stylesheet" href="../../../../_static/gallery.css" type="text/css" />
+    
+    <script type="text/javascript">
+      var DOCUMENTATION_OPTIONS = {
+        URL_ROOT:    '../../../../',
+        VERSION:     '3.0.dev19489',
+        COLLAPSE_INDEX: false,
+        FILE_SUFFIX: '.html',
+        HAS_SOURCE:  true,
+        SOURCELINK_SUFFIX: '.txt'
+      };
+    </script>
+    <script type="text/javascript" src="../../../../_static/jquery.js"></script>
+    <script type="text/javascript" src="../../../../_static/underscore.js"></script>
+    <script type="text/javascript" src="../../../../_static/doctools.js"></script>
+    <script type="text/javascript" src="../../../../_static/sidebar.js"></script>
+    <link rel="shortcut icon" href="../../../../_static/astropy_logo.ico"/>
+    <link rel="index" title="Index" href="../../../../genindex.html" />
+    <link rel="search" title="Search" href="../../../../search.html" />
+<link href='https://fonts.googleapis.com/css?family=Source+Sans+Pro:200,600' rel='stylesheet' type='text/css'/>
+<script type="text/javascript" src="../../../../_static/copybutton.js"></script>
+
+
+  </head>
+  <body role="document">
+<div class="topbar">
+  <a class="brand" title="Documentation Home" href="../../../../index.html"><span id="logotext1">astro</span><span id="logotext2">py</span><span id="logotext3">:docs</span></a>
+  <ul>
+    <li><a class="homelink" title="Astropy Homepage" href="http://www.astropy.org"></a></li>
+    <li><a title="General Index" href="../../../../genindex.html">Index</a></li>
+    <li><a title="Module Index" href="../../../../py-modindex.html">Modules</a></li>
+    <li>
+      
+      
+<form action="../../../../search.html" method="get">
+  <input type="text" name="q" placeholder="Search" />
+  <input type="hidden" name="check_keywords" value="yes" />
+  <input type="hidden" name="area" value="default" />
+</form>
+      
+    </li>
+  </ul>
+</div>
+
+<div class="related">
+    <h3>Navigation</h3>
+    <ul>
+      <li>
+	<a href="../../../../index.html">Astropy v3.0.dev19489</a>
+	 &#187;
+      </li>
+      <li><a href="../../../index.html" >Module code</a> &#187;</li>
+      <li><a href="../../../astropy.html" accesskey="U">astropy</a> &#187;</li>
+      
+       
+    </ul>
+</div>
+  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          <div class="body" role="main">
+            
+  <h1>Source code for astropy.io.ascii.ecsv</h1><div class="highlight"><pre>
+<span></span><span class="c1"># Licensed under a 3-clause BSD style license - see LICENSE.rst</span>
+<span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">Define the Enhanced Character-Separated-Values (ECSV) which allows for reading and</span>
+<span class="sd">writing all the meta data associated with an astropy Table object.</span>
+<span class="sd">&quot;&quot;&quot;</span>
+
+<span class="kn">import</span> <span class="nn">re</span>
+<span class="kn">from</span> <span class="nn">collections</span> <span class="k">import</span> <span class="n">OrderedDict</span>
+<span class="kn">import</span> <span class="nn">contextlib</span>
+
+<span class="kn">from</span> <span class="nn">...extern</span> <span class="k">import</span> <span class="n">six</span>
+
+<span class="kn">from</span> <span class="nn">.</span> <span class="k">import</span> <span class="n">core</span><span class="p">,</span> <span class="n">basic</span>
+<span class="kn">from</span> <span class="nn">...table</span> <span class="k">import</span> <span class="n">meta</span><span class="p">,</span> <span class="n">serialize</span>
+<span class="kn">from</span> <span class="nn">...utils.data_info</span> <span class="k">import</span> <span class="n">serialize_context_as</span>
+
+<span class="n">__doctest_requires__</span> <span class="o">=</span> <span class="p">{</span><span class="s1">&#39;Ecsv&#39;</span><span class="p">:</span> <span class="p">[</span><span class="s1">&#39;yaml&#39;</span><span class="p">]}</span>
+
+<span class="n">ECSV_VERSION</span> <span class="o">=</span> <span class="s1">&#39;0.9&#39;</span>
+<span class="n">DELIMITERS</span> <span class="o">=</span> <span class="p">(</span><span class="s1">&#39; &#39;</span><span class="p">,</span> <span class="s1">&#39;,&#39;</span><span class="p">)</span>
+
+
+<span class="k">class</span> <span class="nc">EcsvHeader</span><span class="p">(</span><span class="n">basic</span><span class="o">.</span><span class="n">BasicHeader</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;Header class for which the column definition line starts with the</span>
+<span class="sd">    comment character.  See the :class:`CommentedHeader` class  for an example.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">def</span> <span class="nf">process_lines</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">lines</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Return only non-blank lines that start with the comment regexp.  For these</span>
+<span class="sd">        lines strip out the matching characters and leading/trailing whitespace.&quot;&quot;&quot;</span>
+        <span class="n">re_comment</span> <span class="o">=</span> <span class="n">re</span><span class="o">.</span><span class="n">compile</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">comment</span><span class="p">)</span>
+        <span class="k">for</span> <span class="n">line</span> <span class="ow">in</span> <span class="n">lines</span><span class="p">:</span>
+            <span class="n">line</span> <span class="o">=</span> <span class="n">line</span><span class="o">.</span><span class="n">strip</span><span class="p">()</span>
+            <span class="k">if</span> <span class="ow">not</span> <span class="n">line</span><span class="p">:</span>
+                <span class="k">continue</span>
+            <span class="n">match</span> <span class="o">=</span> <span class="n">re_comment</span><span class="o">.</span><span class="n">match</span><span class="p">(</span><span class="n">line</span><span class="p">)</span>
+            <span class="k">if</span> <span class="n">match</span><span class="p">:</span>
+                <span class="n">out</span> <span class="o">=</span> <span class="n">line</span><span class="p">[</span><span class="n">match</span><span class="o">.</span><span class="n">end</span><span class="p">():]</span>
+                <span class="k">if</span> <span class="n">out</span><span class="p">:</span>
+                    <span class="k">yield</span> <span class="n">out</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="c1"># Stop iterating on first failed match for a non-blank line</span>
+                <span class="k">return</span>
+
+    <span class="k">def</span> <span class="nf">write</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">lines</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Write header information in the ECSV ASCII format.  This format</span>
+<span class="sd">        starts with a delimiter separated list of the column names in order</span>
+<span class="sd">        to make this format readable by humans and simple csv-type readers.</span>
+<span class="sd">        It then encodes the full table meta and column attributes and meta</span>
+<span class="sd">        as YAML and pretty-prints this in the header.  Finally the delimited</span>
+<span class="sd">        column names are repeated again, for humans and readers that look</span>
+<span class="sd">        for the *last* comment line as defining the column names.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">splitter</span><span class="o">.</span><span class="n">delimiter</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">DELIMITERS</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s1">&#39;only space and comma are allowed for delimiter in ECSV format&#39;</span><span class="p">)</span>
+
+        <span class="k">for</span> <span class="n">col</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">cols</span><span class="p">:</span>
+            <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="nb">getattr</span><span class="p">(</span><span class="n">col</span><span class="p">,</span> <span class="s1">&#39;shape&#39;</span><span class="p">,</span> <span class="p">()))</span> <span class="o">&gt;</span> <span class="mi">1</span><span class="p">:</span>
+                <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;ECSV format does not support multidimensional column &#39;</span><span class="si">{0}</span><span class="s2">&#39;&quot;</span>
+                                 <span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">col</span><span class="o">.</span><span class="n">info</span><span class="o">.</span><span class="n">name</span><span class="p">))</span>
+
+        <span class="c1"># Now assemble the header dict that will be serialized by the YAML dumper</span>
+        <span class="n">header</span> <span class="o">=</span> <span class="p">{</span><span class="s1">&#39;cols&#39;</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">cols</span><span class="p">,</span> <span class="s1">&#39;schema&#39;</span><span class="p">:</span> <span class="s1">&#39;astropy-2.0&#39;</span><span class="p">}</span>
+
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">table_meta</span><span class="p">:</span>
+            <span class="n">header</span><span class="p">[</span><span class="s1">&#39;meta&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">table_meta</span>
+
+        <span class="c1"># Set the delimiter only for the non-default option(s)</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">splitter</span><span class="o">.</span><span class="n">delimiter</span> <span class="o">!=</span> <span class="s1">&#39; &#39;</span><span class="p">:</span>
+            <span class="n">header</span><span class="p">[</span><span class="s1">&#39;delimiter&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">splitter</span><span class="o">.</span><span class="n">delimiter</span>
+
+        <span class="n">header_yaml_lines</span> <span class="o">=</span> <span class="p">([</span><span class="s1">&#39;</span><span class="si">%E</span><span class="s1">CSV </span><span class="si">{0}</span><span class="s1">&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">ECSV_VERSION</span><span class="p">),</span>
+                              <span class="s1">&#39;---&#39;</span><span class="p">]</span>
+                             <span class="o">+</span> <span class="n">meta</span><span class="o">.</span><span class="n">get_yaml_from_header</span><span class="p">(</span><span class="n">header</span><span class="p">))</span>
+
+        <span class="n">lines</span><span class="o">.</span><span class="n">extend</span><span class="p">([</span><span class="bp">self</span><span class="o">.</span><span class="n">write_comment</span> <span class="o">+</span> <span class="n">line</span> <span class="k">for</span> <span class="n">line</span> <span class="ow">in</span> <span class="n">header_yaml_lines</span><span class="p">])</span>
+        <span class="n">lines</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">splitter</span><span class="o">.</span><span class="n">join</span><span class="p">([</span><span class="n">x</span><span class="o">.</span><span class="n">info</span><span class="o">.</span><span class="n">name</span> <span class="k">for</span> <span class="n">x</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">cols</span><span class="p">]))</span>
+
+    <span class="k">def</span> <span class="nf">write_comments</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">lines</span><span class="p">,</span> <span class="n">meta</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Override the default write_comments to do nothing since this is handled</span>
+<span class="sd">        in the custom write method.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">pass</span>
+
+    <span class="k">def</span> <span class="nf">update_meta</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">lines</span><span class="p">,</span> <span class="n">meta</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Override the default update_meta to do nothing.  This process is done</span>
+<span class="sd">        in get_cols() for this reader.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">pass</span>
+
+    <span class="k">def</span> <span class="nf">get_cols</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">lines</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Initialize the header Column objects from the table ``lines``.</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        lines : list</span>
+<span class="sd">            List of table lines</span>
+
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="c1"># Cache a copy of the original input lines before processing below</span>
+        <span class="n">raw_lines</span> <span class="o">=</span> <span class="n">lines</span>
+
+        <span class="c1"># Extract non-blank comment (header) lines with comment character stripped</span>
+        <span class="n">lines</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">process_lines</span><span class="p">(</span><span class="n">lines</span><span class="p">))</span>
+
+        <span class="c1"># Validate that this is a ECSV file</span>
+        <span class="n">ecsv_header_re</span> <span class="o">=</span> <span class="s2">r&quot;&quot;&quot;</span><span class="si">%E</span><span class="s2">CSV [ ]</span>
+<span class="s2">                             (?P&lt;major&gt; \d+)</span>
+<span class="s2">                             \. (?P&lt;minor&gt; \d+)</span>
+<span class="s2">                             \.? (?P&lt;bugfix&gt; \d+)? $&quot;&quot;&quot;</span>
+
+        <span class="n">no_header_msg</span> <span class="o">=</span> <span class="p">(</span><span class="s1">&#39;ECSV header line like &quot;# </span><span class="si">%E</span><span class="s1">CSV &lt;version&gt;&quot; not found as first line.&#39;</span>
+                         <span class="s1">&#39;  This is required for a ECSV file.&#39;</span><span class="p">)</span>
+
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">lines</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="n">core</span><span class="o">.</span><span class="n">InconsistentTableError</span><span class="p">(</span><span class="n">no_header_msg</span><span class="p">)</span>
+
+        <span class="n">match</span> <span class="o">=</span> <span class="n">re</span><span class="o">.</span><span class="n">match</span><span class="p">(</span><span class="n">ecsv_header_re</span><span class="p">,</span> <span class="n">lines</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">strip</span><span class="p">(),</span> <span class="n">re</span><span class="o">.</span><span class="n">VERBOSE</span><span class="p">)</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">match</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="n">core</span><span class="o">.</span><span class="n">InconsistentTableError</span><span class="p">(</span><span class="n">no_header_msg</span><span class="p">)</span>
+        <span class="c1"># ecsv_version could be constructed here, but it is not currently used.</span>
+
+        <span class="k">try</span><span class="p">:</span>
+            <span class="n">header</span> <span class="o">=</span> <span class="n">meta</span><span class="o">.</span><span class="n">get_header_from_yaml</span><span class="p">(</span><span class="n">lines</span><span class="p">)</span>
+        <span class="k">except</span> <span class="n">meta</span><span class="o">.</span><span class="n">YamlParseError</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="n">core</span><span class="o">.</span><span class="n">InconsistentTableError</span><span class="p">(</span><span class="s1">&#39;unable to parse yaml in meta header&#39;</span><span class="p">)</span>
+
+        <span class="k">if</span> <span class="s1">&#39;meta&#39;</span> <span class="ow">in</span> <span class="n">header</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">table_meta</span> <span class="o">=</span> <span class="n">header</span><span class="p">[</span><span class="s1">&#39;meta&#39;</span><span class="p">]</span>
+
+        <span class="k">if</span> <span class="s1">&#39;delimiter&#39;</span> <span class="ow">in</span> <span class="n">header</span><span class="p">:</span>
+            <span class="n">delimiter</span> <span class="o">=</span> <span class="n">header</span><span class="p">[</span><span class="s1">&#39;delimiter&#39;</span><span class="p">]</span>
+            <span class="k">if</span> <span class="n">delimiter</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">DELIMITERS</span><span class="p">:</span>
+                <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s1">&#39;only space and comma are allowed for delimiter in ECSV format&#39;</span><span class="p">)</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">splitter</span><span class="o">.</span><span class="n">delimiter</span> <span class="o">=</span> <span class="n">delimiter</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">splitter</span><span class="o">.</span><span class="n">delimiter</span> <span class="o">=</span> <span class="n">delimiter</span>
+
+        <span class="c1"># Create the list of io.ascii column objects from `header`</span>
+        <span class="n">header_cols</span> <span class="o">=</span> <span class="n">OrderedDict</span><span class="p">((</span><span class="n">x</span><span class="p">[</span><span class="s1">&#39;name&#39;</span><span class="p">],</span> <span class="n">x</span><span class="p">)</span> <span class="k">for</span> <span class="n">x</span> <span class="ow">in</span> <span class="n">header</span><span class="p">[</span><span class="s1">&#39;datatype&#39;</span><span class="p">])</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">names</span> <span class="o">=</span> <span class="p">[</span><span class="n">x</span><span class="p">[</span><span class="s1">&#39;name&#39;</span><span class="p">]</span> <span class="k">for</span> <span class="n">x</span> <span class="ow">in</span> <span class="n">header</span><span class="p">[</span><span class="s1">&#39;datatype&#39;</span><span class="p">]]</span>
+
+        <span class="c1"># Read the first non-commented line of table and split to get the CSV</span>
+        <span class="c1"># header column names.  This is essentially what the Basic reader does.</span>
+        <span class="n">header_line</span> <span class="o">=</span> <span class="nb">next</span><span class="p">(</span><span class="nb">super</span><span class="p">(</span><span class="n">EcsvHeader</span><span class="p">,</span> <span class="bp">self</span><span class="p">)</span><span class="o">.</span><span class="n">process_lines</span><span class="p">(</span><span class="n">raw_lines</span><span class="p">))</span>
+        <span class="n">header_names</span> <span class="o">=</span> <span class="nb">next</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">splitter</span><span class="p">([</span><span class="n">header_line</span><span class="p">]))</span>
+
+        <span class="c1"># Check for consistency of the ECSV vs. CSV header column names</span>
+        <span class="k">if</span> <span class="n">header_names</span> <span class="o">!=</span> <span class="bp">self</span><span class="o">.</span><span class="n">names</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s1">&#39;column names from ECSV header </span><span class="si">{}</span><span class="s1"> do not &#39;</span>
+                             <span class="s1">&#39;match names from header line of CSV data </span><span class="si">{}</span><span class="s1">&#39;</span>
+                             <span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">names</span><span class="p">,</span> <span class="n">header_names</span><span class="p">))</span>
+
+        <span class="c1"># BaseHeader method to create self.cols, which is a list of</span>
+        <span class="c1"># io.ascii.core.Column objects (*not* Table Column objects).</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_set_cols_from_names</span><span class="p">()</span>
+
+        <span class="c1"># Transfer attributes from the column descriptor stored in the input</span>
+        <span class="c1"># header YAML metadata to the new columns to create this table.</span>
+        <span class="k">for</span> <span class="n">col</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">cols</span><span class="p">:</span>
+            <span class="k">for</span> <span class="n">attr</span> <span class="ow">in</span> <span class="p">(</span><span class="s1">&#39;description&#39;</span><span class="p">,</span> <span class="s1">&#39;format&#39;</span><span class="p">,</span> <span class="s1">&#39;unit&#39;</span><span class="p">,</span> <span class="s1">&#39;meta&#39;</span><span class="p">):</span>
+                <span class="k">if</span> <span class="n">attr</span> <span class="ow">in</span> <span class="n">header_cols</span><span class="p">[</span><span class="n">col</span><span class="o">.</span><span class="n">name</span><span class="p">]:</span>
+                    <span class="nb">setattr</span><span class="p">(</span><span class="n">col</span><span class="p">,</span> <span class="n">attr</span><span class="p">,</span> <span class="n">header_cols</span><span class="p">[</span><span class="n">col</span><span class="o">.</span><span class="n">name</span><span class="p">][</span><span class="n">attr</span><span class="p">])</span>
+            <span class="n">col</span><span class="o">.</span><span class="n">dtype</span> <span class="o">=</span> <span class="n">header_cols</span><span class="p">[</span><span class="n">col</span><span class="o">.</span><span class="n">name</span><span class="p">][</span><span class="s1">&#39;datatype&#39;</span><span class="p">]</span>
+            <span class="c1"># ECSV &quot;string&quot; means numpy dtype.kind == &#39;U&#39; AKA str in Python 3</span>
+            <span class="k">if</span> <span class="ow">not</span> <span class="n">six</span><span class="o">.</span><span class="n">PY2</span> <span class="ow">and</span> <span class="n">col</span><span class="o">.</span><span class="n">dtype</span> <span class="o">==</span> <span class="s1">&#39;string&#39;</span><span class="p">:</span>
+                <span class="n">col</span><span class="o">.</span><span class="n">dtype</span> <span class="o">=</span> <span class="s1">&#39;str&#39;</span>
+            <span class="k">if</span> <span class="n">col</span><span class="o">.</span><span class="n">dtype</span><span class="o">.</span><span class="n">startswith</span><span class="p">(</span><span class="s1">&#39;complex&#39;</span><span class="p">):</span>
+                <span class="k">raise</span> <span class="ne">TypeError</span><span class="p">(</span><span class="s1">&#39;ecsv reader does not support complex number types&#39;</span><span class="p">)</span>
+
+
+<span class="k">class</span> <span class="nc">EcsvOutputter</span><span class="p">(</span><span class="n">core</span><span class="o">.</span><span class="n">TableOutputter</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    After reading the input lines and processing, convert the Reader columns</span>
+<span class="sd">    and metadata to an astropy.table.Table object.  This overrides the default</span>
+<span class="sd">    converters to be an empty list because there is no &quot;guessing&quot; of the</span>
+<span class="sd">    conversion function.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">default_converters</span> <span class="o">=</span> <span class="p">[]</span>
+
+    <span class="k">def</span> <span class="nf">__call__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">cols</span><span class="p">,</span> <span class="n">meta</span><span class="p">):</span>
+        <span class="c1"># Convert to a Table with all plain Column subclass columns</span>
+        <span class="n">out</span> <span class="o">=</span> <span class="nb">super</span><span class="p">(</span><span class="n">EcsvOutputter</span><span class="p">,</span> <span class="bp">self</span><span class="p">)</span><span class="o">.</span><span class="n">__call__</span><span class="p">(</span><span class="n">cols</span><span class="p">,</span> <span class="n">meta</span><span class="p">)</span>
+
+        <span class="c1"># If mixin columns exist (based on the special &#39;__mixin_columns__&#39;</span>
+        <span class="c1"># key in the table ``meta``), then use that information to construct</span>
+        <span class="c1"># appropriate mixin columns and remove the original data columns.</span>
+        <span class="c1"># If no __mixin_columns__ exists then this function just passes back</span>
+        <span class="c1"># the input table.</span>
+        <span class="n">out</span> <span class="o">=</span> <span class="n">serialize</span><span class="o">.</span><span class="n">_construct_mixins_from_columns</span><span class="p">(</span><span class="n">out</span><span class="p">)</span>
+
+        <span class="k">return</span> <span class="n">out</span>
+
+
+<div class="viewcode-block" id="Ecsv"><a class="viewcode-back" href="../../../../api/astropy.io.ascii.Ecsv.html#astropy.io.ascii.Ecsv">[docs]</a><span class="k">class</span> <span class="nc">Ecsv</span><span class="p">(</span><span class="n">basic</span><span class="o">.</span><span class="n">Basic</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Read a file which conforms to the ECSV (Enhanced Character Separated</span>
+<span class="sd">    Values) format.  This format allows for specification of key table</span>
+<span class="sd">    and column meta-data, in particular the data type and unit.  For details</span>
+<span class="sd">    see: https://github.com/astropy/astropy-APEs/blob/master/APE6.rst.</span>
+
+<span class="sd">    Examples</span>
+<span class="sd">    --------</span>
+
+<span class="sd">    &gt;&gt;&gt; from astropy.table import Table</span>
+<span class="sd">    &gt;&gt;&gt; ecsv_content = &#39;&#39;&#39;# %ECSV 0.9</span>
+<span class="sd">    ... # ---</span>
+<span class="sd">    ... # datatype:</span>
+<span class="sd">    ... # - {name: a, unit: m / s, datatype: int64, format: &#39;%03d&#39;}</span>
+<span class="sd">    ... # - {name: b, unit: km, datatype: int64, description: This is column b}</span>
+<span class="sd">    ... a b</span>
+<span class="sd">    ... 001 2</span>
+<span class="sd">    ... 004 3</span>
+<span class="sd">    ... &#39;&#39;&#39;</span>
+<span class="sd">    &gt;&gt;&gt; Table.read(ecsv_content, format=&#39;ascii.ecsv&#39;)</span>
+<span class="sd">    &lt;Table length=2&gt;</span>
+<span class="sd">      a     b</span>
+<span class="sd">    m / s   km</span>
+<span class="sd">    int64 int64</span>
+<span class="sd">    ----- -----</span>
+<span class="sd">      001     2</span>
+<span class="sd">      004     3</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">_format_name</span> <span class="o">=</span> <span class="s1">&#39;ecsv&#39;</span>
+    <span class="n">_description</span> <span class="o">=</span> <span class="s1">&#39;Enhanced CSV&#39;</span>
+
+    <span class="n">header_class</span> <span class="o">=</span> <span class="n">EcsvHeader</span>
+    <span class="n">outputter_class</span> <span class="o">=</span> <span class="n">EcsvOutputter</span>
+
+<div class="viewcode-block" id="Ecsv.update_table_data"><a class="viewcode-back" href="../../../../api/astropy.io.ascii.Ecsv.html#astropy.io.ascii.Ecsv.update_table_data">[docs]</a>    <span class="k">def</span> <span class="nf">update_table_data</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">table</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Update table columns in place if mixin columns are present.</span>
+
+<span class="sd">        This is a hook to allow updating the table columns after name</span>
+<span class="sd">        filtering but before setting up to write the data.  This is currently</span>
+<span class="sd">        only used by ECSV and is otherwise just a pass-through.</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        table : `astropy.table.Table`</span>
+<span class="sd">            Input table for writing</span>
+
+<span class="sd">        Returns</span>
+<span class="sd">        -------</span>
+<span class="sd">        table : `astropy.table.Table`</span>
+<span class="sd">            Output table for writing</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">with</span> <span class="n">serialize_context_as</span><span class="p">(</span><span class="s1">&#39;ecsv&#39;</span><span class="p">):</span>
+            <span class="n">out</span> <span class="o">=</span> <span class="n">serialize</span><span class="o">.</span><span class="n">_represent_mixins_as_columns</span><span class="p">(</span><span class="n">table</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">out</span></div></div>
+</pre></div>
+
+          </div>
+        </div>
+      </div>
+      <div class="sphinxsidebar" role="navigation" aria-label="main navigation">
+        <div class="sphinxsidebarwrapper"><h3>Page Contents</h3>
+
+
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+<footer class="footer">
+  <p class="pull-right"> &nbsp;
+    <a href="#">Back to Top</a></p>
+  <p>
+    &copy; Copyright 2011-2016, The Astropy Developers.<br/>
+    Created using <a href="http://sphinx.pocoo.org/">Sphinx</a> 1.5.6. &nbsp;
+    Last built 05 Jul 2017. <br/>
+  </p>
+</footer>
+  </body>
+</html>

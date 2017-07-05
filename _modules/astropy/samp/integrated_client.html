@@ -1,0 +1,602 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <head>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    
+    <title>astropy.samp.integrated_client &#8212; Astropy v3.0.dev19489</title>
+    
+    <link rel="stylesheet" href="../../../_static/bootstrap-astropy.css" type="text/css" />
+    <link rel="stylesheet" href="../../../_static/pygments.css" type="text/css" />
+    <link rel="stylesheet" href="../../../_static/gallery.css" type="text/css" />
+    
+    <script type="text/javascript">
+      var DOCUMENTATION_OPTIONS = {
+        URL_ROOT:    '../../../',
+        VERSION:     '3.0.dev19489',
+        COLLAPSE_INDEX: false,
+        FILE_SUFFIX: '.html',
+        HAS_SOURCE:  true,
+        SOURCELINK_SUFFIX: '.txt'
+      };
+    </script>
+    <script type="text/javascript" src="../../../_static/jquery.js"></script>
+    <script type="text/javascript" src="../../../_static/underscore.js"></script>
+    <script type="text/javascript" src="../../../_static/doctools.js"></script>
+    <script type="text/javascript" src="../../../_static/sidebar.js"></script>
+    <link rel="shortcut icon" href="../../../_static/astropy_logo.ico"/>
+    <link rel="index" title="Index" href="../../../genindex.html" />
+    <link rel="search" title="Search" href="../../../search.html" />
+<link href='https://fonts.googleapis.com/css?family=Source+Sans+Pro:200,600' rel='stylesheet' type='text/css'/>
+<script type="text/javascript" src="../../../_static/copybutton.js"></script>
+
+
+  </head>
+  <body role="document">
+<div class="topbar">
+  <a class="brand" title="Documentation Home" href="../../../index.html"><span id="logotext1">astro</span><span id="logotext2">py</span><span id="logotext3">:docs</span></a>
+  <ul>
+    <li><a class="homelink" title="Astropy Homepage" href="http://www.astropy.org"></a></li>
+    <li><a title="General Index" href="../../../genindex.html">Index</a></li>
+    <li><a title="Module Index" href="../../../py-modindex.html">Modules</a></li>
+    <li>
+      
+      
+<form action="../../../search.html" method="get">
+  <input type="text" name="q" placeholder="Search" />
+  <input type="hidden" name="check_keywords" value="yes" />
+  <input type="hidden" name="area" value="default" />
+</form>
+      
+    </li>
+  </ul>
+</div>
+
+<div class="related">
+    <h3>Navigation</h3>
+    <ul>
+      <li>
+	<a href="../../../index.html">Astropy v3.0.dev19489</a>
+	 &#187;
+      </li>
+      <li><a href="../../index.html" >Module code</a> &#187;</li>
+      <li><a href="../../astropy.html" >astropy</a> &#187;</li>
+      <li><a href="../samp.html" accesskey="U">astropy.samp</a> &#187;</li>
+      
+       
+    </ul>
+</div>
+  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          <div class="body" role="main">
+            
+  <h1>Source code for astropy.samp.integrated_client</h1><div class="highlight"><pre>
+<span></span><span class="c1"># Licensed under a 3-clause BSD style license - see LICENSE.rst</span>
+
+<span class="kn">from</span> <span class="nn">__future__</span> <span class="k">import</span> <span class="p">(</span><span class="n">absolute_import</span><span class="p">,</span> <span class="n">division</span><span class="p">,</span> <span class="n">print_function</span><span class="p">,</span>
+                        <span class="n">unicode_literals</span><span class="p">)</span>
+
+<span class="kn">from</span> <span class="nn">.client</span> <span class="k">import</span> <span class="n">SAMPClient</span>
+<span class="kn">from</span> <span class="nn">.hub_proxy</span> <span class="k">import</span> <span class="n">SAMPHubProxy</span>
+
+<span class="n">__all__</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;SAMPIntegratedClient&#39;</span><span class="p">]</span>
+
+<span class="n">__doctest_skip__</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;SAMPIntegratedClient.*&#39;</span><span class="p">]</span>
+
+
+<div class="viewcode-block" id="SAMPIntegratedClient"><a class="viewcode-back" href="../../../api/astropy.samp.SAMPIntegratedClient.html#astropy.samp.SAMPIntegratedClient">[docs]</a><span class="k">class</span> <span class="nc">SAMPIntegratedClient</span><span class="p">(</span><span class="nb">object</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    A Simple SAMP client.</span>
+
+<span class="sd">    This class is meant to simplify the client usage providing a proxy class</span>
+<span class="sd">    that merges the :class:`~astropy.samp.SAMPClient` and</span>
+<span class="sd">    :class:`~astropy.samp.SAMPHubProxy` functionalities in a</span>
+<span class="sd">    simplified API.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    name : str, optional</span>
+<span class="sd">        Client name (corresponding to ``samp.name`` metadata keyword).</span>
+
+<span class="sd">    description : str, optional</span>
+<span class="sd">        Client description (corresponding to ``samp.description.text`` metadata</span>
+<span class="sd">        keyword).</span>
+
+<span class="sd">    metadata : dict, optional</span>
+<span class="sd">        Client application metadata in the standard SAMP format.</span>
+
+<span class="sd">    addr : str, optional</span>
+<span class="sd">        Listening address (or IP). This defaults to 127.0.0.1 if the internet</span>
+<span class="sd">        is not reachable, otherwise it defaults to the host name.</span>
+
+<span class="sd">    port : int, optional</span>
+<span class="sd">        Listening XML-RPC server socket port. If left set to 0 (the default),</span>
+<span class="sd">        the operating system will select a free port.</span>
+
+<span class="sd">    callable : bool, optional</span>
+<span class="sd">        Whether the client can receive calls and notifications. If set to</span>
+<span class="sd">        `False`, then the client can send notifications and calls, but can not</span>
+<span class="sd">        receive any.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">name</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">description</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">metadata</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+                 <span class="n">addr</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">port</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span> <span class="n">callable</span><span class="o">=</span><span class="kc">True</span><span class="p">):</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">hub</span> <span class="o">=</span> <span class="n">SAMPHubProxy</span><span class="p">()</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">client_arguments</span> <span class="o">=</span> <span class="p">{</span>
+            <span class="s1">&#39;name&#39;</span><span class="p">:</span> <span class="n">name</span><span class="p">,</span>
+            <span class="s1">&#39;description&#39;</span><span class="p">:</span> <span class="n">description</span><span class="p">,</span>
+            <span class="s1">&#39;metadata&#39;</span><span class="p">:</span> <span class="n">metadata</span><span class="p">,</span>
+            <span class="s1">&#39;addr&#39;</span><span class="p">:</span> <span class="n">addr</span><span class="p">,</span>
+            <span class="s1">&#39;port&#39;</span><span class="p">:</span> <span class="n">port</span><span class="p">,</span>
+            <span class="s1">&#39;callable&#39;</span><span class="p">:</span> <span class="n">callable</span><span class="p">,</span>
+        <span class="p">}</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Collected arguments that should be passed on to the SAMPClient below.</span>
+<span class="sd">        The SAMPClient used to be instantiated in __init__; however, this</span>
+<span class="sd">        caused problems with disconnecting and reconnecting to the HUB.</span>
+<span class="sd">        The client_arguments is used to maintain backwards compatibility.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">client</span> <span class="o">=</span> <span class="kc">None</span>
+        <span class="s2">&quot;The client will be instantiated upon connect().&quot;</span>
+
+    <span class="c1"># GENERAL</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">is_connected</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Testing method to verify the client connection with a running Hub.</span>
+
+<span class="sd">        Returns</span>
+<span class="sd">        -------</span>
+<span class="sd">        is_connected : bool</span>
+<span class="sd">            True if the client is connected to a Hub, False otherwise.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">hub</span><span class="o">.</span><span class="n">is_connected</span> <span class="ow">and</span> <span class="bp">self</span><span class="o">.</span><span class="n">client</span><span class="o">.</span><span class="n">is_running</span>
+
+<div class="viewcode-block" id="SAMPIntegratedClient.connect"><a class="viewcode-back" href="../../../api/astropy.samp.SAMPIntegratedClient.html#astropy.samp.SAMPIntegratedClient.connect">[docs]</a>    <span class="k">def</span> <span class="nf">connect</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">hub</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">hub_params</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">pool_size</span><span class="o">=</span><span class="mi">20</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Connect with the current or specified SAMP Hub, start and register the</span>
+<span class="sd">        client.</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        hub : `~astropy.samp.SAMPHubServer`, optional</span>
+<span class="sd">            The hub to connect to.</span>
+
+<span class="sd">        hub_params : dict, optional</span>
+<span class="sd">            Optional dictionary containing the lock-file content of the Hub</span>
+<span class="sd">            with which to connect. This dictionary has the form</span>
+<span class="sd">            ``{&lt;token-name&gt;: &lt;token-string&gt;, ...}``.</span>
+
+<span class="sd">        pool_size : int, optional</span>
+<span class="sd">            The number of socket connections opened to communicate with the</span>
+<span class="sd">            Hub.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">hub</span><span class="o">.</span><span class="n">connect</span><span class="p">(</span><span class="n">hub</span><span class="p">,</span> <span class="n">hub_params</span><span class="p">,</span> <span class="n">pool_size</span><span class="p">)</span>
+
+        <span class="c1"># The client has to be instantiated here and not in __init__() because</span>
+        <span class="c1"># this allows disconnecting and reconnecting to the HUB. Nonetheless,</span>
+        <span class="c1"># the client_arguments are set in __init__() because the</span>
+        <span class="c1"># instantiation of the client used to happen there and this retains</span>
+        <span class="c1"># backwards compatibility.</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">client</span> <span class="o">=</span> <span class="n">SAMPClient</span><span class="p">(</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">hub</span><span class="p">,</span>
+            <span class="o">**</span><span class="bp">self</span><span class="o">.</span><span class="n">client_arguments</span>
+        <span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">client</span><span class="o">.</span><span class="n">start</span><span class="p">()</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">client</span><span class="o">.</span><span class="n">register</span><span class="p">()</span></div>
+
+<div class="viewcode-block" id="SAMPIntegratedClient.disconnect"><a class="viewcode-back" href="../../../api/astropy.samp.SAMPIntegratedClient.html#astropy.samp.SAMPIntegratedClient.disconnect">[docs]</a>    <span class="k">def</span> <span class="nf">disconnect</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Unregister the client from the current SAMP Hub, stop the client and</span>
+<span class="sd">        disconnect from the Hub.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">is_connected</span><span class="p">:</span>
+            <span class="k">try</span><span class="p">:</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">client</span><span class="o">.</span><span class="n">unregister</span><span class="p">()</span>
+            <span class="k">finally</span><span class="p">:</span>
+                <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">client</span><span class="o">.</span><span class="n">is_running</span><span class="p">:</span>
+                    <span class="bp">self</span><span class="o">.</span><span class="n">client</span><span class="o">.</span><span class="n">stop</span><span class="p">()</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">hub</span><span class="o">.</span><span class="n">disconnect</span><span class="p">()</span></div>
+
+    <span class="c1"># HUB</span>
+<div class="viewcode-block" id="SAMPIntegratedClient.ping"><a class="viewcode-back" href="../../../api/astropy.samp.SAMPIntegratedClient.html#astropy.samp.SAMPIntegratedClient.ping">[docs]</a>    <span class="k">def</span> <span class="nf">ping</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Proxy to ``ping`` SAMP Hub method (Standard Profile only).</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">hub</span><span class="o">.</span><span class="n">ping</span><span class="p">()</span></div>
+
+<div class="viewcode-block" id="SAMPIntegratedClient.declare_metadata"><a class="viewcode-back" href="../../../api/astropy.samp.SAMPIntegratedClient.html#astropy.samp.SAMPIntegratedClient.declare_metadata">[docs]</a>    <span class="k">def</span> <span class="nf">declare_metadata</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">metadata</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Proxy to ``declareMetadata`` SAMP Hub method.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">client</span><span class="o">.</span><span class="n">declare_metadata</span><span class="p">(</span><span class="n">metadata</span><span class="p">)</span></div>
+
+<div class="viewcode-block" id="SAMPIntegratedClient.get_metadata"><a class="viewcode-back" href="../../../api/astropy.samp.SAMPIntegratedClient.html#astropy.samp.SAMPIntegratedClient.get_metadata">[docs]</a>    <span class="k">def</span> <span class="nf">get_metadata</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">client_id</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Proxy to ``getMetadata`` SAMP Hub method.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">hub</span><span class="o">.</span><span class="n">get_metadata</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">get_private_key</span><span class="p">(),</span> <span class="n">client_id</span><span class="p">)</span></div>
+
+<div class="viewcode-block" id="SAMPIntegratedClient.get_subscriptions"><a class="viewcode-back" href="../../../api/astropy.samp.SAMPIntegratedClient.html#astropy.samp.SAMPIntegratedClient.get_subscriptions">[docs]</a>    <span class="k">def</span> <span class="nf">get_subscriptions</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">client_id</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Proxy to ``getSubscriptions`` SAMP Hub method.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">hub</span><span class="o">.</span><span class="n">get_subscriptions</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">get_private_key</span><span class="p">(),</span> <span class="n">client_id</span><span class="p">)</span></div>
+
+<div class="viewcode-block" id="SAMPIntegratedClient.get_registered_clients"><a class="viewcode-back" href="../../../api/astropy.samp.SAMPIntegratedClient.html#astropy.samp.SAMPIntegratedClient.get_registered_clients">[docs]</a>    <span class="k">def</span> <span class="nf">get_registered_clients</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Proxy to ``getRegisteredClients`` SAMP Hub method.</span>
+
+<span class="sd">        This returns all the registered clients, excluding the current client.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">hub</span><span class="o">.</span><span class="n">get_registered_clients</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">get_private_key</span><span class="p">())</span></div>
+
+<div class="viewcode-block" id="SAMPIntegratedClient.get_subscribed_clients"><a class="viewcode-back" href="../../../api/astropy.samp.SAMPIntegratedClient.html#astropy.samp.SAMPIntegratedClient.get_subscribed_clients">[docs]</a>    <span class="k">def</span> <span class="nf">get_subscribed_clients</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">mtype</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Proxy to ``getSubscribedClients`` SAMP Hub method.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">hub</span><span class="o">.</span><span class="n">get_subscribed_clients</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">get_private_key</span><span class="p">(),</span> <span class="n">mtype</span><span class="p">)</span></div>
+
+    <span class="k">def</span> <span class="nf">_format_easy_msg</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">mtype</span><span class="p">,</span> <span class="n">params</span><span class="p">):</span>
+
+        <span class="n">msg</span> <span class="o">=</span> <span class="p">{}</span>
+
+        <span class="k">if</span> <span class="s2">&quot;extra_kws&quot;</span> <span class="ow">in</span> <span class="n">params</span><span class="p">:</span>
+            <span class="n">extra</span> <span class="o">=</span> <span class="n">params</span><span class="p">[</span><span class="s2">&quot;extra_kws&quot;</span><span class="p">]</span>
+            <span class="k">del</span><span class="p">(</span><span class="n">params</span><span class="p">[</span><span class="s2">&quot;extra_kws&quot;</span><span class="p">])</span>
+            <span class="n">msg</span> <span class="o">=</span> <span class="p">{</span><span class="s2">&quot;samp.mtype&quot;</span><span class="p">:</span> <span class="n">mtype</span><span class="p">,</span> <span class="s2">&quot;samp.params&quot;</span><span class="p">:</span> <span class="n">params</span><span class="p">}</span>
+            <span class="n">msg</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="n">extra</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">msg</span> <span class="o">=</span> <span class="p">{</span><span class="s2">&quot;samp.mtype&quot;</span><span class="p">:</span> <span class="n">mtype</span><span class="p">,</span> <span class="s2">&quot;samp.params&quot;</span><span class="p">:</span> <span class="n">params</span><span class="p">}</span>
+
+        <span class="k">return</span> <span class="n">msg</span>
+
+<div class="viewcode-block" id="SAMPIntegratedClient.notify"><a class="viewcode-back" href="../../../api/astropy.samp.SAMPIntegratedClient.html#astropy.samp.SAMPIntegratedClient.notify">[docs]</a>    <span class="k">def</span> <span class="nf">notify</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">recipient_id</span><span class="p">,</span> <span class="n">message</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Proxy to ``notify`` SAMP Hub method.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">hub</span><span class="o">.</span><span class="n">notify</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">get_private_key</span><span class="p">(),</span> <span class="n">recipient_id</span><span class="p">,</span> <span class="n">message</span><span class="p">)</span></div>
+
+<div class="viewcode-block" id="SAMPIntegratedClient.enotify"><a class="viewcode-back" href="../../../api/astropy.samp.SAMPIntegratedClient.html#astropy.samp.SAMPIntegratedClient.enotify">[docs]</a>    <span class="k">def</span> <span class="nf">enotify</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">recipient_id</span><span class="p">,</span> <span class="n">mtype</span><span class="p">,</span> <span class="o">**</span><span class="n">params</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Easy to use version of :meth:`~astropy.samp.integrated_client.SAMPIntegratedClient.notify`.</span>
+
+<span class="sd">        This is a proxy to ``notify`` method that allows to send the</span>
+<span class="sd">        notification message in a simplified way.</span>
+
+<span class="sd">        Note that reserved ``extra_kws`` keyword is a dictionary with the</span>
+<span class="sd">        special meaning of being used to add extra keywords, in addition to</span>
+<span class="sd">        the standard ``samp.mtype`` and ``samp.params``, to the message sent.</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        recipient_id : str</span>
+<span class="sd">            Recipient ID</span>
+
+<span class="sd">        mtype : str</span>
+<span class="sd">            the MType to be notified</span>
+
+<span class="sd">        params : dict or set of keywords</span>
+<span class="sd">            Variable keyword set which contains the list of parameters for the</span>
+<span class="sd">            specified MType.</span>
+
+<span class="sd">        Examples</span>
+<span class="sd">        --------</span>
+<span class="sd">        &gt;&gt;&gt; from astropy.samp import SAMPIntegratedClient</span>
+<span class="sd">        &gt;&gt;&gt; cli = SAMPIntegratedClient()</span>
+<span class="sd">        &gt;&gt;&gt; ...</span>
+<span class="sd">        &gt;&gt;&gt; cli.enotify(&quot;samp.msg.progress&quot;, msgid = &quot;xyz&quot;, txt = &quot;initialization&quot;,</span>
+<span class="sd">        ...             percent = &quot;10&quot;, extra_kws = {&quot;my.extra.info&quot;: &quot;just an example&quot;})</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">notify</span><span class="p">(</span><span class="n">recipient_id</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">_format_easy_msg</span><span class="p">(</span><span class="n">mtype</span><span class="p">,</span> <span class="n">params</span><span class="p">))</span></div>
+
+<div class="viewcode-block" id="SAMPIntegratedClient.notify_all"><a class="viewcode-back" href="../../../api/astropy.samp.SAMPIntegratedClient.html#astropy.samp.SAMPIntegratedClient.notify_all">[docs]</a>    <span class="k">def</span> <span class="nf">notify_all</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">message</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Proxy to ``notifyAll`` SAMP Hub method.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">hub</span><span class="o">.</span><span class="n">notify_all</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">get_private_key</span><span class="p">(),</span> <span class="n">message</span><span class="p">)</span></div>
+
+<div class="viewcode-block" id="SAMPIntegratedClient.enotify_all"><a class="viewcode-back" href="../../../api/astropy.samp.SAMPIntegratedClient.html#astropy.samp.SAMPIntegratedClient.enotify_all">[docs]</a>    <span class="k">def</span> <span class="nf">enotify_all</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">mtype</span><span class="p">,</span> <span class="o">**</span><span class="n">params</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Easy to use version of :meth:`~astropy.samp.integrated_client.SAMPIntegratedClient.notify_all`.</span>
+
+<span class="sd">        This is a proxy to ``notifyAll`` method that allows to send the</span>
+<span class="sd">        notification message in a simplified way.</span>
+
+<span class="sd">        Note that reserved ``extra_kws`` keyword is a dictionary with the</span>
+<span class="sd">        special meaning of being used to add extra keywords, in addition to</span>
+<span class="sd">        the standard ``samp.mtype`` and ``samp.params``, to the message sent.</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        mtype : str</span>
+<span class="sd">            MType to be notified.</span>
+
+<span class="sd">        params : dict or set of keywords</span>
+<span class="sd">            Variable keyword set which contains the list of parameters for</span>
+<span class="sd">            the specified MType.</span>
+
+<span class="sd">        Examples</span>
+<span class="sd">        --------</span>
+<span class="sd">        &gt;&gt;&gt; from astropy.samp import SAMPIntegratedClient</span>
+<span class="sd">        &gt;&gt;&gt; cli = SAMPIntegratedClient()</span>
+<span class="sd">        &gt;&gt;&gt; ...</span>
+<span class="sd">        &gt;&gt;&gt; cli.enotify_all(&quot;samp.msg.progress&quot;, txt = &quot;initialization&quot;,</span>
+<span class="sd">        ...                 percent = &quot;10&quot;,</span>
+<span class="sd">        ...                 extra_kws = {&quot;my.extra.info&quot;: &quot;just an example&quot;})</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">notify_all</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_format_easy_msg</span><span class="p">(</span><span class="n">mtype</span><span class="p">,</span> <span class="n">params</span><span class="p">))</span></div>
+
+<div class="viewcode-block" id="SAMPIntegratedClient.call"><a class="viewcode-back" href="../../../api/astropy.samp.SAMPIntegratedClient.html#astropy.samp.SAMPIntegratedClient.call">[docs]</a>    <span class="k">def</span> <span class="nf">call</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">recipient_id</span><span class="p">,</span> <span class="n">msg_tag</span><span class="p">,</span> <span class="n">message</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Proxy to ``call`` SAMP Hub method.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">hub</span><span class="o">.</span><span class="n">call</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">get_private_key</span><span class="p">(),</span> <span class="n">recipient_id</span><span class="p">,</span> <span class="n">msg_tag</span><span class="p">,</span> <span class="n">message</span><span class="p">)</span></div>
+
+<div class="viewcode-block" id="SAMPIntegratedClient.ecall"><a class="viewcode-back" href="../../../api/astropy.samp.SAMPIntegratedClient.html#astropy.samp.SAMPIntegratedClient.ecall">[docs]</a>    <span class="k">def</span> <span class="nf">ecall</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">recipient_id</span><span class="p">,</span> <span class="n">msg_tag</span><span class="p">,</span> <span class="n">mtype</span><span class="p">,</span> <span class="o">**</span><span class="n">params</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Easy to use version of :meth:`~astropy.samp.integrated_client.SAMPIntegratedClient.call`.</span>
+
+<span class="sd">        This is a proxy to ``call`` method that allows to send a call message</span>
+<span class="sd">        in a simplified way.</span>
+
+<span class="sd">        Note that reserved ``extra_kws`` keyword is a dictionary with the</span>
+<span class="sd">        special meaning of being used to add extra keywords, in addition to</span>
+<span class="sd">        the standard ``samp.mtype`` and ``samp.params``, to the message sent.</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        recipient_id : str</span>
+<span class="sd">            Recipient ID</span>
+
+<span class="sd">        msg_tag : str</span>
+<span class="sd">            Message tag to use</span>
+
+<span class="sd">        mtype : str</span>
+<span class="sd">            MType to be sent</span>
+
+<span class="sd">        params : dict of set of keywords</span>
+<span class="sd">            Variable keyword set which contains the list of parameters for</span>
+<span class="sd">            the specified MType.</span>
+
+<span class="sd">        Examples</span>
+<span class="sd">        --------</span>
+<span class="sd">        &gt;&gt;&gt; from astropy.samp import SAMPIntegratedClient</span>
+<span class="sd">        &gt;&gt;&gt; cli = SAMPIntegratedClient()</span>
+<span class="sd">        &gt;&gt;&gt; ...</span>
+<span class="sd">        &gt;&gt;&gt; msgid = cli.ecall(&quot;abc&quot;, &quot;xyz&quot;, &quot;samp.msg.progress&quot;,</span>
+<span class="sd">        ...                   txt = &quot;initialization&quot;, percent = &quot;10&quot;,</span>
+<span class="sd">        ...                   extra_kws = {&quot;my.extra.info&quot;: &quot;just an example&quot;})</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">call</span><span class="p">(</span><span class="n">recipient_id</span><span class="p">,</span> <span class="n">msg_tag</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">_format_easy_msg</span><span class="p">(</span><span class="n">mtype</span><span class="p">,</span> <span class="n">params</span><span class="p">))</span></div>
+
+<div class="viewcode-block" id="SAMPIntegratedClient.call_all"><a class="viewcode-back" href="../../../api/astropy.samp.SAMPIntegratedClient.html#astropy.samp.SAMPIntegratedClient.call_all">[docs]</a>    <span class="k">def</span> <span class="nf">call_all</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">msg_tag</span><span class="p">,</span> <span class="n">message</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Proxy to ``callAll`` SAMP Hub method.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">hub</span><span class="o">.</span><span class="n">call_all</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">get_private_key</span><span class="p">(),</span> <span class="n">msg_tag</span><span class="p">,</span> <span class="n">message</span><span class="p">)</span></div>
+
+<div class="viewcode-block" id="SAMPIntegratedClient.ecall_all"><a class="viewcode-back" href="../../../api/astropy.samp.SAMPIntegratedClient.html#astropy.samp.SAMPIntegratedClient.ecall_all">[docs]</a>    <span class="k">def</span> <span class="nf">ecall_all</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">msg_tag</span><span class="p">,</span> <span class="n">mtype</span><span class="p">,</span> <span class="o">**</span><span class="n">params</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Easy to use version of :meth:`~astropy.samp.integrated_client.SAMPIntegratedClient.call_all`.</span>
+
+<span class="sd">        This is a proxy to ``callAll`` method that allows to send the call</span>
+<span class="sd">        message in a simplified way.</span>
+
+<span class="sd">        Note that reserved ``extra_kws`` keyword is a dictionary with the</span>
+<span class="sd">        special meaning of being used to add extra keywords, in addition to</span>
+<span class="sd">        the standard ``samp.mtype`` and ``samp.params``, to the message sent.</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        msg_tag : str</span>
+<span class="sd">            Message tag to use</span>
+
+<span class="sd">        mtype : str</span>
+<span class="sd">            MType to be sent</span>
+
+<span class="sd">        params : dict of set of keywords</span>
+<span class="sd">            Variable keyword set which contains the list of parameters for</span>
+<span class="sd">            the specified MType.</span>
+
+<span class="sd">        Examples</span>
+<span class="sd">        --------</span>
+<span class="sd">        &gt;&gt;&gt; from astropy.samp import SAMPIntegratedClient</span>
+<span class="sd">        &gt;&gt;&gt; cli = SAMPIntegratedClient()</span>
+<span class="sd">        &gt;&gt;&gt; ...</span>
+<span class="sd">        &gt;&gt;&gt; msgid = cli.ecall_all(&quot;xyz&quot;, &quot;samp.msg.progress&quot;,</span>
+<span class="sd">        ...                       txt = &quot;initialization&quot;, percent = &quot;10&quot;,</span>
+<span class="sd">        ...                       extra_kws = {&quot;my.extra.info&quot;: &quot;just an example&quot;})</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">call_all</span><span class="p">(</span><span class="n">msg_tag</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">_format_easy_msg</span><span class="p">(</span><span class="n">mtype</span><span class="p">,</span> <span class="n">params</span><span class="p">))</span></div>
+
+<div class="viewcode-block" id="SAMPIntegratedClient.call_and_wait"><a class="viewcode-back" href="../../../api/astropy.samp.SAMPIntegratedClient.html#astropy.samp.SAMPIntegratedClient.call_and_wait">[docs]</a>    <span class="k">def</span> <span class="nf">call_and_wait</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">recipient_id</span><span class="p">,</span> <span class="n">message</span><span class="p">,</span> <span class="n">timeout</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Proxy to ``callAndWait`` SAMP Hub method.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">hub</span><span class="o">.</span><span class="n">call_and_wait</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">get_private_key</span><span class="p">(),</span> <span class="n">recipient_id</span><span class="p">,</span> <span class="n">message</span><span class="p">,</span> <span class="n">timeout</span><span class="p">)</span></div>
+
+<div class="viewcode-block" id="SAMPIntegratedClient.ecall_and_wait"><a class="viewcode-back" href="../../../api/astropy.samp.SAMPIntegratedClient.html#astropy.samp.SAMPIntegratedClient.ecall_and_wait">[docs]</a>    <span class="k">def</span> <span class="nf">ecall_and_wait</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">recipient_id</span><span class="p">,</span> <span class="n">mtype</span><span class="p">,</span> <span class="n">timeout</span><span class="p">,</span> <span class="o">**</span><span class="n">params</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Easy to use version of :meth:`~astropy.samp.integrated_client.SAMPIntegratedClient.call_and_wait`.</span>
+
+<span class="sd">        This is a proxy to ``callAndWait`` method that allows to send the call</span>
+<span class="sd">        message in a simplified way.</span>
+
+<span class="sd">        Note that reserved ``extra_kws`` keyword is a dictionary with the</span>
+<span class="sd">        special meaning of being used to add extra keywords, in addition to</span>
+<span class="sd">        the standard ``samp.mtype`` and ``samp.params``, to the message sent.</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        recipient_id : str</span>
+<span class="sd">            Recipient ID</span>
+
+<span class="sd">        mtype : str</span>
+<span class="sd">            MType to be sent</span>
+
+<span class="sd">        timeout : str</span>
+<span class="sd">            Call timeout in seconds</span>
+
+<span class="sd">        params : dict of set of keywords</span>
+<span class="sd">            Variable keyword set which contains the list of parameters for</span>
+<span class="sd">            the specified MType.</span>
+
+<span class="sd">        Examples</span>
+<span class="sd">        --------</span>
+<span class="sd">        &gt;&gt;&gt; from astropy.samp import SAMPIntegratedClient</span>
+<span class="sd">        &gt;&gt;&gt; cli = SAMPIntegratedClient()</span>
+<span class="sd">        &gt;&gt;&gt; ...</span>
+<span class="sd">        &gt;&gt;&gt; cli.ecall_and_wait(&quot;xyz&quot;, &quot;samp.msg.progress&quot;, &quot;5&quot;,</span>
+<span class="sd">        ...                    txt = &quot;initialization&quot;, percent = &quot;10&quot;,</span>
+<span class="sd">        ...                    extra_kws = {&quot;my.extra.info&quot;: &quot;just an example&quot;})</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">call_and_wait</span><span class="p">(</span><span class="n">recipient_id</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">_format_easy_msg</span><span class="p">(</span><span class="n">mtype</span><span class="p">,</span> <span class="n">params</span><span class="p">),</span> <span class="n">timeout</span><span class="p">)</span></div>
+
+<div class="viewcode-block" id="SAMPIntegratedClient.reply"><a class="viewcode-back" href="../../../api/astropy.samp.SAMPIntegratedClient.html#astropy.samp.SAMPIntegratedClient.reply">[docs]</a>    <span class="k">def</span> <span class="nf">reply</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">msg_id</span><span class="p">,</span> <span class="n">response</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Proxy to ``reply`` SAMP Hub method.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">hub</span><span class="o">.</span><span class="n">reply</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">get_private_key</span><span class="p">(),</span> <span class="n">msg_id</span><span class="p">,</span> <span class="n">response</span><span class="p">)</span></div>
+
+    <span class="k">def</span> <span class="nf">_format_easy_response</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">status</span><span class="p">,</span> <span class="n">result</span><span class="p">,</span> <span class="n">error</span><span class="p">):</span>
+
+        <span class="n">msg</span> <span class="o">=</span> <span class="p">{</span><span class="s2">&quot;samp.status&quot;</span><span class="p">:</span> <span class="n">status</span><span class="p">}</span>
+        <span class="k">if</span> <span class="n">result</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">msg</span><span class="o">.</span><span class="n">update</span><span class="p">({</span><span class="s2">&quot;samp.result&quot;</span><span class="p">:</span> <span class="n">result</span><span class="p">})</span>
+        <span class="k">if</span> <span class="n">error</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">msg</span><span class="o">.</span><span class="n">update</span><span class="p">({</span><span class="s2">&quot;samp.error&quot;</span><span class="p">:</span> <span class="n">error</span><span class="p">})</span>
+
+        <span class="k">return</span> <span class="n">msg</span>
+
+<div class="viewcode-block" id="SAMPIntegratedClient.ereply"><a class="viewcode-back" href="../../../api/astropy.samp.SAMPIntegratedClient.html#astropy.samp.SAMPIntegratedClient.ereply">[docs]</a>    <span class="k">def</span> <span class="nf">ereply</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">msg_id</span><span class="p">,</span> <span class="n">status</span><span class="p">,</span> <span class="n">result</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">error</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Easy to use version of :meth:`~astropy.samp.integrated_client.SAMPIntegratedClient.reply`.</span>
+
+<span class="sd">        This is a proxy to ``reply`` method that allows to send a reply</span>
+<span class="sd">        message in a simplified way.</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        msg_id : str</span>
+<span class="sd">            Message ID to which reply.</span>
+
+<span class="sd">        status : str</span>
+<span class="sd">            Content of the ``samp.status`` response keyword.</span>
+
+<span class="sd">        result : dict</span>
+<span class="sd">            Content of the ``samp.result`` response keyword.</span>
+
+<span class="sd">        error : dict</span>
+<span class="sd">            Content of the ``samp.error`` response keyword.</span>
+
+<span class="sd">        Examples</span>
+<span class="sd">        --------</span>
+<span class="sd">        &gt;&gt;&gt; from astropy.samp import SAMPIntegratedClient, SAMP_STATUS_ERROR</span>
+<span class="sd">        &gt;&gt;&gt; cli = SAMPIntegratedClient()</span>
+<span class="sd">        &gt;&gt;&gt; ...</span>
+<span class="sd">        &gt;&gt;&gt; cli.ereply(&quot;abd&quot;, SAMP_STATUS_ERROR, result={},</span>
+<span class="sd">        ...            error={&quot;samp.errortxt&quot;: &quot;Test error message&quot;})</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">reply</span><span class="p">(</span><span class="n">msg_id</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">_format_easy_response</span><span class="p">(</span><span class="n">status</span><span class="p">,</span> <span class="n">result</span><span class="p">,</span> <span class="n">error</span><span class="p">))</span></div>
+
+    <span class="c1"># CLIENT</span>
+
+<div class="viewcode-block" id="SAMPIntegratedClient.receive_notification"><a class="viewcode-back" href="../../../api/astropy.samp.SAMPIntegratedClient.html#astropy.samp.SAMPIntegratedClient.receive_notification">[docs]</a>    <span class="k">def</span> <span class="nf">receive_notification</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">private_key</span><span class="p">,</span> <span class="n">sender_id</span><span class="p">,</span> <span class="n">message</span><span class="p">):</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">client</span><span class="o">.</span><span class="n">receive_notification</span><span class="p">(</span><span class="n">private_key</span><span class="p">,</span> <span class="n">sender_id</span><span class="p">,</span> <span class="n">message</span><span class="p">)</span></div>
+
+    <span class="n">receive_notification</span><span class="o">.</span><span class="n">__doc__</span> <span class="o">=</span> <span class="n">SAMPClient</span><span class="o">.</span><span class="n">receive_notification</span><span class="o">.</span><span class="n">__doc__</span>
+
+<div class="viewcode-block" id="SAMPIntegratedClient.receive_call"><a class="viewcode-back" href="../../../api/astropy.samp.SAMPIntegratedClient.html#astropy.samp.SAMPIntegratedClient.receive_call">[docs]</a>    <span class="k">def</span> <span class="nf">receive_call</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">private_key</span><span class="p">,</span> <span class="n">sender_id</span><span class="p">,</span> <span class="n">msg_id</span><span class="p">,</span> <span class="n">message</span><span class="p">):</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">client</span><span class="o">.</span><span class="n">receive_call</span><span class="p">(</span><span class="n">private_key</span><span class="p">,</span> <span class="n">sender_id</span><span class="p">,</span> <span class="n">msg_id</span><span class="p">,</span> <span class="n">message</span><span class="p">)</span></div>
+
+    <span class="n">receive_call</span><span class="o">.</span><span class="n">__doc__</span> <span class="o">=</span> <span class="n">SAMPClient</span><span class="o">.</span><span class="n">receive_call</span><span class="o">.</span><span class="n">__doc__</span>
+
+<div class="viewcode-block" id="SAMPIntegratedClient.receive_response"><a class="viewcode-back" href="../../../api/astropy.samp.SAMPIntegratedClient.html#astropy.samp.SAMPIntegratedClient.receive_response">[docs]</a>    <span class="k">def</span> <span class="nf">receive_response</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">private_key</span><span class="p">,</span> <span class="n">responder_id</span><span class="p">,</span> <span class="n">msg_tag</span><span class="p">,</span> <span class="n">response</span><span class="p">):</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">client</span><span class="o">.</span><span class="n">receive_response</span><span class="p">(</span><span class="n">private_key</span><span class="p">,</span> <span class="n">responder_id</span><span class="p">,</span> <span class="n">msg_tag</span><span class="p">,</span> <span class="n">response</span><span class="p">)</span></div>
+
+    <span class="n">receive_response</span><span class="o">.</span><span class="n">__doc__</span> <span class="o">=</span> <span class="n">SAMPClient</span><span class="o">.</span><span class="n">receive_response</span><span class="o">.</span><span class="n">__doc__</span>
+
+<div class="viewcode-block" id="SAMPIntegratedClient.bind_receive_message"><a class="viewcode-back" href="../../../api/astropy.samp.SAMPIntegratedClient.html#astropy.samp.SAMPIntegratedClient.bind_receive_message">[docs]</a>    <span class="k">def</span> <span class="nf">bind_receive_message</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">mtype</span><span class="p">,</span> <span class="n">function</span><span class="p">,</span> <span class="n">declare</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">metadata</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">client</span><span class="o">.</span><span class="n">bind_receive_message</span><span class="p">(</span><span class="n">mtype</span><span class="p">,</span> <span class="n">function</span><span class="p">,</span> <span class="n">declare</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">metadata</span><span class="o">=</span><span class="kc">None</span><span class="p">)</span></div>
+
+    <span class="n">bind_receive_message</span><span class="o">.</span><span class="n">__doc__</span> <span class="o">=</span> <span class="n">SAMPClient</span><span class="o">.</span><span class="n">bind_receive_message</span><span class="o">.</span><span class="n">__doc__</span>
+
+<div class="viewcode-block" id="SAMPIntegratedClient.bind_receive_notification"><a class="viewcode-back" href="../../../api/astropy.samp.SAMPIntegratedClient.html#astropy.samp.SAMPIntegratedClient.bind_receive_notification">[docs]</a>    <span class="k">def</span> <span class="nf">bind_receive_notification</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">mtype</span><span class="p">,</span> <span class="n">function</span><span class="p">,</span> <span class="n">declare</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">metadata</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">client</span><span class="o">.</span><span class="n">bind_receive_notification</span><span class="p">(</span><span class="n">mtype</span><span class="p">,</span> <span class="n">function</span><span class="p">,</span> <span class="n">declare</span><span class="p">,</span> <span class="n">metadata</span><span class="p">)</span></div>
+
+    <span class="n">bind_receive_notification</span><span class="o">.</span><span class="n">__doc__</span> <span class="o">=</span> <span class="n">SAMPClient</span><span class="o">.</span><span class="n">bind_receive_notification</span><span class="o">.</span><span class="n">__doc__</span>
+
+<div class="viewcode-block" id="SAMPIntegratedClient.bind_receive_call"><a class="viewcode-back" href="../../../api/astropy.samp.SAMPIntegratedClient.html#astropy.samp.SAMPIntegratedClient.bind_receive_call">[docs]</a>    <span class="k">def</span> <span class="nf">bind_receive_call</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">mtype</span><span class="p">,</span> <span class="n">function</span><span class="p">,</span> <span class="n">declare</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">metadata</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">client</span><span class="o">.</span><span class="n">bind_receive_call</span><span class="p">(</span><span class="n">mtype</span><span class="p">,</span> <span class="n">function</span><span class="p">,</span> <span class="n">declare</span><span class="p">,</span> <span class="n">metadata</span><span class="p">)</span></div>
+
+    <span class="n">bind_receive_call</span><span class="o">.</span><span class="n">__doc__</span> <span class="o">=</span> <span class="n">SAMPClient</span><span class="o">.</span><span class="n">bind_receive_call</span><span class="o">.</span><span class="n">__doc__</span>
+
+<div class="viewcode-block" id="SAMPIntegratedClient.bind_receive_response"><a class="viewcode-back" href="../../../api/astropy.samp.SAMPIntegratedClient.html#astropy.samp.SAMPIntegratedClient.bind_receive_response">[docs]</a>    <span class="k">def</span> <span class="nf">bind_receive_response</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">msg_tag</span><span class="p">,</span> <span class="n">function</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">client</span><span class="o">.</span><span class="n">bind_receive_response</span><span class="p">(</span><span class="n">msg_tag</span><span class="p">,</span> <span class="n">function</span><span class="p">)</span></div>
+
+    <span class="n">bind_receive_response</span><span class="o">.</span><span class="n">__doc__</span> <span class="o">=</span> <span class="n">SAMPClient</span><span class="o">.</span><span class="n">bind_receive_response</span><span class="o">.</span><span class="n">__doc__</span>
+
+<div class="viewcode-block" id="SAMPIntegratedClient.unbind_receive_notification"><a class="viewcode-back" href="../../../api/astropy.samp.SAMPIntegratedClient.html#astropy.samp.SAMPIntegratedClient.unbind_receive_notification">[docs]</a>    <span class="k">def</span> <span class="nf">unbind_receive_notification</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">mtype</span><span class="p">,</span> <span class="n">declare</span><span class="o">=</span><span class="kc">True</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">client</span><span class="o">.</span><span class="n">unbind_receive_notification</span><span class="p">(</span><span class="n">mtype</span><span class="p">,</span> <span class="n">declare</span><span class="p">)</span></div>
+
+    <span class="n">unbind_receive_notification</span><span class="o">.</span><span class="n">__doc__</span> <span class="o">=</span> <span class="n">SAMPClient</span><span class="o">.</span><span class="n">unbind_receive_notification</span><span class="o">.</span><span class="n">__doc__</span>
+
+<div class="viewcode-block" id="SAMPIntegratedClient.unbind_receive_call"><a class="viewcode-back" href="../../../api/astropy.samp.SAMPIntegratedClient.html#astropy.samp.SAMPIntegratedClient.unbind_receive_call">[docs]</a>    <span class="k">def</span> <span class="nf">unbind_receive_call</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">mtype</span><span class="p">,</span> <span class="n">declare</span><span class="o">=</span><span class="kc">True</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">client</span><span class="o">.</span><span class="n">unbind_receive_call</span><span class="p">(</span><span class="n">mtype</span><span class="p">,</span> <span class="n">declare</span><span class="p">)</span></div>
+
+    <span class="n">unbind_receive_call</span><span class="o">.</span><span class="n">__doc__</span> <span class="o">=</span> <span class="n">SAMPClient</span><span class="o">.</span><span class="n">unbind_receive_call</span><span class="o">.</span><span class="n">__doc__</span>
+
+<div class="viewcode-block" id="SAMPIntegratedClient.unbind_receive_response"><a class="viewcode-back" href="../../../api/astropy.samp.SAMPIntegratedClient.html#astropy.samp.SAMPIntegratedClient.unbind_receive_response">[docs]</a>    <span class="k">def</span> <span class="nf">unbind_receive_response</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">msg_tag</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">client</span><span class="o">.</span><span class="n">unbind_receive_response</span><span class="p">(</span><span class="n">msg_tag</span><span class="p">)</span></div>
+
+    <span class="n">unbind_receive_response</span><span class="o">.</span><span class="n">__doc__</span> <span class="o">=</span> <span class="n">SAMPClient</span><span class="o">.</span><span class="n">unbind_receive_response</span><span class="o">.</span><span class="n">__doc__</span>
+
+<div class="viewcode-block" id="SAMPIntegratedClient.declare_subscriptions"><a class="viewcode-back" href="../../../api/astropy.samp.SAMPIntegratedClient.html#astropy.samp.SAMPIntegratedClient.declare_subscriptions">[docs]</a>    <span class="k">def</span> <span class="nf">declare_subscriptions</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">subscriptions</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">client</span><span class="o">.</span><span class="n">declare_subscriptions</span><span class="p">(</span><span class="n">subscriptions</span><span class="p">)</span></div>
+
+    <span class="n">declare_subscriptions</span><span class="o">.</span><span class="n">__doc__</span> <span class="o">=</span> <span class="n">SAMPClient</span><span class="o">.</span><span class="n">declare_subscriptions</span><span class="o">.</span><span class="n">__doc__</span>
+
+<div class="viewcode-block" id="SAMPIntegratedClient.get_private_key"><a class="viewcode-back" href="../../../api/astropy.samp.SAMPIntegratedClient.html#astropy.samp.SAMPIntegratedClient.get_private_key">[docs]</a>    <span class="k">def</span> <span class="nf">get_private_key</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">client</span><span class="o">.</span><span class="n">get_private_key</span><span class="p">()</span></div>
+
+    <span class="n">get_private_key</span><span class="o">.</span><span class="n">__doc__</span> <span class="o">=</span> <span class="n">SAMPClient</span><span class="o">.</span><span class="n">get_private_key</span><span class="o">.</span><span class="n">__doc__</span>
+
+<div class="viewcode-block" id="SAMPIntegratedClient.get_public_id"><a class="viewcode-back" href="../../../api/astropy.samp.SAMPIntegratedClient.html#astropy.samp.SAMPIntegratedClient.get_public_id">[docs]</a>    <span class="k">def</span> <span class="nf">get_public_id</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">client</span><span class="o">.</span><span class="n">get_public_id</span><span class="p">()</span></div>
+
+    <span class="n">get_public_id</span><span class="o">.</span><span class="n">__doc__</span> <span class="o">=</span> <span class="n">SAMPClient</span><span class="o">.</span><span class="n">get_public_id</span><span class="o">.</span><span class="n">__doc__</span></div>
+</pre></div>
+
+          </div>
+        </div>
+      </div>
+      <div class="sphinxsidebar" role="navigation" aria-label="main navigation">
+        <div class="sphinxsidebarwrapper"><h3>Page Contents</h3>
+
+
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+<footer class="footer">
+  <p class="pull-right"> &nbsp;
+    <a href="#">Back to Top</a></p>
+  <p>
+    &copy; Copyright 2011-2016, The Astropy Developers.<br/>
+    Created using <a href="http://sphinx.pocoo.org/">Sphinx</a> 1.5.6. &nbsp;
+    Last built 05 Jul 2017. <br/>
+  </p>
+</footer>
+  </body>
+</html>

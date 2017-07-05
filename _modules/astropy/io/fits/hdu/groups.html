@@ -1,0 +1,724 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <head>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    
+    <title>astropy.io.fits.hdu.groups &#8212; Astropy v3.0.dev19489</title>
+    
+    <link rel="stylesheet" href="../../../../../_static/bootstrap-astropy.css" type="text/css" />
+    <link rel="stylesheet" href="../../../../../_static/pygments.css" type="text/css" />
+    <link rel="stylesheet" href="../../../../../_static/gallery.css" type="text/css" />
+    
+    <script type="text/javascript">
+      var DOCUMENTATION_OPTIONS = {
+        URL_ROOT:    '../../../../../',
+        VERSION:     '3.0.dev19489',
+        COLLAPSE_INDEX: false,
+        FILE_SUFFIX: '.html',
+        HAS_SOURCE:  true,
+        SOURCELINK_SUFFIX: '.txt'
+      };
+    </script>
+    <script type="text/javascript" src="../../../../../_static/jquery.js"></script>
+    <script type="text/javascript" src="../../../../../_static/underscore.js"></script>
+    <script type="text/javascript" src="../../../../../_static/doctools.js"></script>
+    <script type="text/javascript" src="../../../../../_static/sidebar.js"></script>
+    <link rel="shortcut icon" href="../../../../../_static/astropy_logo.ico"/>
+    <link rel="index" title="Index" href="../../../../../genindex.html" />
+    <link rel="search" title="Search" href="../../../../../search.html" />
+<link href='https://fonts.googleapis.com/css?family=Source+Sans+Pro:200,600' rel='stylesheet' type='text/css'/>
+<script type="text/javascript" src="../../../../../_static/copybutton.js"></script>
+
+
+  </head>
+  <body role="document">
+<div class="topbar">
+  <a class="brand" title="Documentation Home" href="../../../../../index.html"><span id="logotext1">astro</span><span id="logotext2">py</span><span id="logotext3">:docs</span></a>
+  <ul>
+    <li><a class="homelink" title="Astropy Homepage" href="http://www.astropy.org"></a></li>
+    <li><a title="General Index" href="../../../../../genindex.html">Index</a></li>
+    <li><a title="Module Index" href="../../../../../py-modindex.html">Modules</a></li>
+    <li>
+      
+      
+<form action="../../../../../search.html" method="get">
+  <input type="text" name="q" placeholder="Search" />
+  <input type="hidden" name="check_keywords" value="yes" />
+  <input type="hidden" name="area" value="default" />
+</form>
+      
+    </li>
+  </ul>
+</div>
+
+<div class="related">
+    <h3>Navigation</h3>
+    <ul>
+      <li>
+	<a href="../../../../../index.html">Astropy v3.0.dev19489</a>
+	 &#187;
+      </li>
+      <li><a href="../../../../index.html" >Module code</a> &#187;</li>
+      <li><a href="../../../../astropy.html" accesskey="U">astropy</a> &#187;</li>
+      
+       
+    </ul>
+</div>
+  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          <div class="body" role="main">
+            
+  <h1>Source code for astropy.io.fits.hdu.groups</h1><div class="highlight"><pre>
+<span></span><span class="c1"># Licensed under a 3-clause BSD style license - see PYFITS.rst</span>
+
+<span class="kn">import</span> <span class="nn">sys</span>
+<span class="kn">import</span> <span class="nn">numpy</span> <span class="k">as</span> <span class="nn">np</span>
+
+<span class="kn">from</span> <span class="nn">.base</span> <span class="k">import</span> <span class="n">DTYPE2BITPIX</span>
+<span class="kn">from</span> <span class="nn">.image</span> <span class="k">import</span> <span class="n">PrimaryHDU</span>
+<span class="kn">from</span> <span class="nn">.table</span> <span class="k">import</span> <span class="n">_TableLikeHDU</span>
+<span class="kn">from</span> <span class="nn">..column</span> <span class="k">import</span> <span class="n">Column</span><span class="p">,</span> <span class="n">ColDefs</span><span class="p">,</span> <span class="n">FITS2NUMPY</span>
+<span class="kn">from</span> <span class="nn">..fitsrec</span> <span class="k">import</span> <span class="n">FITS_rec</span><span class="p">,</span> <span class="n">FITS_record</span>
+<span class="kn">from</span> <span class="nn">..util</span> <span class="k">import</span> <span class="n">_is_int</span><span class="p">,</span> <span class="n">_is_pseudo_unsigned</span><span class="p">,</span> <span class="n">_unsigned_zero</span>
+
+<span class="kn">from</span> <span class="nn">....utils</span> <span class="k">import</span> <span class="n">lazyproperty</span>
+<span class="kn">from</span> <span class="nn">....extern.six.moves</span> <span class="k">import</span> <span class="nb">range</span><span class="p">,</span> <span class="nb">zip</span>
+
+
+<div class="viewcode-block" id="Group"><a class="viewcode-back" href="../../../../../io/fits/api/hdus.html#astropy.io.fits.Group">[docs]</a><span class="k">class</span> <span class="nc">Group</span><span class="p">(</span><span class="n">FITS_record</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    One group of the random group data.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="nb">input</span><span class="p">,</span> <span class="n">row</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span> <span class="n">start</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">end</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">step</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+                 <span class="n">base</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+        <span class="nb">super</span><span class="p">(</span><span class="n">Group</span><span class="p">,</span> <span class="bp">self</span><span class="p">)</span><span class="o">.</span><span class="n">__init__</span><span class="p">(</span><span class="nb">input</span><span class="p">,</span> <span class="n">row</span><span class="p">,</span> <span class="n">start</span><span class="p">,</span> <span class="n">end</span><span class="p">,</span> <span class="n">step</span><span class="p">,</span> <span class="n">base</span><span class="p">)</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">parnames</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">array</span><span class="o">.</span><span class="n">parnames</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">data</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="c1"># The last column in the coldefs is the data portion of the group</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">field</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">array</span><span class="o">.</span><span class="n">_coldefs</span><span class="o">.</span><span class="n">names</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">])</span>
+
+    <span class="nd">@lazyproperty</span>
+    <span class="k">def</span> <span class="nf">_unique</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="n">_par_indices</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">parnames</span><span class="p">)</span>
+
+<div class="viewcode-block" id="Group.par"><a class="viewcode-back" href="../../../../../io/fits/api/hdus.html#astropy.io.fits.Group.par">[docs]</a>    <span class="k">def</span> <span class="nf">par</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">parname</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Get the group parameter value.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+
+        <span class="k">if</span> <span class="n">_is_int</span><span class="p">(</span><span class="n">parname</span><span class="p">):</span>
+            <span class="n">result</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">array</span><span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">row</span><span class="p">][</span><span class="n">parname</span><span class="p">]</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">indx</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_unique</span><span class="p">[</span><span class="n">parname</span><span class="o">.</span><span class="n">upper</span><span class="p">()]</span>
+            <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">indx</span><span class="p">)</span> <span class="o">==</span> <span class="mi">1</span><span class="p">:</span>
+                <span class="n">result</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">array</span><span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">row</span><span class="p">][</span><span class="n">indx</span><span class="p">[</span><span class="mi">0</span><span class="p">]]</span>
+
+            <span class="c1"># if more than one group parameter have the same name</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="n">result</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">array</span><span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">row</span><span class="p">][</span><span class="n">indx</span><span class="p">[</span><span class="mi">0</span><span class="p">]]</span><span class="o">.</span><span class="n">astype</span><span class="p">(</span><span class="s1">&#39;f8&#39;</span><span class="p">)</span>
+                <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">indx</span><span class="p">[</span><span class="mi">1</span><span class="p">:]:</span>
+                    <span class="n">result</span> <span class="o">+=</span> <span class="bp">self</span><span class="o">.</span><span class="n">array</span><span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">row</span><span class="p">][</span><span class="n">i</span><span class="p">]</span>
+
+        <span class="k">return</span> <span class="n">result</span></div>
+
+<div class="viewcode-block" id="Group.setpar"><a class="viewcode-back" href="../../../../../io/fits/api/hdus.html#astropy.io.fits.Group.setpar">[docs]</a>    <span class="k">def</span> <span class="nf">setpar</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">parname</span><span class="p">,</span> <span class="n">value</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Set the group parameter value.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+
+        <span class="c1"># TODO: It would be nice if, instead of requiring a multi-part value to</span>
+        <span class="c1"># be an array, there were an *option* to automatically split the value</span>
+        <span class="c1"># into multiple columns if it doesn&#39;t already fit in the array data</span>
+        <span class="c1"># type.</span>
+
+        <span class="k">if</span> <span class="n">_is_int</span><span class="p">(</span><span class="n">parname</span><span class="p">):</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">array</span><span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">row</span><span class="p">][</span><span class="n">parname</span><span class="p">]</span> <span class="o">=</span> <span class="n">value</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">indx</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_unique</span><span class="p">[</span><span class="n">parname</span><span class="o">.</span><span class="n">upper</span><span class="p">()]</span>
+            <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">indx</span><span class="p">)</span> <span class="o">==</span> <span class="mi">1</span><span class="p">:</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">array</span><span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">row</span><span class="p">][</span><span class="n">indx</span><span class="p">[</span><span class="mi">0</span><span class="p">]]</span> <span class="o">=</span> <span class="n">value</span>
+
+            <span class="c1"># if more than one group parameter have the same name, the</span>
+            <span class="c1"># value must be a list (or tuple) containing arrays</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">value</span><span class="p">,</span> <span class="p">(</span><span class="nb">list</span><span class="p">,</span> <span class="nb">tuple</span><span class="p">))</span> <span class="ow">and</span> \
+                   <span class="nb">len</span><span class="p">(</span><span class="n">indx</span><span class="p">)</span> <span class="o">==</span> <span class="nb">len</span><span class="p">(</span><span class="n">value</span><span class="p">):</span>
+                    <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">indx</span><span class="p">)):</span>
+                        <span class="bp">self</span><span class="o">.</span><span class="n">array</span><span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">row</span><span class="p">][</span><span class="n">indx</span><span class="p">[</span><span class="n">i</span><span class="p">]]</span> <span class="o">=</span> <span class="n">value</span><span class="p">[</span><span class="n">i</span><span class="p">]</span>
+                <span class="k">else</span><span class="p">:</span>
+                    <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s1">&#39;Parameter value must be a sequence with &#39;</span>
+                                     <span class="s1">&#39;</span><span class="si">{}</span><span class="s1"> arrays/numbers.&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">indx</span><span class="p">)))</span></div></div>
+
+
+<div class="viewcode-block" id="GroupData"><a class="viewcode-back" href="../../../../../io/fits/api/hdus.html#astropy.io.fits.GroupData">[docs]</a><span class="k">class</span> <span class="nc">GroupData</span><span class="p">(</span><span class="n">FITS_rec</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Random groups data object.</span>
+
+<span class="sd">    Allows structured access to FITS Group data in a manner analogous</span>
+<span class="sd">    to tables.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="n">_record_type</span> <span class="o">=</span> <span class="n">Group</span>
+
+    <span class="k">def</span> <span class="nf">__new__</span><span class="p">(</span><span class="n">cls</span><span class="p">,</span> <span class="nb">input</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">bitpix</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">pardata</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">parnames</span><span class="o">=</span><span class="p">[],</span>
+                <span class="n">bscale</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">bzero</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">parbscales</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">parbzeros</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        input : array or FITS_rec instance</span>
+<span class="sd">            input data, either the group data itself (a</span>
+<span class="sd">            `numpy.ndarray`) or a record array (`FITS_rec`) which will</span>
+<span class="sd">            contain both group parameter info and the data.  The rest</span>
+<span class="sd">            of the arguments are used only for the first case.</span>
+
+<span class="sd">        bitpix : int</span>
+<span class="sd">            data type as expressed in FITS ``BITPIX`` value (8, 16, 32,</span>
+<span class="sd">            64, -32, or -64)</span>
+
+<span class="sd">        pardata : sequence of arrays</span>
+<span class="sd">            parameter data, as a list of (numeric) arrays.</span>
+
+<span class="sd">        parnames : sequence of str</span>
+<span class="sd">            list of parameter names.</span>
+
+<span class="sd">        bscale : int</span>
+<span class="sd">            ``BSCALE`` of the data</span>
+
+<span class="sd">        bzero : int</span>
+<span class="sd">            ``BZERO`` of the data</span>
+
+<span class="sd">        parbscales : sequence of int</span>
+<span class="sd">            list of bscales for the parameters</span>
+
+<span class="sd">        parbzeros : sequence of int</span>
+<span class="sd">            list of bzeros for the parameters</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+
+        <span class="k">if</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="nb">input</span><span class="p">,</span> <span class="n">FITS_rec</span><span class="p">):</span>
+            <span class="k">if</span> <span class="n">pardata</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+                <span class="n">npars</span> <span class="o">=</span> <span class="mi">0</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="n">npars</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="n">pardata</span><span class="p">)</span>
+
+            <span class="k">if</span> <span class="n">parbscales</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+                <span class="n">parbscales</span> <span class="o">=</span> <span class="p">[</span><span class="kc">None</span><span class="p">]</span> <span class="o">*</span> <span class="n">npars</span>
+            <span class="k">if</span> <span class="n">parbzeros</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+                <span class="n">parbzeros</span> <span class="o">=</span> <span class="p">[</span><span class="kc">None</span><span class="p">]</span> <span class="o">*</span> <span class="n">npars</span>
+
+            <span class="k">if</span> <span class="n">parnames</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+                <span class="n">parnames</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;PAR</span><span class="si">{}</span><span class="s1">&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">idx</span> <span class="o">+</span> <span class="mi">1</span><span class="p">)</span> <span class="k">for</span> <span class="n">idx</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">npars</span><span class="p">)]</span>
+
+            <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">parnames</span><span class="p">)</span> <span class="o">!=</span> <span class="n">npars</span><span class="p">:</span>
+                <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s1">&#39;The number of parameter data arrays does &#39;</span>
+                                 <span class="s1">&#39;not match the number of parameters.&#39;</span><span class="p">)</span>
+
+            <span class="n">unique_parnames</span> <span class="o">=</span> <span class="n">_unique_parnames</span><span class="p">(</span><span class="n">parnames</span> <span class="o">+</span> <span class="p">[</span><span class="s1">&#39;DATA&#39;</span><span class="p">])</span>
+
+            <span class="k">if</span> <span class="n">bitpix</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+                <span class="n">bitpix</span> <span class="o">=</span> <span class="n">DTYPE2BITPIX</span><span class="p">[</span><span class="nb">input</span><span class="o">.</span><span class="n">dtype</span><span class="o">.</span><span class="n">name</span><span class="p">]</span>
+
+            <span class="n">fits_fmt</span> <span class="o">=</span> <span class="n">GroupsHDU</span><span class="o">.</span><span class="n">_bitpix2tform</span><span class="p">[</span><span class="n">bitpix</span><span class="p">]</span>  <span class="c1"># -32 -&gt; &#39;E&#39;</span>
+            <span class="nb">format</span> <span class="o">=</span> <span class="n">FITS2NUMPY</span><span class="p">[</span><span class="n">fits_fmt</span><span class="p">]</span>  <span class="c1"># &#39;E&#39; -&gt; &#39;f4&#39;</span>
+            <span class="n">data_fmt</span> <span class="o">=</span> <span class="s1">&#39;</span><span class="si">{}{}</span><span class="s1">&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="nb">str</span><span class="p">(</span><span class="nb">input</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">1</span><span class="p">:]),</span> <span class="nb">format</span><span class="p">)</span>
+            <span class="n">formats</span> <span class="o">=</span> <span class="s1">&#39;,&#39;</span><span class="o">.</span><span class="n">join</span><span class="p">(([</span><span class="nb">format</span><span class="p">]</span> <span class="o">*</span> <span class="n">npars</span><span class="p">)</span> <span class="o">+</span> <span class="p">[</span><span class="n">data_fmt</span><span class="p">])</span>
+            <span class="n">gcount</span> <span class="o">=</span> <span class="nb">input</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+
+            <span class="n">cols</span> <span class="o">=</span> <span class="p">[</span><span class="n">Column</span><span class="p">(</span><span class="n">name</span><span class="o">=</span><span class="n">unique_parnames</span><span class="p">[</span><span class="n">idx</span><span class="p">],</span> <span class="nb">format</span><span class="o">=</span><span class="n">fits_fmt</span><span class="p">,</span>
+                           <span class="n">bscale</span><span class="o">=</span><span class="n">parbscales</span><span class="p">[</span><span class="n">idx</span><span class="p">],</span> <span class="n">bzero</span><span class="o">=</span><span class="n">parbzeros</span><span class="p">[</span><span class="n">idx</span><span class="p">])</span>
+                    <span class="k">for</span> <span class="n">idx</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">npars</span><span class="p">)]</span>
+            <span class="n">cols</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">Column</span><span class="p">(</span><span class="n">name</span><span class="o">=</span><span class="n">unique_parnames</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">],</span> <span class="nb">format</span><span class="o">=</span><span class="n">fits_fmt</span><span class="p">,</span>
+                               <span class="n">bscale</span><span class="o">=</span><span class="n">bscale</span><span class="p">,</span> <span class="n">bzero</span><span class="o">=</span><span class="n">bzero</span><span class="p">))</span>
+
+            <span class="n">coldefs</span> <span class="o">=</span> <span class="n">ColDefs</span><span class="p">(</span><span class="n">cols</span><span class="p">)</span>
+
+            <span class="bp">self</span> <span class="o">=</span> <span class="n">FITS_rec</span><span class="o">.</span><span class="n">__new__</span><span class="p">(</span><span class="n">cls</span><span class="p">,</span>
+                                    <span class="n">np</span><span class="o">.</span><span class="n">rec</span><span class="o">.</span><span class="n">array</span><span class="p">(</span><span class="kc">None</span><span class="p">,</span>
+                                                 <span class="n">formats</span><span class="o">=</span><span class="n">formats</span><span class="p">,</span>
+                                                 <span class="n">names</span><span class="o">=</span><span class="n">coldefs</span><span class="o">.</span><span class="n">names</span><span class="p">,</span>
+                                                 <span class="n">shape</span><span class="o">=</span><span class="n">gcount</span><span class="p">))</span>
+
+            <span class="c1"># By default the data field will just be &#39;DATA&#39;, but it may be</span>
+            <span class="c1"># uniquified if &#39;DATA&#39; is already used by one of the group names</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_data_field</span> <span class="o">=</span> <span class="n">unique_parnames</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span>
+
+            <span class="bp">self</span><span class="o">.</span><span class="n">_coldefs</span> <span class="o">=</span> <span class="n">coldefs</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">parnames</span> <span class="o">=</span> <span class="n">parnames</span>
+
+            <span class="k">for</span> <span class="n">idx</span><span class="p">,</span> <span class="n">name</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="n">unique_parnames</span><span class="p">[:</span><span class="o">-</span><span class="mi">1</span><span class="p">]):</span>
+                <span class="n">column</span> <span class="o">=</span> <span class="n">coldefs</span><span class="p">[</span><span class="n">idx</span><span class="p">]</span>
+                <span class="c1"># Note: _get_scale_factors is used here and in other cases</span>
+                <span class="c1"># below to determine whether the column has non-default</span>
+                <span class="c1"># scale/zero factors.</span>
+                <span class="c1"># TODO: Find a better way to do this than using this interface</span>
+                <span class="n">scale</span><span class="p">,</span> <span class="n">zero</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_get_scale_factors</span><span class="p">(</span><span class="n">column</span><span class="p">)[</span><span class="mi">3</span><span class="p">:</span><span class="mi">5</span><span class="p">]</span>
+                <span class="k">if</span> <span class="n">scale</span> <span class="ow">or</span> <span class="n">zero</span><span class="p">:</span>
+                    <span class="bp">self</span><span class="o">.</span><span class="n">_cache_field</span><span class="p">(</span><span class="n">name</span><span class="p">,</span> <span class="n">pardata</span><span class="p">[</span><span class="n">idx</span><span class="p">])</span>
+                <span class="k">else</span><span class="p">:</span>
+                    <span class="n">np</span><span class="o">.</span><span class="n">rec</span><span class="o">.</span><span class="n">recarray</span><span class="o">.</span><span class="n">field</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">idx</span><span class="p">)[:]</span> <span class="o">=</span> <span class="n">pardata</span><span class="p">[</span><span class="n">idx</span><span class="p">]</span>
+
+            <span class="n">column</span> <span class="o">=</span> <span class="n">coldefs</span><span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">_data_field</span><span class="p">]</span>
+            <span class="n">scale</span><span class="p">,</span> <span class="n">zero</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_get_scale_factors</span><span class="p">(</span><span class="n">column</span><span class="p">)[</span><span class="mi">3</span><span class="p">:</span><span class="mi">5</span><span class="p">]</span>
+            <span class="k">if</span> <span class="n">scale</span> <span class="ow">or</span> <span class="n">zero</span><span class="p">:</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">_cache_field</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_data_field</span><span class="p">,</span> <span class="nb">input</span><span class="p">)</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="n">np</span><span class="o">.</span><span class="n">rec</span><span class="o">.</span><span class="n">recarray</span><span class="o">.</span><span class="n">field</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">npars</span><span class="p">)[:]</span> <span class="o">=</span> <span class="nb">input</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="bp">self</span> <span class="o">=</span> <span class="n">FITS_rec</span><span class="o">.</span><span class="n">__new__</span><span class="p">(</span><span class="n">cls</span><span class="p">,</span> <span class="nb">input</span><span class="p">)</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">parnames</span> <span class="o">=</span> <span class="kc">None</span>
+        <span class="k">return</span> <span class="bp">self</span>
+
+    <span class="k">def</span> <span class="nf">__array_finalize__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">obj</span><span class="p">):</span>
+        <span class="nb">super</span><span class="p">(</span><span class="n">GroupData</span><span class="p">,</span> <span class="bp">self</span><span class="p">)</span><span class="o">.</span><span class="n">__array_finalize__</span><span class="p">(</span><span class="n">obj</span><span class="p">)</span>
+        <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">obj</span><span class="p">,</span> <span class="n">GroupData</span><span class="p">):</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">parnames</span> <span class="o">=</span> <span class="n">obj</span><span class="o">.</span><span class="n">parnames</span>
+        <span class="k">elif</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">obj</span><span class="p">,</span> <span class="n">FITS_rec</span><span class="p">):</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">parnames</span> <span class="o">=</span> <span class="n">obj</span><span class="o">.</span><span class="n">_coldefs</span><span class="o">.</span><span class="n">names</span>
+
+    <span class="k">def</span> <span class="nf">__getitem__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">key</span><span class="p">):</span>
+        <span class="n">out</span> <span class="o">=</span> <span class="nb">super</span><span class="p">(</span><span class="n">GroupData</span><span class="p">,</span> <span class="bp">self</span><span class="p">)</span><span class="o">.</span><span class="n">__getitem__</span><span class="p">(</span><span class="n">key</span><span class="p">)</span>
+        <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">out</span><span class="p">,</span> <span class="n">GroupData</span><span class="p">):</span>
+            <span class="n">out</span><span class="o">.</span><span class="n">parnames</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">parnames</span>
+        <span class="k">return</span> <span class="n">out</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">data</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        The raw group data represented as a multi-dimensional `numpy.ndarray`</span>
+<span class="sd">        array.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+
+        <span class="c1"># The last column in the coldefs is the data portion of the group</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">field</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_coldefs</span><span class="o">.</span><span class="n">names</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">])</span>
+
+    <span class="nd">@lazyproperty</span>
+    <span class="k">def</span> <span class="nf">_unique</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="n">_par_indices</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">parnames</span><span class="p">)</span>
+
+<div class="viewcode-block" id="GroupData.par"><a class="viewcode-back" href="../../../../../io/fits/api/hdus.html#astropy.io.fits.GroupData.par">[docs]</a>    <span class="k">def</span> <span class="nf">par</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">parname</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Get the group parameter values.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+
+        <span class="k">if</span> <span class="n">_is_int</span><span class="p">(</span><span class="n">parname</span><span class="p">):</span>
+            <span class="n">result</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">field</span><span class="p">(</span><span class="n">parname</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">indx</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_unique</span><span class="p">[</span><span class="n">parname</span><span class="o">.</span><span class="n">upper</span><span class="p">()]</span>
+            <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">indx</span><span class="p">)</span> <span class="o">==</span> <span class="mi">1</span><span class="p">:</span>
+                <span class="n">result</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">field</span><span class="p">(</span><span class="n">indx</span><span class="p">[</span><span class="mi">0</span><span class="p">])</span>
+
+            <span class="c1"># if more than one group parameter have the same name</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="n">result</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">field</span><span class="p">(</span><span class="n">indx</span><span class="p">[</span><span class="mi">0</span><span class="p">])</span><span class="o">.</span><span class="n">astype</span><span class="p">(</span><span class="s1">&#39;f8&#39;</span><span class="p">)</span>
+                <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">indx</span><span class="p">[</span><span class="mi">1</span><span class="p">:]:</span>
+                    <span class="n">result</span> <span class="o">+=</span> <span class="bp">self</span><span class="o">.</span><span class="n">field</span><span class="p">(</span><span class="n">i</span><span class="p">)</span>
+
+        <span class="k">return</span> <span class="n">result</span></div></div>
+
+
+<div class="viewcode-block" id="GroupsHDU"><a class="viewcode-back" href="../../../../../io/fits/api/hdus.html#astropy.io.fits.GroupsHDU">[docs]</a><span class="k">class</span> <span class="nc">GroupsHDU</span><span class="p">(</span><span class="n">PrimaryHDU</span><span class="p">,</span> <span class="n">_TableLikeHDU</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    FITS Random Groups HDU class.</span>
+
+<span class="sd">    See the :ref:`random-groups` section in the PyFITS documentation for more</span>
+<span class="sd">    details on working with this type of HDU.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="n">_bitpix2tform</span> <span class="o">=</span> <span class="p">{</span><span class="mi">8</span><span class="p">:</span> <span class="s1">&#39;B&#39;</span><span class="p">,</span> <span class="mi">16</span><span class="p">:</span> <span class="s1">&#39;I&#39;</span><span class="p">,</span> <span class="mi">32</span><span class="p">:</span> <span class="s1">&#39;J&#39;</span><span class="p">,</span> <span class="mi">64</span><span class="p">:</span> <span class="s1">&#39;K&#39;</span><span class="p">,</span> <span class="o">-</span><span class="mi">32</span><span class="p">:</span> <span class="s1">&#39;E&#39;</span><span class="p">,</span> <span class="o">-</span><span class="mi">64</span><span class="p">:</span> <span class="s1">&#39;D&#39;</span><span class="p">}</span>
+    <span class="n">_data_type</span> <span class="o">=</span> <span class="n">GroupData</span>
+    <span class="n">_data_field</span> <span class="o">=</span> <span class="s1">&#39;DATA&#39;</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    The name of the table record array field that will contain the group data</span>
+<span class="sd">    for each group; &#39;DATA&#39; by default, but may be preceded by any number of</span>
+<span class="sd">    underscores if &#39;DATA&#39; is already a parameter name</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">data</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">header</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+        <span class="nb">super</span><span class="p">(</span><span class="n">GroupsHDU</span><span class="p">,</span> <span class="bp">self</span><span class="p">)</span><span class="o">.</span><span class="n">__init__</span><span class="p">(</span><span class="n">data</span><span class="o">=</span><span class="n">data</span><span class="p">,</span> <span class="n">header</span><span class="o">=</span><span class="n">header</span><span class="p">)</span>
+
+        <span class="c1"># Update the axes; GROUPS HDUs should always have at least one axis</span>
+        <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_axes</span><span class="p">)</span> <span class="o">&lt;=</span> <span class="mi">0</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_axes</span> <span class="o">=</span> <span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_header</span><span class="p">[</span><span class="s1">&#39;NAXIS&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="mi">1</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_header</span><span class="o">.</span><span class="n">set</span><span class="p">(</span><span class="s1">&#39;NAXIS1&#39;</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="n">after</span><span class="o">=</span><span class="s1">&#39;NAXIS&#39;</span><span class="p">)</span>
+
+    <span class="nd">@classmethod</span>
+    <span class="k">def</span> <span class="nf">match_header</span><span class="p">(</span><span class="n">cls</span><span class="p">,</span> <span class="n">header</span><span class="p">):</span>
+        <span class="n">keyword</span> <span class="o">=</span> <span class="n">header</span><span class="o">.</span><span class="n">cards</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">keyword</span>
+        <span class="k">return</span> <span class="p">(</span><span class="n">keyword</span> <span class="o">==</span> <span class="s1">&#39;SIMPLE&#39;</span> <span class="ow">and</span> <span class="s1">&#39;GROUPS&#39;</span> <span class="ow">in</span> <span class="n">header</span> <span class="ow">and</span>
+                <span class="n">header</span><span class="p">[</span><span class="s1">&#39;GROUPS&#39;</span><span class="p">]</span> <span class="ow">is</span> <span class="kc">True</span><span class="p">)</span>
+
+    <span class="nd">@lazyproperty</span>
+    <span class="k">def</span> <span class="nf">data</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        The data of a random group FITS file will be like a binary table&#39;s</span>
+<span class="sd">        data.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+
+        <span class="n">data</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_get_tbdata</span><span class="p">()</span>
+        <span class="n">data</span><span class="o">.</span><span class="n">_coldefs</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">columns</span>
+        <span class="n">data</span><span class="o">.</span><span class="n">parnames</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">parnames</span>
+        <span class="k">del</span> <span class="bp">self</span><span class="o">.</span><span class="n">columns</span>
+        <span class="k">return</span> <span class="n">data</span>
+
+    <span class="nd">@lazyproperty</span>
+    <span class="k">def</span> <span class="nf">parnames</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;The names of the group parameters as described by the header.&quot;&quot;&quot;</span>
+
+        <span class="n">pcount</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_header</span><span class="p">[</span><span class="s1">&#39;PCOUNT&#39;</span><span class="p">]</span>
+        <span class="c1"># The FITS standard doesn&#39;t really say what to do if a parname is</span>
+        <span class="c1"># missing, so for now just assume that won&#39;t happen</span>
+        <span class="k">return</span> <span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">_header</span><span class="p">[</span><span class="s1">&#39;PTYPE&#39;</span> <span class="o">+</span> <span class="nb">str</span><span class="p">(</span><span class="n">idx</span> <span class="o">+</span> <span class="mi">1</span><span class="p">)]</span> <span class="k">for</span> <span class="n">idx</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">pcount</span><span class="p">)]</span>
+
+    <span class="nd">@lazyproperty</span>
+    <span class="k">def</span> <span class="nf">columns</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_has_data</span> <span class="ow">and</span> <span class="nb">hasattr</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">data</span><span class="p">,</span> <span class="s1">&#39;_coldefs&#39;</span><span class="p">):</span>
+            <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">_coldefs</span>
+
+        <span class="nb">format</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_bitpix2tform</span><span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">_header</span><span class="p">[</span><span class="s1">&#39;BITPIX&#39;</span><span class="p">]]</span>
+        <span class="n">pcount</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_header</span><span class="p">[</span><span class="s1">&#39;PCOUNT&#39;</span><span class="p">]</span>
+        <span class="n">parnames</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="n">bscales</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="n">bzeros</span> <span class="o">=</span> <span class="p">[]</span>
+
+        <span class="k">for</span> <span class="n">idx</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">pcount</span><span class="p">):</span>
+            <span class="n">bscales</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_header</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;PSCAL&#39;</span> <span class="o">+</span> <span class="nb">str</span><span class="p">(</span><span class="n">idx</span> <span class="o">+</span> <span class="mi">1</span><span class="p">),</span> <span class="kc">None</span><span class="p">))</span>
+            <span class="n">bzeros</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_header</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;PZERO&#39;</span> <span class="o">+</span> <span class="nb">str</span><span class="p">(</span><span class="n">idx</span> <span class="o">+</span> <span class="mi">1</span><span class="p">),</span> <span class="kc">None</span><span class="p">))</span>
+            <span class="n">parnames</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_header</span><span class="p">[</span><span class="s1">&#39;PTYPE&#39;</span> <span class="o">+</span> <span class="nb">str</span><span class="p">(</span><span class="n">idx</span> <span class="o">+</span> <span class="mi">1</span><span class="p">)])</span>
+
+        <span class="n">formats</span> <span class="o">=</span> <span class="p">[</span><span class="nb">format</span><span class="p">]</span> <span class="o">*</span> <span class="nb">len</span><span class="p">(</span><span class="n">parnames</span><span class="p">)</span>
+        <span class="n">dim</span> <span class="o">=</span> <span class="p">[</span><span class="kc">None</span><span class="p">]</span> <span class="o">*</span> <span class="nb">len</span><span class="p">(</span><span class="n">parnames</span><span class="p">)</span>
+
+        <span class="c1"># Now create columns from collected parameters, but first add the DATA</span>
+        <span class="c1"># column too, to contain the group data.</span>
+        <span class="n">parnames</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="s1">&#39;DATA&#39;</span><span class="p">)</span>
+        <span class="n">bscales</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_header</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;BSCALE&#39;</span><span class="p">))</span>
+        <span class="n">bzeros</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_header</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;BZEROS&#39;</span><span class="p">))</span>
+        <span class="n">data_shape</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">shape</span><span class="p">[:</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span>
+        <span class="n">formats</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="nb">str</span><span class="p">(</span><span class="nb">int</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">prod</span><span class="p">(</span><span class="n">data_shape</span><span class="p">)))</span> <span class="o">+</span> <span class="nb">format</span><span class="p">)</span>
+        <span class="n">dim</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">data_shape</span><span class="p">)</span>
+        <span class="n">parnames</span> <span class="o">=</span> <span class="n">_unique_parnames</span><span class="p">(</span><span class="n">parnames</span><span class="p">)</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">_data_field</span> <span class="o">=</span> <span class="n">parnames</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span>
+
+        <span class="n">cols</span> <span class="o">=</span> <span class="p">[</span><span class="n">Column</span><span class="p">(</span><span class="n">name</span><span class="o">=</span><span class="n">name</span><span class="p">,</span> <span class="nb">format</span><span class="o">=</span><span class="n">fmt</span><span class="p">,</span> <span class="n">bscale</span><span class="o">=</span><span class="n">bscale</span><span class="p">,</span> <span class="n">bzero</span><span class="o">=</span><span class="n">bzero</span><span class="p">,</span>
+                       <span class="n">dim</span><span class="o">=</span><span class="n">dim</span><span class="p">)</span>
+                <span class="k">for</span> <span class="n">name</span><span class="p">,</span> <span class="n">fmt</span><span class="p">,</span> <span class="n">bscale</span><span class="p">,</span> <span class="n">bzero</span><span class="p">,</span> <span class="n">dim</span> <span class="ow">in</span>
+                <span class="nb">zip</span><span class="p">(</span><span class="n">parnames</span><span class="p">,</span> <span class="n">formats</span><span class="p">,</span> <span class="n">bscales</span><span class="p">,</span> <span class="n">bzeros</span><span class="p">,</span> <span class="n">dim</span><span class="p">)]</span>
+
+        <span class="n">coldefs</span> <span class="o">=</span> <span class="n">ColDefs</span><span class="p">(</span><span class="n">cols</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">coldefs</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">_nrows</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="bp">self</span><span class="o">.</span><span class="n">_data_loaded</span><span class="p">:</span>
+            <span class="c1"># The number of &#39;groups&#39; equates to the number of rows in the table</span>
+            <span class="c1"># representation of the data</span>
+            <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_header</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;GCOUNT&#39;</span><span class="p">,</span> <span class="mi">0</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">return</span> <span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">data</span><span class="p">)</span>
+
+    <span class="nd">@lazyproperty</span>
+    <span class="k">def</span> <span class="nf">_theap</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="c1"># Only really a lazyproperty for symmetry with _TableBaseHDU</span>
+        <span class="k">return</span> <span class="mi">0</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">is_image</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="kc">False</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">size</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Returns the size (in bytes) of the HDU&#39;s data part.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+
+        <span class="n">size</span> <span class="o">=</span> <span class="mi">0</span>
+        <span class="n">naxis</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_header</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;NAXIS&#39;</span><span class="p">,</span> <span class="mi">0</span><span class="p">)</span>
+
+        <span class="c1"># for random group image, NAXIS1 should be 0, so we skip NAXIS1.</span>
+        <span class="k">if</span> <span class="n">naxis</span> <span class="o">&gt;</span> <span class="mi">1</span><span class="p">:</span>
+            <span class="n">size</span> <span class="o">=</span> <span class="mi">1</span>
+            <span class="k">for</span> <span class="n">idx</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="n">naxis</span><span class="p">):</span>
+                <span class="n">size</span> <span class="o">=</span> <span class="n">size</span> <span class="o">*</span> <span class="bp">self</span><span class="o">.</span><span class="n">_header</span><span class="p">[</span><span class="s1">&#39;NAXIS&#39;</span> <span class="o">+</span> <span class="nb">str</span><span class="p">(</span><span class="n">idx</span> <span class="o">+</span> <span class="mi">1</span><span class="p">)]</span>
+            <span class="n">bitpix</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_header</span><span class="p">[</span><span class="s1">&#39;BITPIX&#39;</span><span class="p">]</span>
+            <span class="n">gcount</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_header</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;GCOUNT&#39;</span><span class="p">,</span> <span class="mi">1</span><span class="p">)</span>
+            <span class="n">pcount</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_header</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;PCOUNT&#39;</span><span class="p">,</span> <span class="mi">0</span><span class="p">)</span>
+            <span class="n">size</span> <span class="o">=</span> <span class="nb">abs</span><span class="p">(</span><span class="n">bitpix</span><span class="p">)</span> <span class="o">*</span> <span class="n">gcount</span> <span class="o">*</span> <span class="p">(</span><span class="n">pcount</span> <span class="o">+</span> <span class="n">size</span><span class="p">)</span> <span class="o">//</span> <span class="mi">8</span>
+        <span class="k">return</span> <span class="n">size</span>
+
+    <span class="k">def</span> <span class="nf">update_header</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="n">old_naxis</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_header</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;NAXIS&#39;</span><span class="p">,</span> <span class="mi">0</span><span class="p">)</span>
+
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_data_loaded</span><span class="p">:</span>
+            <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">data</span><span class="p">,</span> <span class="n">GroupData</span><span class="p">):</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">_axes</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">shape</span><span class="p">)[</span><span class="mi">1</span><span class="p">:]</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">_axes</span><span class="o">.</span><span class="n">reverse</span><span class="p">()</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">_axes</span> <span class="o">=</span> <span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">+</span> <span class="bp">self</span><span class="o">.</span><span class="n">_axes</span>
+                <span class="n">field0</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">dtype</span><span class="o">.</span><span class="n">names</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+                <span class="n">field0_code</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">dtype</span><span class="o">.</span><span class="n">fields</span><span class="p">[</span><span class="n">field0</span><span class="p">][</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">name</span>
+            <span class="k">elif</span> <span class="bp">self</span><span class="o">.</span><span class="n">data</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">_axes</span> <span class="o">=</span> <span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+                <span class="n">field0_code</span> <span class="o">=</span> <span class="s1">&#39;uint8&#39;</span>  <span class="c1"># For lack of a better default</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s1">&#39;incorrect array type&#39;</span><span class="p">)</span>
+
+            <span class="bp">self</span><span class="o">.</span><span class="n">_header</span><span class="p">[</span><span class="s1">&#39;BITPIX&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">DTYPE2BITPIX</span><span class="p">[</span><span class="n">field0_code</span><span class="p">]</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">_header</span><span class="p">[</span><span class="s1">&#39;NAXIS&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_axes</span><span class="p">)</span>
+
+        <span class="c1"># add NAXISi if it does not exist</span>
+        <span class="k">for</span> <span class="n">idx</span><span class="p">,</span> <span class="n">axis</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_axes</span><span class="p">):</span>
+            <span class="k">if</span> <span class="p">(</span><span class="n">idx</span> <span class="o">==</span> <span class="mi">0</span><span class="p">):</span>
+                <span class="n">after</span> <span class="o">=</span> <span class="s1">&#39;NAXIS&#39;</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="n">after</span> <span class="o">=</span> <span class="s1">&#39;NAXIS&#39;</span> <span class="o">+</span> <span class="nb">str</span><span class="p">(</span><span class="n">idx</span><span class="p">)</span>
+
+            <span class="bp">self</span><span class="o">.</span><span class="n">_header</span><span class="o">.</span><span class="n">set</span><span class="p">(</span><span class="s1">&#39;NAXIS&#39;</span> <span class="o">+</span> <span class="nb">str</span><span class="p">(</span><span class="n">idx</span> <span class="o">+</span> <span class="mi">1</span><span class="p">),</span> <span class="n">axis</span><span class="p">,</span> <span class="n">after</span><span class="o">=</span><span class="n">after</span><span class="p">)</span>
+
+        <span class="c1"># delete extra NAXISi&#39;s</span>
+        <span class="k">for</span> <span class="n">idx</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_axes</span><span class="p">)</span> <span class="o">+</span> <span class="mi">1</span><span class="p">,</span> <span class="n">old_naxis</span> <span class="o">+</span> <span class="mi">1</span><span class="p">):</span>
+            <span class="k">try</span><span class="p">:</span>
+                <span class="k">del</span> <span class="bp">self</span><span class="o">.</span><span class="n">_header</span><span class="p">[</span><span class="s1">&#39;NAXIS&#39;</span> <span class="o">+</span> <span class="nb">str</span><span class="p">(</span><span class="n">idx</span><span class="p">)]</span>
+            <span class="k">except</span> <span class="ne">KeyError</span><span class="p">:</span>
+                <span class="k">pass</span>
+
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_has_data</span> <span class="ow">and</span> <span class="nb">isinstance</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">data</span><span class="p">,</span> <span class="n">GroupData</span><span class="p">):</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_header</span><span class="o">.</span><span class="n">set</span><span class="p">(</span><span class="s1">&#39;GROUPS&#39;</span><span class="p">,</span> <span class="kc">True</span><span class="p">,</span>
+                             <span class="n">after</span><span class="o">=</span><span class="s1">&#39;NAXIS&#39;</span> <span class="o">+</span> <span class="nb">str</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_axes</span><span class="p">)))</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_header</span><span class="o">.</span><span class="n">set</span><span class="p">(</span><span class="s1">&#39;PCOUNT&#39;</span><span class="p">,</span> <span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">parnames</span><span class="p">),</span> <span class="n">after</span><span class="o">=</span><span class="s1">&#39;GROUPS&#39;</span><span class="p">)</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_header</span><span class="o">.</span><span class="n">set</span><span class="p">(</span><span class="s1">&#39;GCOUNT&#39;</span><span class="p">,</span> <span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">data</span><span class="p">),</span> <span class="n">after</span><span class="o">=</span><span class="s1">&#39;PCOUNT&#39;</span><span class="p">)</span>
+
+            <span class="n">column</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">_coldefs</span><span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">_data_field</span><span class="p">]</span>
+            <span class="n">scale</span><span class="p">,</span> <span class="n">zero</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">_get_scale_factors</span><span class="p">(</span><span class="n">column</span><span class="p">)[</span><span class="mi">3</span><span class="p">:</span><span class="mi">5</span><span class="p">]</span>
+            <span class="k">if</span> <span class="n">scale</span><span class="p">:</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">_header</span><span class="o">.</span><span class="n">set</span><span class="p">(</span><span class="s1">&#39;BSCALE&#39;</span><span class="p">,</span> <span class="n">column</span><span class="o">.</span><span class="n">bscale</span><span class="p">)</span>
+            <span class="k">if</span> <span class="n">zero</span><span class="p">:</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">_header</span><span class="o">.</span><span class="n">set</span><span class="p">(</span><span class="s1">&#39;BZERO&#39;</span><span class="p">,</span> <span class="n">column</span><span class="o">.</span><span class="n">bzero</span><span class="p">)</span>
+
+            <span class="k">for</span> <span class="n">idx</span><span class="p">,</span> <span class="n">name</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">parnames</span><span class="p">):</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">_header</span><span class="o">.</span><span class="n">set</span><span class="p">(</span><span class="s1">&#39;PTYPE&#39;</span> <span class="o">+</span> <span class="nb">str</span><span class="p">(</span><span class="n">idx</span> <span class="o">+</span> <span class="mi">1</span><span class="p">),</span> <span class="n">name</span><span class="p">)</span>
+                <span class="n">column</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">_coldefs</span><span class="p">[</span><span class="n">idx</span><span class="p">]</span>
+                <span class="n">scale</span><span class="p">,</span> <span class="n">zero</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">_get_scale_factors</span><span class="p">(</span><span class="n">column</span><span class="p">)[</span><span class="mi">3</span><span class="p">:</span><span class="mi">5</span><span class="p">]</span>
+                <span class="k">if</span> <span class="n">scale</span><span class="p">:</span>
+                    <span class="bp">self</span><span class="o">.</span><span class="n">_header</span><span class="o">.</span><span class="n">set</span><span class="p">(</span><span class="s1">&#39;PSCAL&#39;</span> <span class="o">+</span> <span class="nb">str</span><span class="p">(</span><span class="n">idx</span> <span class="o">+</span> <span class="mi">1</span><span class="p">),</span> <span class="n">column</span><span class="o">.</span><span class="n">bscale</span><span class="p">)</span>
+                <span class="k">if</span> <span class="n">zero</span><span class="p">:</span>
+                    <span class="bp">self</span><span class="o">.</span><span class="n">_header</span><span class="o">.</span><span class="n">set</span><span class="p">(</span><span class="s1">&#39;PZERO&#39;</span> <span class="o">+</span> <span class="nb">str</span><span class="p">(</span><span class="n">idx</span> <span class="o">+</span> <span class="mi">1</span><span class="p">),</span> <span class="n">column</span><span class="o">.</span><span class="n">bzero</span><span class="p">)</span>
+
+        <span class="c1"># Update the position of the EXTEND keyword if it already exists</span>
+        <span class="k">if</span> <span class="s1">&#39;EXTEND&#39;</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">_header</span><span class="p">:</span>
+            <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_axes</span><span class="p">):</span>
+                <span class="n">after</span> <span class="o">=</span> <span class="s1">&#39;NAXIS&#39;</span> <span class="o">+</span> <span class="nb">str</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_axes</span><span class="p">))</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="n">after</span> <span class="o">=</span> <span class="s1">&#39;NAXIS&#39;</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_header</span><span class="o">.</span><span class="n">set</span><span class="p">(</span><span class="s1">&#39;EXTEND&#39;</span><span class="p">,</span> <span class="n">after</span><span class="o">=</span><span class="n">after</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">_writedata_internal</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">fileobj</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Basically copy/pasted from `_ImageBaseHDU._writedata_internal()`, but</span>
+<span class="sd">        we have to get the data&#39;s byte order a different way...</span>
+
+<span class="sd">        TODO: Might be nice to store some indication of the data&#39;s byte order</span>
+<span class="sd">        as an attribute or function so that we don&#39;t have to do this.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+
+        <span class="n">size</span> <span class="o">=</span> <span class="mi">0</span>
+
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">data</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">_scale_back</span><span class="p">()</span>
+
+            <span class="c1"># Based on the system type, determine the byteorders that</span>
+            <span class="c1"># would need to be swapped to get to big-endian output</span>
+            <span class="k">if</span> <span class="n">sys</span><span class="o">.</span><span class="n">byteorder</span> <span class="o">==</span> <span class="s1">&#39;little&#39;</span><span class="p">:</span>
+                <span class="n">swap_types</span> <span class="o">=</span> <span class="p">(</span><span class="s1">&#39;&lt;&#39;</span><span class="p">,</span> <span class="s1">&#39;=&#39;</span><span class="p">)</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="n">swap_types</span> <span class="o">=</span> <span class="p">(</span><span class="s1">&#39;&lt;&#39;</span><span class="p">,)</span>
+            <span class="c1"># deal with unsigned integer 16, 32 and 64 data</span>
+            <span class="k">if</span> <span class="n">_is_pseudo_unsigned</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">dtype</span><span class="p">):</span>
+                <span class="c1"># Convert the unsigned array to signed</span>
+                <span class="n">output</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">(</span>
+                    <span class="bp">self</span><span class="o">.</span><span class="n">data</span> <span class="o">-</span> <span class="n">_unsigned_zero</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">dtype</span><span class="p">),</span>
+                    <span class="n">dtype</span><span class="o">=</span><span class="s1">&#39;&gt;i</span><span class="si">{}</span><span class="s1">&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">dtype</span><span class="o">.</span><span class="n">itemsize</span><span class="p">))</span>
+                <span class="n">should_swap</span> <span class="o">=</span> <span class="kc">False</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="n">output</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">data</span>
+                <span class="n">fname</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">dtype</span><span class="o">.</span><span class="n">names</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+                <span class="n">byteorder</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">dtype</span><span class="o">.</span><span class="n">fields</span><span class="p">[</span><span class="n">fname</span><span class="p">][</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">str</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+                <span class="n">should_swap</span> <span class="o">=</span> <span class="p">(</span><span class="n">byteorder</span> <span class="ow">in</span> <span class="n">swap_types</span><span class="p">)</span>
+
+            <span class="k">if</span> <span class="ow">not</span> <span class="n">fileobj</span><span class="o">.</span><span class="n">simulateonly</span><span class="p">:</span>
+
+                <span class="k">if</span> <span class="n">should_swap</span><span class="p">:</span>
+                    <span class="k">if</span> <span class="n">output</span><span class="o">.</span><span class="n">flags</span><span class="o">.</span><span class="n">writeable</span><span class="p">:</span>
+                        <span class="n">output</span><span class="o">.</span><span class="n">byteswap</span><span class="p">(</span><span class="kc">True</span><span class="p">)</span>
+                        <span class="k">try</span><span class="p">:</span>
+                            <span class="n">fileobj</span><span class="o">.</span><span class="n">writearray</span><span class="p">(</span><span class="n">output</span><span class="p">)</span>
+                        <span class="k">finally</span><span class="p">:</span>
+                            <span class="n">output</span><span class="o">.</span><span class="n">byteswap</span><span class="p">(</span><span class="kc">True</span><span class="p">)</span>
+                    <span class="k">else</span><span class="p">:</span>
+                        <span class="c1"># For read-only arrays, there is no way around making</span>
+                        <span class="c1"># a byteswapped copy of the data.</span>
+                        <span class="n">fileobj</span><span class="o">.</span><span class="n">writearray</span><span class="p">(</span><span class="n">output</span><span class="o">.</span><span class="n">byteswap</span><span class="p">(</span><span class="kc">False</span><span class="p">))</span>
+                <span class="k">else</span><span class="p">:</span>
+                    <span class="n">fileobj</span><span class="o">.</span><span class="n">writearray</span><span class="p">(</span><span class="n">output</span><span class="p">)</span>
+
+            <span class="n">size</span> <span class="o">+=</span> <span class="n">output</span><span class="o">.</span><span class="n">size</span> <span class="o">*</span> <span class="n">output</span><span class="o">.</span><span class="n">itemsize</span>
+        <span class="k">return</span> <span class="n">size</span>
+
+    <span class="k">def</span> <span class="nf">_verify</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">option</span><span class="o">=</span><span class="s1">&#39;warn&#39;</span><span class="p">):</span>
+        <span class="n">errs</span> <span class="o">=</span> <span class="nb">super</span><span class="p">(</span><span class="n">GroupsHDU</span><span class="p">,</span> <span class="bp">self</span><span class="p">)</span><span class="o">.</span><span class="n">_verify</span><span class="p">(</span><span class="n">option</span><span class="o">=</span><span class="n">option</span><span class="p">)</span>
+
+        <span class="c1"># Verify locations and values of mandatory keywords.</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">req_cards</span><span class="p">(</span><span class="s1">&#39;NAXIS&#39;</span><span class="p">,</span> <span class="mi">2</span><span class="p">,</span>
+                       <span class="k">lambda</span> <span class="n">v</span><span class="p">:</span> <span class="p">(</span><span class="n">_is_int</span><span class="p">(</span><span class="n">v</span><span class="p">)</span> <span class="ow">and</span> <span class="n">v</span> <span class="o">&gt;=</span> <span class="mi">1</span> <span class="ow">and</span> <span class="n">v</span> <span class="o">&lt;=</span> <span class="mi">999</span><span class="p">),</span> <span class="mi">1</span><span class="p">,</span>
+                       <span class="n">option</span><span class="p">,</span> <span class="n">errs</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">req_cards</span><span class="p">(</span><span class="s1">&#39;NAXIS1&#39;</span><span class="p">,</span> <span class="mi">3</span><span class="p">,</span> <span class="k">lambda</span> <span class="n">v</span><span class="p">:</span> <span class="p">(</span><span class="n">_is_int</span><span class="p">(</span><span class="n">v</span><span class="p">)</span> <span class="ow">and</span> <span class="n">v</span> <span class="o">==</span> <span class="mi">0</span><span class="p">),</span> <span class="mi">0</span><span class="p">,</span>
+                       <span class="n">option</span><span class="p">,</span> <span class="n">errs</span><span class="p">)</span>
+
+        <span class="n">after</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_header</span><span class="p">[</span><span class="s1">&#39;NAXIS&#39;</span><span class="p">]</span> <span class="o">+</span> <span class="mi">3</span>
+        <span class="n">pos</span> <span class="o">=</span> <span class="k">lambda</span> <span class="n">x</span><span class="p">:</span> <span class="n">x</span> <span class="o">&gt;=</span> <span class="n">after</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">req_cards</span><span class="p">(</span><span class="s1">&#39;GCOUNT&#39;</span><span class="p">,</span> <span class="n">pos</span><span class="p">,</span> <span class="n">_is_int</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="n">option</span><span class="p">,</span> <span class="n">errs</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">req_cards</span><span class="p">(</span><span class="s1">&#39;PCOUNT&#39;</span><span class="p">,</span> <span class="n">pos</span><span class="p">,</span> <span class="n">_is_int</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="n">option</span><span class="p">,</span> <span class="n">errs</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">req_cards</span><span class="p">(</span><span class="s1">&#39;GROUPS&#39;</span><span class="p">,</span> <span class="n">pos</span><span class="p">,</span> <span class="k">lambda</span> <span class="n">v</span><span class="p">:</span> <span class="p">(</span><span class="n">v</span> <span class="ow">is</span> <span class="kc">True</span><span class="p">),</span> <span class="kc">True</span><span class="p">,</span> <span class="n">option</span><span class="p">,</span>
+                       <span class="n">errs</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">errs</span>
+
+    <span class="k">def</span> <span class="nf">_calculate_datasum</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">blocking</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Calculate the value for the ``DATASUM`` card in the HDU.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_has_data</span><span class="p">:</span>
+
+            <span class="c1"># We have the data to be used.</span>
+
+            <span class="c1"># Check the byte order of the data.  If it is little endian we</span>
+            <span class="c1"># must swap it before calculating the datasum.</span>
+            <span class="c1"># TODO: Maybe check this on a per-field basis instead of assuming</span>
+            <span class="c1"># that all fields have the same byte order?</span>
+            <span class="n">byteorder</span> <span class="o">=</span> \
+                <span class="bp">self</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">dtype</span><span class="o">.</span><span class="n">fields</span><span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">dtype</span><span class="o">.</span><span class="n">names</span><span class="p">[</span><span class="mi">0</span><span class="p">]][</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">str</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+
+            <span class="k">if</span> <span class="n">byteorder</span> <span class="o">!=</span> <span class="s1">&#39;&gt;&#39;</span><span class="p">:</span>
+                <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">flags</span><span class="o">.</span><span class="n">writeable</span><span class="p">:</span>
+                    <span class="n">byteswapped</span> <span class="o">=</span> <span class="kc">True</span>
+                    <span class="n">d</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">byteswap</span><span class="p">(</span><span class="kc">True</span><span class="p">)</span>
+                    <span class="n">d</span><span class="o">.</span><span class="n">dtype</span> <span class="o">=</span> <span class="n">d</span><span class="o">.</span><span class="n">dtype</span><span class="o">.</span><span class="n">newbyteorder</span><span class="p">(</span><span class="s1">&#39;&gt;&#39;</span><span class="p">)</span>
+                <span class="k">else</span><span class="p">:</span>
+                    <span class="c1"># If the data is not writeable, we just make a byteswapped</span>
+                    <span class="c1"># copy and don&#39;t bother changing it back after</span>
+                    <span class="n">d</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">byteswap</span><span class="p">(</span><span class="kc">False</span><span class="p">)</span>
+                    <span class="n">d</span><span class="o">.</span><span class="n">dtype</span> <span class="o">=</span> <span class="n">d</span><span class="o">.</span><span class="n">dtype</span><span class="o">.</span><span class="n">newbyteorder</span><span class="p">(</span><span class="s1">&#39;&gt;&#39;</span><span class="p">)</span>
+                    <span class="n">byteswapped</span> <span class="o">=</span> <span class="kc">False</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="n">byteswapped</span> <span class="o">=</span> <span class="kc">False</span>
+                <span class="n">d</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">data</span>
+
+            <span class="n">byte_data</span> <span class="o">=</span> <span class="n">d</span><span class="o">.</span><span class="n">view</span><span class="p">(</span><span class="nb">type</span><span class="o">=</span><span class="n">np</span><span class="o">.</span><span class="n">ndarray</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="n">np</span><span class="o">.</span><span class="n">ubyte</span><span class="p">)</span>
+
+            <span class="n">cs</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_compute_checksum</span><span class="p">(</span><span class="n">byte_data</span><span class="p">,</span> <span class="n">blocking</span><span class="o">=</span><span class="n">blocking</span><span class="p">)</span>
+
+            <span class="c1"># If the data was byteswapped in this method then return it to</span>
+            <span class="c1"># its original little-endian order.</span>
+            <span class="k">if</span> <span class="n">byteswapped</span><span class="p">:</span>
+                <span class="n">d</span><span class="o">.</span><span class="n">byteswap</span><span class="p">(</span><span class="kc">True</span><span class="p">)</span>
+                <span class="n">d</span><span class="o">.</span><span class="n">dtype</span> <span class="o">=</span> <span class="n">d</span><span class="o">.</span><span class="n">dtype</span><span class="o">.</span><span class="n">newbyteorder</span><span class="p">(</span><span class="s1">&#39;&lt;&#39;</span><span class="p">)</span>
+
+            <span class="k">return</span> <span class="n">cs</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="c1"># This is the case where the data has not been read from the file</span>
+            <span class="c1"># yet.  We can handle that in a generic manner so we do it in the</span>
+            <span class="c1"># base class.  The other possibility is that there is no data at</span>
+            <span class="c1"># all.  This can also be handled in a generic manner.</span>
+            <span class="k">return</span> <span class="nb">super</span><span class="p">(</span><span class="n">GroupsHDU</span><span class="p">,</span> <span class="bp">self</span><span class="p">)</span><span class="o">.</span><span class="n">_calculate_datasum</span><span class="p">(</span><span class="n">blocking</span><span class="o">=</span><span class="n">blocking</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">_summary</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="n">summary</span> <span class="o">=</span> <span class="nb">super</span><span class="p">(</span><span class="n">GroupsHDU</span><span class="p">,</span> <span class="bp">self</span><span class="p">)</span><span class="o">.</span><span class="n">_summary</span><span class="p">()</span>
+        <span class="n">name</span><span class="p">,</span> <span class="n">ver</span><span class="p">,</span> <span class="n">classname</span><span class="p">,</span> <span class="n">length</span><span class="p">,</span> <span class="n">shape</span><span class="p">,</span> <span class="nb">format</span><span class="p">,</span> <span class="n">gcount</span> <span class="o">=</span> <span class="n">summary</span>
+
+        <span class="c1"># Drop the first axis from the shape</span>
+        <span class="k">if</span> <span class="n">shape</span><span class="p">:</span>
+            <span class="n">shape</span> <span class="o">=</span> <span class="n">shape</span><span class="p">[</span><span class="mi">1</span><span class="p">:]</span>
+
+            <span class="k">if</span> <span class="n">shape</span> <span class="ow">and</span> <span class="nb">all</span><span class="p">(</span><span class="n">shape</span><span class="p">):</span>
+                <span class="c1"># Update the format</span>
+                <span class="nb">format</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">columns</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">dtype</span><span class="o">.</span><span class="n">name</span>
+
+        <span class="c1"># Update the GCOUNT report</span>
+        <span class="n">gcount</span> <span class="o">=</span> <span class="s1">&#39;</span><span class="si">{}</span><span class="s1"> Groups  </span><span class="si">{}</span><span class="s1"> Parameters&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_gcount</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">_pcount</span><span class="p">)</span>
+        <span class="k">return</span> <span class="p">(</span><span class="n">name</span><span class="p">,</span> <span class="n">ver</span><span class="p">,</span> <span class="n">classname</span><span class="p">,</span> <span class="n">length</span><span class="p">,</span> <span class="n">shape</span><span class="p">,</span> <span class="nb">format</span><span class="p">,</span> <span class="n">gcount</span><span class="p">)</span></div>
+
+
+<span class="k">def</span> <span class="nf">_par_indices</span><span class="p">(</span><span class="n">names</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Given a list of objects, returns a mapping of objects in that list to the</span>
+<span class="sd">    index or indices at which that object was found in the list.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="n">unique</span> <span class="o">=</span> <span class="p">{}</span>
+    <span class="k">for</span> <span class="n">idx</span><span class="p">,</span> <span class="n">name</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="n">names</span><span class="p">):</span>
+        <span class="c1"># Case insensitive</span>
+        <span class="n">name</span> <span class="o">=</span> <span class="n">name</span><span class="o">.</span><span class="n">upper</span><span class="p">()</span>
+        <span class="k">if</span> <span class="n">name</span> <span class="ow">in</span> <span class="n">unique</span><span class="p">:</span>
+            <span class="n">unique</span><span class="p">[</span><span class="n">name</span><span class="p">]</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">idx</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">unique</span><span class="p">[</span><span class="n">name</span><span class="p">]</span> <span class="o">=</span> <span class="p">[</span><span class="n">idx</span><span class="p">]</span>
+    <span class="k">return</span> <span class="n">unique</span>
+
+
+<span class="k">def</span> <span class="nf">_unique_parnames</span><span class="p">(</span><span class="n">names</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Given a list of parnames, including possible duplicates, returns a new list</span>
+<span class="sd">    of parnames with duplicates prepended by one or more underscores to make</span>
+<span class="sd">    them unique.  This is also case insensitive.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="n">upper_names</span> <span class="o">=</span> <span class="nb">set</span><span class="p">()</span>
+    <span class="n">unique_names</span> <span class="o">=</span> <span class="p">[]</span>
+
+    <span class="k">for</span> <span class="n">name</span> <span class="ow">in</span> <span class="n">names</span><span class="p">:</span>
+        <span class="n">name_upper</span> <span class="o">=</span> <span class="n">name</span><span class="o">.</span><span class="n">upper</span><span class="p">()</span>
+        <span class="k">while</span> <span class="n">name_upper</span> <span class="ow">in</span> <span class="n">upper_names</span><span class="p">:</span>
+            <span class="n">name</span> <span class="o">=</span> <span class="s1">&#39;_&#39;</span> <span class="o">+</span> <span class="n">name</span>
+            <span class="n">name_upper</span> <span class="o">=</span> <span class="s1">&#39;_&#39;</span> <span class="o">+</span> <span class="n">name_upper</span>
+
+        <span class="n">unique_names</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">name</span><span class="p">)</span>
+        <span class="n">upper_names</span><span class="o">.</span><span class="n">add</span><span class="p">(</span><span class="n">name_upper</span><span class="p">)</span>
+
+    <span class="k">return</span> <span class="n">unique_names</span>
+</pre></div>
+
+          </div>
+        </div>
+      </div>
+      <div class="sphinxsidebar" role="navigation" aria-label="main navigation">
+        <div class="sphinxsidebarwrapper"><h3>Page Contents</h3>
+
+
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+<footer class="footer">
+  <p class="pull-right"> &nbsp;
+    <a href="#">Back to Top</a></p>
+  <p>
+    &copy; Copyright 2011-2016, The Astropy Developers.<br/>
+    Created using <a href="http://sphinx.pocoo.org/">Sphinx</a> 1.5.6. &nbsp;
+    Last built 05 Jul 2017. <br/>
+  </p>
+</footer>
+  </body>
+</html>

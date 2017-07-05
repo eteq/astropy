@@ -1,0 +1,564 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <head>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    
+    <title>Defining New Model Classes &#8212; Astropy v3.0.dev19489</title>
+    
+    <link rel="stylesheet" href="../_static/bootstrap-astropy.css" type="text/css" />
+    <link rel="stylesheet" href="../_static/pygments.css" type="text/css" />
+    <link rel="stylesheet" href="../_static/gallery.css" type="text/css" />
+    
+    <script type="text/javascript">
+      var DOCUMENTATION_OPTIONS = {
+        URL_ROOT:    '../',
+        VERSION:     '3.0.dev19489',
+        COLLAPSE_INDEX: false,
+        FILE_SUFFIX: '.html',
+        HAS_SOURCE:  true,
+        SOURCELINK_SUFFIX: '.txt'
+      };
+    </script>
+    <script type="text/javascript" src="../_static/jquery.js"></script>
+    <script type="text/javascript" src="../_static/underscore.js"></script>
+    <script type="text/javascript" src="../_static/doctools.js"></script>
+    <script type="text/javascript" src="../_static/sidebar.js"></script>
+    <link rel="shortcut icon" href="../_static/astropy_logo.ico"/>
+    <link rel="index" title="Index" href="../genindex.html" />
+    <link rel="search" title="Search" href="../search.html" />
+    <link rel="next" title="Efficient Model Rendering with Bounding Boxes" href="bounding-boxes.html" />
+    <link rel="prev" title="Compound Models" href="compound-models.html" />
+<link href='https://fonts.googleapis.com/css?family=Source+Sans+Pro:200,600' rel='stylesheet' type='text/css'/>
+<script type="text/javascript" src="../_static/copybutton.js"></script>
+
+
+  </head>
+  <body role="document">
+<div class="topbar">
+  <a class="brand" title="Documentation Home" href="../index.html"><span id="logotext1">astro</span><span id="logotext2">py</span><span id="logotext3">:docs</span></a>
+  <ul>
+    <li><a class="homelink" title="Astropy Homepage" href="http://www.astropy.org"></a></li>
+    <li><a title="General Index" href="../genindex.html">Index</a></li>
+    <li><a title="Module Index" href="../py-modindex.html">Modules</a></li>
+    <li>
+      
+      
+<form action="../search.html" method="get">
+  <input type="text" name="q" placeholder="Search" />
+  <input type="hidden" name="check_keywords" value="yes" />
+  <input type="hidden" name="area" value="default" />
+</form>
+      
+    </li>
+  </ul>
+</div>
+
+<div class="related">
+    <h3>Navigation</h3>
+    <ul>
+      <li class="right">
+	<a href="bounding-boxes.html" title="Efficient Model Rendering with Bounding Boxes">
+	  next &raquo;
+	</a>
+      </li>
+      <li class="right">
+	<a href="compound-models.html" title="Compound Models">
+	  &laquo; previous
+	</a>
+	 |
+      </li>
+      <li>
+	<a href="../index.html">Astropy v3.0.dev19489</a>
+	 &#187;
+      </li>
+      <li><a href="index.html" accesskey="U">Models and Fitting (<code class="docutils literal"><span class="pre">astropy.modeling</span></code>)</a> &#187;</li>
+      
+      <li>Defining New Model Classes</li> 
+    </ul>
+</div>
+  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          <div class="body" role="main">
+            
+  <div class="section" id="defining-new-model-classes">
+<span id="modeling-new-classes"></span><h1>Defining New Model Classes<a class="headerlink" href="#defining-new-model-classes" title="Permalink to this headline">¶</a></h1>
+<p>This document describes how to add a model to the package or to create a
+user-defined model. In short, one needs to define all model parameters and
+write a function which evaluates the model, that is, computes the mathematical
+function that implements the model.  If the model is fittable, a function to
+compute the derivatives with respect to parameters is required if a linear
+fitting algorithm is to be used and optional if a non-linear fitter is to be
+used.</p>
+<div class="section" id="basic-custom-models">
+<h2>Basic custom models<a class="headerlink" href="#basic-custom-models" title="Permalink to this headline">¶</a></h2>
+<p>For most cases, the <a class="reference internal" href="../api/astropy.modeling.custom_model.html#astropy.modeling.custom_model" title="astropy.modeling.custom_model"><code class="xref py py-obj docutils literal"><span class="pre">custom_model</span></code></a> decorator provides an
+easy way to make a new <a class="reference internal" href="../api/astropy.modeling.Model.html#astropy.modeling.Model" title="astropy.modeling.Model"><code class="xref py py-obj docutils literal"><span class="pre">Model</span></code></a> class from an existing Python
+callable. The following example demonstrates how to set up a model consisting
+of two Gaussians:</p>
+<div class="highlight-python"><div class="highlight"><pre><span></span><span class="kn">import</span> <span class="nn">numpy</span> <span class="kn">as</span> <span class="nn">np</span>
+<span class="kn">from</span> <span class="nn">astropy.modeling.models</span> <span class="kn">import</span> <span class="n">custom_model</span>
+<span class="kn">from</span> <span class="nn">astropy.modeling.fitting</span> <span class="kn">import</span> <span class="n">LevMarLSQFitter</span>
+
+<span class="c1"># Define model</span>
+<span class="nd">@custom_model</span>
+<span class="k">def</span> <span class="nf">sum_of_gaussians</span><span class="p">(</span><span class="n">x</span><span class="p">,</span> <span class="n">amplitude1</span><span class="o">=</span><span class="mf">1.</span><span class="p">,</span> <span class="n">mean1</span><span class="o">=-</span><span class="mf">1.</span><span class="p">,</span> <span class="n">sigma1</span><span class="o">=</span><span class="mf">1.</span><span class="p">,</span>
+                        <span class="n">amplitude2</span><span class="o">=</span><span class="mf">1.</span><span class="p">,</span> <span class="n">mean2</span><span class="o">=</span><span class="mf">1.</span><span class="p">,</span> <span class="n">sigma2</span><span class="o">=</span><span class="mf">1.</span><span class="p">):</span>
+    <span class="k">return</span> <span class="p">(</span><span class="n">amplitude1</span> <span class="o">*</span> <span class="n">np</span><span class="o">.</span><span class="n">exp</span><span class="p">(</span><span class="o">-</span><span class="mf">0.5</span> <span class="o">*</span> <span class="p">((</span><span class="n">x</span> <span class="o">-</span> <span class="n">mean1</span><span class="p">)</span> <span class="o">/</span> <span class="n">sigma1</span><span class="p">)</span><span class="o">**</span><span class="mi">2</span><span class="p">)</span> <span class="o">+</span>
+            <span class="n">amplitude2</span> <span class="o">*</span> <span class="n">np</span><span class="o">.</span><span class="n">exp</span><span class="p">(</span><span class="o">-</span><span class="mf">0.5</span> <span class="o">*</span> <span class="p">((</span><span class="n">x</span> <span class="o">-</span> <span class="n">mean2</span><span class="p">)</span> <span class="o">/</span> <span class="n">sigma2</span><span class="p">)</span><span class="o">**</span><span class="mi">2</span><span class="p">))</span>
+
+<span class="c1"># Generate fake data</span>
+<span class="n">np</span><span class="o">.</span><span class="n">random</span><span class="o">.</span><span class="n">seed</span><span class="p">(</span><span class="mi">0</span><span class="p">)</span>
+<span class="n">x</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">linspace</span><span class="p">(</span><span class="o">-</span><span class="mf">5.</span><span class="p">,</span> <span class="mf">5.</span><span class="p">,</span> <span class="mi">200</span><span class="p">)</span>
+<span class="n">m_ref</span> <span class="o">=</span> <span class="n">sum_of_gaussians</span><span class="p">(</span><span class="n">amplitude1</span><span class="o">=</span><span class="mf">2.</span><span class="p">,</span> <span class="n">mean1</span><span class="o">=-</span><span class="mf">0.5</span><span class="p">,</span> <span class="n">sigma1</span><span class="o">=</span><span class="mf">0.4</span><span class="p">,</span>
+                         <span class="n">amplitude2</span><span class="o">=</span><span class="mf">0.5</span><span class="p">,</span> <span class="n">mean2</span><span class="o">=</span><span class="mf">2.</span><span class="p">,</span> <span class="n">sigma2</span><span class="o">=</span><span class="mf">1.0</span><span class="p">)</span>
+<span class="n">y</span> <span class="o">=</span> <span class="n">m_ref</span><span class="p">(</span><span class="n">x</span><span class="p">)</span> <span class="o">+</span> <span class="n">np</span><span class="o">.</span><span class="n">random</span><span class="o">.</span><span class="n">normal</span><span class="p">(</span><span class="mf">0.</span><span class="p">,</span> <span class="mf">0.1</span><span class="p">,</span> <span class="n">x</span><span class="o">.</span><span class="n">shape</span><span class="p">)</span>
+
+<span class="c1"># Fit model to data</span>
+<span class="n">m_init</span> <span class="o">=</span> <span class="n">sum_of_gaussians</span><span class="p">()</span>
+<span class="n">fit</span> <span class="o">=</span> <span class="n">LevMarLSQFitter</span><span class="p">()</span>
+<span class="n">m</span> <span class="o">=</span> <span class="n">fit</span><span class="p">(</span><span class="n">m_init</span><span class="p">,</span> <span class="n">x</span><span class="p">,</span> <span class="n">y</span><span class="p">)</span>
+
+<span class="c1"># Plot the data and the best fit</span>
+<span class="n">plt</span><span class="o">.</span><span class="n">plot</span><span class="p">(</span><span class="n">x</span><span class="p">,</span> <span class="n">y</span><span class="p">,</span> <span class="s1">&#39;o&#39;</span><span class="p">,</span> <span class="n">color</span><span class="o">=</span><span class="s1">&#39;k&#39;</span><span class="p">)</span>
+<span class="n">plt</span><span class="o">.</span><span class="n">plot</span><span class="p">(</span><span class="n">x</span><span class="p">,</span> <span class="n">m</span><span class="p">(</span><span class="n">x</span><span class="p">))</span>
+</pre></div>
+</div>
+<p>(<a class="reference external" href="../modeling/new-1.png">png</a>, <a class="reference external" href="../modeling/new-1.svg">svg</a>, <a class="reference external" href="../modeling/new-1.pdf">pdf</a>)</p>
+<div class="figure">
+<img alt="../_images/new-1.png" src="../_images/new-1.png" />
+</div>
+<p>This decorator also supports setting a model&#8217;s
+<a class="reference internal" href="../api/astropy.modeling.FittableModel.html#astropy.modeling.FittableModel.fit_deriv" title="astropy.modeling.FittableModel.fit_deriv"><code class="xref py py-obj docutils literal"><span class="pre">fit_deriv</span></code></a> as well as creating models with
+more than one inputs.  It can also be used as a normal factory function (for
+example <code class="docutils literal"><span class="pre">SumOfGaussians</span> <span class="pre">=</span> <span class="pre">custom_model(sum_of_gaussians)</span></code>) rather than as a
+decorator.  See the <a class="reference internal" href="../api/astropy.modeling.custom_model.html#astropy.modeling.custom_model" title="astropy.modeling.custom_model"><code class="xref py py-obj docutils literal"><span class="pre">custom_model</span></code></a> documentation for more
+examples.</p>
+</div>
+<div class="section" id="a-step-by-step-definition-of-a-1-d-gaussian-model">
+<h2>A step by step definition of a 1-D Gaussian model<a class="headerlink" href="#a-step-by-step-definition-of-a-1-d-gaussian-model" title="Permalink to this headline">¶</a></h2>
+<p>The example described in <a class="reference internal" href="#basic-custom-models">Basic custom models</a> can be used for most simple
+cases, but the following section describes how to construct model classes in
+general.  Defining a full model class may be desirable, for example, to
+provide more specialized parameters, or to implement special functionality not
+supported by the basic <a class="reference internal" href="../api/astropy.modeling.custom_model.html#astropy.modeling.custom_model" title="astropy.modeling.custom_model"><code class="xref py py-obj docutils literal"><span class="pre">custom_model</span></code></a> factory function.</p>
+<p>The details are explained below with a 1-D Gaussian model as an example.  There
+are two base classes for models. If the model is fittable, it should inherit
+from <a class="reference internal" href="../api/astropy.modeling.FittableModel.html#astropy.modeling.FittableModel" title="astropy.modeling.FittableModel"><code class="xref py py-obj docutils literal"><span class="pre">FittableModel</span></code></a>; if not it should subclass
+<a class="reference internal" href="../api/astropy.modeling.Model.html#astropy.modeling.Model" title="astropy.modeling.Model"><code class="xref py py-obj docutils literal"><span class="pre">Model</span></code></a>.</p>
+<p>If the model takes parameters they should be specified as class attributes in
+the model&#8217;s class definition using the <a class="reference internal" href="../api/astropy.modeling.Parameter.html#astropy.modeling.Parameter" title="astropy.modeling.Parameter"><code class="xref py py-obj docutils literal"><span class="pre">Parameter</span></code></a>
+descriptor.  All arguments to the Parameter constructor are optional, and may
+include a default value for that parameter, a text description of the parameter
+(useful for <a class="reference external" href="https://docs.python.org/3/library/functions.html#help" title="(in Python v3.6)"><code class="xref py py-obj docutils literal"><span class="pre">help</span></code></a> and documentation generation), as well default constraints
+and custom getters/setters for the parameter value.  It is also possible to
+define a &#8220;validator&#8221; method for each parameter, enabling custom code to check
+whether that parameter&#8217;s value is valid according to the model definition (for
+example if it must be non-negative).  See the example in
+<a class="reference internal" href="../api/astropy.modeling.Parameter.html#astropy.modeling.Parameter.validator" title="astropy.modeling.Parameter.validator"><code class="xref py py-obj docutils literal"><span class="pre">Parameter.validator</span></code></a> for more details.</p>
+<div class="highlight-default"><div class="highlight"><pre><span></span><span class="kn">from</span> <span class="nn">astropy.modeling</span> <span class="k">import</span> <span class="n">Fittable1DModel</span><span class="p">,</span> <span class="n">Parameter</span>
+
+<span class="k">class</span> <span class="nc">Gaussian1D</span><span class="p">(</span><span class="n">Fittable1DModel</span><span class="p">):</span>
+    <span class="n">inputs</span> <span class="o">=</span> <span class="p">(</span><span class="s1">&#39;x&#39;</span><span class="p">,)</span>
+    <span class="n">outputs</span> <span class="o">=</span> <span class="p">(</span><span class="s1">&#39;y&#39;</span><span class="p">,)</span>
+
+    <span class="n">amplitude</span> <span class="o">=</span> <span class="n">Parameter</span><span class="p">()</span>
+    <span class="n">mean</span> <span class="o">=</span> <span class="n">Parameter</span><span class="p">()</span>
+    <span class="n">stddev</span> <span class="o">=</span> <span class="n">Parameter</span><span class="p">()</span>
+</pre></div>
+</div>
+<p>The <code class="docutils literal"><span class="pre">inputs</span></code> and <code class="docutils literal"><span class="pre">outputs</span></code> class attributes must be tuples of strings
+indicating the number of independent variables that are input to evaluate the
+model, and the number of outputs it returns.  The labels of the inputs and
+outputs (in this case <code class="docutils literal"><span class="pre">'x'</span></code> and <code class="docutils literal"><span class="pre">'y'</span></code> respectively) are currently used for
+informational purposes only and have no requirements on them other than that
+they do not conflict with parameter names.  Outputs may have the same labels as
+inputs (eg. <code class="docutils literal"><span class="pre">inputs</span> <span class="pre">=</span> <span class="pre">('x',</span> <span class="pre">'y')</span></code> and <code class="docutils literal"><span class="pre">outputs</span> <span class="pre">=</span> <span class="pre">('x',</span> <span class="pre">'y')</span></code>).  However,
+inputs must not conflict with each other (eg. <code class="docutils literal"><span class="pre">inputs</span> <span class="pre">=</span> <span class="pre">('x',</span> <span class="pre">'x')</span></code> is
+incorrect) and likewise for outputs.  The lengths of these tuples are
+important for specifying the correct number of inputs and outputs.  These
+attributes supersede the <code class="docutils literal"><span class="pre">n_inputs</span></code> and <code class="docutils literal"><span class="pre">n_outputs</span></code> attributes in older
+versions of this package.</p>
+<p>There are two helpful base classes in the modeling package that can be used to
+avoid specifying <code class="docutils literal"><span class="pre">inputs</span></code> and <code class="docutils literal"><span class="pre">outputs</span></code> for most common models.  These are
+<a class="reference internal" href="../api/astropy.modeling.Fittable1DModel.html#astropy.modeling.Fittable1DModel" title="astropy.modeling.Fittable1DModel"><code class="xref py py-obj docutils literal"><span class="pre">Fittable1DModel</span></code></a> and <a class="reference internal" href="../api/astropy.modeling.Fittable2DModel.html#astropy.modeling.Fittable2DModel" title="astropy.modeling.Fittable2DModel"><code class="xref py py-obj docutils literal"><span class="pre">Fittable2DModel</span></code></a>.
+For example, the real <a class="reference internal" href="../api/astropy.modeling.functional_models.Gaussian1D.html#astropy.modeling.functional_models.Gaussian1D" title="astropy.modeling.functional_models.Gaussian1D"><code class="xref py py-obj docutils literal"><span class="pre">Gaussian1D</span></code></a> model is
+actually a subclass of <a class="reference internal" href="../api/astropy.modeling.Fittable1DModel.html#astropy.modeling.Fittable1DModel" title="astropy.modeling.Fittable1DModel"><code class="xref py py-obj docutils literal"><span class="pre">Fittable1DModel</span></code></a>.  This helps cut
+down on boilerplate by not having to specify <code class="docutils literal"><span class="pre">inputs</span></code> and <code class="docutils literal"><span class="pre">outputs</span></code> for
+many models (follow the link to Gaussian1D to see its source code, for
+example).</p>
+<p>Fittable models can be linear or nonlinear in a regression sense. The default
+value of the <a class="reference internal" href="../api/astropy.modeling.Model.html#astropy.modeling.Model.linear" title="astropy.modeling.Model.linear"><code class="xref py py-obj docutils literal"><span class="pre">linear</span></code></a> attribute is <code class="docutils literal"><span class="pre">False</span></code>.  Linear
+models should define the <code class="docutils literal"><span class="pre">linear</span></code> class attribute as <code class="docutils literal"><span class="pre">True</span></code>.  Because this
+model is non-linear we can stick with the default.</p>
+<p>Next, provide methods called <code class="docutils literal"><span class="pre">evaluate</span></code> to evaluate the model and
+<code class="docutils literal"><span class="pre">fit_deriv</span></code>, to compute its derivatives with respect to parameters.  These
+may be normal methods, <a class="reference external" href="https://docs.python.org/3/library/functions.html#classmethod" title="(in Python v3.6)"><code class="xref py py-obj docutils literal"><span class="pre">classmethod</span></code></a>, or <a class="reference external" href="https://docs.python.org/3/library/functions.html#staticmethod" title="(in Python v3.6)"><code class="xref py py-obj docutils literal"><span class="pre">staticmethod</span></code></a>, though the convention
+is to use <a class="reference external" href="https://docs.python.org/3/library/functions.html#staticmethod" title="(in Python v3.6)"><code class="xref py py-obj docutils literal"><span class="pre">staticmethod</span></code></a> when the function does not depend on any of the
+object&#8217;s other attributes (i.e., it does not reference <code class="docutils literal"><span class="pre">self</span></code>) or any of the
+class&#8217;s other attributes as in the case of <a class="reference external" href="https://docs.python.org/3/library/functions.html#classmethod" title="(in Python v3.6)"><code class="xref py py-obj docutils literal"><span class="pre">classmethod</span></code></a>.  The evaluation
+method takes all input coordinates as separate arguments and all of the model&#8217;s
+parameters in the same order they would be listed by
+<a class="reference internal" href="../api/astropy.modeling.Model.html#astropy.modeling.Model.param_names" title="astropy.modeling.Model.param_names"><code class="xref py py-obj docutils literal"><span class="pre">param_names</span></code></a>.</p>
+<p>For this example:</p>
+<div class="highlight-default"><div class="highlight"><pre><span></span><span class="nd">@staticmethod</span>
+<span class="k">def</span> <span class="nf">evaluate</span><span class="p">(</span><span class="n">x</span><span class="p">,</span> <span class="n">amplitude</span><span class="p">,</span> <span class="n">mean</span><span class="p">,</span> <span class="n">stddev</span><span class="p">):</span>
+    <span class="k">return</span> <span class="n">amplitude</span> <span class="o">*</span> <span class="n">np</span><span class="o">.</span><span class="n">exp</span><span class="p">((</span><span class="o">-</span><span class="p">(</span><span class="mi">1</span> <span class="o">/</span> <span class="p">(</span><span class="mf">2.</span> <span class="o">*</span> <span class="n">stddev</span><span class="o">**</span><span class="mi">2</span><span class="p">))</span> <span class="o">*</span> <span class="p">(</span><span class="n">x</span> <span class="o">-</span> <span class="n">mean</span><span class="p">)</span><span class="o">**</span><span class="mi">2</span><span class="p">))</span>
+</pre></div>
+</div>
+<p>It should be made clear that the <code class="docutils literal"><span class="pre">evaluate</span></code> method must be designed to take
+the model&#8217;s parameter values as arguments.  This may seem at odds with the fact
+that the parameter values are already available via attribute of the model
+(eg. <code class="docutils literal"><span class="pre">model.amplitude</span></code>).  However, passing the parameter values directly to
+<code class="docutils literal"><span class="pre">evaluate</span></code> is a more efficient way to use it in many cases, such as fitting.</p>
+<p>Users of your model would not generally use <code class="docutils literal"><span class="pre">evaluate</span></code> directly.  Instead
+they create an instance of the model and call it on some input.  The
+<code class="docutils literal"><span class="pre">__call__</span></code> method of models uses <code class="docutils literal"><span class="pre">evaluate</span></code> internally, but users do not
+need to be aware of it.  The default <code class="docutils literal"><span class="pre">__call__</span></code> implementation also handles
+details such as checking that the inputs are correctly formatted and follow
+Numpy&#8217;s broadcasting rules before attempting to evaluate the model.</p>
+<p>Like <code class="docutils literal"><span class="pre">evaluate</span></code>, the <code class="docutils literal"><span class="pre">fit_deriv</span></code> method takes as input all coordinates and
+all parameter values as arguments.  There is an option to compute numerical
+derivatives for nonlinear models in which case the <code class="docutils literal"><span class="pre">fit_deriv</span></code> method should
+be <code class="docutils literal"><span class="pre">None</span></code>:</p>
+<div class="highlight-default"><div class="highlight"><pre><span></span><span class="nd">@staticmethod</span>
+<span class="k">def</span> <span class="nf">fit_deriv</span><span class="p">(</span><span class="n">x</span><span class="p">,</span> <span class="n">amplitude</span><span class="p">,</span> <span class="n">mean</span><span class="p">,</span> <span class="n">stddev</span><span class="p">):</span>
+    <span class="n">d_amplitude</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">exp</span><span class="p">((</span><span class="o">-</span><span class="p">(</span><span class="mi">1</span> <span class="o">/</span> <span class="p">(</span><span class="n">stddev</span><span class="o">**</span><span class="mi">2</span><span class="p">))</span> <span class="o">*</span> <span class="p">(</span><span class="n">x</span> <span class="o">-</span> <span class="n">mean</span><span class="p">)</span><span class="o">**</span><span class="mi">2</span><span class="p">))</span>
+    <span class="n">d_mean</span> <span class="o">=</span> <span class="p">(</span><span class="mi">2</span> <span class="o">*</span> <span class="n">amplitude</span> <span class="o">*</span>
+              <span class="n">np</span><span class="o">.</span><span class="n">exp</span><span class="p">((</span><span class="o">-</span><span class="p">(</span><span class="mi">1</span> <span class="o">/</span> <span class="p">(</span><span class="n">stddev</span><span class="o">**</span><span class="mi">2</span><span class="p">))</span> <span class="o">*</span> <span class="p">(</span><span class="n">x</span> <span class="o">-</span> <span class="n">mean</span><span class="p">)</span><span class="o">**</span><span class="mi">2</span><span class="p">))</span> <span class="o">*</span>
+              <span class="p">(</span><span class="n">x</span> <span class="o">-</span> <span class="n">mean</span><span class="p">)</span> <span class="o">/</span> <span class="p">(</span><span class="n">stddev</span><span class="o">**</span><span class="mi">2</span><span class="p">))</span>
+    <span class="n">d_stddev</span> <span class="o">=</span> <span class="p">(</span><span class="mi">2</span> <span class="o">*</span> <span class="n">amplitude</span> <span class="o">*</span>
+                <span class="n">np</span><span class="o">.</span><span class="n">exp</span><span class="p">((</span><span class="o">-</span><span class="p">(</span><span class="mi">1</span> <span class="o">/</span> <span class="p">(</span><span class="n">stddev</span><span class="o">**</span><span class="mi">2</span><span class="p">))</span> <span class="o">*</span> <span class="p">(</span><span class="n">x</span> <span class="o">-</span> <span class="n">mean</span><span class="p">)</span><span class="o">**</span><span class="mi">2</span><span class="p">))</span> <span class="o">*</span>
+                <span class="p">((</span><span class="n">x</span> <span class="o">-</span> <span class="n">mean</span><span class="p">)</span><span class="o">**</span><span class="mi">2</span><span class="p">)</span> <span class="o">/</span> <span class="p">(</span><span class="n">stddev</span><span class="o">**</span><span class="mi">3</span><span class="p">))</span>
+    <span class="k">return</span> <span class="p">[</span><span class="n">d_amplitude</span><span class="p">,</span> <span class="n">d_mean</span><span class="p">,</span> <span class="n">d_stddev</span><span class="p">]</span>
+</pre></div>
+</div>
+<p>Note that we did <em>not</em> have to define an <code class="docutils literal"><span class="pre">__init__</span></code> method or a <code class="docutils literal"><span class="pre">__call__</span></code>
+method for our model (this contrasts with Astropy versions 0.4.x and earlier).
+For most models the <code class="docutils literal"><span class="pre">__init__</span></code> follows the same pattern, taking the parameter
+values as positional arguments, followed by several optional keyword arguments
+(constraints, etc.).  The modeling framework automatically generates an
+<code class="docutils literal"><span class="pre">__init__</span></code> for your class that has the correct calling signature (see for
+yourself by calling <code class="docutils literal"><span class="pre">help(Gaussian1D.__init__)</span></code> on the example model we just
+defined).</p>
+<p>There are cases where it might be desirable to define a custom <code class="docutils literal"><span class="pre">__init__</span></code>.
+For example, the <a class="reference internal" href="../api/astropy.modeling.functional_models.Gaussian2D.html#astropy.modeling.functional_models.Gaussian2D" title="astropy.modeling.functional_models.Gaussian2D"><code class="xref py py-obj docutils literal"><span class="pre">Gaussian2D</span></code></a> model takes
+an optional <code class="docutils literal"><span class="pre">cov_matrix</span></code> argument which can be used as an alternative way to
+specify the x/y_stddev and theta parameters.  This is perfectly valid so long
+as the <code class="docutils literal"><span class="pre">__init__</span></code> determines appropriate values for the actual parameters and
+then calls the super <code class="docutils literal"><span class="pre">__init__</span></code> with the standard arguments.  Schematically
+this looks something like:</p>
+<div class="highlight-python"><div class="highlight"><pre><span></span><span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">amplitude</span><span class="p">,</span> <span class="n">x_mean</span><span class="p">,</span> <span class="n">y_mean</span><span class="p">,</span> <span class="n">x_stddev</span><span class="o">=</span><span class="bp">None</span><span class="p">,</span>
+             <span class="n">y_stddev</span><span class="o">=</span><span class="bp">None</span><span class="p">,</span> <span class="n">theta</span><span class="o">=</span><span class="bp">None</span><span class="p">,</span> <span class="n">cov_matrix</span><span class="o">=</span><span class="bp">None</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+    <span class="c1"># The **kwargs here should be understood as other keyword arguments</span>
+    <span class="c1"># accepted by the basic Model.__init__ (such as constraints)</span>
+    <span class="k">if</span> <span class="n">cov_matrix</span> <span class="ow">is</span> <span class="ow">not</span> <span class="bp">None</span><span class="p">:</span>
+        <span class="c1"># Set x/y_stddev and theta from the covariance matrix</span>
+        <span class="n">x_stddev</span> <span class="o">=</span> <span class="o">...</span>
+        <span class="n">y_stddev</span> <span class="o">=</span> <span class="o">...</span>
+        <span class="n">theta</span> <span class="o">=</span> <span class="o">...</span>
+
+    <span class="c1"># Don&#39;t pass on cov_matrix since it doesn&#39;t mean anything to the base</span>
+    <span class="c1"># class</span>
+    <span class="nb">super</span><span class="p">(</span><span class="n">Gaussian2D</span><span class="p">,</span> <span class="bp">self</span><span class="p">)</span><span class="o">.</span><span class="n">__init__</span><span class="p">(</span><span class="n">amplitude</span><span class="p">,</span> <span class="n">x_mean</span><span class="p">,</span> <span class="n">y_mean</span><span class="p">,</span> <span class="n">x_stddev</span><span class="p">,</span>
+                                     <span class="n">y_stddev</span><span class="p">,</span> <span class="n">theta</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
+</pre></div>
+</div>
+<div class="section" id="full-example">
+<h3>Full example<a class="headerlink" href="#full-example" title="Permalink to this headline">¶</a></h3>
+<div class="highlight-python"><div class="highlight"><pre><span></span><span class="kn">from</span> <span class="nn">astropy.modeling</span> <span class="kn">import</span> <span class="n">Fittable1DModel</span><span class="p">,</span> <span class="n">Parameter</span>
+
+<span class="k">class</span> <span class="nc">Gaussian1D</span><span class="p">(</span><span class="n">Fittable1DModel</span><span class="p">):</span>
+    <span class="n">amplitude</span> <span class="o">=</span> <span class="n">Parameter</span><span class="p">()</span>
+    <span class="n">mean</span> <span class="o">=</span> <span class="n">Parameter</span><span class="p">()</span>
+    <span class="n">stddev</span> <span class="o">=</span> <span class="n">Parameter</span><span class="p">()</span>
+
+    <span class="nd">@staticmethod</span>
+    <span class="k">def</span> <span class="nf">evaluate</span><span class="p">(</span><span class="n">x</span><span class="p">,</span> <span class="n">amplitude</span><span class="p">,</span> <span class="n">mean</span><span class="p">,</span> <span class="n">stddev</span><span class="p">):</span>
+        <span class="k">return</span> <span class="n">amplitude</span> <span class="o">*</span> <span class="n">np</span><span class="o">.</span><span class="n">exp</span><span class="p">((</span><span class="o">-</span><span class="p">(</span><span class="mi">1</span> <span class="o">/</span> <span class="p">(</span><span class="mf">2.</span> <span class="o">*</span> <span class="n">stddev</span><span class="o">**</span><span class="mi">2</span><span class="p">))</span> <span class="o">*</span> <span class="p">(</span><span class="n">x</span> <span class="o">-</span> <span class="n">mean</span><span class="p">)</span><span class="o">**</span><span class="mi">2</span><span class="p">))</span>
+
+    <span class="nd">@staticmethod</span>
+    <span class="k">def</span> <span class="nf">fit_deriv</span><span class="p">(</span><span class="n">x</span><span class="p">,</span> <span class="n">amplitude</span><span class="p">,</span> <span class="n">mean</span><span class="p">,</span> <span class="n">stddev</span><span class="p">):</span>
+        <span class="n">d_amplitude</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">exp</span><span class="p">((</span><span class="o">-</span><span class="p">(</span><span class="mi">1</span> <span class="o">/</span> <span class="p">(</span><span class="n">stddev</span><span class="o">**</span><span class="mi">2</span><span class="p">))</span> <span class="o">*</span> <span class="p">(</span><span class="n">x</span> <span class="o">-</span> <span class="n">mean</span><span class="p">)</span><span class="o">**</span><span class="mi">2</span><span class="p">))</span>
+        <span class="n">d_mean</span> <span class="o">=</span> <span class="p">(</span><span class="mi">2</span> <span class="o">*</span> <span class="n">amplitude</span> <span class="o">*</span>
+                  <span class="n">np</span><span class="o">.</span><span class="n">exp</span><span class="p">((</span><span class="o">-</span><span class="p">(</span><span class="mi">1</span> <span class="o">/</span> <span class="p">(</span><span class="n">stddev</span><span class="o">**</span><span class="mi">2</span><span class="p">))</span> <span class="o">*</span> <span class="p">(</span><span class="n">x</span> <span class="o">-</span> <span class="n">mean</span><span class="p">)</span><span class="o">**</span><span class="mi">2</span><span class="p">))</span> <span class="o">*</span>
+                  <span class="p">(</span><span class="n">x</span> <span class="o">-</span> <span class="n">mean</span><span class="p">)</span> <span class="o">/</span> <span class="p">(</span><span class="n">stddev</span><span class="o">**</span><span class="mi">2</span><span class="p">))</span>
+        <span class="n">d_stddev</span> <span class="o">=</span> <span class="p">(</span><span class="mi">2</span> <span class="o">*</span> <span class="n">amplitude</span> <span class="o">*</span>
+                    <span class="n">np</span><span class="o">.</span><span class="n">exp</span><span class="p">((</span><span class="o">-</span><span class="p">(</span><span class="mi">1</span> <span class="o">/</span> <span class="p">(</span><span class="n">stddev</span><span class="o">**</span><span class="mi">2</span><span class="p">))</span> <span class="o">*</span> <span class="p">(</span><span class="n">x</span> <span class="o">-</span> <span class="n">mean</span><span class="p">)</span><span class="o">**</span><span class="mi">2</span><span class="p">))</span> <span class="o">*</span>
+                    <span class="p">((</span><span class="n">x</span> <span class="o">-</span> <span class="n">mean</span><span class="p">)</span><span class="o">**</span><span class="mi">2</span><span class="p">)</span> <span class="o">/</span> <span class="p">(</span><span class="n">stddev</span><span class="o">**</span><span class="mi">3</span><span class="p">))</span>
+        <span class="k">return</span> <span class="p">[</span><span class="n">d_amplitude</span><span class="p">,</span> <span class="n">d_mean</span><span class="p">,</span> <span class="n">d_stddev</span><span class="p">]</span>
+</pre></div>
+</div>
+</div>
+</div>
+<div class="section" id="a-full-example-of-a-linemodel">
+<h2>A full example of a LineModel<a class="headerlink" href="#a-full-example-of-a-linemodel" title="Permalink to this headline">¶</a></h2>
+<p>This example demonstrates one other optional feature for model classes, which
+is an <em>inverse</em>.  An <a class="reference internal" href="../api/astropy.modeling.Model.html#astropy.modeling.Model.inverse" title="astropy.modeling.Model.inverse"><code class="xref py py-obj docutils literal"><span class="pre">inverse</span></code></a> implementation should be
+a <a class="reference external" href="https://docs.python.org/3/library/functions.html#property" title="(in Python v3.6)"><code class="xref py py-obj docutils literal"><span class="pre">property</span></code></a> that returns a new model instance (not necessarily of the same
+class as the model being inverted) that computes the inverse of that model, so
+that for some model instance with an inverse, <code class="docutils literal"><span class="pre">model.inverse(model(*input))</span> <span class="pre">==</span>
+<span class="pre">input</span></code>.</p>
+<div class="highlight-python"><div class="highlight"><pre><span></span><span class="kn">from</span> <span class="nn">astropy.modeling</span> <span class="kn">import</span> <span class="n">Fittable1DModel</span><span class="p">,</span> <span class="n">Parameter</span>
+<span class="kn">import</span> <span class="nn">numpy</span> <span class="kn">as</span> <span class="nn">np</span>
+
+<span class="k">class</span> <span class="nc">LineModel</span><span class="p">(</span><span class="n">Fittable1DModel</span><span class="p">):</span>
+    <span class="n">slope</span> <span class="o">=</span> <span class="n">Parameter</span><span class="p">()</span>
+    <span class="n">intercept</span> <span class="o">=</span> <span class="n">Parameter</span><span class="p">()</span>
+    <span class="n">linear</span> <span class="o">=</span> <span class="bp">True</span>
+
+    <span class="nd">@staticmethod</span>
+    <span class="k">def</span> <span class="nf">evaluate</span><span class="p">(</span><span class="n">x</span><span class="p">,</span> <span class="n">slope</span><span class="p">,</span> <span class="n">intercept</span><span class="p">):</span>
+        <span class="k">return</span> <span class="n">slope</span> <span class="o">*</span> <span class="n">x</span> <span class="o">+</span> <span class="n">intercept</span>
+
+    <span class="nd">@staticmethod</span>
+    <span class="k">def</span> <span class="nf">fit_deriv</span><span class="p">(</span><span class="n">x</span><span class="p">,</span> <span class="n">slope</span><span class="p">,</span> <span class="n">intercept</span><span class="p">):</span>
+        <span class="n">d_slope</span> <span class="o">=</span> <span class="n">x</span>
+        <span class="n">d_intercept</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">ones_like</span><span class="p">(</span><span class="n">x</span><span class="p">)</span>
+        <span class="k">return</span> <span class="p">[</span><span class="n">d_slope</span><span class="p">,</span> <span class="n">d_intercept</span><span class="p">]</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">inverse</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="n">new_slope</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">slope</span> <span class="o">**</span> <span class="o">-</span><span class="mi">1</span>
+        <span class="n">new_intercept</span> <span class="o">=</span> <span class="o">-</span><span class="bp">self</span><span class="o">.</span><span class="n">intercept</span> <span class="o">/</span> <span class="bp">self</span><span class="o">.</span><span class="n">slope</span>
+        <span class="k">return</span> <span class="n">LineModel</span><span class="p">(</span><span class="n">slope</span><span class="o">=</span><span class="n">new_slope</span><span class="p">,</span> <span class="n">intercept</span><span class="o">=</span><span class="n">new_intercept</span><span class="p">)</span>
+</pre></div>
+</div>
+<div class="admonition note">
+<p class="first admonition-title">Note</p>
+<p class="last">The above example is essentially equivalent to the built-in
+<a class="reference internal" href="../api/astropy.modeling.functional_models.Linear1D.html#astropy.modeling.functional_models.Linear1D" title="astropy.modeling.functional_models.Linear1D"><code class="xref py py-obj docutils literal"><span class="pre">Linear1D</span></code></a> model.</p>
+</div>
+</div>
+</div>
+<div class="section" id="defining-new-fitter-classes">
+<h1>Defining New Fitter Classes<a class="headerlink" href="#defining-new-fitter-classes" title="Permalink to this headline">¶</a></h1>
+<p>This section describes how to add a new nonlinear fitting algorithm to this
+package or write a user-defined fitter.  In short, one needs to define an error
+function and a <code class="docutils literal"><span class="pre">__call__</span></code> method and define the types of constraints which
+work with this fitter (if any).</p>
+<p>The details are described below using scipy&#8217;s SLSQP algorithm as an example.
+The base class for all fitters is <a class="reference internal" href="../api/astropy.modeling.fitting.Fitter.html#astropy.modeling.fitting.Fitter" title="astropy.modeling.fitting.Fitter"><code class="xref py py-obj docutils literal"><span class="pre">Fitter</span></code></a>:</p>
+<div class="highlight-default"><div class="highlight"><pre><span></span><span class="k">class</span> <span class="nc">SLSQPFitter</span><span class="p">(</span><span class="n">Fitter</span><span class="p">):</span>
+    <span class="n">supported_constraints</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;bounds&#39;</span><span class="p">,</span> <span class="s1">&#39;eqcons&#39;</span><span class="p">,</span> <span class="s1">&#39;ineqcons&#39;</span><span class="p">,</span> <span class="s1">&#39;fixed&#39;</span><span class="p">,</span>
+                             <span class="s1">&#39;tied&#39;</span><span class="p">]</span>
+
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="c1"># Most currently defined fitters take no arguments in their</span>
+        <span class="c1"># __init__, but the option certainly exists for custom fitters</span>
+        <span class="nb">super</span><span class="p">(</span><span class="n">SLSQPFitter</span><span class="p">,</span> <span class="bp">self</span><span class="p">)</span><span class="o">.</span><span class="n">__init__</span><span class="p">()</span>
+</pre></div>
+</div>
+<p>All fitters take a model (their <code class="docutils literal"><span class="pre">__call__</span></code> method modifies the model&#8217;s
+parameters) as their first argument.</p>
+<p>Next, the error function takes a list of parameters returned by an iteration of
+the fitting algorithm and input coordinates, evaluates the model with them and
+returns some type of a measure for the fit.  In the example the sum of the
+squared residuals is used as a measure of fitting.:</p>
+<div class="highlight-default"><div class="highlight"><pre><span></span><span class="k">def</span> <span class="nf">objective_function</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">fps</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">):</span>
+    <span class="n">model</span> <span class="o">=</span> <span class="n">args</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+    <span class="n">meas</span> <span class="o">=</span> <span class="n">args</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span>
+    <span class="n">model</span><span class="o">.</span><span class="n">fitparams</span><span class="p">(</span><span class="n">fps</span><span class="p">)</span>
+    <span class="n">res</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">model</span><span class="p">(</span><span class="o">*</span><span class="n">args</span><span class="p">[</span><span class="mi">1</span><span class="p">:</span><span class="o">-</span><span class="mi">1</span><span class="p">])</span> <span class="o">-</span> <span class="n">meas</span>
+    <span class="k">return</span> <span class="n">np</span><span class="o">.</span><span class="n">sum</span><span class="p">(</span><span class="n">res</span><span class="o">**</span><span class="mi">2</span><span class="p">)</span>
+</pre></div>
+</div>
+<p>The <code class="docutils literal"><span class="pre">__call__</span></code> method performs the fitting. As a minimum it takes all
+coordinates as separate arguments. Additional arguments are passed as
+necessary:</p>
+<div class="highlight-default"><div class="highlight"><pre><span></span><span class="k">def</span> <span class="nf">__call__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">model</span><span class="p">,</span> <span class="n">x</span><span class="p">,</span> <span class="n">y</span> <span class="p">,</span> <span class="n">maxiter</span><span class="o">=</span><span class="n">MAXITER</span><span class="p">,</span> <span class="n">epsilon</span><span class="o">=</span><span class="n">EPS</span><span class="p">):</span>
+    <span class="k">if</span> <span class="n">model</span><span class="o">.</span><span class="n">linear</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="n">ModelLinearityException</span><span class="p">(</span>
+                <span class="s1">&#39;Model is linear in parameters; &#39;</span>
+                <span class="s1">&#39;non-linear fitting methods should not be used.&#39;</span><span class="p">)</span>
+    <span class="n">model_copy</span> <span class="o">=</span> <span class="n">model</span><span class="o">.</span><span class="n">copy</span><span class="p">()</span>
+    <span class="n">init_values</span><span class="p">,</span> <span class="n">_</span> <span class="o">=</span> <span class="n">_model_to_fit_params</span><span class="p">(</span><span class="n">model_copy</span><span class="p">)</span>
+    <span class="bp">self</span><span class="o">.</span><span class="n">fitparams</span> <span class="o">=</span> <span class="n">optimize</span><span class="o">.</span><span class="n">fmin_slsqp</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">errorfunc</span><span class="p">,</span> <span class="n">p0</span><span class="o">=</span><span class="n">init_values</span><span class="p">,</span>
+                                         <span class="n">args</span><span class="o">=</span><span class="p">(</span><span class="n">y</span><span class="p">,</span> <span class="n">x</span><span class="p">),</span>
+                                         <span class="n">bounds</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">bounds</span><span class="p">,</span>
+                                         <span class="n">eqcons</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">eqcons</span><span class="p">,</span>
+                                         <span class="n">ineqcons</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">ineqcons</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">model_copy</span>
+</pre></div>
+</div>
+<div class="section" id="defining-a-plugin-fitter">
+<h2>Defining a Plugin Fitter<a class="headerlink" href="#defining-a-plugin-fitter" title="Permalink to this headline">¶</a></h2>
+<p><a class="reference internal" href="index.html#module-astropy.modeling" title="astropy.modeling"><code class="xref py py-obj docutils literal"><span class="pre">astropy.modeling</span></code></a> includes a plugin mechanism which allows fitters
+defined outside of astropy&#8217;s core to be inserted into the
+<a class="reference internal" href="index.html#module-astropy.modeling.fitting" title="astropy.modeling.fitting"><code class="xref py py-obj docutils literal"><span class="pre">astropy.modeling.fitting</span></code></a> namespace through the use of entry points.
+Entry points are references to importable objects. A tutorial on defining
+entry points can be found in <a class="reference external" href="http://setuptools.readthedocs.io/en/latest/setuptools.html#dynamic-discovery-of-services-and-plugins">setuptools&#8217; documentation</a>.
+Plugin fitters must to extend from the <a class="reference internal" href="../api/astropy.modeling.fitting.Fitter.html#astropy.modeling.fitting.Fitter" title="astropy.modeling.fitting.Fitter"><code class="xref py py-obj docutils literal"><span class="pre">Fitter</span></code></a>
+base class. For the fitter to be discovered and inserted into
+<a class="reference internal" href="index.html#module-astropy.modeling.fitting" title="astropy.modeling.fitting"><code class="xref py py-obj docutils literal"><span class="pre">astropy.modeling.fitting</span></code></a> the entry points must be inserted into
+the <a class="reference internal" href="index.html#module-astropy.modeling" title="astropy.modeling"><code class="xref py py-obj docutils literal"><span class="pre">astropy.modeling</span></code></a> entry point group</p>
+<div class="highlight-default"><div class="highlight"><pre><span></span><span class="n">setup</span><span class="p">(</span>
+      <span class="c1"># ...</span>
+      <span class="n">entry_points</span> <span class="o">=</span> <span class="p">{</span><span class="s1">&#39;astropy.modeling&#39;</span><span class="p">:</span> <span class="s1">&#39;PluginFitterName = fitter_module:PlugFitterClass&#39;</span><span class="p">}</span>
+<span class="p">)</span>
+</pre></div>
+</div>
+<p>This would allow users to import the <code class="docutils literal"><span class="pre">PlugFitterName</span></code> through <a class="reference internal" href="index.html#module-astropy.modeling.fitting" title="astropy.modeling.fitting"><code class="xref py py-obj docutils literal"><span class="pre">astropy.modeling.fitting</span></code></a> by</p>
+<div class="highlight-default"><div class="highlight"><pre><span></span><span class="kn">from</span> <span class="nn">astropy.modeling.fitting</span> <span class="k">import</span> <span class="n">PlugFitterName</span>
+</pre></div>
+</div>
+<p>One project which uses this functionality is <a class="reference external" href="https://saba.readthedocs.io/">Saba</a>
+and be can be used as a reference.</p>
+</div>
+</div>
+<div class="section" id="using-a-custom-statistic-function">
+<h1>Using a Custom Statistic Function<a class="headerlink" href="#using-a-custom-statistic-function" title="Permalink to this headline">¶</a></h1>
+<p>This section describes how to write a new fitter with a user-defined statistic
+function.  The example below shows a specialized class which fits a straight
+line with uncertainties in both variables.</p>
+<p>The following import statements are needed:</p>
+<div class="highlight-default"><div class="highlight"><pre><span></span><span class="kn">import</span> <span class="nn">numpy</span> <span class="k">as</span> <span class="nn">np</span>
+<span class="kn">from</span> <span class="nn">astropy.modeling.fitting</span> <span class="k">import</span> <span class="p">(</span><span class="n">_validate_model</span><span class="p">,</span>
+                                      <span class="n">_fitter_to_model_params</span><span class="p">,</span>
+                                      <span class="n">_model_to_fit_params</span><span class="p">,</span> <span class="n">Fitter</span><span class="p">,</span>
+                                      <span class="n">_convert_input</span><span class="p">)</span>
+<span class="kn">from</span> <span class="nn">astropy.modeling.optimizers</span> <span class="k">import</span> <span class="n">Simplex</span>
+</pre></div>
+</div>
+<p>First one needs to define a statistic. This can be a function or a callable
+class.:</p>
+<div class="highlight-default"><div class="highlight"><pre><span></span><span class="k">def</span> <span class="nf">chi_line</span><span class="p">(</span><span class="n">measured_vals</span><span class="p">,</span> <span class="n">updated_model</span><span class="p">,</span> <span class="n">x_sigma</span><span class="p">,</span> <span class="n">y_sigma</span><span class="p">,</span> <span class="n">x</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Chi^2 statistic for fitting a straight line with uncertainties in x and</span>
+<span class="sd">    y.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    measured_vals : array</span>
+<span class="sd">    updated_model : `~astropy.modeling.ParametricModel`</span>
+<span class="sd">        model with parameters set by the current iteration of the optimizer</span>
+<span class="sd">    x_sigma : array</span>
+<span class="sd">        uncertainties in x</span>
+<span class="sd">    y_sigma : array</span>
+<span class="sd">        uncertainties in y</span>
+
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">model_vals</span> <span class="o">=</span> <span class="n">updated_model</span><span class="p">(</span><span class="n">x</span><span class="p">)</span>
+    <span class="k">if</span> <span class="n">x_sigma</span> <span class="ow">is</span> <span class="kc">None</span> <span class="ow">and</span> <span class="n">y_sigma</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="k">return</span> <span class="n">np</span><span class="o">.</span><span class="n">sum</span><span class="p">((</span><span class="n">model_vals</span> <span class="o">-</span> <span class="n">measured_vals</span><span class="p">)</span> <span class="o">**</span> <span class="mi">2</span><span class="p">)</span>
+    <span class="k">elif</span> <span class="n">x_sigma</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="ow">and</span> <span class="n">y_sigma</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="n">weights</span> <span class="o">=</span> <span class="mi">1</span> <span class="o">/</span> <span class="p">(</span><span class="n">y_sigma</span> <span class="o">**</span> <span class="mi">2</span> <span class="o">+</span> <span class="n">updated_model</span><span class="o">.</span><span class="n">parameters</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span> <span class="o">**</span> <span class="mi">2</span> <span class="o">*</span>
+                       <span class="n">x_sigma</span> <span class="o">**</span> <span class="mi">2</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">np</span><span class="o">.</span><span class="n">sum</span><span class="p">((</span><span class="n">weights</span> <span class="o">*</span> <span class="p">(</span><span class="n">model_vals</span> <span class="o">-</span> <span class="n">measured_vals</span><span class="p">))</span> <span class="o">**</span> <span class="mi">2</span><span class="p">)</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="k">if</span> <span class="n">x_sigma</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">weights</span> <span class="o">=</span> <span class="mi">1</span> <span class="o">/</span> <span class="n">x_sigma</span> <span class="o">**</span> <span class="mi">2</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">weights</span> <span class="o">=</span> <span class="mi">1</span> <span class="o">/</span> <span class="n">y_sigma</span> <span class="o">**</span> <span class="mi">2</span>
+        <span class="k">return</span> <span class="n">np</span><span class="o">.</span><span class="n">sum</span><span class="p">((</span><span class="n">weights</span> <span class="o">*</span> <span class="p">(</span><span class="n">model_vals</span> <span class="o">-</span> <span class="n">measured_vals</span><span class="p">))</span> <span class="o">**</span> <span class="mi">2</span><span class="p">)</span>
+</pre></div>
+</div>
+<p>In general, to define a new fitter, all one needs to do is provide a statistic
+function and an optimizer. In this example we will let the optimizer be an
+optional argument to the fitter and will set the statistic to <code class="docutils literal"><span class="pre">chi_line</span></code>
+above:</p>
+<div class="highlight-default"><div class="highlight"><pre><span></span><span class="k">class</span> <span class="nc">LineFitter</span><span class="p">(</span><span class="n">Fitter</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Fit a straight line with uncertainties in both variables</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    optimizer : class or callable</span>
+<span class="sd">        one of the classes in optimizers.py (default: Simplex)</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">optimizer</span><span class="o">=</span><span class="n">Simplex</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">statistic</span> <span class="o">=</span> <span class="n">chi_line</span>
+        <span class="nb">super</span><span class="p">(</span><span class="n">LineFitter</span><span class="p">,</span> <span class="bp">self</span><span class="p">)</span><span class="o">.</span><span class="n">__init__</span><span class="p">(</span><span class="n">optimizer</span><span class="p">,</span>
+                                         <span class="n">statistic</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">statistic</span><span class="p">)</span>
+</pre></div>
+</div>
+<p>The last thing to define is the <code class="docutils literal"><span class="pre">__call__</span></code> method:</p>
+<div class="highlight-default"><div class="highlight"><pre><span></span><span class="k">def</span> <span class="nf">__call__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">model</span><span class="p">,</span> <span class="n">x</span><span class="p">,</span> <span class="n">y</span><span class="p">,</span> <span class="n">x_sigma</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">y_sigma</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Fit data to this model.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    model : `~astropy.modeling.core.ParametricModel`</span>
+<span class="sd">        model to fit to x, y</span>
+<span class="sd">    x : array</span>
+<span class="sd">        input coordinates</span>
+<span class="sd">    y : array</span>
+<span class="sd">        input coordinates</span>
+<span class="sd">    x_sigma : array</span>
+<span class="sd">        uncertainties in x</span>
+<span class="sd">    y_sigma : array</span>
+<span class="sd">        uncertainties in y</span>
+<span class="sd">    kwargs : dict</span>
+<span class="sd">        optional keyword arguments to be passed to the optimizer</span>
+
+<span class="sd">    Returns</span>
+<span class="sd">    ------</span>
+<span class="sd">    model_copy : `~astropy.modeling.core.ParametricModel`</span>
+<span class="sd">        a copy of the input model with parameters set by the fitter</span>
+
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">model_copy</span> <span class="o">=</span> <span class="n">_validate_model</span><span class="p">(</span><span class="n">model</span><span class="p">,</span>
+                                 <span class="bp">self</span><span class="o">.</span><span class="n">_opt_method</span><span class="o">.</span><span class="n">supported_constraints</span><span class="p">)</span>
+
+    <span class="n">farg</span> <span class="o">=</span> <span class="n">_convert_input</span><span class="p">(</span><span class="n">x</span><span class="p">,</span> <span class="n">y</span><span class="p">)</span>
+    <span class="n">farg</span> <span class="o">=</span> <span class="p">(</span><span class="n">model_copy</span><span class="p">,</span> <span class="n">x_sigma</span><span class="p">,</span> <span class="n">y_sigma</span><span class="p">)</span> <span class="o">+</span> <span class="n">farg</span>
+    <span class="n">p0</span><span class="p">,</span> <span class="n">_</span> <span class="o">=</span> <span class="n">_model_to_fit_params</span><span class="p">(</span><span class="n">model_copy</span><span class="p">)</span>
+
+    <span class="n">fitparams</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">fit_info</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_opt_method</span><span class="p">(</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">objective_function</span><span class="p">,</span> <span class="n">p0</span><span class="p">,</span> <span class="n">farg</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
+    <span class="n">_fitter_to_model_params</span><span class="p">(</span><span class="n">model_copy</span><span class="p">,</span> <span class="n">fitparams</span><span class="p">)</span>
+
+    <span class="k">return</span> <span class="n">model_copy</span>
+</pre></div>
+</div>
+</div>
+
+
+          </div>
+        </div>
+      </div>
+      <div class="sphinxsidebar" role="navigation" aria-label="main navigation">
+        <div class="sphinxsidebarwrapper"><h3>Page Contents</h3>
+<ul>
+<li><a class="reference internal" href="#">Defining New Model Classes</a><ul>
+<li><a class="reference internal" href="#basic-custom-models">Basic custom models</a></li>
+<li><a class="reference internal" href="#a-step-by-step-definition-of-a-1-d-gaussian-model">A step by step definition of a 1-D Gaussian model</a><ul>
+<li><a class="reference internal" href="#full-example">Full example</a></li>
+</ul>
+</li>
+<li><a class="reference internal" href="#a-full-example-of-a-linemodel">A full example of a LineModel</a></li>
+</ul>
+</li>
+<li><a class="reference internal" href="#defining-new-fitter-classes">Defining New Fitter Classes</a><ul>
+<li><a class="reference internal" href="#defining-a-plugin-fitter">Defining a Plugin Fitter</a></li>
+</ul>
+</li>
+<li><a class="reference internal" href="#using-a-custom-statistic-function">Using a Custom Statistic Function</a></li>
+</ul>
+
+
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+<footer class="footer">
+  <p class="pull-right">
+    <a href="http://github.com/astropy/astropy/tree/master/docs/modeling/new.rst">Edit This Page on Github</a> &nbsp;
+    <a href="../_sources/modeling/new.rst.txt"
+       rel="nofollow">Page Source</a> &nbsp;
+    <a href="#">Back to Top</a></p>
+  <p>
+    &copy; Copyright 2011-2016, The Astropy Developers.<br/>
+    Created using <a href="http://sphinx.pocoo.org/">Sphinx</a> 1.5.6. &nbsp;
+    Last built 05 Jul 2017. <br/>
+  </p>
+</footer>
+  </body>
+</html>

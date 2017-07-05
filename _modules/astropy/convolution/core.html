@@ -1,0 +1,473 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <head>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    
+    <title>astropy.convolution.core &#8212; Astropy v3.0.dev19489</title>
+    
+    <link rel="stylesheet" href="../../../_static/bootstrap-astropy.css" type="text/css" />
+    <link rel="stylesheet" href="../../../_static/pygments.css" type="text/css" />
+    <link rel="stylesheet" href="../../../_static/gallery.css" type="text/css" />
+    
+    <script type="text/javascript">
+      var DOCUMENTATION_OPTIONS = {
+        URL_ROOT:    '../../../',
+        VERSION:     '3.0.dev19489',
+        COLLAPSE_INDEX: false,
+        FILE_SUFFIX: '.html',
+        HAS_SOURCE:  true,
+        SOURCELINK_SUFFIX: '.txt'
+      };
+    </script>
+    <script type="text/javascript" src="../../../_static/jquery.js"></script>
+    <script type="text/javascript" src="../../../_static/underscore.js"></script>
+    <script type="text/javascript" src="../../../_static/doctools.js"></script>
+    <script type="text/javascript" src="../../../_static/sidebar.js"></script>
+    <link rel="shortcut icon" href="../../../_static/astropy_logo.ico"/>
+    <link rel="index" title="Index" href="../../../genindex.html" />
+    <link rel="search" title="Search" href="../../../search.html" />
+<link href='https://fonts.googleapis.com/css?family=Source+Sans+Pro:200,600' rel='stylesheet' type='text/css'/>
+<script type="text/javascript" src="../../../_static/copybutton.js"></script>
+
+
+  </head>
+  <body role="document">
+<div class="topbar">
+  <a class="brand" title="Documentation Home" href="../../../index.html"><span id="logotext1">astro</span><span id="logotext2">py</span><span id="logotext3">:docs</span></a>
+  <ul>
+    <li><a class="homelink" title="Astropy Homepage" href="http://www.astropy.org"></a></li>
+    <li><a title="General Index" href="../../../genindex.html">Index</a></li>
+    <li><a title="Module Index" href="../../../py-modindex.html">Modules</a></li>
+    <li>
+      
+      
+<form action="../../../search.html" method="get">
+  <input type="text" name="q" placeholder="Search" />
+  <input type="hidden" name="check_keywords" value="yes" />
+  <input type="hidden" name="area" value="default" />
+</form>
+      
+    </li>
+  </ul>
+</div>
+
+<div class="related">
+    <h3>Navigation</h3>
+    <ul>
+      <li>
+	<a href="../../../index.html">Astropy v3.0.dev19489</a>
+	 &#187;
+      </li>
+      <li><a href="../../index.html" >Module code</a> &#187;</li>
+      <li><a href="../../astropy.html" accesskey="U">astropy</a> &#187;</li>
+      
+       
+    </ul>
+</div>
+  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          <div class="body" role="main">
+            
+  <h1>Source code for astropy.convolution.core</h1><div class="highlight"><pre>
+<span></span><span class="c1"># Licensed under a 3-clause BSD style license - see LICENSE.rst</span>
+<span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">This module contains the convolution and filter functionalities of astropy.</span>
+
+<span class="sd">A few conceptual notes:</span>
+<span class="sd">A filter kernel is mainly characterized by its response function. In the 1D</span>
+<span class="sd">case we speak of &quot;impulse response function&quot;, in the 2D case we call it &quot;point</span>
+<span class="sd">spread function&quot;. This response function is given for every kernel by an</span>
+<span class="sd">astropy `FittableModel`, which is evaluated on a grid to obtain a filter array,</span>
+<span class="sd">which can then be applied to binned data.</span>
+
+<span class="sd">The model is centered on the array and should have an amplitude such that the array</span>
+<span class="sd">integrates to one per default.</span>
+
+<span class="sd">Currently only symmetric 2D kernels are supported.</span>
+<span class="sd">&quot;&quot;&quot;</span>
+<span class="kn">from</span> <span class="nn">__future__</span> <span class="k">import</span> <span class="p">(</span><span class="n">absolute_import</span><span class="p">,</span> <span class="n">division</span><span class="p">,</span> <span class="n">print_function</span><span class="p">,</span>
+                        <span class="n">unicode_literals</span><span class="p">)</span>
+
+<span class="kn">import</span> <span class="nn">warnings</span>
+<span class="kn">import</span> <span class="nn">copy</span>
+
+<span class="kn">import</span> <span class="nn">numpy</span> <span class="k">as</span> <span class="nn">np</span>
+<span class="kn">from</span> <span class="nn">..utils.exceptions</span> <span class="k">import</span> <span class="n">AstropyUserWarning</span>
+<span class="kn">from</span> <span class="nn">.utils</span> <span class="k">import</span> <span class="p">(</span><span class="n">discretize_model</span><span class="p">,</span> <span class="n">add_kernel_arrays_1D</span><span class="p">,</span>
+                    <span class="n">add_kernel_arrays_2D</span><span class="p">)</span>
+
+<span class="n">MAX_NORMALIZATION</span> <span class="o">=</span> <span class="mi">100</span>
+
+<span class="n">__all__</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;Kernel&#39;</span><span class="p">,</span> <span class="s1">&#39;Kernel1D&#39;</span><span class="p">,</span> <span class="s1">&#39;Kernel2D&#39;</span><span class="p">,</span> <span class="s1">&#39;kernel_arithmetics&#39;</span><span class="p">]</span>
+
+
+<div class="viewcode-block" id="Kernel"><a class="viewcode-back" href="../../../api/astropy.convolution.Kernel.html#astropy.convolution.Kernel">[docs]</a><span class="k">class</span> <span class="nc">Kernel</span><span class="p">(</span><span class="nb">object</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Convolution kernel base class.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    array : `~numpy.ndarray`</span>
+<span class="sd">        Kernel array.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">_separable</span> <span class="o">=</span> <span class="kc">False</span>
+    <span class="n">_is_bool</span> <span class="o">=</span> <span class="kc">True</span>
+    <span class="n">_model</span> <span class="o">=</span> <span class="kc">None</span>
+
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">array</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_array</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">asanyarray</span><span class="p">(</span><span class="n">array</span><span class="p">)</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">truncation</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Deviation from the normalization to one.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_truncation</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">is_bool</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Indicates if kernel is bool.</span>
+
+<span class="sd">        If the kernel is bool the multiplication in the convolution could</span>
+<span class="sd">        be omitted, to increase the performance.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_is_bool</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">model</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Kernel response model.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_model</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">dimension</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Kernel dimension.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">array</span><span class="o">.</span><span class="n">ndim</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">center</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Index of the kernel center.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="p">[</span><span class="n">axes_size</span> <span class="o">//</span> <span class="mi">2</span> <span class="k">for</span> <span class="n">axes_size</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">_array</span><span class="o">.</span><span class="n">shape</span><span class="p">]</span>
+
+<div class="viewcode-block" id="Kernel.normalize"><a class="viewcode-back" href="../../../api/astropy.convolution.Kernel.html#astropy.convolution.Kernel.normalize">[docs]</a>    <span class="k">def</span> <span class="nf">normalize</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">mode</span><span class="o">=</span><span class="s1">&#39;integral&#39;</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Normalize the filter kernel.</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        mode : {&#39;integral&#39;, &#39;peak&#39;}</span>
+<span class="sd">            One of the following modes:</span>
+<span class="sd">                * &#39;integral&#39; (default)</span>
+<span class="sd">                    Kernel is normalized such that its integral = 1.</span>
+<span class="sd">                * &#39;peak&#39;</span>
+<span class="sd">                    Kernel is normalized such that its peak = 1.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+
+        <span class="k">if</span> <span class="n">mode</span> <span class="o">==</span> <span class="s1">&#39;integral&#39;</span><span class="p">:</span>
+            <span class="n">normalization</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_array</span><span class="o">.</span><span class="n">sum</span><span class="p">()</span>
+        <span class="k">elif</span> <span class="n">mode</span> <span class="o">==</span> <span class="s1">&#39;peak&#39;</span><span class="p">:</span>
+            <span class="n">normalization</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_array</span><span class="o">.</span><span class="n">max</span><span class="p">()</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;invalid mode, must be &#39;integral&#39; or &#39;peak&#39;&quot;</span><span class="p">)</span>
+
+        <span class="c1"># Warn the user for kernels that sum to zero</span>
+        <span class="k">if</span> <span class="n">normalization</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
+            <span class="n">warnings</span><span class="o">.</span><span class="n">warn</span><span class="p">(</span><span class="s1">&#39;The kernel cannot be normalized because it &#39;</span>
+                          <span class="s1">&#39;sums to zero.&#39;</span><span class="p">,</span> <span class="n">AstropyUserWarning</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">np</span><span class="o">.</span><span class="n">divide</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_array</span><span class="p">,</span> <span class="n">normalization</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">_array</span><span class="p">)</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">_kernel_sum</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_array</span><span class="o">.</span><span class="n">sum</span><span class="p">()</span></div>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">shape</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Shape of the kernel array.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_array</span><span class="o">.</span><span class="n">shape</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">separable</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Indicates if the filter kernel is separable.</span>
+
+<span class="sd">        A 2D filter is separable, when its filter array can be written as the</span>
+<span class="sd">        outer product of two 1D arrays.</span>
+
+<span class="sd">        If a filter kernel is separable, higher dimension convolutions will be</span>
+<span class="sd">        performed by applying the 1D filter array consecutively on every dimension.</span>
+<span class="sd">        This is significantly faster, than using a filter array with the same</span>
+<span class="sd">        dimension.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_separable</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">array</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Filter kernel array.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_array</span>
+
+    <span class="k">def</span> <span class="nf">__add__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">kernel</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Add two filter kernels.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="n">kernel_arithmetics</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">kernel</span><span class="p">,</span> <span class="s1">&#39;add&#39;</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">__sub__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">kernel</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Subtract two filter kernels.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="n">kernel_arithmetics</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">kernel</span><span class="p">,</span> <span class="s1">&#39;sub&#39;</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">__mul__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">value</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Multiply kernel with number or convolve two kernels.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="n">kernel_arithmetics</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">value</span><span class="p">,</span> <span class="s2">&quot;mul&quot;</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">__rmul__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">value</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Multiply kernel with number or convolve two kernels.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="n">kernel_arithmetics</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">value</span><span class="p">,</span> <span class="s2">&quot;mul&quot;</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">__array__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Array representation of the kernel.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_array</span>
+
+    <span class="k">def</span> <span class="nf">__array_wrap__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">array</span><span class="p">,</span> <span class="n">context</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Wrapper for multiplication with numpy arrays.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="nb">type</span><span class="p">(</span><span class="n">context</span><span class="p">[</span><span class="mi">0</span><span class="p">])</span> <span class="o">==</span> <span class="n">np</span><span class="o">.</span><span class="n">ufunc</span><span class="p">:</span>
+            <span class="k">return</span> <span class="bp">NotImplemented</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">return</span> <span class="n">array</span></div>
+
+
+<div class="viewcode-block" id="Kernel1D"><a class="viewcode-back" href="../../../api/astropy.convolution.Kernel1D.html#astropy.convolution.Kernel1D">[docs]</a><span class="k">class</span> <span class="nc">Kernel1D</span><span class="p">(</span><span class="n">Kernel</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Base class for 1D filter kernels.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    model : `~astropy.modeling.FittableModel`</span>
+<span class="sd">        Model to be evaluated.</span>
+<span class="sd">    x_size : odd int, optional</span>
+<span class="sd">        Size of the kernel array. Default = 8 * width.</span>
+<span class="sd">    array : `~numpy.ndarray`</span>
+<span class="sd">        Kernel array.</span>
+<span class="sd">    width : number</span>
+<span class="sd">        Width of the filter kernel.</span>
+<span class="sd">    mode : str, optional</span>
+<span class="sd">        One of the following discretization modes:</span>
+<span class="sd">            * &#39;center&#39; (default)</span>
+<span class="sd">                Discretize model by taking the value</span>
+<span class="sd">                at the center of the bin.</span>
+<span class="sd">            * &#39;linear_interp&#39;</span>
+<span class="sd">                Discretize model by linearly interpolating</span>
+<span class="sd">                between the values at the corners of the bin.</span>
+<span class="sd">            * &#39;oversample&#39;</span>
+<span class="sd">                Discretize model by taking the average</span>
+<span class="sd">                on an oversampled grid.</span>
+<span class="sd">            * &#39;integrate&#39;</span>
+<span class="sd">                Discretize model by integrating the</span>
+<span class="sd">                model over the bin.</span>
+<span class="sd">    factor : number, optional</span>
+<span class="sd">        Factor of oversampling. Default factor = 10.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">model</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">x_size</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">array</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+        <span class="c1"># Initialize from model</span>
+        <span class="k">if</span> <span class="n">array</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_model</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+                <span class="k">raise</span> <span class="ne">TypeError</span><span class="p">(</span><span class="s2">&quot;Must specify either array or model.&quot;</span><span class="p">)</span>
+
+            <span class="k">if</span> <span class="n">x_size</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+                <span class="n">x_size</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_default_size</span>
+            <span class="k">elif</span> <span class="n">x_size</span> <span class="o">!=</span> <span class="nb">int</span><span class="p">(</span><span class="n">x_size</span><span class="p">):</span>
+                <span class="k">raise</span> <span class="ne">TypeError</span><span class="p">(</span><span class="s2">&quot;x_size should be an integer&quot;</span><span class="p">)</span>
+
+            <span class="c1"># Set ranges where to evaluate the model</span>
+
+            <span class="k">if</span> <span class="n">x_size</span> <span class="o">%</span> <span class="mi">2</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>  <span class="c1"># even kernel</span>
+                <span class="n">x_range</span> <span class="o">=</span> <span class="p">(</span><span class="o">-</span><span class="p">(</span><span class="nb">int</span><span class="p">(</span><span class="n">x_size</span><span class="p">))</span> <span class="o">//</span> <span class="mi">2</span> <span class="o">+</span> <span class="mf">0.5</span><span class="p">,</span> <span class="p">(</span><span class="nb">int</span><span class="p">(</span><span class="n">x_size</span><span class="p">))</span> <span class="o">//</span> <span class="mi">2</span> <span class="o">+</span> <span class="mf">0.5</span><span class="p">)</span>
+            <span class="k">else</span><span class="p">:</span>  <span class="c1"># odd kernel</span>
+                <span class="n">x_range</span> <span class="o">=</span> <span class="p">(</span><span class="o">-</span><span class="p">(</span><span class="nb">int</span><span class="p">(</span><span class="n">x_size</span><span class="p">)</span> <span class="o">-</span> <span class="mi">1</span><span class="p">)</span> <span class="o">//</span> <span class="mi">2</span><span class="p">,</span> <span class="p">(</span><span class="nb">int</span><span class="p">(</span><span class="n">x_size</span><span class="p">)</span> <span class="o">-</span> <span class="mi">1</span><span class="p">)</span> <span class="o">//</span> <span class="mi">2</span> <span class="o">+</span> <span class="mi">1</span><span class="p">)</span>
+
+            <span class="n">array</span> <span class="o">=</span> <span class="n">discretize_model</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_model</span><span class="p">,</span> <span class="n">x_range</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
+
+        <span class="c1"># Initialize from array</span>
+        <span class="k">elif</span> <span class="n">array</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_model</span> <span class="o">=</span> <span class="kc">None</span>
+
+        <span class="nb">super</span><span class="p">(</span><span class="n">Kernel1D</span><span class="p">,</span> <span class="bp">self</span><span class="p">)</span><span class="o">.</span><span class="n">__init__</span><span class="p">(</span><span class="n">array</span><span class="p">)</span></div>
+
+
+<div class="viewcode-block" id="Kernel2D"><a class="viewcode-back" href="../../../api/astropy.convolution.Kernel2D.html#astropy.convolution.Kernel2D">[docs]</a><span class="k">class</span> <span class="nc">Kernel2D</span><span class="p">(</span><span class="n">Kernel</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Base class for 2D filter kernels.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    model : `~astropy.modeling.FittableModel`</span>
+<span class="sd">        Model to be evaluated.</span>
+<span class="sd">    x_size : odd int, optional</span>
+<span class="sd">        Size in x direction of the kernel array. Default = 8 * width.</span>
+<span class="sd">    y_size : odd int, optional</span>
+<span class="sd">        Size in y direction of the kernel array. Default = 8 * width.</span>
+<span class="sd">    array : `~numpy.ndarray`</span>
+<span class="sd">        Kernel array.</span>
+<span class="sd">    mode : str, optional</span>
+<span class="sd">        One of the following discretization modes:</span>
+<span class="sd">            * &#39;center&#39; (default)</span>
+<span class="sd">                Discretize model by taking the value</span>
+<span class="sd">                at the center of the bin.</span>
+<span class="sd">            * &#39;linear_interp&#39;</span>
+<span class="sd">                Discretize model by performing a bilinear interpolation</span>
+<span class="sd">                between the values at the corners of the bin.</span>
+<span class="sd">            * &#39;oversample&#39;</span>
+<span class="sd">                Discretize model by taking the average</span>
+<span class="sd">                on an oversampled grid.</span>
+<span class="sd">            * &#39;integrate&#39;</span>
+<span class="sd">                Discretize model by integrating the</span>
+<span class="sd">                model over the bin.</span>
+<span class="sd">    width : number</span>
+<span class="sd">        Width of the filter kernel.</span>
+<span class="sd">    factor : number, optional</span>
+<span class="sd">        Factor of oversampling. Default factor = 10.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">model</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">x_size</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">y_size</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">array</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+
+        <span class="c1"># Initialize from model</span>
+        <span class="k">if</span> <span class="n">array</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_model</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+                <span class="k">raise</span> <span class="ne">TypeError</span><span class="p">(</span><span class="s2">&quot;Must specify either array or model.&quot;</span><span class="p">)</span>
+
+            <span class="k">if</span> <span class="n">x_size</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+                <span class="n">x_size</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_default_size</span>
+            <span class="k">elif</span> <span class="n">x_size</span> <span class="o">!=</span> <span class="nb">int</span><span class="p">(</span><span class="n">x_size</span><span class="p">):</span>
+                <span class="k">raise</span> <span class="ne">TypeError</span><span class="p">(</span><span class="s2">&quot;x_size should be an integer&quot;</span><span class="p">)</span>
+
+            <span class="k">if</span> <span class="n">y_size</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+                <span class="n">y_size</span> <span class="o">=</span> <span class="n">x_size</span>
+            <span class="k">elif</span> <span class="n">y_size</span> <span class="o">!=</span> <span class="nb">int</span><span class="p">(</span><span class="n">y_size</span><span class="p">):</span>
+                <span class="k">raise</span> <span class="ne">TypeError</span><span class="p">(</span><span class="s2">&quot;y_size should be an integer&quot;</span><span class="p">)</span>
+
+            <span class="c1"># Set ranges where to evaluate the model</span>
+
+            <span class="k">if</span> <span class="n">x_size</span> <span class="o">%</span> <span class="mi">2</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>  <span class="c1"># even kernel</span>
+                <span class="n">x_range</span> <span class="o">=</span> <span class="p">(</span><span class="o">-</span><span class="p">(</span><span class="nb">int</span><span class="p">(</span><span class="n">x_size</span><span class="p">))</span> <span class="o">//</span> <span class="mi">2</span> <span class="o">+</span> <span class="mf">0.5</span><span class="p">,</span> <span class="p">(</span><span class="nb">int</span><span class="p">(</span><span class="n">x_size</span><span class="p">))</span> <span class="o">//</span> <span class="mi">2</span> <span class="o">+</span> <span class="mf">0.5</span><span class="p">)</span>
+            <span class="k">else</span><span class="p">:</span>  <span class="c1"># odd kernel</span>
+                <span class="n">x_range</span> <span class="o">=</span> <span class="p">(</span><span class="o">-</span><span class="p">(</span><span class="nb">int</span><span class="p">(</span><span class="n">x_size</span><span class="p">)</span> <span class="o">-</span> <span class="mi">1</span><span class="p">)</span> <span class="o">//</span> <span class="mi">2</span><span class="p">,</span> <span class="p">(</span><span class="nb">int</span><span class="p">(</span><span class="n">x_size</span><span class="p">)</span> <span class="o">-</span> <span class="mi">1</span><span class="p">)</span> <span class="o">//</span> <span class="mi">2</span> <span class="o">+</span> <span class="mi">1</span><span class="p">)</span>
+
+            <span class="k">if</span> <span class="n">y_size</span> <span class="o">%</span> <span class="mi">2</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>  <span class="c1"># even kernel</span>
+                <span class="n">y_range</span> <span class="o">=</span> <span class="p">(</span><span class="o">-</span><span class="p">(</span><span class="nb">int</span><span class="p">(</span><span class="n">y_size</span><span class="p">))</span> <span class="o">//</span> <span class="mi">2</span> <span class="o">+</span> <span class="mf">0.5</span><span class="p">,</span> <span class="p">(</span><span class="nb">int</span><span class="p">(</span><span class="n">y_size</span><span class="p">))</span> <span class="o">//</span> <span class="mi">2</span> <span class="o">+</span> <span class="mf">0.5</span><span class="p">)</span>
+            <span class="k">else</span><span class="p">:</span>  <span class="c1"># odd kernel</span>
+                <span class="n">y_range</span> <span class="o">=</span> <span class="p">(</span><span class="o">-</span><span class="p">(</span><span class="nb">int</span><span class="p">(</span><span class="n">y_size</span><span class="p">)</span> <span class="o">-</span> <span class="mi">1</span><span class="p">)</span> <span class="o">//</span> <span class="mi">2</span><span class="p">,</span> <span class="p">(</span><span class="nb">int</span><span class="p">(</span><span class="n">y_size</span><span class="p">)</span> <span class="o">-</span> <span class="mi">1</span><span class="p">)</span> <span class="o">//</span> <span class="mi">2</span> <span class="o">+</span> <span class="mi">1</span><span class="p">)</span>
+
+            <span class="n">array</span> <span class="o">=</span> <span class="n">discretize_model</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_model</span><span class="p">,</span> <span class="n">x_range</span><span class="p">,</span> <span class="n">y_range</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
+
+        <span class="c1"># Initialize from array</span>
+        <span class="k">elif</span> <span class="n">array</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_model</span> <span class="o">=</span> <span class="kc">None</span>
+
+        <span class="nb">super</span><span class="p">(</span><span class="n">Kernel2D</span><span class="p">,</span> <span class="bp">self</span><span class="p">)</span><span class="o">.</span><span class="n">__init__</span><span class="p">(</span><span class="n">array</span><span class="p">)</span></div>
+
+
+<div class="viewcode-block" id="kernel_arithmetics"><a class="viewcode-back" href="../../../api/astropy.convolution.kernel_arithmetics.html#astropy.convolution.kernel_arithmetics">[docs]</a><span class="k">def</span> <span class="nf">kernel_arithmetics</span><span class="p">(</span><span class="n">kernel</span><span class="p">,</span> <span class="n">value</span><span class="p">,</span> <span class="n">operation</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Add, subtract or multiply two kernels.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    kernel : `astropy.convolution.Kernel`</span>
+<span class="sd">        Kernel instance</span>
+<span class="sd">    value : kernel, float or int</span>
+<span class="sd">        Value to operate with</span>
+<span class="sd">    operation : {&#39;add&#39;, &#39;sub&#39;, &#39;mul&#39;}</span>
+<span class="sd">        One of the following operations:</span>
+<span class="sd">            * &#39;add&#39;</span>
+<span class="sd">                Add two kernels</span>
+<span class="sd">            * &#39;sub&#39;</span>
+<span class="sd">                Subtract two kernels</span>
+<span class="sd">            * &#39;mul&#39;</span>
+<span class="sd">                Multiply kernel with number or convolve two kernels.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="c1"># 1D kernels</span>
+    <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">kernel</span><span class="p">,</span> <span class="n">Kernel1D</span><span class="p">)</span> <span class="ow">and</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">value</span><span class="p">,</span> <span class="n">Kernel1D</span><span class="p">):</span>
+        <span class="k">if</span> <span class="n">operation</span> <span class="o">==</span> <span class="s2">&quot;add&quot;</span><span class="p">:</span>
+            <span class="n">new_array</span> <span class="o">=</span> <span class="n">add_kernel_arrays_1D</span><span class="p">(</span><span class="n">kernel</span><span class="o">.</span><span class="n">array</span><span class="p">,</span> <span class="n">value</span><span class="o">.</span><span class="n">array</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">operation</span> <span class="o">==</span> <span class="s2">&quot;sub&quot;</span><span class="p">:</span>
+            <span class="n">new_array</span> <span class="o">=</span> <span class="n">add_kernel_arrays_1D</span><span class="p">(</span><span class="n">kernel</span><span class="o">.</span><span class="n">array</span><span class="p">,</span> <span class="o">-</span><span class="n">value</span><span class="o">.</span><span class="n">array</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">operation</span> <span class="o">==</span> <span class="s2">&quot;mul&quot;</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">Exception</span><span class="p">(</span><span class="s2">&quot;Kernel operation not supported. Maybe you want &quot;</span>
+                            <span class="s2">&quot;to use convolve(kernel1, kernel2) instead.&quot;</span><span class="p">)</span>
+        <span class="n">new_kernel</span> <span class="o">=</span> <span class="n">Kernel1D</span><span class="p">(</span><span class="n">array</span><span class="o">=</span><span class="n">new_array</span><span class="p">)</span>
+        <span class="n">new_kernel</span><span class="o">.</span><span class="n">_separable</span> <span class="o">=</span> <span class="n">kernel</span><span class="o">.</span><span class="n">_separable</span> <span class="ow">and</span> <span class="n">value</span><span class="o">.</span><span class="n">_separable</span>
+        <span class="n">new_kernel</span><span class="o">.</span><span class="n">_is_bool</span> <span class="o">=</span> <span class="n">kernel</span><span class="o">.</span><span class="n">_is_bool</span> <span class="ow">or</span> <span class="n">value</span><span class="o">.</span><span class="n">_is_bool</span>
+
+    <span class="c1"># 2D kernels</span>
+    <span class="k">elif</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">kernel</span><span class="p">,</span> <span class="n">Kernel2D</span><span class="p">)</span> <span class="ow">and</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">value</span><span class="p">,</span> <span class="n">Kernel2D</span><span class="p">):</span>
+        <span class="k">if</span> <span class="n">operation</span> <span class="o">==</span> <span class="s2">&quot;add&quot;</span><span class="p">:</span>
+            <span class="n">new_array</span> <span class="o">=</span> <span class="n">add_kernel_arrays_2D</span><span class="p">(</span><span class="n">kernel</span><span class="o">.</span><span class="n">array</span><span class="p">,</span> <span class="n">value</span><span class="o">.</span><span class="n">array</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">operation</span> <span class="o">==</span> <span class="s2">&quot;sub&quot;</span><span class="p">:</span>
+            <span class="n">new_array</span> <span class="o">=</span> <span class="n">add_kernel_arrays_2D</span><span class="p">(</span><span class="n">kernel</span><span class="o">.</span><span class="n">array</span><span class="p">,</span> <span class="o">-</span><span class="n">value</span><span class="o">.</span><span class="n">array</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">operation</span> <span class="o">==</span> <span class="s2">&quot;mul&quot;</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">Exception</span><span class="p">(</span><span class="s2">&quot;Kernel operation not supported. Maybe you want &quot;</span>
+                            <span class="s2">&quot;to use convolve(kernel1, kernel2) instead.&quot;</span><span class="p">)</span>
+        <span class="n">new_kernel</span> <span class="o">=</span> <span class="n">Kernel2D</span><span class="p">(</span><span class="n">array</span><span class="o">=</span><span class="n">new_array</span><span class="p">)</span>
+        <span class="n">new_kernel</span><span class="o">.</span><span class="n">_separable</span> <span class="o">=</span> <span class="n">kernel</span><span class="o">.</span><span class="n">_separable</span> <span class="ow">and</span> <span class="n">value</span><span class="o">.</span><span class="n">_separable</span>
+        <span class="n">new_kernel</span><span class="o">.</span><span class="n">_is_bool</span> <span class="o">=</span> <span class="n">kernel</span><span class="o">.</span><span class="n">_is_bool</span> <span class="ow">or</span> <span class="n">value</span><span class="o">.</span><span class="n">_is_bool</span>
+
+    <span class="c1"># kernel and number</span>
+    <span class="k">elif</span> <span class="p">((</span><span class="nb">isinstance</span><span class="p">(</span><span class="n">kernel</span><span class="p">,</span> <span class="n">Kernel1D</span><span class="p">)</span> <span class="ow">or</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">kernel</span><span class="p">,</span> <span class="n">Kernel2D</span><span class="p">))</span>
+        <span class="ow">and</span> <span class="n">np</span><span class="o">.</span><span class="n">isscalar</span><span class="p">(</span><span class="n">value</span><span class="p">)):</span>
+        <span class="k">if</span> <span class="n">operation</span> <span class="o">==</span> <span class="s2">&quot;mul&quot;</span><span class="p">:</span>
+            <span class="n">new_kernel</span> <span class="o">=</span> <span class="n">copy</span><span class="o">.</span><span class="n">copy</span><span class="p">(</span><span class="n">kernel</span><span class="p">)</span>
+            <span class="n">new_kernel</span><span class="o">.</span><span class="n">_array</span> <span class="o">*=</span> <span class="n">value</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">Exception</span><span class="p">(</span><span class="s2">&quot;Kernel operation not supported.&quot;</span><span class="p">)</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="ne">Exception</span><span class="p">(</span><span class="s2">&quot;Kernel operation not supported.&quot;</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">new_kernel</span></div>
+</pre></div>
+
+          </div>
+        </div>
+      </div>
+      <div class="sphinxsidebar" role="navigation" aria-label="main navigation">
+        <div class="sphinxsidebarwrapper"><h3>Page Contents</h3>
+
+
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+<footer class="footer">
+  <p class="pull-right"> &nbsp;
+    <a href="#">Back to Top</a></p>
+  <p>
+    &copy; Copyright 2011-2016, The Astropy Developers.<br/>
+    Created using <a href="http://sphinx.pocoo.org/">Sphinx</a> 1.5.6. &nbsp;
+    Last built 05 Jul 2017. <br/>
+  </p>
+</footer>
+  </body>
+</html>

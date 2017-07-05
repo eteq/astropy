@@ -1,0 +1,262 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <head>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    
+    <title>astropy.units.format.fits &#8212; Astropy v3.0.dev19489</title>
+    
+    <link rel="stylesheet" href="../../../../_static/bootstrap-astropy.css" type="text/css" />
+    <link rel="stylesheet" href="../../../../_static/pygments.css" type="text/css" />
+    <link rel="stylesheet" href="../../../../_static/gallery.css" type="text/css" />
+    
+    <script type="text/javascript">
+      var DOCUMENTATION_OPTIONS = {
+        URL_ROOT:    '../../../../',
+        VERSION:     '3.0.dev19489',
+        COLLAPSE_INDEX: false,
+        FILE_SUFFIX: '.html',
+        HAS_SOURCE:  true,
+        SOURCELINK_SUFFIX: '.txt'
+      };
+    </script>
+    <script type="text/javascript" src="../../../../_static/jquery.js"></script>
+    <script type="text/javascript" src="../../../../_static/underscore.js"></script>
+    <script type="text/javascript" src="../../../../_static/doctools.js"></script>
+    <script type="text/javascript" src="../../../../_static/sidebar.js"></script>
+    <link rel="shortcut icon" href="../../../../_static/astropy_logo.ico"/>
+    <link rel="index" title="Index" href="../../../../genindex.html" />
+    <link rel="search" title="Search" href="../../../../search.html" />
+<link href='https://fonts.googleapis.com/css?family=Source+Sans+Pro:200,600' rel='stylesheet' type='text/css'/>
+<script type="text/javascript" src="../../../../_static/copybutton.js"></script>
+
+
+  </head>
+  <body role="document">
+<div class="topbar">
+  <a class="brand" title="Documentation Home" href="../../../../index.html"><span id="logotext1">astro</span><span id="logotext2">py</span><span id="logotext3">:docs</span></a>
+  <ul>
+    <li><a class="homelink" title="Astropy Homepage" href="http://www.astropy.org"></a></li>
+    <li><a title="General Index" href="../../../../genindex.html">Index</a></li>
+    <li><a title="Module Index" href="../../../../py-modindex.html">Modules</a></li>
+    <li>
+      
+      
+<form action="../../../../search.html" method="get">
+  <input type="text" name="q" placeholder="Search" />
+  <input type="hidden" name="check_keywords" value="yes" />
+  <input type="hidden" name="area" value="default" />
+</form>
+      
+    </li>
+  </ul>
+</div>
+
+<div class="related">
+    <h3>Navigation</h3>
+    <ul>
+      <li>
+	<a href="../../../../index.html">Astropy v3.0.dev19489</a>
+	 &#187;
+      </li>
+      <li><a href="../../../index.html" >Module code</a> &#187;</li>
+      <li><a href="../../../astropy.html" >astropy</a> &#187;</li>
+      <li><a href="../format.html" accesskey="U">astropy.units.format</a> &#187;</li>
+      
+       
+    </ul>
+</div>
+  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          <div class="body" role="main">
+            
+  <h1>Source code for astropy.units.format.fits</h1><div class="highlight"><pre>
+<span></span><span class="c1"># Licensed under a 3-clause BSD style license - see LICENSE.rst</span>
+
+<span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">Handles the &quot;FITS&quot; unit format.</span>
+<span class="sd">&quot;&quot;&quot;</span>
+
+<span class="kn">from</span> <span class="nn">__future__</span> <span class="k">import</span> <span class="p">(</span><span class="n">absolute_import</span><span class="p">,</span> <span class="n">division</span><span class="p">,</span> <span class="n">print_function</span><span class="p">,</span>
+                        <span class="n">unicode_literals</span><span class="p">)</span>
+<span class="kn">from</span> <span class="nn">...extern.six.moves</span> <span class="k">import</span> <span class="nb">zip</span>
+
+<span class="kn">import</span> <span class="nn">numpy</span> <span class="k">as</span> <span class="nn">np</span>
+
+<span class="kn">import</span> <span class="nn">copy</span>
+<span class="kn">import</span> <span class="nn">keyword</span>
+<span class="kn">import</span> <span class="nn">operator</span>
+
+<span class="kn">from</span> <span class="nn">.</span> <span class="k">import</span> <span class="n">core</span><span class="p">,</span> <span class="n">generic</span><span class="p">,</span> <span class="n">utils</span>
+
+
+<div class="viewcode-block" id="Fits"><a class="viewcode-back" href="../../../../api/astropy.units.format.Fits.html#astropy.units.format.Fits">[docs]</a><span class="k">class</span> <span class="nc">Fits</span><span class="p">(</span><span class="n">generic</span><span class="o">.</span><span class="n">Generic</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    The FITS standard unit format.</span>
+
+<span class="sd">    This supports the format defined in the Units section of the `FITS</span>
+<span class="sd">    Standard &lt;http://fits.gsfc.nasa.gov/fits_standard.html&gt;`_.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="n">name</span> <span class="o">=</span> <span class="s1">&#39;fits&#39;</span>
+
+    <span class="nd">@staticmethod</span>
+    <span class="k">def</span> <span class="nf">_generate_unit_names</span><span class="p">():</span>
+        <span class="kn">from</span> <span class="nn">...</span> <span class="k">import</span> <span class="n">units</span> <span class="k">as</span> <span class="n">u</span>
+        <span class="n">names</span> <span class="o">=</span> <span class="p">{}</span>
+        <span class="n">deprecated_names</span> <span class="o">=</span> <span class="nb">set</span><span class="p">()</span>
+
+        <span class="c1"># Note about deprecated units: before v2.0, several units were treated</span>
+        <span class="c1"># as deprecated (G, barn, erg, Angstrom, angstrom). However, in the</span>
+        <span class="c1"># FITS 3.0 standard, these units are explicitly listed in the allowed</span>
+        <span class="c1"># units, but deprecated in the IAU Style Manual (McNally 1988). So</span>
+        <span class="c1"># after discussion (https://github.com/astropy/astropy/issues/2933),</span>
+        <span class="c1"># these units have been removed from the lists of deprecated units and</span>
+        <span class="c1"># bases.</span>
+
+        <span class="n">bases</span> <span class="o">=</span> <span class="p">[</span>
+            <span class="s1">&#39;m&#39;</span><span class="p">,</span> <span class="s1">&#39;g&#39;</span><span class="p">,</span> <span class="s1">&#39;s&#39;</span><span class="p">,</span> <span class="s1">&#39;rad&#39;</span><span class="p">,</span> <span class="s1">&#39;sr&#39;</span><span class="p">,</span> <span class="s1">&#39;K&#39;</span><span class="p">,</span> <span class="s1">&#39;A&#39;</span><span class="p">,</span> <span class="s1">&#39;mol&#39;</span><span class="p">,</span> <span class="s1">&#39;cd&#39;</span><span class="p">,</span>
+            <span class="s1">&#39;Hz&#39;</span><span class="p">,</span> <span class="s1">&#39;J&#39;</span><span class="p">,</span> <span class="s1">&#39;W&#39;</span><span class="p">,</span> <span class="s1">&#39;V&#39;</span><span class="p">,</span> <span class="s1">&#39;N&#39;</span><span class="p">,</span> <span class="s1">&#39;Pa&#39;</span><span class="p">,</span> <span class="s1">&#39;C&#39;</span><span class="p">,</span> <span class="s1">&#39;Ohm&#39;</span><span class="p">,</span> <span class="s1">&#39;S&#39;</span><span class="p">,</span>
+            <span class="s1">&#39;F&#39;</span><span class="p">,</span> <span class="s1">&#39;Wb&#39;</span><span class="p">,</span> <span class="s1">&#39;T&#39;</span><span class="p">,</span> <span class="s1">&#39;H&#39;</span><span class="p">,</span> <span class="s1">&#39;lm&#39;</span><span class="p">,</span> <span class="s1">&#39;lx&#39;</span><span class="p">,</span> <span class="s1">&#39;a&#39;</span><span class="p">,</span> <span class="s1">&#39;yr&#39;</span><span class="p">,</span> <span class="s1">&#39;eV&#39;</span><span class="p">,</span>
+            <span class="s1">&#39;pc&#39;</span><span class="p">,</span> <span class="s1">&#39;Jy&#39;</span><span class="p">,</span> <span class="s1">&#39;mag&#39;</span><span class="p">,</span> <span class="s1">&#39;R&#39;</span><span class="p">,</span> <span class="s1">&#39;bit&#39;</span><span class="p">,</span> <span class="s1">&#39;byte&#39;</span><span class="p">,</span> <span class="s1">&#39;G&#39;</span><span class="p">,</span> <span class="s1">&#39;barn&#39;</span>
+        <span class="p">]</span>
+        <span class="n">deprecated_bases</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="n">prefixes</span> <span class="o">=</span> <span class="p">[</span>
+            <span class="s1">&#39;y&#39;</span><span class="p">,</span> <span class="s1">&#39;z&#39;</span><span class="p">,</span> <span class="s1">&#39;a&#39;</span><span class="p">,</span> <span class="s1">&#39;f&#39;</span><span class="p">,</span> <span class="s1">&#39;p&#39;</span><span class="p">,</span> <span class="s1">&#39;n&#39;</span><span class="p">,</span> <span class="s1">&#39;u&#39;</span><span class="p">,</span> <span class="s1">&#39;m&#39;</span><span class="p">,</span> <span class="s1">&#39;c&#39;</span><span class="p">,</span> <span class="s1">&#39;d&#39;</span><span class="p">,</span>
+            <span class="s1">&#39;&#39;</span><span class="p">,</span> <span class="s1">&#39;da&#39;</span><span class="p">,</span> <span class="s1">&#39;h&#39;</span><span class="p">,</span> <span class="s1">&#39;k&#39;</span><span class="p">,</span> <span class="s1">&#39;M&#39;</span><span class="p">,</span> <span class="s1">&#39;G&#39;</span><span class="p">,</span> <span class="s1">&#39;T&#39;</span><span class="p">,</span> <span class="s1">&#39;P&#39;</span><span class="p">,</span> <span class="s1">&#39;E&#39;</span><span class="p">,</span> <span class="s1">&#39;Z&#39;</span><span class="p">,</span> <span class="s1">&#39;Y&#39;</span><span class="p">]</span>
+
+        <span class="n">special_cases</span> <span class="o">=</span> <span class="p">{</span><span class="s1">&#39;dbyte&#39;</span><span class="p">:</span> <span class="n">u</span><span class="o">.</span><span class="n">Unit</span><span class="p">(</span><span class="s1">&#39;dbyte&#39;</span><span class="p">,</span> <span class="mf">0.1</span><span class="o">*</span><span class="n">u</span><span class="o">.</span><span class="n">byte</span><span class="p">)}</span>
+
+        <span class="k">for</span> <span class="n">base</span> <span class="ow">in</span> <span class="n">bases</span> <span class="o">+</span> <span class="n">deprecated_bases</span><span class="p">:</span>
+            <span class="k">for</span> <span class="n">prefix</span> <span class="ow">in</span> <span class="n">prefixes</span><span class="p">:</span>
+                <span class="n">key</span> <span class="o">=</span> <span class="n">prefix</span> <span class="o">+</span> <span class="n">base</span>
+                <span class="k">if</span> <span class="n">keyword</span><span class="o">.</span><span class="n">iskeyword</span><span class="p">(</span><span class="n">key</span><span class="p">):</span>
+                    <span class="k">continue</span>
+                <span class="k">elif</span> <span class="n">key</span> <span class="ow">in</span> <span class="n">special_cases</span><span class="p">:</span>
+                    <span class="n">names</span><span class="p">[</span><span class="n">key</span><span class="p">]</span> <span class="o">=</span> <span class="n">special_cases</span><span class="p">[</span><span class="n">key</span><span class="p">]</span>
+                <span class="k">else</span><span class="p">:</span>
+                    <span class="n">names</span><span class="p">[</span><span class="n">key</span><span class="p">]</span> <span class="o">=</span> <span class="nb">getattr</span><span class="p">(</span><span class="n">u</span><span class="p">,</span> <span class="n">key</span><span class="p">)</span>
+        <span class="k">for</span> <span class="n">base</span> <span class="ow">in</span> <span class="n">deprecated_bases</span><span class="p">:</span>
+            <span class="k">for</span> <span class="n">prefix</span> <span class="ow">in</span> <span class="n">prefixes</span><span class="p">:</span>
+                <span class="n">deprecated_names</span><span class="o">.</span><span class="n">add</span><span class="p">(</span><span class="n">prefix</span> <span class="o">+</span> <span class="n">base</span><span class="p">)</span>
+
+        <span class="n">simple_units</span> <span class="o">=</span> <span class="p">[</span>
+            <span class="s1">&#39;deg&#39;</span><span class="p">,</span> <span class="s1">&#39;arcmin&#39;</span><span class="p">,</span> <span class="s1">&#39;arcsec&#39;</span><span class="p">,</span> <span class="s1">&#39;mas&#39;</span><span class="p">,</span> <span class="s1">&#39;min&#39;</span><span class="p">,</span> <span class="s1">&#39;h&#39;</span><span class="p">,</span> <span class="s1">&#39;d&#39;</span><span class="p">,</span> <span class="s1">&#39;Ry&#39;</span><span class="p">,</span>
+            <span class="s1">&#39;solMass&#39;</span><span class="p">,</span> <span class="s1">&#39;u&#39;</span><span class="p">,</span> <span class="s1">&#39;solLum&#39;</span><span class="p">,</span> <span class="s1">&#39;solRad&#39;</span><span class="p">,</span> <span class="s1">&#39;AU&#39;</span><span class="p">,</span> <span class="s1">&#39;lyr&#39;</span><span class="p">,</span> <span class="s1">&#39;count&#39;</span><span class="p">,</span>
+            <span class="s1">&#39;ct&#39;</span><span class="p">,</span> <span class="s1">&#39;photon&#39;</span><span class="p">,</span> <span class="s1">&#39;ph&#39;</span><span class="p">,</span> <span class="s1">&#39;pixel&#39;</span><span class="p">,</span> <span class="s1">&#39;pix&#39;</span><span class="p">,</span> <span class="s1">&#39;D&#39;</span><span class="p">,</span> <span class="s1">&#39;Sun&#39;</span><span class="p">,</span> <span class="s1">&#39;chan&#39;</span><span class="p">,</span>
+            <span class="s1">&#39;bin&#39;</span><span class="p">,</span> <span class="s1">&#39;voxel&#39;</span><span class="p">,</span> <span class="s1">&#39;adu&#39;</span><span class="p">,</span> <span class="s1">&#39;beam&#39;</span><span class="p">,</span> <span class="s1">&#39;erg&#39;</span><span class="p">,</span> <span class="s1">&#39;Angstrom&#39;</span><span class="p">,</span> <span class="s1">&#39;angstrom&#39;</span>
+        <span class="p">]</span>
+        <span class="n">deprecated_units</span> <span class="o">=</span> <span class="p">[]</span>
+
+        <span class="k">for</span> <span class="n">unit</span> <span class="ow">in</span> <span class="n">simple_units</span> <span class="o">+</span> <span class="n">deprecated_units</span><span class="p">:</span>
+            <span class="n">names</span><span class="p">[</span><span class="n">unit</span><span class="p">]</span> <span class="o">=</span> <span class="nb">getattr</span><span class="p">(</span><span class="n">u</span><span class="p">,</span> <span class="n">unit</span><span class="p">)</span>
+        <span class="k">for</span> <span class="n">unit</span> <span class="ow">in</span> <span class="n">deprecated_units</span><span class="p">:</span>
+            <span class="n">deprecated_names</span><span class="o">.</span><span class="n">add</span><span class="p">(</span><span class="n">unit</span><span class="p">)</span>
+
+        <span class="k">return</span> <span class="n">names</span><span class="p">,</span> <span class="n">deprecated_names</span><span class="p">,</span> <span class="p">[]</span>
+
+    <span class="nd">@classmethod</span>
+    <span class="k">def</span> <span class="nf">_validate_unit</span><span class="p">(</span><span class="n">cls</span><span class="p">,</span> <span class="n">unit</span><span class="p">,</span> <span class="n">detailed_exception</span><span class="o">=</span><span class="kc">True</span><span class="p">):</span>
+        <span class="k">if</span> <span class="n">unit</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">cls</span><span class="o">.</span><span class="n">_units</span><span class="p">:</span>
+            <span class="k">if</span> <span class="n">detailed_exception</span><span class="p">:</span>
+                <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
+                    <span class="s2">&quot;Unit &#39;</span><span class="si">{0}</span><span class="s2">&#39; not supported by the FITS standard. </span><span class="si">{1}</span><span class="s2">&quot;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span>
+                        <span class="n">unit</span><span class="p">,</span> <span class="n">utils</span><span class="o">.</span><span class="n">did_you_mean_units</span><span class="p">(</span>
+                            <span class="n">unit</span><span class="p">,</span> <span class="n">cls</span><span class="o">.</span><span class="n">_units</span><span class="p">,</span> <span class="n">cls</span><span class="o">.</span><span class="n">_deprecated_units</span><span class="p">,</span>
+                            <span class="n">cls</span><span class="o">.</span><span class="n">_to_decomposed_alternative</span><span class="p">)))</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">()</span>
+
+        <span class="k">if</span> <span class="n">unit</span> <span class="ow">in</span> <span class="n">cls</span><span class="o">.</span><span class="n">_deprecated_units</span><span class="p">:</span>
+            <span class="n">utils</span><span class="o">.</span><span class="n">unit_deprecation_warning</span><span class="p">(</span>
+                <span class="n">unit</span><span class="p">,</span> <span class="n">cls</span><span class="o">.</span><span class="n">_units</span><span class="p">[</span><span class="n">unit</span><span class="p">],</span> <span class="s1">&#39;FITS&#39;</span><span class="p">,</span>
+                <span class="n">cls</span><span class="o">.</span><span class="n">_to_decomposed_alternative</span><span class="p">)</span>
+
+    <span class="nd">@classmethod</span>
+    <span class="k">def</span> <span class="nf">_parse_unit</span><span class="p">(</span><span class="n">cls</span><span class="p">,</span> <span class="n">unit</span><span class="p">,</span> <span class="n">detailed_exception</span><span class="o">=</span><span class="kc">True</span><span class="p">):</span>
+        <span class="n">cls</span><span class="o">.</span><span class="n">_validate_unit</span><span class="p">(</span><span class="n">unit</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">cls</span><span class="o">.</span><span class="n">_units</span><span class="p">[</span><span class="n">unit</span><span class="p">]</span>
+
+    <span class="nd">@classmethod</span>
+    <span class="k">def</span> <span class="nf">_get_unit_name</span><span class="p">(</span><span class="n">cls</span><span class="p">,</span> <span class="n">unit</span><span class="p">):</span>
+        <span class="n">name</span> <span class="o">=</span> <span class="n">unit</span><span class="o">.</span><span class="n">get_format_name</span><span class="p">(</span><span class="s1">&#39;fits&#39;</span><span class="p">)</span>
+        <span class="n">cls</span><span class="o">.</span><span class="n">_validate_unit</span><span class="p">(</span><span class="n">name</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">name</span>
+
+    <span class="nd">@classmethod</span>
+<div class="viewcode-block" id="Fits.to_string"><a class="viewcode-back" href="../../../../api/astropy.units.format.Fits.html#astropy.units.format.Fits.to_string">[docs]</a>    <span class="k">def</span> <span class="nf">to_string</span><span class="p">(</span><span class="n">cls</span><span class="p">,</span> <span class="n">unit</span><span class="p">):</span>
+        <span class="c1"># Remove units that aren&#39;t known to the format</span>
+        <span class="n">unit</span> <span class="o">=</span> <span class="n">utils</span><span class="o">.</span><span class="n">decompose_to_known_units</span><span class="p">(</span><span class="n">unit</span><span class="p">,</span> <span class="n">cls</span><span class="o">.</span><span class="n">_get_unit_name</span><span class="p">)</span>
+
+        <span class="n">parts</span> <span class="o">=</span> <span class="p">[]</span>
+
+        <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">unit</span><span class="p">,</span> <span class="n">core</span><span class="o">.</span><span class="n">CompositeUnit</span><span class="p">):</span>
+            <span class="n">base</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">log10</span><span class="p">(</span><span class="n">unit</span><span class="o">.</span><span class="n">scale</span><span class="p">)</span>
+
+            <span class="k">if</span> <span class="n">base</span> <span class="o">%</span> <span class="mf">1.0</span> <span class="o">!=</span> <span class="mf">0.0</span><span class="p">:</span>
+                <span class="k">raise</span> <span class="n">core</span><span class="o">.</span><span class="n">UnitScaleError</span><span class="p">(</span>
+                    <span class="s2">&quot;The FITS unit format is not able to represent scales &quot;</span>
+                    <span class="s2">&quot;that are not powers of 10.  Multiply your data by &quot;</span>
+                    <span class="s2">&quot;</span><span class="si">{0:e}</span><span class="s2">.&quot;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">unit</span><span class="o">.</span><span class="n">scale</span><span class="p">))</span>
+            <span class="k">elif</span> <span class="n">unit</span><span class="o">.</span><span class="n">scale</span> <span class="o">!=</span> <span class="mf">1.0</span><span class="p">:</span>
+                <span class="n">parts</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="s1">&#39;10**</span><span class="si">{0}</span><span class="s1">&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="nb">int</span><span class="p">(</span><span class="n">base</span><span class="p">)))</span>
+
+            <span class="n">pairs</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="nb">zip</span><span class="p">(</span><span class="n">unit</span><span class="o">.</span><span class="n">bases</span><span class="p">,</span> <span class="n">unit</span><span class="o">.</span><span class="n">powers</span><span class="p">))</span>
+            <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">pairs</span><span class="p">):</span>
+                <span class="n">pairs</span><span class="o">.</span><span class="n">sort</span><span class="p">(</span><span class="n">key</span><span class="o">=</span><span class="n">operator</span><span class="o">.</span><span class="n">itemgetter</span><span class="p">(</span><span class="mi">1</span><span class="p">),</span> <span class="n">reverse</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+                <span class="n">parts</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">cls</span><span class="o">.</span><span class="n">_format_unit_list</span><span class="p">(</span><span class="n">pairs</span><span class="p">))</span>
+
+            <span class="n">s</span> <span class="o">=</span> <span class="s1">&#39; &#39;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">parts</span><span class="p">)</span>
+        <span class="k">elif</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">unit</span><span class="p">,</span> <span class="n">core</span><span class="o">.</span><span class="n">NamedUnit</span><span class="p">):</span>
+            <span class="n">s</span> <span class="o">=</span> <span class="n">cls</span><span class="o">.</span><span class="n">_get_unit_name</span><span class="p">(</span><span class="n">unit</span><span class="p">)</span>
+
+        <span class="k">return</span> <span class="n">s</span></div>
+
+    <span class="nd">@classmethod</span>
+    <span class="k">def</span> <span class="nf">_to_decomposed_alternative</span><span class="p">(</span><span class="n">cls</span><span class="p">,</span> <span class="n">unit</span><span class="p">):</span>
+        <span class="k">try</span><span class="p">:</span>
+            <span class="n">s</span> <span class="o">=</span> <span class="n">cls</span><span class="o">.</span><span class="n">to_string</span><span class="p">(</span><span class="n">unit</span><span class="p">)</span>
+        <span class="k">except</span> <span class="n">core</span><span class="o">.</span><span class="n">UnitScaleError</span><span class="p">:</span>
+            <span class="n">scale</span> <span class="o">=</span> <span class="n">unit</span><span class="o">.</span><span class="n">scale</span>
+            <span class="n">unit</span> <span class="o">=</span> <span class="n">copy</span><span class="o">.</span><span class="n">copy</span><span class="p">(</span><span class="n">unit</span><span class="p">)</span>
+            <span class="n">unit</span><span class="o">.</span><span class="n">_scale</span> <span class="o">=</span> <span class="mf">1.0</span>
+            <span class="k">return</span> <span class="s1">&#39;</span><span class="si">{0}</span><span class="s1"> (with data multiplied by </span><span class="si">{1}</span><span class="s1">)&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span>
+                <span class="n">cls</span><span class="o">.</span><span class="n">to_string</span><span class="p">(</span><span class="n">unit</span><span class="p">),</span> <span class="n">scale</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">s</span>
+
+    <span class="nd">@classmethod</span>
+<div class="viewcode-block" id="Fits.parse"><a class="viewcode-back" href="../../../../api/astropy.units.format.Fits.html#astropy.units.format.Fits.parse">[docs]</a>    <span class="k">def</span> <span class="nf">parse</span><span class="p">(</span><span class="n">cls</span><span class="p">,</span> <span class="n">s</span><span class="p">,</span> <span class="n">debug</span><span class="o">=</span><span class="kc">False</span><span class="p">):</span>
+        <span class="n">result</span> <span class="o">=</span> <span class="nb">super</span><span class="p">(</span><span class="n">Fits</span><span class="p">,</span> <span class="n">cls</span><span class="p">)</span><span class="o">.</span><span class="n">parse</span><span class="p">(</span><span class="n">s</span><span class="p">,</span> <span class="n">debug</span><span class="p">)</span>
+        <span class="k">if</span> <span class="nb">hasattr</span><span class="p">(</span><span class="n">result</span><span class="p">,</span> <span class="s1">&#39;function_unit&#39;</span><span class="p">):</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;Function units are not yet supported for &quot;</span>
+                             <span class="s2">&quot;FITS units.&quot;</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">result</span></div></div>
+</pre></div>
+
+          </div>
+        </div>
+      </div>
+      <div class="sphinxsidebar" role="navigation" aria-label="main navigation">
+        <div class="sphinxsidebarwrapper"><h3>Page Contents</h3>
+
+
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+<footer class="footer">
+  <p class="pull-right"> &nbsp;
+    <a href="#">Back to Top</a></p>
+  <p>
+    &copy; Copyright 2011-2016, The Astropy Developers.<br/>
+    Created using <a href="http://sphinx.pocoo.org/">Sphinx</a> 1.5.6. &nbsp;
+    Last built 05 Jul 2017. <br/>
+  </p>
+</footer>
+  </body>
+</html>

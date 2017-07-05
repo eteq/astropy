@@ -1,0 +1,252 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <head>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    
+    <title>astropy.io.ascii.sextractor &#8212; Astropy v3.0.dev19489</title>
+    
+    <link rel="stylesheet" href="../../../../_static/bootstrap-astropy.css" type="text/css" />
+    <link rel="stylesheet" href="../../../../_static/pygments.css" type="text/css" />
+    <link rel="stylesheet" href="../../../../_static/gallery.css" type="text/css" />
+    
+    <script type="text/javascript">
+      var DOCUMENTATION_OPTIONS = {
+        URL_ROOT:    '../../../../',
+        VERSION:     '3.0.dev19489',
+        COLLAPSE_INDEX: false,
+        FILE_SUFFIX: '.html',
+        HAS_SOURCE:  true,
+        SOURCELINK_SUFFIX: '.txt'
+      };
+    </script>
+    <script type="text/javascript" src="../../../../_static/jquery.js"></script>
+    <script type="text/javascript" src="../../../../_static/underscore.js"></script>
+    <script type="text/javascript" src="../../../../_static/doctools.js"></script>
+    <script type="text/javascript" src="../../../../_static/sidebar.js"></script>
+    <link rel="shortcut icon" href="../../../../_static/astropy_logo.ico"/>
+    <link rel="index" title="Index" href="../../../../genindex.html" />
+    <link rel="search" title="Search" href="../../../../search.html" />
+<link href='https://fonts.googleapis.com/css?family=Source+Sans+Pro:200,600' rel='stylesheet' type='text/css'/>
+<script type="text/javascript" src="../../../../_static/copybutton.js"></script>
+
+
+  </head>
+  <body role="document">
+<div class="topbar">
+  <a class="brand" title="Documentation Home" href="../../../../index.html"><span id="logotext1">astro</span><span id="logotext2">py</span><span id="logotext3">:docs</span></a>
+  <ul>
+    <li><a class="homelink" title="Astropy Homepage" href="http://www.astropy.org"></a></li>
+    <li><a title="General Index" href="../../../../genindex.html">Index</a></li>
+    <li><a title="Module Index" href="../../../../py-modindex.html">Modules</a></li>
+    <li>
+      
+      
+<form action="../../../../search.html" method="get">
+  <input type="text" name="q" placeholder="Search" />
+  <input type="hidden" name="check_keywords" value="yes" />
+  <input type="hidden" name="area" value="default" />
+</form>
+      
+    </li>
+  </ul>
+</div>
+
+<div class="related">
+    <h3>Navigation</h3>
+    <ul>
+      <li>
+	<a href="../../../../index.html">Astropy v3.0.dev19489</a>
+	 &#187;
+      </li>
+      <li><a href="../../../index.html" >Module code</a> &#187;</li>
+      <li><a href="../../../astropy.html" accesskey="U">astropy</a> &#187;</li>
+      
+       
+    </ul>
+</div>
+  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          <div class="body" role="main">
+            
+  <h1>Source code for astropy.io.ascii.sextractor</h1><div class="highlight"><pre>
+<span></span><span class="c1"># Licensed under a 3-clause BSD style license - see LICENSE.rst</span>
+<span class="sd">&quot;&quot;&quot; sextractor.py:</span>
+<span class="sd">  Classes to read SExtractor table format</span>
+
+<span class="sd">Built on daophot.py:</span>
+<span class="sd">:Copyright: Smithsonian Astrophysical Observatory (2011)</span>
+<span class="sd">:Author: Tom Aldcroft (aldcroft@head.cfa.harvard.edu)</span>
+<span class="sd">&quot;&quot;&quot;</span>
+
+<span class="kn">from</span> <span class="nn">__future__</span> <span class="k">import</span> <span class="n">absolute_import</span><span class="p">,</span> <span class="n">division</span><span class="p">,</span> <span class="n">print_function</span>
+
+<span class="kn">import</span> <span class="nn">re</span>
+
+<span class="kn">from</span> <span class="nn">.</span> <span class="k">import</span> <span class="n">core</span>
+<span class="kn">from</span> <span class="nn">...extern.six.moves</span> <span class="k">import</span> <span class="nb">range</span>
+
+
+<span class="k">class</span> <span class="nc">SExtractorHeader</span><span class="p">(</span><span class="n">core</span><span class="o">.</span><span class="n">BaseHeader</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;Read the header from a file produced by SExtractor.&quot;&quot;&quot;</span>
+    <span class="n">comment</span> <span class="o">=</span> <span class="s1">r&#39;^\s*#\s*\S\D.*&#39;</span>  <span class="c1"># Find lines that don&#39;t have &quot;# digit&quot;</span>
+
+    <span class="k">def</span> <span class="nf">get_cols</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">lines</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Initialize the header Column objects from the table ``lines`` for a SExtractor</span>
+<span class="sd">        header.  The SExtractor header is specialized so that we just copy the entire BaseHeader</span>
+<span class="sd">        get_cols routine and modify as needed.</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        lines : list</span>
+<span class="sd">            List of table lines</span>
+
+<span class="sd">        &quot;&quot;&quot;</span>
+
+        <span class="c1"># This assumes that the columns are listed in order, one per line with a</span>
+        <span class="c1"># header comment string of the format: &quot;# 1 ID short description [unit]&quot;</span>
+        <span class="c1"># However, some may be missing and must be inferred from skipped column numbers</span>
+        <span class="n">columns</span> <span class="o">=</span> <span class="p">{}</span>
+        <span class="c1"># E.g. &#39;# 1 ID identification number&#39; (without units) or &#39;# 2 MAGERR magnitude of error [mag]&#39;</span>
+        <span class="c1"># Updated along with issue #4603, for more robust parsing of unit</span>
+        <span class="n">re_name_def</span> <span class="o">=</span> <span class="n">re</span><span class="o">.</span><span class="n">compile</span><span class="p">(</span><span class="s2">r&quot;&quot;&quot;^\s* \# \s*             # possible whitespace around #</span>
+<span class="s2">                                 (?P&lt;colnumber&gt; [0-9]+)\s+   # number of the column in table</span>
+<span class="s2">                                 (?P&lt;colname&gt; [-\w]+)        # name of the column</span>
+<span class="s2">                                 (?:\s+(?P&lt;coldescr&gt; \w .+)  # column description, match any character until...</span>
+<span class="s2">                                 (?:(?&lt;!(\]))$|(?=(?:(?&lt;=\S)\s+\[.+\]))))?  # ...until [non-space][space][unit] or [not-right-bracket][end]</span>
+<span class="s2">                                 (?:\s*\[(?P&lt;colunit&gt;.+)\])?.* # match units in brackets</span>
+<span class="s2">                                 &quot;&quot;&quot;</span><span class="p">,</span> <span class="n">re</span><span class="o">.</span><span class="n">VERBOSE</span><span class="p">)</span>
+        <span class="n">dataline</span> <span class="o">=</span> <span class="kc">None</span>
+        <span class="k">for</span> <span class="n">line</span> <span class="ow">in</span> <span class="n">lines</span><span class="p">:</span>
+            <span class="k">if</span> <span class="ow">not</span> <span class="n">line</span><span class="o">.</span><span class="n">startswith</span><span class="p">(</span><span class="s1">&#39;#&#39;</span><span class="p">):</span>
+                <span class="n">dataline</span> <span class="o">=</span> <span class="n">line</span>  <span class="c1"># save for later to infer the actual number of columns</span>
+                <span class="k">break</span>                   <span class="c1"># End of header lines</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="n">match</span> <span class="o">=</span> <span class="n">re_name_def</span><span class="o">.</span><span class="n">search</span><span class="p">(</span><span class="n">line</span><span class="p">)</span>
+                <span class="k">if</span> <span class="n">match</span><span class="p">:</span>
+                    <span class="n">colnumber</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="n">match</span><span class="o">.</span><span class="n">group</span><span class="p">(</span><span class="s1">&#39;colnumber&#39;</span><span class="p">))</span>
+                    <span class="n">colname</span> <span class="o">=</span> <span class="n">match</span><span class="o">.</span><span class="n">group</span><span class="p">(</span><span class="s1">&#39;colname&#39;</span><span class="p">)</span>
+                    <span class="n">coldescr</span> <span class="o">=</span> <span class="n">match</span><span class="o">.</span><span class="n">group</span><span class="p">(</span><span class="s1">&#39;coldescr&#39;</span><span class="p">)</span>
+                    <span class="n">colunit</span> <span class="o">=</span> <span class="n">match</span><span class="o">.</span><span class="n">group</span><span class="p">(</span><span class="s1">&#39;colunit&#39;</span><span class="p">)</span>  <span class="c1"># If no units are given, colunit = None</span>
+                    <span class="n">columns</span><span class="p">[</span><span class="n">colnumber</span><span class="p">]</span> <span class="o">=</span> <span class="p">(</span><span class="n">colname</span><span class="p">,</span> <span class="n">coldescr</span><span class="p">,</span> <span class="n">colunit</span><span class="p">)</span>
+        <span class="c1"># Handle skipped column numbers</span>
+        <span class="n">colnumbers</span> <span class="o">=</span> <span class="nb">sorted</span><span class="p">(</span><span class="n">columns</span><span class="p">)</span>
+        <span class="c1"># Handle the case where the last column is array-like by append a pseudo column</span>
+        <span class="c1"># If there are more data columns than the largest column number</span>
+        <span class="c1"># then add a pseudo-column that will be dropped later.  This allows</span>
+        <span class="c1"># the array column logic below to work in all cases.</span>
+        <span class="k">if</span> <span class="n">dataline</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">n_data_cols</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="n">dataline</span><span class="o">.</span><span class="n">split</span><span class="p">())</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">n_data_cols</span> <span class="o">=</span> <span class="n">colnumbers</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span>  <span class="c1"># handles no data, where we have to rely on the last column number</span>
+        <span class="c1"># sextractor column number start at 1.</span>
+        <span class="n">columns</span><span class="p">[</span><span class="n">n_data_cols</span> <span class="o">+</span> <span class="mi">1</span><span class="p">]</span> <span class="o">=</span> <span class="p">(</span><span class="kc">None</span><span class="p">,</span> <span class="kc">None</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span>
+        <span class="n">colnumbers</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">n_data_cols</span> <span class="o">+</span> <span class="mi">1</span><span class="p">)</span>
+        <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">columns</span><span class="p">)</span> <span class="o">&gt;</span> <span class="mi">1</span><span class="p">:</span>  <span class="c1"># only fill in skipped columns when there is genuine column initially</span>
+            <span class="n">previous_column</span> <span class="o">=</span> <span class="mi">0</span>
+            <span class="k">for</span> <span class="n">n</span> <span class="ow">in</span> <span class="n">colnumbers</span><span class="p">:</span>
+                <span class="k">if</span> <span class="n">n</span> <span class="o">!=</span> <span class="n">previous_column</span> <span class="o">+</span> <span class="mi">1</span><span class="p">:</span>
+                    <span class="k">for</span> <span class="n">c</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">previous_column</span><span class="o">+</span><span class="mi">1</span><span class="p">,</span> <span class="n">n</span><span class="p">):</span>
+                        <span class="n">column_name</span> <span class="o">=</span> <span class="n">columns</span><span class="p">[</span><span class="n">previous_column</span><span class="p">][</span><span class="mi">0</span><span class="p">]</span><span class="o">+</span><span class="s2">&quot;_</span><span class="si">{}</span><span class="s2">&quot;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">c</span><span class="o">-</span><span class="n">previous_column</span><span class="p">)</span>
+                        <span class="n">column_descr</span> <span class="o">=</span> <span class="n">columns</span><span class="p">[</span><span class="n">previous_column</span><span class="p">][</span><span class="mi">1</span><span class="p">]</span>
+                        <span class="n">column_unit</span> <span class="o">=</span> <span class="n">columns</span><span class="p">[</span><span class="n">previous_column</span><span class="p">][</span><span class="mi">2</span><span class="p">]</span>
+                        <span class="n">columns</span><span class="p">[</span><span class="n">c</span><span class="p">]</span> <span class="o">=</span> <span class="p">(</span><span class="n">column_name</span><span class="p">,</span> <span class="n">column_descr</span><span class="p">,</span> <span class="n">column_unit</span><span class="p">)</span>
+                <span class="n">previous_column</span> <span class="o">=</span> <span class="n">n</span>
+        <span class="c1"># Add the columns in order to self.names</span>
+        <span class="n">colnumbers</span> <span class="o">=</span> <span class="nb">sorted</span><span class="p">(</span><span class="n">columns</span><span class="p">)[:</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span>  <span class="c1"># drop the pseudo column</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">names</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="k">for</span> <span class="n">n</span> <span class="ow">in</span> <span class="n">colnumbers</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">names</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">columns</span><span class="p">[</span><span class="n">n</span><span class="p">][</span><span class="mi">0</span><span class="p">])</span>
+
+        <span class="k">if</span> <span class="ow">not</span> <span class="bp">self</span><span class="o">.</span><span class="n">names</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="n">core</span><span class="o">.</span><span class="n">InconsistentTableError</span><span class="p">(</span><span class="s1">&#39;No column names found in SExtractor header&#39;</span><span class="p">)</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">cols</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="k">for</span> <span class="n">n</span> <span class="ow">in</span> <span class="n">colnumbers</span><span class="p">:</span>
+            <span class="n">col</span> <span class="o">=</span> <span class="n">core</span><span class="o">.</span><span class="n">Column</span><span class="p">(</span><span class="n">name</span><span class="o">=</span><span class="n">columns</span><span class="p">[</span><span class="n">n</span><span class="p">][</span><span class="mi">0</span><span class="p">])</span>
+            <span class="n">col</span><span class="o">.</span><span class="n">description</span> <span class="o">=</span> <span class="n">columns</span><span class="p">[</span><span class="n">n</span><span class="p">][</span><span class="mi">1</span><span class="p">]</span>
+            <span class="n">col</span><span class="o">.</span><span class="n">unit</span> <span class="o">=</span> <span class="n">columns</span><span class="p">[</span><span class="n">n</span><span class="p">][</span><span class="mi">2</span><span class="p">]</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">cols</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">col</span><span class="p">)</span>
+
+
+<span class="k">class</span> <span class="nc">SExtractorData</span><span class="p">(</span><span class="n">core</span><span class="o">.</span><span class="n">BaseData</span><span class="p">):</span>
+    <span class="n">start_line</span> <span class="o">=</span> <span class="mi">0</span>
+    <span class="n">delimiter</span> <span class="o">=</span> <span class="s1">&#39; &#39;</span>
+    <span class="n">comment</span> <span class="o">=</span> <span class="s1">r&#39;\s*#&#39;</span>
+
+
+<div class="viewcode-block" id="SExtractor"><a class="viewcode-back" href="../../../../api/astropy.io.ascii.SExtractor.html#astropy.io.ascii.SExtractor">[docs]</a><span class="k">class</span> <span class="nc">SExtractor</span><span class="p">(</span><span class="n">core</span><span class="o">.</span><span class="n">BaseReader</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;Read a SExtractor file.</span>
+<span class="sd">       SExtractor is a package for faint-galaxy photometry.</span>
+<span class="sd">       Bertin &amp; Arnouts 1996, A&amp;A Supp. 317, 393.</span>
+<span class="sd">       http://www.astromatic.net/software/sextractor</span>
+
+<span class="sd">    Example::</span>
+
+<span class="sd">      # 1 NUMBER</span>
+<span class="sd">      # 2 ALPHA_J2000</span>
+<span class="sd">      # 3 DELTA_J2000</span>
+<span class="sd">      # 4 FLUX_RADIUS</span>
+<span class="sd">      # 7 MAG_AUTO [mag]</span>
+<span class="sd">      # 8 X2_IMAGE Variance along x [pixel**2]</span>
+<span class="sd">      # 9 X_MAMA Barycenter position along MAMA x axis [m**(-6)]</span>
+<span class="sd">      # 10 MU_MAX Peak surface brightness above background [mag * arcsec**(-2)]</span>
+<span class="sd">      1 32.23222 10.1211 0.8 1.2 1.4 18.1 1000.0 0.00304 -3.498</span>
+<span class="sd">      2 38.12321 -88.1321 2.2 2.4 3.1 17.0 1500.0 0.00908 1.401</span>
+
+<span class="sd">    Note the skipped numbers since flux_radius has 3 columns.  The three FLUX_RADIUS</span>
+<span class="sd">    columns will be named FLUX_RADIUS, FLUX_RADIUS_1, FLUX_RADIUS_2</span>
+<span class="sd">    Also note that a post-ID description (e.g. &quot;Variance along x&quot;) is</span>
+<span class="sd">    optional and that units may be specified at the end of a line in brackets.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">_format_name</span> <span class="o">=</span> <span class="s1">&#39;sextractor&#39;</span>
+    <span class="n">_io_registry_can_write</span> <span class="o">=</span> <span class="kc">False</span>
+    <span class="n">_description</span> <span class="o">=</span> <span class="s1">&#39;SExtractor format table&#39;</span>
+
+    <span class="n">header_class</span> <span class="o">=</span> <span class="n">SExtractorHeader</span>
+    <span class="n">data_class</span> <span class="o">=</span> <span class="n">SExtractorData</span>
+    <span class="n">inputter_class</span> <span class="o">=</span> <span class="n">core</span><span class="o">.</span><span class="n">ContinuationLinesInputter</span>
+
+<div class="viewcode-block" id="SExtractor.read"><a class="viewcode-back" href="../../../../api/astropy.io.ascii.SExtractor.html#astropy.io.ascii.SExtractor.read">[docs]</a>    <span class="k">def</span> <span class="nf">read</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">table</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Read input data (file-like object, filename, list of strings, or</span>
+<span class="sd">        single string) into a Table and return the result.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">out</span> <span class="o">=</span> <span class="nb">super</span><span class="p">(</span><span class="n">SExtractor</span><span class="p">,</span> <span class="bp">self</span><span class="p">)</span><span class="o">.</span><span class="n">read</span><span class="p">(</span><span class="n">table</span><span class="p">)</span>
+        <span class="c1"># remove the comments</span>
+        <span class="k">if</span> <span class="s1">&#39;comments&#39;</span> <span class="ow">in</span> <span class="n">out</span><span class="o">.</span><span class="n">meta</span><span class="p">:</span>
+            <span class="k">del</span> <span class="n">out</span><span class="o">.</span><span class="n">meta</span><span class="p">[</span><span class="s1">&#39;comments&#39;</span><span class="p">]</span>
+        <span class="k">return</span> <span class="n">out</span></div>
+
+<div class="viewcode-block" id="SExtractor.write"><a class="viewcode-back" href="../../../../api/astropy.io.ascii.SExtractor.html#astropy.io.ascii.SExtractor.write">[docs]</a>    <span class="k">def</span> <span class="nf">write</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">table</span><span class="p">):</span>
+        <span class="k">raise</span> <span class="ne">NotImplementedError</span></div></div>
+</pre></div>
+
+          </div>
+        </div>
+      </div>
+      <div class="sphinxsidebar" role="navigation" aria-label="main navigation">
+        <div class="sphinxsidebarwrapper"><h3>Page Contents</h3>
+
+
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+<footer class="footer">
+  <p class="pull-right"> &nbsp;
+    <a href="#">Back to Top</a></p>
+  <p>
+    &copy; Copyright 2011-2016, The Astropy Developers.<br/>
+    Created using <a href="http://sphinx.pocoo.org/">Sphinx</a> 1.5.6. &nbsp;
+    Last built 05 Jul 2017. <br/>
+  </p>
+</footer>
+  </body>
+</html>

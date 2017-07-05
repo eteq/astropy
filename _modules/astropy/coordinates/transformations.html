@@ -1,0 +1,1428 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <head>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    
+    <title>astropy.coordinates.transformations &#8212; Astropy v3.0.dev19489</title>
+    
+    <link rel="stylesheet" href="../../../_static/bootstrap-astropy.css" type="text/css" />
+    <link rel="stylesheet" href="../../../_static/pygments.css" type="text/css" />
+    <link rel="stylesheet" href="../../../_static/gallery.css" type="text/css" />
+    
+    <script type="text/javascript">
+      var DOCUMENTATION_OPTIONS = {
+        URL_ROOT:    '../../../',
+        VERSION:     '3.0.dev19489',
+        COLLAPSE_INDEX: false,
+        FILE_SUFFIX: '.html',
+        HAS_SOURCE:  true,
+        SOURCELINK_SUFFIX: '.txt'
+      };
+    </script>
+    <script type="text/javascript" src="../../../_static/jquery.js"></script>
+    <script type="text/javascript" src="../../../_static/underscore.js"></script>
+    <script type="text/javascript" src="../../../_static/doctools.js"></script>
+    <script type="text/javascript" src="../../../_static/sidebar.js"></script>
+    <link rel="shortcut icon" href="../../../_static/astropy_logo.ico"/>
+    <link rel="index" title="Index" href="../../../genindex.html" />
+    <link rel="search" title="Search" href="../../../search.html" />
+<link href='https://fonts.googleapis.com/css?family=Source+Sans+Pro:200,600' rel='stylesheet' type='text/css'/>
+<script type="text/javascript" src="../../../_static/copybutton.js"></script>
+
+
+  </head>
+  <body role="document">
+<div class="topbar">
+  <a class="brand" title="Documentation Home" href="../../../index.html"><span id="logotext1">astro</span><span id="logotext2">py</span><span id="logotext3">:docs</span></a>
+  <ul>
+    <li><a class="homelink" title="Astropy Homepage" href="http://www.astropy.org"></a></li>
+    <li><a title="General Index" href="../../../genindex.html">Index</a></li>
+    <li><a title="Module Index" href="../../../py-modindex.html">Modules</a></li>
+    <li>
+      
+      
+<form action="../../../search.html" method="get">
+  <input type="text" name="q" placeholder="Search" />
+  <input type="hidden" name="check_keywords" value="yes" />
+  <input type="hidden" name="area" value="default" />
+</form>
+      
+    </li>
+  </ul>
+</div>
+
+<div class="related">
+    <h3>Navigation</h3>
+    <ul>
+      <li>
+	<a href="../../../index.html">Astropy v3.0.dev19489</a>
+	 &#187;
+      </li>
+      <li><a href="../../index.html" >Module code</a> &#187;</li>
+      <li><a href="../../astropy.html" accesskey="U">astropy</a> &#187;</li>
+      
+       
+    </ul>
+</div>
+  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          <div class="body" role="main">
+            
+  <h1>Source code for astropy.coordinates.transformations</h1><div class="highlight"><pre>
+<span></span><span class="c1"># Licensed under a 3-clause BSD style license - see LICENSE.rst</span>
+
+<span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">This module contains a general framework for defining graphs of transformations</span>
+<span class="sd">between coordinates, suitable for either spatial coordinates or more generalized</span>
+<span class="sd">coordinate systems.</span>
+
+<span class="sd">The fundamental idea is that each class is a node in the transformation graph,</span>
+<span class="sd">and transitions from one node to another are defined as functions (or methods)</span>
+<span class="sd">wrapped in transformation objects.</span>
+
+<span class="sd">This module also includes more specific transformation classes for</span>
+<span class="sd">celestial/spatial coordinate frames, generally focused around matrix-style</span>
+<span class="sd">transformations that are typically how the algorithms are defined.</span>
+<span class="sd">&quot;&quot;&quot;</span>
+
+<span class="kn">from</span> <span class="nn">__future__</span> <span class="k">import</span> <span class="p">(</span><span class="n">absolute_import</span><span class="p">,</span> <span class="n">division</span><span class="p">,</span> <span class="n">print_function</span><span class="p">,</span>
+                        <span class="n">unicode_literals</span><span class="p">)</span>
+
+<span class="kn">import</span> <span class="nn">heapq</span>
+<span class="kn">import</span> <span class="nn">inspect</span>
+<span class="kn">import</span> <span class="nn">subprocess</span>
+<span class="kn">from</span> <span class="nn">warnings</span> <span class="k">import</span> <span class="n">warn</span>
+
+<span class="kn">from</span> <span class="nn">abc</span> <span class="k">import</span> <span class="n">ABCMeta</span><span class="p">,</span> <span class="n">abstractmethod</span>
+<span class="kn">from</span> <span class="nn">collections</span> <span class="k">import</span> <span class="n">defaultdict</span><span class="p">,</span> <span class="n">OrderedDict</span>
+
+<span class="kn">import</span> <span class="nn">numpy</span> <span class="k">as</span> <span class="nn">np</span>
+
+<span class="kn">from</span> <span class="nn">..</span> <span class="k">import</span> <span class="n">units</span> <span class="k">as</span> <span class="n">u</span>
+<span class="kn">from</span> <span class="nn">..utils.compat</span> <span class="k">import</span> <span class="n">suppress</span>
+<span class="kn">from</span> <span class="nn">..utils.compat.funcsigs</span> <span class="k">import</span> <span class="n">signature</span>
+<span class="kn">from</span> <span class="nn">..utils.exceptions</span> <span class="k">import</span> <span class="n">AstropyWarning</span>
+<span class="kn">from</span> <span class="nn">..extern</span> <span class="k">import</span> <span class="n">six</span>
+<span class="kn">from</span> <span class="nn">..extern.six.moves</span> <span class="k">import</span> <span class="nb">range</span>
+
+<span class="kn">from</span> <span class="nn">.representation</span> <span class="k">import</span> <span class="n">REPRESENTATION_CLASSES</span>
+
+<span class="n">__all__</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;TransformGraph&#39;</span><span class="p">,</span> <span class="s1">&#39;CoordinateTransform&#39;</span><span class="p">,</span> <span class="s1">&#39;FunctionTransform&#39;</span><span class="p">,</span>
+           <span class="s1">&#39;BaseAffineTransform&#39;</span><span class="p">,</span> <span class="s1">&#39;AffineTransform&#39;</span><span class="p">,</span>
+           <span class="s1">&#39;StaticMatrixTransform&#39;</span><span class="p">,</span> <span class="s1">&#39;DynamicMatrixTransform&#39;</span><span class="p">,</span>
+           <span class="s1">&#39;FunctionTransformWithFiniteDifference&#39;</span><span class="p">,</span> <span class="s1">&#39;CompositeTransform&#39;</span><span class="p">]</span>
+
+
+<div class="viewcode-block" id="TransformGraph"><a class="viewcode-back" href="../../../api/astropy.coordinates.TransformGraph.html#astropy.coordinates.TransformGraph">[docs]</a><span class="k">class</span> <span class="nc">TransformGraph</span><span class="p">(</span><span class="nb">object</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    A graph representing the paths between coordinate frames.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_graph</span> <span class="o">=</span> <span class="n">defaultdict</span><span class="p">(</span><span class="nb">dict</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">invalidate_cache</span><span class="p">()</span>  <span class="c1"># generates cache entries</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">_cached_names</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_cached_names_dct</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_cached_names_dct</span> <span class="o">=</span> <span class="n">dct</span> <span class="o">=</span> <span class="p">{}</span>
+            <span class="k">for</span> <span class="n">c</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">frame_set</span><span class="p">:</span>
+                <span class="n">nm</span> <span class="o">=</span> <span class="nb">getattr</span><span class="p">(</span><span class="n">c</span><span class="p">,</span> <span class="s1">&#39;name&#39;</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span>
+                <span class="k">if</span> <span class="n">nm</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+                    <span class="n">dct</span><span class="p">[</span><span class="n">nm</span><span class="p">]</span> <span class="o">=</span> <span class="n">c</span>
+
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_cached_names_dct</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">frame_set</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        A `set` of all the frame classes present in this `TransformGraph`.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_cached_frame_set</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_cached_frame_set</span> <span class="o">=</span> <span class="n">frm_set</span> <span class="o">=</span> <span class="nb">set</span><span class="p">()</span>
+            <span class="k">for</span> <span class="n">a</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">_graph</span><span class="p">:</span>
+                <span class="n">frm_set</span><span class="o">.</span><span class="n">add</span><span class="p">(</span><span class="n">a</span><span class="p">)</span>
+                <span class="k">for</span> <span class="n">b</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">_graph</span><span class="p">[</span><span class="n">a</span><span class="p">]:</span>
+                    <span class="n">frm_set</span><span class="o">.</span><span class="n">add</span><span class="p">(</span><span class="n">b</span><span class="p">)</span>
+
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_cached_frame_set</span><span class="o">.</span><span class="n">copy</span><span class="p">()</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">frame_attributes</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        A `dict` of all the attributes of all frame classes in this `TransformGraph`.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_cached_frame_attributes</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">result</span> <span class="o">=</span> <span class="p">{}</span>
+            <span class="k">for</span> <span class="n">frame_cls</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">frame_set</span><span class="p">:</span>
+                <span class="n">result</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="n">frame_cls</span><span class="o">.</span><span class="n">frame_attributes</span><span class="p">)</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_cached_frame_attributes</span> <span class="o">=</span> <span class="n">result</span>
+
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_cached_frame_attributes</span>
+
+<div class="viewcode-block" id="TransformGraph.invalidate_cache"><a class="viewcode-back" href="../../../api/astropy.coordinates.TransformGraph.html#astropy.coordinates.TransformGraph.invalidate_cache">[docs]</a>    <span class="k">def</span> <span class="nf">invalidate_cache</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Invalidates the cache that stores optimizations for traversing the</span>
+<span class="sd">        transform graph.  This is called automatically when transforms</span>
+<span class="sd">        are added or removed, but will need to be called manually if</span>
+<span class="sd">        weights on transforms are modified inplace.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_cached_names_dct</span> <span class="o">=</span> <span class="kc">None</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_cached_frame_set</span> <span class="o">=</span> <span class="kc">None</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_cached_frame_attributes</span> <span class="o">=</span> <span class="kc">None</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_shortestpaths</span> <span class="o">=</span> <span class="p">{}</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_composite_cache</span> <span class="o">=</span> <span class="p">{}</span></div>
+
+<div class="viewcode-block" id="TransformGraph.add_transform"><a class="viewcode-back" href="../../../api/astropy.coordinates.TransformGraph.html#astropy.coordinates.TransformGraph.add_transform">[docs]</a>    <span class="k">def</span> <span class="nf">add_transform</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">fromsys</span><span class="p">,</span> <span class="n">tosys</span><span class="p">,</span> <span class="n">transform</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Add a new coordinate transformation to the graph.</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        fromsys : class</span>
+<span class="sd">            The coordinate frame class to start from.</span>
+<span class="sd">        tosys : class</span>
+<span class="sd">            The coordinate frame class to transform into.</span>
+<span class="sd">        transform : CoordinateTransform or similar callable</span>
+<span class="sd">            The transformation object. Typically a `CoordinateTransform` object,</span>
+<span class="sd">            although it may be some other callable that is called with the same</span>
+<span class="sd">            signature.</span>
+
+<span class="sd">        Raises</span>
+<span class="sd">        ------</span>
+<span class="sd">        TypeError</span>
+<span class="sd">            If ``fromsys`` or ``tosys`` are not classes or ``transform`` is</span>
+<span class="sd">            not callable.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">inspect</span><span class="o">.</span><span class="n">isclass</span><span class="p">(</span><span class="n">fromsys</span><span class="p">):</span>
+            <span class="k">raise</span> <span class="ne">TypeError</span><span class="p">(</span><span class="s1">&#39;fromsys must be a class&#39;</span><span class="p">)</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">inspect</span><span class="o">.</span><span class="n">isclass</span><span class="p">(</span><span class="n">tosys</span><span class="p">):</span>
+            <span class="k">raise</span> <span class="ne">TypeError</span><span class="p">(</span><span class="s1">&#39;tosys must be a class&#39;</span><span class="p">)</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">six</span><span class="o">.</span><span class="n">callable</span><span class="p">(</span><span class="n">transform</span><span class="p">):</span>
+            <span class="k">raise</span> <span class="ne">TypeError</span><span class="p">(</span><span class="s1">&#39;transform must be callable&#39;</span><span class="p">)</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">_graph</span><span class="p">[</span><span class="n">fromsys</span><span class="p">][</span><span class="n">tosys</span><span class="p">]</span> <span class="o">=</span> <span class="n">transform</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">invalidate_cache</span><span class="p">()</span></div>
+
+<div class="viewcode-block" id="TransformGraph.remove_transform"><a class="viewcode-back" href="../../../api/astropy.coordinates.TransformGraph.html#astropy.coordinates.TransformGraph.remove_transform">[docs]</a>    <span class="k">def</span> <span class="nf">remove_transform</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">fromsys</span><span class="p">,</span> <span class="n">tosys</span><span class="p">,</span> <span class="n">transform</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Removes a coordinate transform from the graph.</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        fromsys : class or `None`</span>
+<span class="sd">            The coordinate frame *class* to start from. If `None`,</span>
+<span class="sd">            ``transform`` will be searched for and removed (``tosys`` must</span>
+<span class="sd">            also be `None`).</span>
+<span class="sd">        tosys : class or `None`</span>
+<span class="sd">            The coordinate frame *class* to transform into. If `None`,</span>
+<span class="sd">            ``transform`` will be searched for and removed (``fromsys`` must</span>
+<span class="sd">            also be `None`).</span>
+<span class="sd">        transform : callable or `None`</span>
+<span class="sd">            The transformation object to be removed or `None`.  If `None`</span>
+<span class="sd">            and ``tosys`` and ``fromsys`` are supplied, there will be no</span>
+<span class="sd">            check to ensure the correct object is removed.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="n">fromsys</span> <span class="ow">is</span> <span class="kc">None</span> <span class="ow">or</span> <span class="n">tosys</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="k">if</span> <span class="ow">not</span> <span class="p">(</span><span class="n">tosys</span> <span class="ow">is</span> <span class="kc">None</span> <span class="ow">and</span> <span class="n">fromsys</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">):</span>
+                <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s1">&#39;fromsys and tosys must both be None if either are&#39;</span><span class="p">)</span>
+            <span class="k">if</span> <span class="n">transform</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+                <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s1">&#39;cannot give all Nones to remove_transform&#39;</span><span class="p">)</span>
+
+            <span class="c1"># search for the requested transform by brute force and remove it</span>
+            <span class="k">for</span> <span class="n">a</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">_graph</span><span class="p">:</span>
+                <span class="n">agraph</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_graph</span><span class="p">[</span><span class="n">a</span><span class="p">]</span>
+                <span class="k">for</span> <span class="n">b</span> <span class="ow">in</span> <span class="n">agraph</span><span class="p">:</span>
+                    <span class="k">if</span> <span class="n">b</span> <span class="ow">is</span> <span class="n">transform</span><span class="p">:</span>
+                        <span class="k">del</span> <span class="n">agraph</span><span class="p">[</span><span class="n">b</span><span class="p">]</span>
+                        <span class="k">break</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s1">&#39;Could not find transform </span><span class="si">{0}</span><span class="s1"> in the &#39;</span>
+                                 <span class="s1">&#39;graph&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">transform</span><span class="p">))</span>
+
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">if</span> <span class="n">transform</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">_graph</span><span class="p">[</span><span class="n">fromsys</span><span class="p">]</span><span class="o">.</span><span class="n">pop</span><span class="p">(</span><span class="n">tosys</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="n">curr</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_graph</span><span class="p">[</span><span class="n">fromsys</span><span class="p">]</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">tosys</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span>
+                <span class="k">if</span> <span class="n">curr</span> <span class="ow">is</span> <span class="n">transform</span><span class="p">:</span>
+                    <span class="bp">self</span><span class="o">.</span><span class="n">_graph</span><span class="p">[</span><span class="n">fromsys</span><span class="p">]</span><span class="o">.</span><span class="n">pop</span><span class="p">(</span><span class="n">tosys</span><span class="p">)</span>
+                <span class="k">else</span><span class="p">:</span>
+                    <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s1">&#39;Current transform from </span><span class="si">{0}</span><span class="s1"> to </span><span class="si">{1}</span><span class="s1"> is not &#39;</span>
+                                     <span class="s1">&#39;</span><span class="si">{2}</span><span class="s1">&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">fromsys</span><span class="p">,</span> <span class="n">tosys</span><span class="p">,</span> <span class="n">transform</span><span class="p">))</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">invalidate_cache</span><span class="p">()</span></div>
+
+<div class="viewcode-block" id="TransformGraph.find_shortest_path"><a class="viewcode-back" href="../../../api/astropy.coordinates.TransformGraph.html#astropy.coordinates.TransformGraph.find_shortest_path">[docs]</a>    <span class="k">def</span> <span class="nf">find_shortest_path</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">fromsys</span><span class="p">,</span> <span class="n">tosys</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Computes the shortest distance along the transform graph from</span>
+<span class="sd">        one system to another.</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        fromsys : class</span>
+<span class="sd">            The coordinate frame class to start from.</span>
+<span class="sd">        tosys : class</span>
+<span class="sd">            The coordinate frame class to transform into.</span>
+
+<span class="sd">        Returns</span>
+<span class="sd">        -------</span>
+<span class="sd">        path : list of classes or `None`</span>
+<span class="sd">            The path from ``fromsys`` to ``tosys`` as an in-order sequence</span>
+<span class="sd">            of classes.  This list includes *both* ``fromsys`` and</span>
+<span class="sd">            ``tosys``. Is `None` if there is no possible path.</span>
+<span class="sd">        distance : number</span>
+<span class="sd">            The total distance/priority from ``fromsys`` to ``tosys``.  If</span>
+<span class="sd">            priorities are not set this is the number of transforms</span>
+<span class="sd">            needed. Is ``inf`` if there is no possible path.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+
+        <span class="n">inf</span> <span class="o">=</span> <span class="nb">float</span><span class="p">(</span><span class="s1">&#39;inf&#39;</span><span class="p">)</span>
+
+        <span class="c1"># special-case the 0 or 1-path</span>
+        <span class="k">if</span> <span class="n">tosys</span> <span class="ow">is</span> <span class="n">fromsys</span><span class="p">:</span>
+            <span class="k">if</span> <span class="n">tosys</span> <span class="ow">not</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">_graph</span><span class="p">[</span><span class="n">fromsys</span><span class="p">]:</span>
+                <span class="c1"># Means there&#39;s no transform necessary to go from it to itself.</span>
+                <span class="k">return</span> <span class="p">[</span><span class="n">tosys</span><span class="p">],</span> <span class="mi">0</span>
+        <span class="k">if</span> <span class="n">tosys</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">_graph</span><span class="p">[</span><span class="n">fromsys</span><span class="p">]:</span>
+            <span class="c1"># this will also catch the case where tosys is fromsys, but has</span>
+            <span class="c1"># a defined transform.</span>
+            <span class="n">t</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_graph</span><span class="p">[</span><span class="n">fromsys</span><span class="p">][</span><span class="n">tosys</span><span class="p">]</span>
+            <span class="k">return</span> <span class="p">[</span><span class="n">fromsys</span><span class="p">,</span> <span class="n">tosys</span><span class="p">],</span> <span class="nb">float</span><span class="p">(</span><span class="n">t</span><span class="o">.</span><span class="n">priority</span> <span class="k">if</span> <span class="nb">hasattr</span><span class="p">(</span><span class="n">t</span><span class="p">,</span> <span class="s1">&#39;priority&#39;</span><span class="p">)</span> <span class="k">else</span> <span class="mi">1</span><span class="p">)</span>
+
+        <span class="c1"># otherwise, need to construct the path:</span>
+
+        <span class="k">if</span> <span class="n">fromsys</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">_shortestpaths</span><span class="p">:</span>
+            <span class="c1"># already have a cached result</span>
+            <span class="n">fpaths</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_shortestpaths</span><span class="p">[</span><span class="n">fromsys</span><span class="p">]</span>
+            <span class="k">if</span> <span class="n">tosys</span> <span class="ow">in</span> <span class="n">fpaths</span><span class="p">:</span>
+                <span class="k">return</span> <span class="n">fpaths</span><span class="p">[</span><span class="n">tosys</span><span class="p">]</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="k">return</span> <span class="kc">None</span><span class="p">,</span> <span class="n">inf</span>
+
+        <span class="c1"># use Dijkstra&#39;s algorithm to find shortest path in all other cases</span>
+
+        <span class="n">nodes</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="c1"># first make the list of nodes</span>
+        <span class="k">for</span> <span class="n">a</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">_graph</span><span class="p">:</span>
+            <span class="k">if</span> <span class="n">a</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">nodes</span><span class="p">:</span>
+                <span class="n">nodes</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">a</span><span class="p">)</span>
+            <span class="k">for</span> <span class="n">b</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">_graph</span><span class="p">[</span><span class="n">a</span><span class="p">]:</span>
+                <span class="k">if</span> <span class="n">b</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">nodes</span><span class="p">:</span>
+                    <span class="n">nodes</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">b</span><span class="p">)</span>
+
+        <span class="k">if</span> <span class="n">fromsys</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">nodes</span> <span class="ow">or</span> <span class="n">tosys</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">nodes</span><span class="p">:</span>
+            <span class="c1"># fromsys or tosys are isolated or not registered, so there&#39;s</span>
+            <span class="c1"># certainly no way to get from one to the other</span>
+            <span class="k">return</span> <span class="kc">None</span><span class="p">,</span> <span class="n">inf</span>
+
+        <span class="n">edgeweights</span> <span class="o">=</span> <span class="p">{}</span>
+        <span class="c1"># construct another graph that is a dict of dicts of priorities</span>
+        <span class="c1"># (used as edge weights in Dijkstra&#39;s algorithm)</span>
+        <span class="k">for</span> <span class="n">a</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">_graph</span><span class="p">:</span>
+            <span class="n">edgeweights</span><span class="p">[</span><span class="n">a</span><span class="p">]</span> <span class="o">=</span> <span class="n">aew</span> <span class="o">=</span> <span class="p">{}</span>
+            <span class="n">agraph</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_graph</span><span class="p">[</span><span class="n">a</span><span class="p">]</span>
+            <span class="k">for</span> <span class="n">b</span> <span class="ow">in</span> <span class="n">agraph</span><span class="p">:</span>
+                <span class="n">aew</span><span class="p">[</span><span class="n">b</span><span class="p">]</span> <span class="o">=</span> <span class="nb">float</span><span class="p">(</span><span class="n">agraph</span><span class="p">[</span><span class="n">b</span><span class="p">]</span><span class="o">.</span><span class="n">priority</span> <span class="k">if</span> <span class="nb">hasattr</span><span class="p">(</span><span class="n">agraph</span><span class="p">[</span><span class="n">b</span><span class="p">],</span> <span class="s1">&#39;priority&#39;</span><span class="p">)</span> <span class="k">else</span> <span class="mi">1</span><span class="p">)</span>
+
+        <span class="c1"># entries in q are [distance, count, nodeobj, pathlist]</span>
+        <span class="c1"># count is needed because in py 3.x, tie-breaking fails on the nodes.</span>
+        <span class="c1"># this way, insertion order is preserved if the weights are the same</span>
+        <span class="n">q</span> <span class="o">=</span> <span class="p">[[</span><span class="n">inf</span><span class="p">,</span> <span class="n">i</span><span class="p">,</span> <span class="n">n</span><span class="p">,</span> <span class="p">[]]</span> <span class="k">for</span> <span class="n">i</span><span class="p">,</span> <span class="n">n</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="n">nodes</span><span class="p">)</span> <span class="k">if</span> <span class="n">n</span> <span class="ow">is</span> <span class="ow">not</span> <span class="n">fromsys</span><span class="p">]</span>
+        <span class="n">q</span><span class="o">.</span><span class="n">insert</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="p">[</span><span class="mi">0</span><span class="p">,</span> <span class="o">-</span><span class="mi">1</span><span class="p">,</span> <span class="n">fromsys</span><span class="p">,</span> <span class="p">[]])</span>
+
+        <span class="c1"># this dict will store the distance to node from ``fromsys`` and the path</span>
+        <span class="n">result</span> <span class="o">=</span> <span class="p">{}</span>
+
+        <span class="c1"># definitely starts as a valid heap because of the insert line; from the</span>
+        <span class="c1"># node to itself is always the shortest distance</span>
+        <span class="k">while</span> <span class="nb">len</span><span class="p">(</span><span class="n">q</span><span class="p">)</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">:</span>
+            <span class="n">d</span><span class="p">,</span> <span class="n">orderi</span><span class="p">,</span> <span class="n">n</span><span class="p">,</span> <span class="n">path</span> <span class="o">=</span> <span class="n">heapq</span><span class="o">.</span><span class="n">heappop</span><span class="p">(</span><span class="n">q</span><span class="p">)</span>
+
+            <span class="k">if</span> <span class="n">d</span> <span class="o">==</span> <span class="n">inf</span><span class="p">:</span>
+                <span class="c1"># everything left is unreachable from fromsys, just copy them to</span>
+                <span class="c1"># the results and jump out of the loop</span>
+                <span class="n">result</span><span class="p">[</span><span class="n">n</span><span class="p">]</span> <span class="o">=</span> <span class="p">(</span><span class="kc">None</span><span class="p">,</span> <span class="n">d</span><span class="p">)</span>
+                <span class="k">for</span> <span class="n">d</span><span class="p">,</span> <span class="n">orderi</span><span class="p">,</span> <span class="n">n</span><span class="p">,</span> <span class="n">path</span> <span class="ow">in</span> <span class="n">q</span><span class="p">:</span>
+                    <span class="n">result</span><span class="p">[</span><span class="n">n</span><span class="p">]</span> <span class="o">=</span> <span class="p">(</span><span class="kc">None</span><span class="p">,</span> <span class="n">d</span><span class="p">)</span>
+                <span class="k">break</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="n">result</span><span class="p">[</span><span class="n">n</span><span class="p">]</span> <span class="o">=</span> <span class="p">(</span><span class="n">path</span><span class="p">,</span> <span class="n">d</span><span class="p">)</span>
+                <span class="n">path</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">n</span><span class="p">)</span>
+                <span class="k">if</span> <span class="n">n</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">edgeweights</span><span class="p">:</span>
+                    <span class="c1"># this is a system that can be transformed to, but not from.</span>
+                    <span class="k">continue</span>
+                <span class="k">for</span> <span class="n">n2</span> <span class="ow">in</span> <span class="n">edgeweights</span><span class="p">[</span><span class="n">n</span><span class="p">]:</span>
+                    <span class="k">if</span> <span class="n">n2</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">result</span><span class="p">:</span>  <span class="c1"># already visited</span>
+                        <span class="c1"># find where n2 is in the heap</span>
+                        <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">q</span><span class="p">)):</span>
+                            <span class="k">if</span> <span class="n">q</span><span class="p">[</span><span class="n">i</span><span class="p">][</span><span class="mi">2</span><span class="p">]</span> <span class="o">==</span> <span class="n">n2</span><span class="p">:</span>
+                                <span class="k">break</span>
+                        <span class="k">else</span><span class="p">:</span>
+                            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s1">&#39;n2 not in heap - this should be impossible!&#39;</span><span class="p">)</span>
+
+                        <span class="n">newd</span> <span class="o">=</span> <span class="n">d</span> <span class="o">+</span> <span class="n">edgeweights</span><span class="p">[</span><span class="n">n</span><span class="p">][</span><span class="n">n2</span><span class="p">]</span>
+                        <span class="k">if</span> <span class="n">newd</span> <span class="o">&lt;</span> <span class="n">q</span><span class="p">[</span><span class="n">i</span><span class="p">][</span><span class="mi">0</span><span class="p">]:</span>
+                            <span class="n">q</span><span class="p">[</span><span class="n">i</span><span class="p">][</span><span class="mi">0</span><span class="p">]</span> <span class="o">=</span> <span class="n">newd</span>
+                            <span class="n">q</span><span class="p">[</span><span class="n">i</span><span class="p">][</span><span class="mi">3</span><span class="p">]</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="n">path</span><span class="p">)</span>
+                            <span class="n">heapq</span><span class="o">.</span><span class="n">heapify</span><span class="p">(</span><span class="n">q</span><span class="p">)</span>
+
+        <span class="c1"># cache for later use</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_shortestpaths</span><span class="p">[</span><span class="n">fromsys</span><span class="p">]</span> <span class="o">=</span> <span class="n">result</span>
+        <span class="k">return</span> <span class="n">result</span><span class="p">[</span><span class="n">tosys</span><span class="p">]</span></div>
+
+<div class="viewcode-block" id="TransformGraph.get_transform"><a class="viewcode-back" href="../../../api/astropy.coordinates.TransformGraph.html#astropy.coordinates.TransformGraph.get_transform">[docs]</a>    <span class="k">def</span> <span class="nf">get_transform</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">fromsys</span><span class="p">,</span> <span class="n">tosys</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Generates and returns the `CompositeTransform` for a transformation</span>
+<span class="sd">        between two coordinate systems.</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        fromsys : class</span>
+<span class="sd">            The coordinate frame class to start from.</span>
+<span class="sd">        tosys : class</span>
+<span class="sd">            The coordinate frame class to transform into.</span>
+
+<span class="sd">        Returns</span>
+<span class="sd">        -------</span>
+<span class="sd">        trans : `CompositeTransform` or `None`</span>
+<span class="sd">            If there is a path from ``fromsys`` to ``tosys``, this is a</span>
+<span class="sd">            transform object for that path.   If no path could be found, this is</span>
+<span class="sd">            `None`.</span>
+
+<span class="sd">        Notes</span>
+<span class="sd">        -----</span>
+<span class="sd">        This function always returns a `CompositeTransform`, because</span>
+<span class="sd">        `CompositeTransform` is slightly more adaptable in the way it can be</span>
+<span class="sd">        called than other transform classes. Specifically, it takes care of</span>
+<span class="sd">        intermediate steps of transformations in a way that is consistent with</span>
+<span class="sd">        1-hop transformations.</span>
+
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">inspect</span><span class="o">.</span><span class="n">isclass</span><span class="p">(</span><span class="n">fromsys</span><span class="p">):</span>
+            <span class="k">raise</span> <span class="ne">TypeError</span><span class="p">(</span><span class="s1">&#39;fromsys is not a class&#39;</span><span class="p">)</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">inspect</span><span class="o">.</span><span class="n">isclass</span><span class="p">(</span><span class="n">tosys</span><span class="p">):</span>
+            <span class="k">raise</span> <span class="ne">TypeError</span><span class="p">(</span><span class="s1">&#39;tosys is not a class&#39;</span><span class="p">)</span>
+
+        <span class="n">path</span><span class="p">,</span> <span class="n">distance</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">find_shortest_path</span><span class="p">(</span><span class="n">fromsys</span><span class="p">,</span> <span class="n">tosys</span><span class="p">)</span>
+
+        <span class="k">if</span> <span class="n">path</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="k">return</span> <span class="kc">None</span>
+
+        <span class="n">transforms</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="n">currsys</span> <span class="o">=</span> <span class="n">fromsys</span>
+        <span class="k">for</span> <span class="n">p</span> <span class="ow">in</span> <span class="n">path</span><span class="p">[</span><span class="mi">1</span><span class="p">:]:</span>  <span class="c1"># first element is fromsys so we skip it</span>
+            <span class="n">transforms</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_graph</span><span class="p">[</span><span class="n">currsys</span><span class="p">][</span><span class="n">p</span><span class="p">])</span>
+            <span class="n">currsys</span> <span class="o">=</span> <span class="n">p</span>
+
+        <span class="n">fttuple</span> <span class="o">=</span> <span class="p">(</span><span class="n">fromsys</span><span class="p">,</span> <span class="n">tosys</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">fttuple</span> <span class="ow">not</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">_composite_cache</span><span class="p">:</span>
+            <span class="n">comptrans</span> <span class="o">=</span> <span class="n">CompositeTransform</span><span class="p">(</span><span class="n">transforms</span><span class="p">,</span> <span class="n">fromsys</span><span class="p">,</span> <span class="n">tosys</span><span class="p">,</span>
+                                           <span class="n">register_graph</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_composite_cache</span><span class="p">[</span><span class="n">fttuple</span><span class="p">]</span> <span class="o">=</span> <span class="n">comptrans</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_composite_cache</span><span class="p">[</span><span class="n">fttuple</span><span class="p">]</span></div>
+
+<div class="viewcode-block" id="TransformGraph.lookup_name"><a class="viewcode-back" href="../../../api/astropy.coordinates.TransformGraph.html#astropy.coordinates.TransformGraph.lookup_name">[docs]</a>    <span class="k">def</span> <span class="nf">lookup_name</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">name</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Tries to locate the coordinate class with the provided alias.</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        name : str</span>
+<span class="sd">            The alias to look up.</span>
+
+<span class="sd">        Returns</span>
+<span class="sd">        -------</span>
+<span class="sd">        coordcls</span>
+<span class="sd">            The coordinate class corresponding to the ``name`` or `None` if</span>
+<span class="sd">            no such class exists.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_cached_names</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">name</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span></div>
+
+<div class="viewcode-block" id="TransformGraph.get_names"><a class="viewcode-back" href="../../../api/astropy.coordinates.TransformGraph.html#astropy.coordinates.TransformGraph.get_names">[docs]</a>    <span class="k">def</span> <span class="nf">get_names</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Returns all available transform names. They will all be</span>
+<span class="sd">        valid arguments to `lookup_name`.</span>
+
+<span class="sd">        Returns</span>
+<span class="sd">        -------</span>
+<span class="sd">        nms : list</span>
+<span class="sd">            The aliases for coordinate systems.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="nb">list</span><span class="p">(</span><span class="n">six</span><span class="o">.</span><span class="n">iterkeys</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_cached_names</span><span class="p">))</span></div>
+
+<div class="viewcode-block" id="TransformGraph.to_dot_graph"><a class="viewcode-back" href="../../../api/astropy.coordinates.TransformGraph.html#astropy.coordinates.TransformGraph.to_dot_graph">[docs]</a>    <span class="k">def</span> <span class="nf">to_dot_graph</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">priorities</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">addnodes</span><span class="o">=</span><span class="p">[],</span> <span class="n">savefn</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+                     <span class="n">savelayout</span><span class="o">=</span><span class="s1">&#39;plain&#39;</span><span class="p">,</span> <span class="n">saveformat</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">color_edges</span><span class="o">=</span><span class="kc">True</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Converts this transform graph to the graphviz_ DOT format.</span>
+
+<span class="sd">        Optionally saves it (requires `graphviz`_ be installed and on your path).</span>
+
+<span class="sd">        .. _graphviz: http://www.graphviz.org/</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        priorities : bool</span>
+<span class="sd">            If `True`, show the priority values for each transform.  Otherwise,</span>
+<span class="sd">            the will not be included in the graph.</span>
+<span class="sd">        addnodes : sequence of str</span>
+<span class="sd">            Additional coordinate systems to add (this can include systems</span>
+<span class="sd">            already in the transform graph, but they will only appear once).</span>
+<span class="sd">        savefn : `None` or str</span>
+<span class="sd">            The file name to save this graph to or `None` to not save</span>
+<span class="sd">            to a file.</span>
+<span class="sd">        savelayout : str</span>
+<span class="sd">            The graphviz program to use to layout the graph (see</span>
+<span class="sd">            graphviz_ for details) or &#39;plain&#39; to just save the DOT graph</span>
+<span class="sd">            content. Ignored if ``savefn`` is `None`.</span>
+<span class="sd">        saveformat : str</span>
+<span class="sd">            The graphviz output format. (e.g. the ``-Txxx`` option for</span>
+<span class="sd">            the command line program - see graphviz docs for details).</span>
+<span class="sd">            Ignored if ``savefn`` is `None`.</span>
+<span class="sd">        color_edges : bool</span>
+<span class="sd">            Color the edges between two nodes (frames) based on the type of</span>
+<span class="sd">            transform. ``FunctionTransform``: red, ``StaticMatrixTransform``:</span>
+<span class="sd">            blue, ``DynamicMatrixTransform``: green.</span>
+
+<span class="sd">        Returns</span>
+<span class="sd">        -------</span>
+<span class="sd">        dotgraph : str</span>
+<span class="sd">            A string with the DOT format graph.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+
+        <span class="n">nodes</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="c1"># find the node names</span>
+        <span class="k">for</span> <span class="n">a</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">_graph</span><span class="p">:</span>
+            <span class="k">if</span> <span class="n">a</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">nodes</span><span class="p">:</span>
+                <span class="n">nodes</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">a</span><span class="p">)</span>
+            <span class="k">for</span> <span class="n">b</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">_graph</span><span class="p">[</span><span class="n">a</span><span class="p">]:</span>
+                <span class="k">if</span> <span class="n">b</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">nodes</span><span class="p">:</span>
+                    <span class="n">nodes</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">b</span><span class="p">)</span>
+        <span class="k">for</span> <span class="n">node</span> <span class="ow">in</span> <span class="n">addnodes</span><span class="p">:</span>
+            <span class="k">if</span> <span class="n">node</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">nodes</span><span class="p">:</span>
+                <span class="n">nodes</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">node</span><span class="p">)</span>
+        <span class="n">nodenames</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="n">invclsaliases</span> <span class="o">=</span> <span class="nb">dict</span><span class="p">([(</span><span class="n">v</span><span class="p">,</span> <span class="n">k</span><span class="p">)</span> <span class="k">for</span> <span class="n">k</span><span class="p">,</span> <span class="n">v</span> <span class="ow">in</span> <span class="n">six</span><span class="o">.</span><span class="n">iteritems</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_cached_names</span><span class="p">)])</span>
+        <span class="k">for</span> <span class="n">n</span> <span class="ow">in</span> <span class="n">nodes</span><span class="p">:</span>
+            <span class="k">if</span> <span class="n">n</span> <span class="ow">in</span> <span class="n">invclsaliases</span><span class="p">:</span>
+                <span class="n">nodenames</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="s1">&#39;</span><span class="si">{0}</span><span class="s1"> [shape=oval label=&quot;</span><span class="si">{0}</span><span class="se">\\</span><span class="s1">n`</span><span class="si">{1}</span><span class="s1">`&quot;]&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">n</span><span class="o">.</span><span class="n">__name__</span><span class="p">,</span> <span class="n">invclsaliases</span><span class="p">[</span><span class="n">n</span><span class="p">]))</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="n">nodenames</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">n</span><span class="o">.</span><span class="n">__name__</span> <span class="o">+</span> <span class="s1">&#39;[ shape=oval ]&#39;</span><span class="p">)</span>
+
+        <span class="n">edgenames</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="c1"># Now the edges</span>
+        <span class="k">for</span> <span class="n">a</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">_graph</span><span class="p">:</span>
+            <span class="n">agraph</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_graph</span><span class="p">[</span><span class="n">a</span><span class="p">]</span>
+            <span class="k">for</span> <span class="n">b</span> <span class="ow">in</span> <span class="n">agraph</span><span class="p">:</span>
+                <span class="n">transform</span> <span class="o">=</span> <span class="n">agraph</span><span class="p">[</span><span class="n">b</span><span class="p">]</span>
+                <span class="n">pri</span> <span class="o">=</span> <span class="n">transform</span><span class="o">.</span><span class="n">priority</span> <span class="k">if</span> <span class="nb">hasattr</span><span class="p">(</span><span class="n">transform</span><span class="p">,</span> <span class="s1">&#39;priority&#39;</span><span class="p">)</span> <span class="k">else</span> <span class="mi">1</span>
+                <span class="n">color</span> <span class="o">=</span> <span class="n">trans_to_color</span><span class="p">[</span><span class="n">transform</span><span class="o">.</span><span class="n">__class__</span><span class="p">]</span> <span class="k">if</span> <span class="n">color_edges</span> <span class="k">else</span> <span class="s1">&#39;black&#39;</span>
+                <span class="n">edgenames</span><span class="o">.</span><span class="n">append</span><span class="p">((</span><span class="n">a</span><span class="o">.</span><span class="n">__name__</span><span class="p">,</span> <span class="n">b</span><span class="o">.</span><span class="n">__name__</span><span class="p">,</span> <span class="n">pri</span><span class="p">,</span> <span class="n">color</span><span class="p">))</span>
+
+        <span class="c1"># generate simple dot format graph</span>
+        <span class="n">lines</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;digraph AstropyCoordinateTransformGraph {&#39;</span><span class="p">]</span>
+        <span class="n">lines</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="s1">&#39;; &#39;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">nodenames</span><span class="p">)</span> <span class="o">+</span> <span class="s1">&#39;;&#39;</span><span class="p">)</span>
+        <span class="k">for</span> <span class="n">enm1</span><span class="p">,</span> <span class="n">enm2</span><span class="p">,</span> <span class="n">weights</span><span class="p">,</span> <span class="n">color</span> <span class="ow">in</span> <span class="n">edgenames</span><span class="p">:</span>
+            <span class="n">labelstr_fmt</span> <span class="o">=</span> <span class="s1">&#39;[ </span><span class="si">{0}</span><span class="s1"> </span><span class="si">{1}</span><span class="s1"> ]&#39;</span>
+
+            <span class="k">if</span> <span class="n">priorities</span><span class="p">:</span>
+                <span class="n">priority_part</span> <span class="o">=</span> <span class="s1">&#39;label = &quot;</span><span class="si">{0}</span><span class="s1">&quot;&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">weights</span><span class="p">)</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="n">priority_part</span> <span class="o">=</span> <span class="s1">&#39;&#39;</span>
+
+            <span class="n">color_part</span> <span class="o">=</span> <span class="s1">&#39;color = &quot;</span><span class="si">{0}</span><span class="s1">&quot;&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">color</span><span class="p">)</span>
+
+            <span class="n">labelstr</span> <span class="o">=</span> <span class="n">labelstr_fmt</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">priority_part</span><span class="p">,</span> <span class="n">color_part</span><span class="p">)</span>
+            <span class="n">lines</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="s1">&#39;</span><span class="si">{0}</span><span class="s1"> -&gt; </span><span class="si">{1}{2}</span><span class="s1">;&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">enm1</span><span class="p">,</span> <span class="n">enm2</span><span class="p">,</span> <span class="n">labelstr</span><span class="p">))</span>
+
+        <span class="n">lines</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="s1">&#39;&#39;</span><span class="p">)</span>
+        <span class="n">lines</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="s1">&#39;overlap=false&#39;</span><span class="p">)</span>
+        <span class="n">lines</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="s1">&#39;}&#39;</span><span class="p">)</span>
+        <span class="n">dotgraph</span> <span class="o">=</span> <span class="s1">&#39;</span><span class="se">\n</span><span class="s1">&#39;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">lines</span><span class="p">)</span>
+
+        <span class="k">if</span> <span class="n">savefn</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="k">if</span> <span class="n">savelayout</span> <span class="o">==</span> <span class="s1">&#39;plain&#39;</span><span class="p">:</span>
+                <span class="k">with</span> <span class="nb">open</span><span class="p">(</span><span class="n">savefn</span><span class="p">,</span> <span class="s1">&#39;w&#39;</span><span class="p">)</span> <span class="k">as</span> <span class="n">f</span><span class="p">:</span>
+                    <span class="n">f</span><span class="o">.</span><span class="n">write</span><span class="p">(</span><span class="n">dotgraph</span><span class="p">)</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="n">args</span> <span class="o">=</span> <span class="p">[</span><span class="n">savelayout</span><span class="p">]</span>
+                <span class="k">if</span> <span class="n">saveformat</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+                    <span class="n">args</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="s1">&#39;-T&#39;</span> <span class="o">+</span> <span class="n">saveformat</span><span class="p">)</span>
+                <span class="n">proc</span> <span class="o">=</span> <span class="n">subprocess</span><span class="o">.</span><span class="n">Popen</span><span class="p">(</span><span class="n">args</span><span class="p">,</span> <span class="n">stdin</span><span class="o">=</span><span class="n">subprocess</span><span class="o">.</span><span class="n">PIPE</span><span class="p">,</span>
+                                        <span class="n">stdout</span><span class="o">=</span><span class="n">subprocess</span><span class="o">.</span><span class="n">PIPE</span><span class="p">,</span>
+                                        <span class="n">stderr</span><span class="o">=</span><span class="n">subprocess</span><span class="o">.</span><span class="n">PIPE</span><span class="p">)</span>
+                <span class="n">stdout</span><span class="p">,</span> <span class="n">stderr</span> <span class="o">=</span> <span class="n">proc</span><span class="o">.</span><span class="n">communicate</span><span class="p">(</span><span class="n">dotgraph</span><span class="p">)</span>
+                <span class="k">if</span> <span class="n">proc</span><span class="o">.</span><span class="n">returncode</span> <span class="o">!=</span> <span class="mi">0</span><span class="p">:</span>
+                    <span class="k">raise</span> <span class="ne">IOError</span><span class="p">(</span><span class="s1">&#39;problem running graphviz: </span><span class="se">\n</span><span class="s1">&#39;</span> <span class="o">+</span> <span class="n">stderr</span><span class="p">)</span>
+
+                <span class="k">with</span> <span class="nb">open</span><span class="p">(</span><span class="n">savefn</span><span class="p">,</span> <span class="s1">&#39;w&#39;</span><span class="p">)</span> <span class="k">as</span> <span class="n">f</span><span class="p">:</span>
+                    <span class="n">f</span><span class="o">.</span><span class="n">write</span><span class="p">(</span><span class="n">stdout</span><span class="p">)</span>
+
+        <span class="k">return</span> <span class="n">dotgraph</span></div>
+
+<div class="viewcode-block" id="TransformGraph.to_networkx_graph"><a class="viewcode-back" href="../../../api/astropy.coordinates.TransformGraph.html#astropy.coordinates.TransformGraph.to_networkx_graph">[docs]</a>    <span class="k">def</span> <span class="nf">to_networkx_graph</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Converts this transform graph into a networkx graph.</span>
+
+<span class="sd">        .. note::</span>
+<span class="sd">            You must have the `networkx &lt;http://networkx.lanl.gov/&gt;`_</span>
+<span class="sd">            package installed for this to work.</span>
+
+<span class="sd">        Returns</span>
+<span class="sd">        -------</span>
+<span class="sd">        nxgraph : `networkx.Graph &lt;http://networkx.lanl.gov/reference/classes.graph.html&gt;`_</span>
+<span class="sd">            This `TransformGraph` as a `networkx.Graph`_.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="kn">import</span> <span class="nn">networkx</span> <span class="k">as</span> <span class="nn">nx</span>
+
+        <span class="n">nxgraph</span> <span class="o">=</span> <span class="n">nx</span><span class="o">.</span><span class="n">Graph</span><span class="p">()</span>
+
+        <span class="c1"># first make the nodes</span>
+        <span class="k">for</span> <span class="n">a</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">_graph</span><span class="p">:</span>
+            <span class="k">if</span> <span class="n">a</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">nxgraph</span><span class="p">:</span>
+                <span class="n">nxgraph</span><span class="o">.</span><span class="n">add_node</span><span class="p">(</span><span class="n">a</span><span class="p">)</span>
+            <span class="k">for</span> <span class="n">b</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">_graph</span><span class="p">[</span><span class="n">a</span><span class="p">]:</span>
+                <span class="k">if</span> <span class="n">b</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">nxgraph</span><span class="p">:</span>
+                    <span class="n">nxgraph</span><span class="o">.</span><span class="n">add_node</span><span class="p">(</span><span class="n">b</span><span class="p">)</span>
+
+        <span class="c1"># Now the edges</span>
+        <span class="k">for</span> <span class="n">a</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">_graph</span><span class="p">:</span>
+            <span class="n">agraph</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_graph</span><span class="p">[</span><span class="n">a</span><span class="p">]</span>
+            <span class="k">for</span> <span class="n">b</span> <span class="ow">in</span> <span class="n">agraph</span><span class="p">:</span>
+                <span class="n">transform</span> <span class="o">=</span> <span class="n">agraph</span><span class="p">[</span><span class="n">b</span><span class="p">]</span>
+                <span class="n">pri</span> <span class="o">=</span> <span class="n">transform</span><span class="o">.</span><span class="n">priority</span> <span class="k">if</span> <span class="nb">hasattr</span><span class="p">(</span><span class="n">transform</span><span class="p">,</span> <span class="s1">&#39;priority&#39;</span><span class="p">)</span> <span class="k">else</span> <span class="mi">1</span>
+                <span class="n">color</span> <span class="o">=</span> <span class="n">trans_to_color</span><span class="p">[</span><span class="n">transform</span><span class="o">.</span><span class="n">__class__</span><span class="p">]</span>
+                <span class="n">nxgraph</span><span class="o">.</span><span class="n">add_edge</span><span class="p">(</span><span class="n">a</span><span class="p">,</span> <span class="n">b</span><span class="p">,</span> <span class="n">weight</span><span class="o">=</span><span class="n">pri</span><span class="p">,</span> <span class="n">color</span><span class="o">=</span><span class="n">color</span><span class="p">)</span>
+
+        <span class="k">return</span> <span class="n">nxgraph</span></div>
+
+<div class="viewcode-block" id="TransformGraph.transform"><a class="viewcode-back" href="../../../api/astropy.coordinates.TransformGraph.html#astropy.coordinates.TransformGraph.transform">[docs]</a>    <span class="k">def</span> <span class="nf">transform</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">transcls</span><span class="p">,</span> <span class="n">fromsys</span><span class="p">,</span> <span class="n">tosys</span><span class="p">,</span> <span class="n">priority</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        A function decorator for defining transformations.</span>
+
+<span class="sd">        .. note::</span>
+<span class="sd">            If decorating a static method of a class, ``@staticmethod``</span>
+<span class="sd">            should be  added *above* this decorator.</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        transcls : class</span>
+<span class="sd">            The class of the transformation object to create.</span>
+<span class="sd">        fromsys : class</span>
+<span class="sd">            The coordinate frame class to start from.</span>
+<span class="sd">        tosys : class</span>
+<span class="sd">            The coordinate frame class to transform into.</span>
+<span class="sd">        priority : number</span>
+<span class="sd">            The priority if this transform when finding the shortest</span>
+<span class="sd">            coordinate transform path - large numbers are lower priorities.</span>
+
+<span class="sd">        Additional keyword arguments are passed into the ``transcls``</span>
+<span class="sd">        constructor.</span>
+
+<span class="sd">        Returns</span>
+<span class="sd">        -------</span>
+<span class="sd">        deco : function</span>
+<span class="sd">            A function that can be called on another function as a decorator</span>
+<span class="sd">            (see example).</span>
+
+<span class="sd">        Notes</span>
+<span class="sd">        -----</span>
+<span class="sd">        This decorator assumes the first argument of the ``transcls``</span>
+<span class="sd">        initializer accepts a callable, and that the second and third</span>
+<span class="sd">        are ``fromsys`` and ``tosys``. If this is not true, you should just</span>
+<span class="sd">        initialize the class manually and use `add_transform` instead of</span>
+<span class="sd">        using this decorator.</span>
+
+<span class="sd">        Examples</span>
+<span class="sd">        --------</span>
+
+<span class="sd">        ::</span>
+
+<span class="sd">            graph = TransformGraph()</span>
+
+<span class="sd">            class Frame1(BaseCoordinateFrame):</span>
+<span class="sd">               ...</span>
+
+<span class="sd">            class Frame2(BaseCoordinateFrame):</span>
+<span class="sd">                ...</span>
+
+<span class="sd">            @graph.transform(FunctionTransform, Frame1, Frame2)</span>
+<span class="sd">            def f1_to_f2(f1_obj):</span>
+<span class="sd">                ... do something with f1_obj ...</span>
+<span class="sd">                return f2_obj</span>
+
+
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">def</span> <span class="nf">deco</span><span class="p">(</span><span class="n">func</span><span class="p">):</span>
+            <span class="c1"># this doesn&#39;t do anything directly with the transform because</span>
+            <span class="c1"># ``register_graph=self`` stores it in the transform graph</span>
+            <span class="c1"># automatically</span>
+            <span class="n">transcls</span><span class="p">(</span><span class="n">func</span><span class="p">,</span> <span class="n">fromsys</span><span class="p">,</span> <span class="n">tosys</span><span class="p">,</span> <span class="n">priority</span><span class="o">=</span><span class="n">priority</span><span class="p">,</span>
+                     <span class="n">register_graph</span><span class="o">=</span><span class="bp">self</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
+            <span class="k">return</span> <span class="n">func</span>
+        <span class="k">return</span> <span class="n">deco</span></div></div>
+
+
+<span class="c1"># &lt;-------------------Define the builtin transform classes--------------------&gt;</span>
+
+<span class="nd">@six</span><span class="o">.</span><span class="n">add_metaclass</span><span class="p">(</span><span class="n">ABCMeta</span><span class="p">)</span>
+<div class="viewcode-block" id="CoordinateTransform"><a class="viewcode-back" href="../../../api/astropy.coordinates.CoordinateTransform.html#astropy.coordinates.CoordinateTransform">[docs]</a><span class="k">class</span> <span class="nc">CoordinateTransform</span><span class="p">(</span><span class="nb">object</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    An object that transforms a coordinate from one system to another.</span>
+<span class="sd">    Subclasses must implement `__call__` with the provided signature.</span>
+<span class="sd">    They should also call this superclass&#39;s ``__init__`` in their</span>
+<span class="sd">    ``__init__``.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    fromsys : class</span>
+<span class="sd">        The coordinate frame class to start from.</span>
+<span class="sd">    tosys : class</span>
+<span class="sd">        The coordinate frame class to transform into.</span>
+<span class="sd">    priority : number</span>
+<span class="sd">        The priority if this transform when finding the shortest</span>
+<span class="sd">        coordinate transform path - large numbers are lower priorities.</span>
+<span class="sd">    register_graph : `TransformGraph` or `None`</span>
+<span class="sd">        A graph to register this transformation with on creation, or</span>
+<span class="sd">        `None` to leave it unregistered.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">fromsys</span><span class="p">,</span> <span class="n">tosys</span><span class="p">,</span> <span class="n">priority</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span> <span class="n">register_graph</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">inspect</span><span class="o">.</span><span class="n">isclass</span><span class="p">(</span><span class="n">fromsys</span><span class="p">):</span>
+            <span class="k">raise</span> <span class="ne">TypeError</span><span class="p">(</span><span class="s1">&#39;fromsys must be a class&#39;</span><span class="p">)</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">inspect</span><span class="o">.</span><span class="n">isclass</span><span class="p">(</span><span class="n">tosys</span><span class="p">):</span>
+            <span class="k">raise</span> <span class="ne">TypeError</span><span class="p">(</span><span class="s1">&#39;tosys must be a class&#39;</span><span class="p">)</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">fromsys</span> <span class="o">=</span> <span class="n">fromsys</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">tosys</span> <span class="o">=</span> <span class="n">tosys</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">priority</span> <span class="o">=</span> <span class="nb">float</span><span class="p">(</span><span class="n">priority</span><span class="p">)</span>
+
+        <span class="k">if</span> <span class="n">register_graph</span><span class="p">:</span>
+            <span class="c1"># this will do the type-checking when it adds to the graph</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">register</span><span class="p">(</span><span class="n">register_graph</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">if</span> <span class="ow">not</span> <span class="n">inspect</span><span class="o">.</span><span class="n">isclass</span><span class="p">(</span><span class="n">fromsys</span><span class="p">)</span> <span class="ow">or</span> <span class="ow">not</span> <span class="n">inspect</span><span class="o">.</span><span class="n">isclass</span><span class="p">(</span><span class="n">tosys</span><span class="p">):</span>
+                <span class="k">raise</span> <span class="ne">TypeError</span><span class="p">(</span><span class="s1">&#39;fromsys and tosys must be classes&#39;</span><span class="p">)</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">overlapping_frame_attr_names</span> <span class="o">=</span> <span class="n">overlap</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="k">if</span> <span class="p">(</span><span class="nb">hasattr</span><span class="p">(</span><span class="n">fromsys</span><span class="p">,</span> <span class="s1">&#39;get_frame_attr_names&#39;</span><span class="p">)</span> <span class="ow">and</span>
+                <span class="nb">hasattr</span><span class="p">(</span><span class="n">tosys</span><span class="p">,</span> <span class="s1">&#39;get_frame_attr_names&#39;</span><span class="p">)):</span>
+            <span class="c1"># the if statement is there so that non-frame things might be usable</span>
+            <span class="c1"># if it makes sense</span>
+            <span class="k">for</span> <span class="n">from_nm</span> <span class="ow">in</span> <span class="n">fromsys</span><span class="o">.</span><span class="n">get_frame_attr_names</span><span class="p">():</span>
+                <span class="k">if</span> <span class="n">from_nm</span> <span class="ow">in</span> <span class="n">tosys</span><span class="o">.</span><span class="n">get_frame_attr_names</span><span class="p">():</span>
+                    <span class="n">overlap</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">from_nm</span><span class="p">)</span>
+
+<div class="viewcode-block" id="CoordinateTransform.register"><a class="viewcode-back" href="../../../api/astropy.coordinates.CoordinateTransform.html#astropy.coordinates.CoordinateTransform.register">[docs]</a>    <span class="k">def</span> <span class="nf">register</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">graph</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Add this transformation to the requested Transformation graph,</span>
+<span class="sd">        replacing anything already connecting these two coordinates.</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        graph : a TransformGraph object</span>
+<span class="sd">            The graph to register this transformation with.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">graph</span><span class="o">.</span><span class="n">add_transform</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">fromsys</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">tosys</span><span class="p">,</span> <span class="bp">self</span><span class="p">)</span></div>
+
+<div class="viewcode-block" id="CoordinateTransform.unregister"><a class="viewcode-back" href="../../../api/astropy.coordinates.CoordinateTransform.html#astropy.coordinates.CoordinateTransform.unregister">[docs]</a>    <span class="k">def</span> <span class="nf">unregister</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">graph</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Remove this transformation from the requested transformation</span>
+<span class="sd">        graph.</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        graph : a TransformGraph object</span>
+<span class="sd">            The graph to unregister this transformation from.</span>
+
+<span class="sd">        Raises</span>
+<span class="sd">        ------</span>
+<span class="sd">        ValueError</span>
+<span class="sd">            If this is not currently in the transform graph.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">graph</span><span class="o">.</span><span class="n">remove_transform</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">fromsys</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">tosys</span><span class="p">,</span> <span class="bp">self</span><span class="p">)</span></div>
+
+    <span class="nd">@abstractmethod</span>
+<div class="viewcode-block" id="CoordinateTransform.__call__"><a class="viewcode-back" href="../../../api/astropy.coordinates.CoordinateTransform.html#astropy.coordinates.CoordinateTransform.__call__">[docs]</a>    <span class="k">def</span> <span class="nf">__call__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">fromcoord</span><span class="p">,</span> <span class="n">toframe</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Does the actual coordinate transformation from the ``fromsys`` class to</span>
+<span class="sd">        the ``tosys`` class.</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        fromcoord : fromsys object</span>
+<span class="sd">            An object of class matching ``fromsys`` that is to be transformed.</span>
+<span class="sd">        toframe : object</span>
+<span class="sd">            An object that has the attributes necessary to fully specify the</span>
+<span class="sd">            frame.  That is, it must have attributes with names that match the</span>
+<span class="sd">            keys of the dictionary that ``tosys.get_frame_attr_names()``</span>
+<span class="sd">            returns. Typically this is of class ``tosys``, but it *might* be</span>
+<span class="sd">            some other class as long as it has the appropriate attributes.</span>
+
+<span class="sd">        Returns</span>
+<span class="sd">        -------</span>
+<span class="sd">        tocoord : tosys object</span>
+<span class="sd">            The new coordinate after the transform has been applied.</span>
+<span class="sd">        &quot;&quot;&quot;</span></div></div>
+
+
+<div class="viewcode-block" id="FunctionTransform"><a class="viewcode-back" href="../../../api/astropy.coordinates.FunctionTransform.html#astropy.coordinates.FunctionTransform">[docs]</a><span class="k">class</span> <span class="nc">FunctionTransform</span><span class="p">(</span><span class="n">CoordinateTransform</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    A coordinate transformation defined by a function that accepts a</span>
+<span class="sd">    coordinate object and returns the transformed coordinate object.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    func : callable</span>
+<span class="sd">        The transformation function. Should have a call signature</span>
+<span class="sd">        ``func(formcoord, toframe)``. Note that, unlike</span>
+<span class="sd">        `CoordinateTransform.__call__`, ``toframe`` is assumed to be of type</span>
+<span class="sd">        ``tosys`` for this function.</span>
+<span class="sd">    fromsys : class</span>
+<span class="sd">        The coordinate frame class to start from.</span>
+<span class="sd">    tosys : class</span>
+<span class="sd">        The coordinate frame class to transform into.</span>
+<span class="sd">    priority : number</span>
+<span class="sd">        The priority if this transform when finding the shortest</span>
+<span class="sd">        coordinate transform path - large numbers are lower priorities.</span>
+<span class="sd">    register_graph : `TransformGraph` or `None`</span>
+<span class="sd">        A graph to register this transformation with on creation, or</span>
+<span class="sd">        `None` to leave it unregistered.</span>
+
+<span class="sd">    Raises</span>
+<span class="sd">    ------</span>
+<span class="sd">    TypeError</span>
+<span class="sd">        If ``func`` is not callable.</span>
+<span class="sd">    ValueError</span>
+<span class="sd">        If ``func`` cannot accept two arguments.</span>
+
+
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">func</span><span class="p">,</span> <span class="n">fromsys</span><span class="p">,</span> <span class="n">tosys</span><span class="p">,</span> <span class="n">priority</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span> <span class="n">register_graph</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">six</span><span class="o">.</span><span class="n">callable</span><span class="p">(</span><span class="n">func</span><span class="p">):</span>
+            <span class="k">raise</span> <span class="ne">TypeError</span><span class="p">(</span><span class="s1">&#39;func must be callable&#39;</span><span class="p">)</span>
+
+        <span class="k">with</span> <span class="n">suppress</span><span class="p">(</span><span class="ne">TypeError</span><span class="p">):</span>
+            <span class="n">sig</span> <span class="o">=</span> <span class="n">signature</span><span class="p">(</span><span class="n">func</span><span class="p">)</span>
+            <span class="n">kinds</span> <span class="o">=</span> <span class="p">[</span><span class="n">x</span><span class="o">.</span><span class="n">kind</span> <span class="k">for</span> <span class="n">x</span> <span class="ow">in</span> <span class="n">sig</span><span class="o">.</span><span class="n">parameters</span><span class="o">.</span><span class="n">values</span><span class="p">()]</span>
+            <span class="k">if</span> <span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">x</span> <span class="k">for</span> <span class="n">x</span> <span class="ow">in</span> <span class="n">kinds</span> <span class="k">if</span> <span class="n">x</span> <span class="o">==</span> <span class="n">sig</span><span class="o">.</span><span class="n">POSITIONAL_ONLY</span><span class="p">)</span> <span class="o">!=</span> <span class="mi">2</span>
+                <span class="ow">and</span> <span class="n">sig</span><span class="o">.</span><span class="n">VAR_POSITIONAL</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">kinds</span><span class="p">):</span>
+                <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s1">&#39;provided function does not accept two arguments&#39;</span><span class="p">)</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">func</span> <span class="o">=</span> <span class="n">func</span>
+
+        <span class="nb">super</span><span class="p">(</span><span class="n">FunctionTransform</span><span class="p">,</span> <span class="bp">self</span><span class="p">)</span><span class="o">.</span><span class="n">__init__</span><span class="p">(</span><span class="n">fromsys</span><span class="p">,</span> <span class="n">tosys</span><span class="p">,</span>
+            <span class="n">priority</span><span class="o">=</span><span class="n">priority</span><span class="p">,</span> <span class="n">register_graph</span><span class="o">=</span><span class="n">register_graph</span><span class="p">)</span>
+
+<div class="viewcode-block" id="FunctionTransform.__call__"><a class="viewcode-back" href="../../../api/astropy.coordinates.FunctionTransform.html#astropy.coordinates.FunctionTransform.__call__">[docs]</a>    <span class="k">def</span> <span class="nf">__call__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">fromcoord</span><span class="p">,</span> <span class="n">toframe</span><span class="p">):</span>
+        <span class="n">res</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">func</span><span class="p">(</span><span class="n">fromcoord</span><span class="p">,</span> <span class="n">toframe</span><span class="p">)</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">res</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">tosys</span><span class="p">):</span>
+            <span class="k">raise</span> <span class="ne">TypeError</span><span class="p">(</span><span class="s1">&#39;the transformation function yielded </span><span class="si">{0}</span><span class="s1"> but &#39;</span>
+                <span class="s1">&#39;should have been of type </span><span class="si">{1}</span><span class="s1">&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">res</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">tosys</span><span class="p">))</span>
+        <span class="k">if</span> <span class="n">fromcoord</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">differentials</span> <span class="ow">and</span> <span class="ow">not</span> <span class="n">res</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">differentials</span><span class="p">:</span>
+            <span class="n">warn</span><span class="p">(</span><span class="s2">&quot;Applied a FunctionTransform to a coordinate frame with &quot;</span>
+                 <span class="s2">&quot;differentials, but the FunctionTransform does not handle &quot;</span>
+                 <span class="s2">&quot;differentials, so they have been dropped.&quot;</span><span class="p">,</span> <span class="n">AstropyWarning</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">res</span></div></div>
+
+
+<div class="viewcode-block" id="FunctionTransformWithFiniteDifference"><a class="viewcode-back" href="../../../api/astropy.coordinates.FunctionTransformWithFiniteDifference.html#astropy.coordinates.FunctionTransformWithFiniteDifference">[docs]</a><span class="k">class</span> <span class="nc">FunctionTransformWithFiniteDifference</span><span class="p">(</span><span class="n">FunctionTransform</span><span class="p">):</span>
+    <span class="sd">r&quot;&quot;&quot;</span>
+<span class="sd">    A coordinate transformation that works like a `FunctionTransform`, but</span>
+<span class="sd">    computes velocity shifts based on the finite-difference relative to one of</span>
+<span class="sd">    the frame attributes.  Note that the transform function should *not* change</span>
+<span class="sd">    the differential at all in this case, as any differentials will be</span>
+<span class="sd">    overridden.</span>
+
+<span class="sd">    When a differential is in the from coordinate, the finite difference</span>
+<span class="sd">    calculation has two components. The first part is simple the existing</span>
+<span class="sd">    differential, but re-orientation (using finite-difference techniques) to</span>
+<span class="sd">    point in the direction the velocity vector has in the *new* frame. The</span>
+<span class="sd">    second component is the &quot;induced&quot; velocity.  That is, the velocity</span>
+<span class="sd">    intrinsic to the frame itself, estimated by shifting the frame using the</span>
+<span class="sd">    ``finite_difference_frameattr_name`` frame attribute a small amount</span>
+<span class="sd">    (``finite_difference_dt``) in time and re-calculating the position.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    finite_difference_frameattr_name : str or None</span>
+<span class="sd">        The name of the frame attribute on the frames to use for the finite</span>
+<span class="sd">        difference.  Both the to and the from frame will be checked for this</span>
+<span class="sd">        attribute, but only one needs to have it. If None, no velocity</span>
+<span class="sd">        component induced from the frame itself will be included - only the</span>
+<span class="sd">        re-orientation of any exsiting differential.</span>
+<span class="sd">    finite_difference_dt : `~astropy.units.Quantity` or callable</span>
+<span class="sd">        If a quantity, this is the size of the differential used to do the</span>
+<span class="sd">        finite difference.  If a callable, should accept</span>
+<span class="sd">        ``(fromcoord, toframe)`` and return the ``dt`` value.</span>
+<span class="sd">    symmetric_finite_difference : bool</span>
+<span class="sd">        If True, the finite difference is computed as</span>
+<span class="sd">        :math:`\frac{x(t + \Delta t / 2) - x(t + \Delta t / 2)}{\Delta t}`, or</span>
+<span class="sd">        if False, :math:`\frac{x(t + \Delta t) - x(t)}{\Delta t}`.  The latter</span>
+<span class="sd">        case has slightly better performance (and more stable finite difference</span>
+<span class="sd">        behavior).</span>
+
+<span class="sd">    All other parameters are identical to the initializer for</span>
+<span class="sd">    `FunctionTransform`.</span>
+
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">func</span><span class="p">,</span> <span class="n">fromsys</span><span class="p">,</span> <span class="n">tosys</span><span class="p">,</span> <span class="n">priority</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span> <span class="n">register_graph</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+                 <span class="n">finite_difference_frameattr_name</span><span class="o">=</span><span class="s1">&#39;obstime&#39;</span><span class="p">,</span>
+                 <span class="n">finite_difference_dt</span><span class="o">=</span><span class="mi">1</span><span class="o">*</span><span class="n">u</span><span class="o">.</span><span class="n">second</span><span class="p">,</span>
+                 <span class="n">symmetric_finite_difference</span><span class="o">=</span><span class="kc">True</span><span class="p">):</span>
+        <span class="nb">super</span><span class="p">(</span><span class="n">FunctionTransformWithFiniteDifference</span><span class="p">,</span> <span class="bp">self</span><span class="p">)</span><span class="o">.</span><span class="n">__init__</span><span class="p">(</span><span class="n">func</span><span class="p">,</span>
+              <span class="n">fromsys</span><span class="p">,</span> <span class="n">tosys</span><span class="p">,</span> <span class="n">priority</span><span class="p">,</span> <span class="n">register_graph</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">finite_difference_frameattr_name</span> <span class="o">=</span> <span class="n">finite_difference_frameattr_name</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">finite_difference_dt</span> <span class="o">=</span> <span class="n">finite_difference_dt</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">symmetric_finite_difference</span> <span class="o">=</span> <span class="n">symmetric_finite_difference</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">finite_difference_frameattr_name</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_finite_difference_frameattr_name</span>
+
+    <span class="nd">@finite_difference_frameattr_name</span><span class="o">.</span><span class="n">setter</span>
+    <span class="k">def</span> <span class="nf">finite_difference_frameattr_name</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">value</span><span class="p">):</span>
+        <span class="k">if</span> <span class="n">value</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_diff_attr_in_fromsys</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_diff_attr_in_tosys</span> <span class="o">=</span> <span class="kc">False</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">diff_attr_in_fromsys</span> <span class="o">=</span> <span class="n">value</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">fromsys</span><span class="o">.</span><span class="n">frame_attributes</span>
+            <span class="n">diff_attr_in_tosys</span> <span class="o">=</span> <span class="n">value</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">tosys</span><span class="o">.</span><span class="n">frame_attributes</span>
+            <span class="k">if</span> <span class="n">diff_attr_in_fromsys</span> <span class="ow">or</span> <span class="n">diff_attr_in_tosys</span><span class="p">:</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">_diff_attr_in_fromsys</span> <span class="o">=</span> <span class="n">diff_attr_in_fromsys</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">_diff_attr_in_tosys</span> <span class="o">=</span> <span class="n">diff_attr_in_tosys</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s1">&#39;Frame attribute name </span><span class="si">{}</span><span class="s1"> is not a frame &#39;</span>
+                                 <span class="s1">&#39;attribute of </span><span class="si">{}</span><span class="s1"> or </span><span class="si">{}</span><span class="s1">&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">value</span><span class="p">,</span>
+                                                                <span class="bp">self</span><span class="o">.</span><span class="n">fromsys</span><span class="p">,</span>
+                                                                <span class="bp">self</span><span class="o">.</span><span class="n">tosys</span><span class="p">))</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_finite_difference_frameattr_name</span> <span class="o">=</span> <span class="n">value</span>
+
+<div class="viewcode-block" id="FunctionTransformWithFiniteDifference.__call__"><a class="viewcode-back" href="../../../api/astropy.coordinates.FunctionTransformWithFiniteDifference.html#astropy.coordinates.FunctionTransformWithFiniteDifference.__call__">[docs]</a>    <span class="k">def</span> <span class="nf">__call__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">fromcoord</span><span class="p">,</span> <span class="n">toframe</span><span class="p">):</span>
+        <span class="kn">from</span> <span class="nn">.representation</span> <span class="k">import</span> <span class="p">(</span><span class="n">CartesianRepresentation</span><span class="p">,</span>
+                                     <span class="n">CartesianDifferential</span><span class="p">)</span>
+
+        <span class="n">supcall</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">func</span>
+        <span class="k">if</span> <span class="n">fromcoord</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">differentials</span><span class="p">:</span>
+            <span class="c1"># this is the finite difference case</span>
+
+            <span class="k">if</span> <span class="n">callable</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">finite_difference_dt</span><span class="p">):</span>
+                <span class="n">dt</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">finite_difference_dt</span><span class="p">(</span><span class="n">fromcoord</span><span class="p">,</span> <span class="n">toframe</span><span class="p">)</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="n">dt</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">finite_difference_dt</span>
+            <span class="n">halfdt</span> <span class="o">=</span> <span class="n">dt</span><span class="o">/</span><span class="mi">2</span>
+
+            <span class="n">from_diffless</span> <span class="o">=</span> <span class="n">fromcoord</span><span class="o">.</span><span class="n">realize_frame</span><span class="p">(</span><span class="n">fromcoord</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">without_differentials</span><span class="p">())</span>
+            <span class="n">reprwithoutdiff</span> <span class="o">=</span> <span class="n">supcall</span><span class="p">(</span><span class="n">from_diffless</span><span class="p">,</span> <span class="n">toframe</span><span class="p">)</span>
+
+            <span class="c1"># first we use the existing differential to compute an offset due to</span>
+            <span class="c1"># the already-existing velocity, but in the new frame</span>
+            <span class="n">fromcoord_cart</span> <span class="o">=</span> <span class="n">fromcoord</span><span class="o">.</span><span class="n">cartesian</span>
+            <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">symmetric_finite_difference</span><span class="p">:</span>
+                <span class="n">fwdxyz</span> <span class="o">=</span> <span class="p">(</span><span class="n">fromcoord_cart</span><span class="o">.</span><span class="n">xyz</span> <span class="o">+</span>
+                          <span class="n">fromcoord_cart</span><span class="o">.</span><span class="n">differentials</span><span class="p">[</span><span class="s1">&#39;s&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">d_xyz</span><span class="o">*</span><span class="n">halfdt</span><span class="p">)</span>
+                <span class="n">fwd</span> <span class="o">=</span> <span class="n">supcall</span><span class="p">(</span><span class="n">fromcoord</span><span class="o">.</span><span class="n">realize_frame</span><span class="p">(</span><span class="n">CartesianRepresentation</span><span class="p">(</span><span class="n">fwdxyz</span><span class="p">)),</span> <span class="n">toframe</span><span class="p">)</span>
+                <span class="n">backxyz</span> <span class="o">=</span> <span class="p">(</span><span class="n">fromcoord_cart</span><span class="o">.</span><span class="n">xyz</span> <span class="o">-</span>
+                           <span class="n">fromcoord_cart</span><span class="o">.</span><span class="n">differentials</span><span class="p">[</span><span class="s1">&#39;s&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">d_xyz</span><span class="o">*</span><span class="n">halfdt</span><span class="p">)</span>
+                <span class="n">back</span> <span class="o">=</span> <span class="n">supcall</span><span class="p">(</span><span class="n">fromcoord</span><span class="o">.</span><span class="n">realize_frame</span><span class="p">(</span><span class="n">CartesianRepresentation</span><span class="p">(</span><span class="n">backxyz</span><span class="p">)),</span> <span class="n">toframe</span><span class="p">)</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="n">fwdxyz</span> <span class="o">=</span> <span class="p">(</span><span class="n">fromcoord_cart</span><span class="o">.</span><span class="n">xyz</span> <span class="o">+</span>
+                          <span class="n">fromcoord_cart</span><span class="o">.</span><span class="n">differentials</span><span class="p">[</span><span class="s1">&#39;s&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">d_xyz</span><span class="o">*</span><span class="n">dt</span><span class="p">)</span>
+                <span class="n">fwd</span> <span class="o">=</span> <span class="n">supcall</span><span class="p">(</span><span class="n">fromcoord</span><span class="o">.</span><span class="n">realize_frame</span><span class="p">(</span><span class="n">CartesianRepresentation</span><span class="p">(</span><span class="n">fwdxyz</span><span class="p">)),</span> <span class="n">toframe</span><span class="p">)</span>
+                <span class="n">back</span> <span class="o">=</span> <span class="n">reprwithoutdiff</span>
+            <span class="n">diffxyz</span> <span class="o">=</span> <span class="p">(</span><span class="n">fwd</span><span class="o">.</span><span class="n">cartesian</span> <span class="o">-</span> <span class="n">back</span><span class="o">.</span><span class="n">cartesian</span><span class="p">)</span><span class="o">.</span><span class="n">xyz</span> <span class="o">/</span> <span class="n">dt</span>
+
+            <span class="c1"># now we compute the &quot;induced&quot; velocities due to any movement in</span>
+            <span class="c1"># the frame itself over time</span>
+            <span class="n">attrname</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">finite_difference_frameattr_name</span>
+            <span class="k">if</span> <span class="n">attrname</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+                <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">symmetric_finite_difference</span><span class="p">:</span>
+                    <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_diff_attr_in_fromsys</span><span class="p">:</span>
+                        <span class="n">kws</span> <span class="o">=</span> <span class="p">{</span><span class="n">attrname</span><span class="p">:</span> <span class="nb">getattr</span><span class="p">(</span><span class="n">from_diffless</span><span class="p">,</span> <span class="n">attrname</span><span class="p">)</span> <span class="o">+</span> <span class="n">halfdt</span><span class="p">}</span>
+                        <span class="n">from_diffless_fwd</span> <span class="o">=</span> <span class="n">from_diffless</span><span class="o">.</span><span class="n">replicate</span><span class="p">(</span><span class="o">**</span><span class="n">kws</span><span class="p">)</span>
+                    <span class="k">else</span><span class="p">:</span>
+                        <span class="n">from_diffless_fwd</span> <span class="o">=</span> <span class="n">from_diffless</span>
+                    <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_diff_attr_in_tosys</span><span class="p">:</span>
+                        <span class="n">kws</span> <span class="o">=</span> <span class="p">{</span><span class="n">attrname</span><span class="p">:</span> <span class="nb">getattr</span><span class="p">(</span><span class="n">toframe</span><span class="p">,</span> <span class="n">attrname</span><span class="p">)</span> <span class="o">+</span> <span class="n">halfdt</span><span class="p">}</span>
+                        <span class="n">fwd_frame</span> <span class="o">=</span> <span class="n">toframe</span><span class="o">.</span><span class="n">replicate_without_data</span><span class="p">(</span><span class="o">**</span><span class="n">kws</span><span class="p">)</span>
+                    <span class="k">else</span><span class="p">:</span>
+                        <span class="n">fwd_frame</span> <span class="o">=</span> <span class="n">toframe</span>
+                    <span class="n">fwd</span> <span class="o">=</span> <span class="n">supcall</span><span class="p">(</span><span class="n">from_diffless_fwd</span><span class="p">,</span> <span class="n">fwd_frame</span><span class="p">)</span>
+
+                    <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_diff_attr_in_fromsys</span><span class="p">:</span>
+                        <span class="n">kws</span> <span class="o">=</span> <span class="p">{</span><span class="n">attrname</span><span class="p">:</span> <span class="nb">getattr</span><span class="p">(</span><span class="n">from_diffless</span><span class="p">,</span> <span class="n">attrname</span><span class="p">)</span> <span class="o">-</span> <span class="n">halfdt</span><span class="p">}</span>
+                        <span class="n">from_diffless_back</span> <span class="o">=</span> <span class="n">from_diffless</span><span class="o">.</span><span class="n">replicate</span><span class="p">(</span><span class="o">**</span><span class="n">kws</span><span class="p">)</span>
+                    <span class="k">else</span><span class="p">:</span>
+                        <span class="n">from_diffless_back</span> <span class="o">=</span> <span class="n">from_diffless</span>
+                    <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_diff_attr_in_tosys</span><span class="p">:</span>
+                        <span class="n">kws</span> <span class="o">=</span> <span class="p">{</span><span class="n">attrname</span><span class="p">:</span> <span class="nb">getattr</span><span class="p">(</span><span class="n">toframe</span><span class="p">,</span> <span class="n">attrname</span><span class="p">)</span> <span class="o">-</span> <span class="n">halfdt</span><span class="p">}</span>
+                        <span class="n">back_frame</span> <span class="o">=</span> <span class="n">toframe</span><span class="o">.</span><span class="n">replicate_without_data</span><span class="p">(</span><span class="o">**</span><span class="n">kws</span><span class="p">)</span>
+                    <span class="k">else</span><span class="p">:</span>
+                        <span class="n">back_frame</span> <span class="o">=</span> <span class="n">toframe</span>
+                    <span class="n">back</span> <span class="o">=</span> <span class="n">supcall</span><span class="p">(</span><span class="n">from_diffless_back</span><span class="p">,</span> <span class="n">back_frame</span><span class="p">)</span>
+                <span class="k">else</span><span class="p">:</span>
+                    <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_diff_attr_in_fromsys</span><span class="p">:</span>
+                        <span class="n">kws</span> <span class="o">=</span> <span class="p">{</span><span class="n">attrname</span><span class="p">:</span> <span class="nb">getattr</span><span class="p">(</span><span class="n">from_diffless</span><span class="p">,</span> <span class="n">attrname</span><span class="p">)</span> <span class="o">+</span> <span class="n">dt</span><span class="p">}</span>
+                        <span class="n">from_diffless_fwd</span> <span class="o">=</span> <span class="n">from_diffless</span><span class="o">.</span><span class="n">replicate</span><span class="p">(</span><span class="o">**</span><span class="n">kws</span><span class="p">)</span>
+                    <span class="k">else</span><span class="p">:</span>
+                        <span class="n">from_diffless_fwd</span> <span class="o">=</span> <span class="n">from_diffless</span>
+                    <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_diff_attr_in_tosys</span><span class="p">:</span>
+                        <span class="n">kws</span> <span class="o">=</span> <span class="p">{</span><span class="n">attrname</span><span class="p">:</span> <span class="nb">getattr</span><span class="p">(</span><span class="n">toframe</span><span class="p">,</span> <span class="n">attrname</span><span class="p">)</span> <span class="o">+</span> <span class="n">dt</span><span class="p">}</span>
+                        <span class="n">fwd_frame</span> <span class="o">=</span> <span class="n">toframe</span><span class="o">.</span><span class="n">replicate_without_data</span><span class="p">(</span><span class="o">**</span><span class="n">kws</span><span class="p">)</span>
+                    <span class="k">else</span><span class="p">:</span>
+                        <span class="n">fwd_frame</span> <span class="o">=</span> <span class="n">toframe</span>
+                    <span class="n">fwd</span> <span class="o">=</span> <span class="n">supcall</span><span class="p">(</span><span class="n">from_diffless_fwd</span><span class="p">,</span> <span class="n">fwd_frame</span><span class="p">)</span>
+                    <span class="n">back</span> <span class="o">=</span> <span class="n">reprwithoutdiff</span>
+
+                <span class="n">diffxyz</span> <span class="o">+=</span> <span class="p">(</span><span class="n">fwd</span><span class="o">.</span><span class="n">cartesian</span> <span class="o">-</span> <span class="n">back</span><span class="o">.</span><span class="n">cartesian</span><span class="p">)</span><span class="o">.</span><span class="n">xyz</span> <span class="o">/</span> <span class="n">dt</span>
+
+            <span class="n">newdiff</span> <span class="o">=</span> <span class="n">CartesianDifferential</span><span class="p">(</span><span class="n">diffxyz</span><span class="p">)</span>
+            <span class="n">reprwithdiff</span> <span class="o">=</span> <span class="n">reprwithoutdiff</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">to_cartesian</span><span class="p">()</span><span class="o">.</span><span class="n">with_differentials</span><span class="p">(</span><span class="n">newdiff</span><span class="p">)</span>
+            <span class="k">return</span> <span class="n">reprwithoutdiff</span><span class="o">.</span><span class="n">realize_frame</span><span class="p">(</span><span class="n">reprwithdiff</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">return</span> <span class="n">supcall</span><span class="p">(</span><span class="n">fromcoord</span><span class="p">,</span> <span class="n">toframe</span><span class="p">)</span></div></div>
+
+
+<div class="viewcode-block" id="BaseAffineTransform"><a class="viewcode-back" href="../../../api/astropy.coordinates.BaseAffineTransform.html#astropy.coordinates.BaseAffineTransform">[docs]</a><span class="k">class</span> <span class="nc">BaseAffineTransform</span><span class="p">(</span><span class="n">CoordinateTransform</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;Base class for common functionality between the ``AffineTransform``-type</span>
+<span class="sd">    subclasses.</span>
+
+<span class="sd">    This base class is needed because ``AffineTransform`` and the matrix</span>
+<span class="sd">    transform classes share the ``_apply_transform()`` method, but have</span>
+<span class="sd">    different ``__call__()`` methods. ``StaticMatrixTransform`` passes in a</span>
+<span class="sd">    matrix stored as a class attribute, and both of the matrix transforms pass</span>
+<span class="sd">    in ``None`` for the offset. Hence, user subclasses would likely want to</span>
+<span class="sd">    subclass this (rather than ``AffineTransform``) if they want to provide</span>
+<span class="sd">    alternative transformations using this machinery.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="k">def</span> <span class="nf">_apply_transform</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">fromcoord</span><span class="p">,</span> <span class="n">matrix</span><span class="p">,</span> <span class="n">offset</span><span class="p">):</span>
+        <span class="kn">from</span> <span class="nn">.representation</span> <span class="k">import</span> <span class="p">(</span><span class="n">UnitSphericalRepresentation</span><span class="p">,</span>
+                                     <span class="n">CartesianDifferential</span><span class="p">,</span>
+                                     <span class="n">SphericalDifferential</span><span class="p">,</span>
+                                     <span class="n">SphericalCosLatDifferential</span><span class="p">,</span>
+                                     <span class="n">RadialDifferential</span><span class="p">)</span>
+
+        <span class="n">data</span> <span class="o">=</span> <span class="n">fromcoord</span><span class="o">.</span><span class="n">data</span>
+        <span class="n">has_velocity</span> <span class="o">=</span> <span class="s1">&#39;s&#39;</span> <span class="ow">in</span> <span class="n">data</span><span class="o">.</span><span class="n">differentials</span>
+
+        <span class="c1"># list of unit differentials</span>
+        <span class="n">_unit_diffs</span> <span class="o">=</span> <span class="p">(</span><span class="n">SphericalDifferential</span><span class="o">.</span><span class="n">_unit_differential</span><span class="p">,</span>
+                       <span class="n">SphericalCosLatDifferential</span><span class="o">.</span><span class="n">_unit_differential</span><span class="p">)</span>
+        <span class="n">unit_vel_diff</span> <span class="o">=</span> <span class="p">(</span><span class="n">has_velocity</span> <span class="ow">and</span>
+                         <span class="nb">isinstance</span><span class="p">(</span><span class="n">data</span><span class="o">.</span><span class="n">differentials</span><span class="p">[</span><span class="s1">&#39;s&#39;</span><span class="p">],</span> <span class="n">_unit_diffs</span><span class="p">))</span>
+        <span class="n">rad_vel_diff</span> <span class="o">=</span> <span class="p">(</span><span class="n">has_velocity</span> <span class="ow">and</span>
+                        <span class="nb">isinstance</span><span class="p">(</span><span class="n">data</span><span class="o">.</span><span class="n">differentials</span><span class="p">[</span><span class="s1">&#39;s&#39;</span><span class="p">],</span> <span class="n">RadialDifferential</span><span class="p">))</span>
+
+        <span class="c1"># Some initial checking to short-circuit doing any re-representation if</span>
+        <span class="c1"># we&#39;re going to fail anyways:</span>
+        <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">data</span><span class="p">,</span> <span class="n">UnitSphericalRepresentation</span><span class="p">)</span> <span class="ow">and</span> <span class="n">offset</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">TypeError</span><span class="p">(</span><span class="s2">&quot;Position information stored on coordiante frame &quot;</span>
+                            <span class="s2">&quot;is insufficient to do a full-space position &quot;</span>
+                            <span class="s2">&quot;transformation (representation class: </span><span class="si">{0}</span><span class="s2">)&quot;</span>
+                            <span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">data</span><span class="o">.</span><span class="n">__class__</span><span class="p">))</span>
+
+        <span class="k">elif</span> <span class="p">(</span><span class="n">has_velocity</span> <span class="ow">and</span> <span class="p">(</span><span class="n">unit_vel_diff</span> <span class="ow">or</span> <span class="n">rad_vel_diff</span><span class="p">)</span> <span class="ow">and</span>
+              <span class="n">offset</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="ow">and</span> <span class="s1">&#39;s&#39;</span> <span class="ow">in</span> <span class="n">offset</span><span class="o">.</span><span class="n">differentials</span><span class="p">):</span>
+            <span class="c1"># Coordinate has a velocity, but it is not a full-space velocity</span>
+            <span class="c1"># that we need to do a velocity offset</span>
+            <span class="k">raise</span> <span class="ne">TypeError</span><span class="p">(</span><span class="s2">&quot;Velocity information stored on coordinate frame &quot;</span>
+                            <span class="s2">&quot;is insufficient to do a full-space velocity &quot;</span>
+                            <span class="s2">&quot;transformation (differential class: </span><span class="si">{0}</span><span class="s2">)&quot;</span>
+                            <span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">data</span><span class="o">.</span><span class="n">differentials</span><span class="p">[</span><span class="s1">&#39;s&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">__class__</span><span class="p">))</span>
+
+        <span class="k">elif</span> <span class="nb">len</span><span class="p">(</span><span class="n">data</span><span class="o">.</span><span class="n">differentials</span><span class="p">)</span> <span class="o">&gt;</span> <span class="mi">1</span><span class="p">:</span>
+            <span class="c1"># We should never get here because the frame initializer shouldn&#39;t</span>
+            <span class="c1"># allow more differentials, but this just adds protection for</span>
+            <span class="c1"># subclasses that somehow skip the checks</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;Representation passed to AffineTransform contains&quot;</span>
+                             <span class="s2">&quot; multiple associated differentials. Only a single&quot;</span>
+                             <span class="s2">&quot; differential with velocity units is presently&quot;</span>
+                             <span class="s2">&quot; supported (differentials: </span><span class="si">{0}</span><span class="s2">).&quot;</span>
+                             <span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="nb">str</span><span class="p">(</span><span class="n">data</span><span class="o">.</span><span class="n">differentials</span><span class="p">)))</span>
+
+        <span class="c1"># If the representation is a UnitSphericalRepresentation, and this is</span>
+        <span class="c1"># just a MatrixTransform, we have to try to turn the differential into a</span>
+        <span class="c1"># Unit version of the differential (if no radial velocity) or a</span>
+        <span class="c1"># sphericaldifferential with zero proper motion (if only a radial</span>
+        <span class="c1"># velocity) so that the matrix operation works</span>
+        <span class="k">if</span> <span class="p">(</span><span class="n">has_velocity</span> <span class="ow">and</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">data</span><span class="p">,</span> <span class="n">UnitSphericalRepresentation</span><span class="p">)</span> <span class="ow">and</span>
+                <span class="ow">not</span> <span class="n">unit_vel_diff</span> <span class="ow">and</span> <span class="ow">not</span> <span class="n">rad_vel_diff</span><span class="p">):</span>
+            <span class="c1"># retrieve just velocity differential</span>
+            <span class="n">unit_diff</span> <span class="o">=</span> <span class="n">data</span><span class="o">.</span><span class="n">differentials</span><span class="p">[</span><span class="s1">&#39;s&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">represent_as</span><span class="p">(</span>
+                <span class="n">data</span><span class="o">.</span><span class="n">differentials</span><span class="p">[</span><span class="s1">&#39;s&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">_unit_differential</span><span class="p">,</span> <span class="n">data</span><span class="p">)</span>
+            <span class="n">data</span> <span class="o">=</span> <span class="n">data</span><span class="o">.</span><span class="n">with_differentials</span><span class="p">({</span><span class="s1">&#39;s&#39;</span><span class="p">:</span> <span class="n">unit_diff</span><span class="p">})</span>  <span class="c1"># updates key</span>
+
+        <span class="c1"># If it&#39;s a RadialDifferential, we flat-out ignore the differentials</span>
+        <span class="c1"># This is because, by this point (past the validation above), we can</span>
+        <span class="c1"># only possibly be doing a rotation-only transformation, and that</span>
+        <span class="c1"># won&#39;t change the radial differential. We later add it back in</span>
+        <span class="k">elif</span> <span class="n">rad_vel_diff</span><span class="p">:</span>
+            <span class="n">data</span> <span class="o">=</span> <span class="n">data</span><span class="o">.</span><span class="n">without_differentials</span><span class="p">()</span>
+
+        <span class="c1"># Convert the representation and differentials to cartesian without</span>
+        <span class="c1"># having them attached to a frame</span>
+        <span class="n">rep</span> <span class="o">=</span> <span class="n">data</span><span class="o">.</span><span class="n">to_cartesian</span><span class="p">()</span>
+        <span class="n">diffs</span> <span class="o">=</span> <span class="nb">dict</span><span class="p">([(</span><span class="n">k</span><span class="p">,</span> <span class="n">diff</span><span class="o">.</span><span class="n">represent_as</span><span class="p">(</span><span class="n">CartesianDifferential</span><span class="p">,</span> <span class="n">data</span><span class="p">))</span>
+                      <span class="k">for</span> <span class="n">k</span><span class="p">,</span> <span class="n">diff</span> <span class="ow">in</span> <span class="n">data</span><span class="o">.</span><span class="n">differentials</span><span class="o">.</span><span class="n">items</span><span class="p">()])</span>
+        <span class="n">rep</span> <span class="o">=</span> <span class="n">rep</span><span class="o">.</span><span class="n">with_differentials</span><span class="p">(</span><span class="n">diffs</span><span class="p">)</span>
+
+        <span class="c1"># Only do transform if matrix is specified. This is for speed in</span>
+        <span class="c1"># transformations that only specify an offset (e.g., LSR)</span>
+        <span class="k">if</span> <span class="n">matrix</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="c1"># Note: this applies to both representation and differentials</span>
+            <span class="n">rep</span> <span class="o">=</span> <span class="n">rep</span><span class="o">.</span><span class="n">transform</span><span class="p">(</span><span class="n">matrix</span><span class="p">)</span>
+
+        <span class="c1"># TODO: if we decide to allow arithmetic between representations that</span>
+        <span class="c1"># contain differentials, this can be tidied up</span>
+        <span class="k">if</span> <span class="n">offset</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">newrep</span> <span class="o">=</span> <span class="p">(</span><span class="n">rep</span><span class="o">.</span><span class="n">without_differentials</span><span class="p">()</span> <span class="o">+</span>
+                      <span class="n">offset</span><span class="o">.</span><span class="n">without_differentials</span><span class="p">())</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">newrep</span> <span class="o">=</span> <span class="n">rep</span><span class="o">.</span><span class="n">without_differentials</span><span class="p">()</span>
+
+        <span class="c1"># We need a velocity (time derivative) and, for now, are strict: the</span>
+        <span class="c1"># representation can only contain a velocity differential and no others.</span>
+        <span class="k">if</span> <span class="n">has_velocity</span> <span class="ow">and</span> <span class="ow">not</span> <span class="n">rad_vel_diff</span><span class="p">:</span>
+            <span class="n">veldiff</span> <span class="o">=</span> <span class="n">rep</span><span class="o">.</span><span class="n">differentials</span><span class="p">[</span><span class="s1">&#39;s&#39;</span><span class="p">]</span>  <span class="c1"># already in Cartesian form</span>
+
+            <span class="k">if</span> <span class="n">offset</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="ow">and</span> <span class="s1">&#39;s&#39;</span> <span class="ow">in</span> <span class="n">offset</span><span class="o">.</span><span class="n">differentials</span><span class="p">:</span>
+                <span class="n">veldiff</span> <span class="o">=</span> <span class="n">veldiff</span> <span class="o">+</span> <span class="n">offset</span><span class="o">.</span><span class="n">differentials</span><span class="p">[</span><span class="s1">&#39;s&#39;</span><span class="p">]</span>
+
+            <span class="n">newrep</span> <span class="o">=</span> <span class="n">newrep</span><span class="o">.</span><span class="n">with_differentials</span><span class="p">({</span><span class="s1">&#39;s&#39;</span><span class="p">:</span> <span class="n">veldiff</span><span class="p">})</span>
+
+        <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">fromcoord</span><span class="o">.</span><span class="n">data</span><span class="p">,</span> <span class="n">UnitSphericalRepresentation</span><span class="p">):</span>
+            <span class="c1"># Special-case this because otherwise the return object will think</span>
+            <span class="c1"># it has a valid distance with the default return (a</span>
+            <span class="c1"># CartesianRepresentation instance)</span>
+
+            <span class="k">if</span> <span class="n">has_velocity</span> <span class="ow">and</span> <span class="ow">not</span> <span class="n">unit_vel_diff</span> <span class="ow">and</span> <span class="ow">not</span> <span class="n">rad_vel_diff</span><span class="p">:</span>
+                <span class="c1"># We have to first represent as the Unit types we converted to,</span>
+                <span class="c1"># then put the d_distance information back in to the</span>
+                <span class="c1"># differentials and re-represent as their original forms</span>
+                <span class="n">newdiff</span> <span class="o">=</span> <span class="n">newrep</span><span class="o">.</span><span class="n">differentials</span><span class="p">[</span><span class="s1">&#39;s&#39;</span><span class="p">]</span>
+                <span class="n">_unit_cls</span> <span class="o">=</span> <span class="n">fromcoord</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">differentials</span><span class="p">[</span><span class="s1">&#39;s&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">_unit_differential</span>
+                <span class="n">newdiff</span> <span class="o">=</span> <span class="n">newdiff</span><span class="o">.</span><span class="n">represent_as</span><span class="p">(</span><span class="n">_unit_cls</span><span class="p">,</span> <span class="n">newrep</span><span class="p">)</span>
+
+                <span class="n">kwargs</span> <span class="o">=</span> <span class="nb">dict</span><span class="p">([(</span><span class="n">comp</span><span class="p">,</span> <span class="nb">getattr</span><span class="p">(</span><span class="n">newdiff</span><span class="p">,</span> <span class="n">comp</span><span class="p">))</span>
+                               <span class="k">for</span> <span class="n">comp</span> <span class="ow">in</span> <span class="n">newdiff</span><span class="o">.</span><span class="n">components</span><span class="p">])</span>
+                <span class="n">kwargs</span><span class="p">[</span><span class="s1">&#39;d_distance&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">fromcoord</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">differentials</span><span class="p">[</span><span class="s1">&#39;s&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">d_distance</span>
+                <span class="n">diffs</span> <span class="o">=</span> <span class="p">{</span><span class="s1">&#39;s&#39;</span><span class="p">:</span> <span class="n">fromcoord</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">differentials</span><span class="p">[</span><span class="s1">&#39;s&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">__class__</span><span class="p">(</span>
+                    <span class="n">copy</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)}</span>
+
+            <span class="k">elif</span> <span class="n">has_velocity</span> <span class="ow">and</span> <span class="n">unit_vel_diff</span><span class="p">:</span>
+                <span class="n">newdiff</span> <span class="o">=</span> <span class="n">newrep</span><span class="o">.</span><span class="n">differentials</span><span class="p">[</span><span class="s1">&#39;s&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">represent_as</span><span class="p">(</span>
+                    <span class="n">fromcoord</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">differentials</span><span class="p">[</span><span class="s1">&#39;s&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">__class__</span><span class="p">,</span> <span class="n">newrep</span><span class="p">)</span>
+                <span class="n">diffs</span> <span class="o">=</span> <span class="p">{</span><span class="s1">&#39;s&#39;</span><span class="p">:</span> <span class="n">newdiff</span><span class="p">}</span>
+
+            <span class="k">else</span><span class="p">:</span>
+                <span class="n">diffs</span> <span class="o">=</span> <span class="n">newrep</span><span class="o">.</span><span class="n">differentials</span>
+
+            <span class="n">newrep</span> <span class="o">=</span> <span class="n">newrep</span><span class="o">.</span><span class="n">represent_as</span><span class="p">(</span><span class="n">fromcoord</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">__class__</span><span class="p">)</span>  <span class="c1"># drops diffs</span>
+            <span class="n">newrep</span> <span class="o">=</span> <span class="n">newrep</span><span class="o">.</span><span class="n">with_differentials</span><span class="p">(</span><span class="n">diffs</span><span class="p">)</span>
+
+        <span class="k">elif</span> <span class="n">has_velocity</span> <span class="ow">and</span> <span class="n">unit_vel_diff</span><span class="p">:</span>
+            <span class="c1"># Here, we&#39;re in the case where the representation is not</span>
+            <span class="c1"># UnitSpherical, but the differential *is* one of the UnitSpherical</span>
+            <span class="c1"># types. We have to convert back to that differential class or the</span>
+            <span class="c1"># resulting frame will think it has a valid radial_velocity. This</span>
+            <span class="c1"># can probably be cleaned up: we currently have to go through the</span>
+            <span class="c1"># dimensional version of the differential before representing as the</span>
+            <span class="c1"># unit differential so that the units work out (the distance length</span>
+            <span class="c1"># unit shouldn&#39;t appear in the resulting proper motions)</span>
+
+            <span class="n">diff_cls</span> <span class="o">=</span> <span class="n">fromcoord</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">differentials</span><span class="p">[</span><span class="s1">&#39;s&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">__class__</span>
+            <span class="n">newrep</span> <span class="o">=</span> <span class="n">newrep</span><span class="o">.</span><span class="n">represent_as</span><span class="p">(</span><span class="n">fromcoord</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">__class__</span><span class="p">,</span>
+                                         <span class="n">diff_cls</span><span class="o">.</span><span class="n">_dimensional_differential</span><span class="p">)</span>
+            <span class="n">newrep</span> <span class="o">=</span> <span class="n">newrep</span><span class="o">.</span><span class="n">represent_as</span><span class="p">(</span><span class="n">fromcoord</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">__class__</span><span class="p">,</span> <span class="n">diff_cls</span><span class="p">)</span>
+
+        <span class="c1"># We pulled the radial differential off of the representation</span>
+        <span class="c1"># earlier, so now we need to put it back. But, in order to do that, we</span>
+        <span class="c1"># have to turn the representation into a repr that is compatible with</span>
+        <span class="c1"># having a RadialDifferential</span>
+        <span class="k">if</span> <span class="n">has_velocity</span> <span class="ow">and</span> <span class="n">rad_vel_diff</span><span class="p">:</span>
+            <span class="n">newrep</span> <span class="o">=</span> <span class="n">newrep</span><span class="o">.</span><span class="n">represent_as</span><span class="p">(</span><span class="n">fromcoord</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">__class__</span><span class="p">)</span>
+            <span class="n">newrep</span> <span class="o">=</span> <span class="n">newrep</span><span class="o">.</span><span class="n">with_differentials</span><span class="p">(</span>
+                <span class="p">{</span><span class="s1">&#39;s&#39;</span><span class="p">:</span> <span class="n">fromcoord</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">differentials</span><span class="p">[</span><span class="s1">&#39;s&#39;</span><span class="p">]})</span>
+
+        <span class="k">return</span> <span class="n">newrep</span></div>
+
+
+<div class="viewcode-block" id="AffineTransform"><a class="viewcode-back" href="../../../api/astropy.coordinates.AffineTransform.html#astropy.coordinates.AffineTransform">[docs]</a><span class="k">class</span> <span class="nc">AffineTransform</span><span class="p">(</span><span class="n">BaseAffineTransform</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    A coordinate transformation specified as a function that yields a 3 x 3</span>
+<span class="sd">    cartesian transformation matrix and a tuple of displacement vectors.</span>
+
+<span class="sd">    See `~astropy.coordinates.builtin_frames.galactocentric.Galactocentric` for</span>
+<span class="sd">    an example.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    transform_func : callable</span>
+<span class="sd">        A callable that has the signature ``transform_func(fromcoord, toframe)``</span>
+<span class="sd">        and returns: a (3, 3) matrix that operates on ``fromcoord`` in a</span>
+<span class="sd">        Cartesian representation, and a ``CartesianRepresentation`` with</span>
+<span class="sd">        (optionally) an attached velocity ``CartesianDifferential`` to represent</span>
+<span class="sd">        a translation and offset in velocity to apply after the matrix</span>
+<span class="sd">        operation.</span>
+<span class="sd">    fromsys : class</span>
+<span class="sd">        The coordinate frame class to start from.</span>
+<span class="sd">    tosys : class</span>
+<span class="sd">        The coordinate frame class to transform into.</span>
+<span class="sd">    priority : number</span>
+<span class="sd">        The priority if this transform when finding the shortest</span>
+<span class="sd">        coordinate transform path - large numbers are lower priorities.</span>
+<span class="sd">    register_graph : `TransformGraph` or `None`</span>
+<span class="sd">        A graph to register this transformation with on creation, or</span>
+<span class="sd">        `None` to leave it unregistered.</span>
+
+<span class="sd">    Raises</span>
+<span class="sd">    ------</span>
+<span class="sd">    TypeError</span>
+<span class="sd">        If ``transform_func`` is not callable</span>
+
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">transform_func</span><span class="p">,</span> <span class="n">fromsys</span><span class="p">,</span> <span class="n">tosys</span><span class="p">,</span> <span class="n">priority</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span>
+                 <span class="n">register_graph</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">six</span><span class="o">.</span><span class="n">callable</span><span class="p">(</span><span class="n">transform_func</span><span class="p">):</span>
+            <span class="k">raise</span> <span class="ne">TypeError</span><span class="p">(</span><span class="s1">&#39;transform_func is not callable&#39;</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">transform_func</span> <span class="o">=</span> <span class="n">transform_func</span>
+
+        <span class="nb">super</span><span class="p">(</span><span class="n">AffineTransform</span><span class="p">,</span> <span class="bp">self</span><span class="p">)</span><span class="o">.</span><span class="n">__init__</span><span class="p">(</span><span class="n">fromsys</span><span class="p">,</span> <span class="n">tosys</span><span class="p">,</span> <span class="n">priority</span><span class="o">=</span><span class="n">priority</span><span class="p">,</span>
+                                              <span class="n">register_graph</span><span class="o">=</span><span class="n">register_graph</span><span class="p">)</span>
+
+<div class="viewcode-block" id="AffineTransform.__call__"><a class="viewcode-back" href="../../../api/astropy.coordinates.AffineTransform.html#astropy.coordinates.AffineTransform.__call__">[docs]</a>    <span class="k">def</span> <span class="nf">__call__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">fromcoord</span><span class="p">,</span> <span class="n">toframe</span><span class="p">):</span>
+
+        <span class="n">M</span><span class="p">,</span> <span class="n">vec</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">transform_func</span><span class="p">(</span><span class="n">fromcoord</span><span class="p">,</span> <span class="n">toframe</span><span class="p">)</span>
+        <span class="n">newrep</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_apply_transform</span><span class="p">(</span><span class="n">fromcoord</span><span class="p">,</span> <span class="n">M</span><span class="p">,</span> <span class="n">vec</span><span class="p">)</span>
+
+        <span class="k">return</span> <span class="n">toframe</span><span class="o">.</span><span class="n">realize_frame</span><span class="p">(</span><span class="n">newrep</span><span class="p">)</span></div></div>
+
+
+<div class="viewcode-block" id="StaticMatrixTransform"><a class="viewcode-back" href="../../../api/astropy.coordinates.StaticMatrixTransform.html#astropy.coordinates.StaticMatrixTransform">[docs]</a><span class="k">class</span> <span class="nc">StaticMatrixTransform</span><span class="p">(</span><span class="n">BaseAffineTransform</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    A coordinate transformation defined as a 3 x 3 cartesian</span>
+<span class="sd">    transformation matrix.</span>
+
+<span class="sd">    This is distinct from DynamicMatrixTransform in that this kind of matrix is</span>
+<span class="sd">    independent of frame attributes.  That is, it depends *only* on the class of</span>
+<span class="sd">    the frame.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    matrix : array-like or callable</span>
+<span class="sd">        A 3 x 3 matrix for transforming 3-vectors. In most cases will</span>
+<span class="sd">        be unitary (although this is not strictly required). If a callable,</span>
+<span class="sd">        will be called *with no arguments* to get the matrix.</span>
+<span class="sd">    fromsys : class</span>
+<span class="sd">        The coordinate frame class to start from.</span>
+<span class="sd">    tosys : class</span>
+<span class="sd">        The coordinate frame class to transform into.</span>
+<span class="sd">    priority : number</span>
+<span class="sd">        The priority if this transform when finding the shortest</span>
+<span class="sd">        coordinate transform path - large numbers are lower priorities.</span>
+<span class="sd">    register_graph : `TransformGraph` or `None`</span>
+<span class="sd">        A graph to register this transformation with on creation, or</span>
+<span class="sd">        `None` to leave it unregistered.</span>
+
+<span class="sd">    Raises</span>
+<span class="sd">    ------</span>
+<span class="sd">    ValueError</span>
+<span class="sd">        If the matrix is not 3 x 3</span>
+
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">matrix</span><span class="p">,</span> <span class="n">fromsys</span><span class="p">,</span> <span class="n">tosys</span><span class="p">,</span> <span class="n">priority</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span> <span class="n">register_graph</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+        <span class="k">if</span> <span class="n">six</span><span class="o">.</span><span class="n">callable</span><span class="p">(</span><span class="n">matrix</span><span class="p">):</span>
+            <span class="n">matrix</span> <span class="o">=</span> <span class="n">matrix</span><span class="p">()</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">matrix</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">(</span><span class="n">matrix</span><span class="p">)</span>
+
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">matrix</span><span class="o">.</span><span class="n">shape</span> <span class="o">!=</span> <span class="p">(</span><span class="mi">3</span><span class="p">,</span> <span class="mi">3</span><span class="p">):</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s1">&#39;Provided matrix is not 3 x 3&#39;</span><span class="p">)</span>
+
+        <span class="nb">super</span><span class="p">(</span><span class="n">StaticMatrixTransform</span><span class="p">,</span> <span class="bp">self</span><span class="p">)</span><span class="o">.</span><span class="n">__init__</span><span class="p">(</span><span class="n">fromsys</span><span class="p">,</span> <span class="n">tosys</span><span class="p">,</span>
+                                                    <span class="n">priority</span><span class="o">=</span><span class="n">priority</span><span class="p">,</span>
+                                                    <span class="n">register_graph</span><span class="o">=</span><span class="n">register_graph</span><span class="p">)</span>
+
+<div class="viewcode-block" id="StaticMatrixTransform.__call__"><a class="viewcode-back" href="../../../api/astropy.coordinates.StaticMatrixTransform.html#astropy.coordinates.StaticMatrixTransform.__call__">[docs]</a>    <span class="k">def</span> <span class="nf">__call__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">fromcoord</span><span class="p">,</span> <span class="n">toframe</span><span class="p">):</span>
+        <span class="n">newrep</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_apply_transform</span><span class="p">(</span><span class="n">fromcoord</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">matrix</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">toframe</span><span class="o">.</span><span class="n">realize_frame</span><span class="p">(</span><span class="n">newrep</span><span class="p">)</span></div></div>
+
+
+<div class="viewcode-block" id="DynamicMatrixTransform"><a class="viewcode-back" href="../../../api/astropy.coordinates.DynamicMatrixTransform.html#astropy.coordinates.DynamicMatrixTransform">[docs]</a><span class="k">class</span> <span class="nc">DynamicMatrixTransform</span><span class="p">(</span><span class="n">BaseAffineTransform</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    A coordinate transformation specified as a function that yields a</span>
+<span class="sd">    3 x 3 cartesian transformation matrix.</span>
+
+<span class="sd">    This is similar to, but distinct from StaticMatrixTransform, in that the</span>
+<span class="sd">    matrix for this class might depend on frame attributes.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    matrix_func : callable</span>
+<span class="sd">        A callable that has the signature ``matrix_func(fromcoord, toframe)`` and</span>
+<span class="sd">        returns a 3 x 3 matrix that converts ``fromcoord`` in a cartesian</span>
+<span class="sd">        representation to the new coordinate system.</span>
+<span class="sd">    fromsys : class</span>
+<span class="sd">        The coordinate frame class to start from.</span>
+<span class="sd">    tosys : class</span>
+<span class="sd">        The coordinate frame class to transform into.</span>
+<span class="sd">    priority : number</span>
+<span class="sd">        The priority if this transform when finding the shortest</span>
+<span class="sd">        coordinate transform path - large numbers are lower priorities.</span>
+<span class="sd">    register_graph : `TransformGraph` or `None`</span>
+<span class="sd">        A graph to register this transformation with on creation, or</span>
+<span class="sd">        `None` to leave it unregistered.</span>
+
+<span class="sd">    Raises</span>
+<span class="sd">    ------</span>
+<span class="sd">    TypeError</span>
+<span class="sd">        If ``matrix_func`` is not callable</span>
+
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">matrix_func</span><span class="p">,</span> <span class="n">fromsys</span><span class="p">,</span> <span class="n">tosys</span><span class="p">,</span> <span class="n">priority</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span>
+                 <span class="n">register_graph</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">six</span><span class="o">.</span><span class="n">callable</span><span class="p">(</span><span class="n">matrix_func</span><span class="p">):</span>
+            <span class="k">raise</span> <span class="ne">TypeError</span><span class="p">(</span><span class="s1">&#39;matrix_func is not callable&#39;</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">matrix_func</span> <span class="o">=</span> <span class="n">matrix_func</span>
+
+        <span class="k">def</span> <span class="nf">_transform_func</span><span class="p">(</span><span class="n">fromcoord</span><span class="p">,</span> <span class="n">toframe</span><span class="p">):</span>
+            <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">matrix_func</span><span class="p">(</span><span class="n">fromcoord</span><span class="p">,</span> <span class="n">toframe</span><span class="p">),</span> <span class="kc">None</span>
+
+        <span class="nb">super</span><span class="p">(</span><span class="n">DynamicMatrixTransform</span><span class="p">,</span> <span class="bp">self</span><span class="p">)</span><span class="o">.</span><span class="n">__init__</span><span class="p">(</span><span class="n">fromsys</span><span class="p">,</span> <span class="n">tosys</span><span class="p">,</span>
+                                                     <span class="n">priority</span><span class="o">=</span><span class="n">priority</span><span class="p">,</span>
+                                                     <span class="n">register_graph</span><span class="o">=</span><span class="n">register_graph</span><span class="p">)</span>
+
+<div class="viewcode-block" id="DynamicMatrixTransform.__call__"><a class="viewcode-back" href="../../../api/astropy.coordinates.DynamicMatrixTransform.html#astropy.coordinates.DynamicMatrixTransform.__call__">[docs]</a>    <span class="k">def</span> <span class="nf">__call__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">fromcoord</span><span class="p">,</span> <span class="n">toframe</span><span class="p">):</span>
+        <span class="n">M</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">matrix_func</span><span class="p">(</span><span class="n">fromcoord</span><span class="p">,</span> <span class="n">toframe</span><span class="p">)</span>
+        <span class="n">newrep</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_apply_transform</span><span class="p">(</span><span class="n">fromcoord</span><span class="p">,</span> <span class="n">M</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">toframe</span><span class="o">.</span><span class="n">realize_frame</span><span class="p">(</span><span class="n">newrep</span><span class="p">)</span></div></div>
+
+
+<div class="viewcode-block" id="CompositeTransform"><a class="viewcode-back" href="../../../api/astropy.coordinates.CompositeTransform.html#astropy.coordinates.CompositeTransform">[docs]</a><span class="k">class</span> <span class="nc">CompositeTransform</span><span class="p">(</span><span class="n">CoordinateTransform</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    A transformation constructed by combining together a series of single-step</span>
+<span class="sd">    transformations.</span>
+
+<span class="sd">    Note that the intermediate frame objects are constructed using any frame</span>
+<span class="sd">    attributes in ``toframe`` or ``fromframe`` that overlap with the intermediate</span>
+<span class="sd">    frame (``toframe`` favored over ``fromframe`` if there&#39;s a conflict).  Any frame</span>
+<span class="sd">    attributes that are not present use the defaults.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    transforms : sequence of `CoordinateTransform` objects</span>
+<span class="sd">        The sequence of transformations to apply.</span>
+<span class="sd">    fromsys : class</span>
+<span class="sd">        The coordinate frame class to start from.</span>
+<span class="sd">    tosys : class</span>
+<span class="sd">        The coordinate frame class to transform into.</span>
+<span class="sd">    priority : number</span>
+<span class="sd">        The priority if this transform when finding the shortest</span>
+<span class="sd">        coordinate transform path - large numbers are lower priorities.</span>
+<span class="sd">    register_graph : `TransformGraph` or `None`</span>
+<span class="sd">        A graph to register this transformation with on creation, or</span>
+<span class="sd">        `None` to leave it unregistered.</span>
+<span class="sd">    collapse_static_mats : bool</span>
+<span class="sd">        If `True`, consecutive `StaticMatrixTransform` will be collapsed into a</span>
+<span class="sd">        single transformation to speed up the calculation.</span>
+
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">transforms</span><span class="p">,</span> <span class="n">fromsys</span><span class="p">,</span> <span class="n">tosys</span><span class="p">,</span> <span class="n">priority</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span>
+                 <span class="n">register_graph</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">collapse_static_mats</span><span class="o">=</span><span class="kc">True</span><span class="p">):</span>
+        <span class="nb">super</span><span class="p">(</span><span class="n">CompositeTransform</span><span class="p">,</span> <span class="bp">self</span><span class="p">)</span><span class="o">.</span><span class="n">__init__</span><span class="p">(</span><span class="n">fromsys</span><span class="p">,</span> <span class="n">tosys</span><span class="p">,</span>
+                                                 <span class="n">priority</span><span class="o">=</span><span class="n">priority</span><span class="p">,</span>
+                                                 <span class="n">register_graph</span><span class="o">=</span><span class="n">register_graph</span><span class="p">)</span>
+
+        <span class="k">if</span> <span class="n">collapse_static_mats</span><span class="p">:</span>
+            <span class="n">transforms</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_combine_statics</span><span class="p">(</span><span class="n">transforms</span><span class="p">)</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">transforms</span> <span class="o">=</span> <span class="nb">tuple</span><span class="p">(</span><span class="n">transforms</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">_combine_statics</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">transforms</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Combines together sequences of `StaticMatrixTransform`s into a single</span>
+<span class="sd">        transform and returns it.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">newtrans</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="k">for</span> <span class="n">currtrans</span> <span class="ow">in</span> <span class="n">transforms</span><span class="p">:</span>
+            <span class="n">lasttrans</span> <span class="o">=</span> <span class="n">newtrans</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span> <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">newtrans</span><span class="p">)</span> <span class="o">&gt;</span> <span class="mi">0</span> <span class="k">else</span> <span class="kc">None</span>
+
+            <span class="k">if</span> <span class="p">(</span><span class="nb">isinstance</span><span class="p">(</span><span class="n">lasttrans</span><span class="p">,</span> <span class="n">StaticMatrixTransform</span><span class="p">)</span> <span class="ow">and</span>
+                    <span class="nb">isinstance</span><span class="p">(</span><span class="n">currtrans</span><span class="p">,</span> <span class="n">StaticMatrixTransform</span><span class="p">)):</span>
+                <span class="n">combinedmat</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">dot</span><span class="p">(</span><span class="n">lasttrans</span><span class="o">.</span><span class="n">matrix</span><span class="p">,</span> <span class="n">currtrans</span><span class="o">.</span><span class="n">matrix</span><span class="p">)</span>
+                <span class="n">newtrans</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span> <span class="o">=</span> <span class="n">StaticMatrixTransform</span><span class="p">(</span><span class="n">combinedmat</span><span class="p">,</span>
+                                                     <span class="n">lasttrans</span><span class="o">.</span><span class="n">fromsys</span><span class="p">,</span>
+                                                     <span class="n">currtrans</span><span class="o">.</span><span class="n">tosys</span><span class="p">)</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="n">newtrans</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">currtrans</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">newtrans</span>
+
+<div class="viewcode-block" id="CompositeTransform.__call__"><a class="viewcode-back" href="../../../api/astropy.coordinates.CompositeTransform.html#astropy.coordinates.CompositeTransform.__call__">[docs]</a>    <span class="k">def</span> <span class="nf">__call__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">fromcoord</span><span class="p">,</span> <span class="n">toframe</span><span class="p">):</span>
+        <span class="n">curr_coord</span> <span class="o">=</span> <span class="n">fromcoord</span>
+        <span class="k">for</span> <span class="n">t</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">transforms</span><span class="p">:</span>
+            <span class="c1"># build an intermediate frame with attributes taken from either</span>
+            <span class="c1"># `fromframe`, or if not there, `toframe`, or if not there, use</span>
+            <span class="c1"># the defaults</span>
+            <span class="c1"># TODO: caching this information when creating the transform may</span>
+            <span class="c1"># speed things up a lot</span>
+            <span class="n">frattrs</span> <span class="o">=</span> <span class="p">{}</span>
+            <span class="k">for</span> <span class="n">inter_frame_attr_nm</span> <span class="ow">in</span> <span class="n">t</span><span class="o">.</span><span class="n">tosys</span><span class="o">.</span><span class="n">get_frame_attr_names</span><span class="p">():</span>
+                <span class="k">if</span> <span class="nb">hasattr</span><span class="p">(</span><span class="n">toframe</span><span class="p">,</span> <span class="n">inter_frame_attr_nm</span><span class="p">):</span>
+                    <span class="n">attr</span> <span class="o">=</span> <span class="nb">getattr</span><span class="p">(</span><span class="n">toframe</span><span class="p">,</span> <span class="n">inter_frame_attr_nm</span><span class="p">)</span>
+                    <span class="n">frattrs</span><span class="p">[</span><span class="n">inter_frame_attr_nm</span><span class="p">]</span> <span class="o">=</span> <span class="n">attr</span>
+                <span class="k">elif</span> <span class="nb">hasattr</span><span class="p">(</span><span class="n">fromcoord</span><span class="p">,</span> <span class="n">inter_frame_attr_nm</span><span class="p">):</span>
+                    <span class="n">attr</span> <span class="o">=</span> <span class="nb">getattr</span><span class="p">(</span><span class="n">fromcoord</span><span class="p">,</span> <span class="n">inter_frame_attr_nm</span><span class="p">)</span>
+                    <span class="n">frattrs</span><span class="p">[</span><span class="n">inter_frame_attr_nm</span><span class="p">]</span> <span class="o">=</span> <span class="n">attr</span>
+
+            <span class="n">curr_toframe</span> <span class="o">=</span> <span class="n">t</span><span class="o">.</span><span class="n">tosys</span><span class="p">(</span><span class="o">**</span><span class="n">frattrs</span><span class="p">)</span>
+            <span class="n">curr_coord</span> <span class="o">=</span> <span class="n">t</span><span class="p">(</span><span class="n">curr_coord</span><span class="p">,</span> <span class="n">curr_toframe</span><span class="p">)</span>
+
+        <span class="c1"># this is safe even in the case where self.transforms is empty, because</span>
+        <span class="c1"># coordinate objects are immutible, so copying is not needed</span>
+        <span class="k">return</span> <span class="n">curr_coord</span></div></div>
+
+
+<span class="c1"># map class names to colorblind-safe colors</span>
+<span class="n">trans_to_color</span> <span class="o">=</span> <span class="n">OrderedDict</span><span class="p">()</span>
+<span class="n">trans_to_color</span><span class="p">[</span><span class="n">AffineTransform</span><span class="p">]</span> <span class="o">=</span> <span class="s1">&#39;#555555&#39;</span>  <span class="c1"># gray</span>
+<span class="n">trans_to_color</span><span class="p">[</span><span class="n">FunctionTransform</span><span class="p">]</span> <span class="o">=</span> <span class="s1">&#39;#783001&#39;</span>  <span class="c1"># dark red-ish/brown</span>
+<span class="n">trans_to_color</span><span class="p">[</span><span class="n">FunctionTransformWithFiniteDifference</span><span class="p">]</span> <span class="o">=</span> <span class="s1">&#39;#d95f02&#39;</span>  <span class="c1"># red-ish</span>
+<span class="n">trans_to_color</span><span class="p">[</span><span class="n">StaticMatrixTransform</span><span class="p">]</span> <span class="o">=</span> <span class="s1">&#39;#7570b3&#39;</span>  <span class="c1"># blue-ish</span>
+<span class="n">trans_to_color</span><span class="p">[</span><span class="n">DynamicMatrixTransform</span><span class="p">]</span> <span class="o">=</span> <span class="s1">&#39;#1b9e77&#39;</span>  <span class="c1"># green-ish</span>
+</pre></div>
+
+          </div>
+        </div>
+      </div>
+      <div class="sphinxsidebar" role="navigation" aria-label="main navigation">
+        <div class="sphinxsidebarwrapper"><h3>Page Contents</h3>
+
+
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+<footer class="footer">
+  <p class="pull-right"> &nbsp;
+    <a href="#">Back to Top</a></p>
+  <p>
+    &copy; Copyright 2011-2016, The Astropy Developers.<br/>
+    Created using <a href="http://sphinx.pocoo.org/">Sphinx</a> 1.5.6. &nbsp;
+    Last built 05 Jul 2017. <br/>
+  </p>
+</footer>
+  </body>
+</html>

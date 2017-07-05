@@ -1,0 +1,641 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <head>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    
+    <title>Convolution and filtering (astropy.convolution) &#8212; Astropy v3.0.dev19489</title>
+    
+    <link rel="stylesheet" href="../_static/bootstrap-astropy.css" type="text/css" />
+    <link rel="stylesheet" href="../_static/pygments.css" type="text/css" />
+    <link rel="stylesheet" href="../_static/gallery.css" type="text/css" />
+    
+    <script type="text/javascript">
+      var DOCUMENTATION_OPTIONS = {
+        URL_ROOT:    '../',
+        VERSION:     '3.0.dev19489',
+        COLLAPSE_INDEX: false,
+        FILE_SUFFIX: '.html',
+        HAS_SOURCE:  true,
+        SOURCELINK_SUFFIX: '.txt'
+      };
+    </script>
+    <script type="text/javascript" src="../_static/jquery.js"></script>
+    <script type="text/javascript" src="../_static/underscore.js"></script>
+    <script type="text/javascript" src="../_static/doctools.js"></script>
+    <script type="text/javascript" src="../_static/sidebar.js"></script>
+    <link rel="shortcut icon" href="../_static/astropy_logo.ico"/>
+    <link rel="index" title="Index" href="../genindex.html" />
+    <link rel="search" title="Search" href="../search.html" />
+    <link rel="next" title="Using the convolution functions" href="using.html" />
+    <link rel="prev" title="wpwaCDM" href="../api/astropy.cosmology.wpwaCDM.html" />
+<link href='https://fonts.googleapis.com/css?family=Source+Sans+Pro:200,600' rel='stylesheet' type='text/css'/>
+<script type="text/javascript" src="../_static/copybutton.js"></script>
+
+
+  </head>
+  <body role="document">
+<div class="topbar">
+  <a class="brand" title="Documentation Home" href="../index.html"><span id="logotext1">astro</span><span id="logotext2">py</span><span id="logotext3">:docs</span></a>
+  <ul>
+    <li><a class="homelink" title="Astropy Homepage" href="http://www.astropy.org"></a></li>
+    <li><a title="General Index" href="../genindex.html">Index</a></li>
+    <li><a title="Module Index" href="../py-modindex.html">Modules</a></li>
+    <li>
+      
+      
+<form action="../search.html" method="get">
+  <input type="text" name="q" placeholder="Search" />
+  <input type="hidden" name="check_keywords" value="yes" />
+  <input type="hidden" name="area" value="default" />
+</form>
+      
+    </li>
+  </ul>
+</div>
+
+<div class="related">
+    <h3>Navigation</h3>
+    <ul>
+      <li class="right">
+	<a href="using.html" title="Using the convolution functions">
+	  next &raquo;
+	</a>
+      </li>
+      <li class="right">
+	<a href="../api/astropy.cosmology.wpwaCDM.html" title="wpwaCDM">
+	  &laquo; previous
+	</a>
+	 |
+      </li>
+      <li>
+	<a href="../index.html">Astropy v3.0.dev19489</a>
+	 &#187;
+      </li>
+      
+      <li>Convolution and filtering (<code class="docutils literal"><span class="pre">astropy.convolution</span></code>)</li> 
+    </ul>
+</div>
+  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          <div class="body" role="main">
+            
+  <div class="section" id="convolution-and-filtering-astropy-convolution">
+<span id="astropy-convolve"></span><h1>Convolution and filtering (<a class="reference internal" href="#module-astropy.convolution" title="astropy.convolution"><code class="xref py py-obj docutils literal"><span class="pre">astropy.convolution</span></code></a>)<a class="headerlink" href="#convolution-and-filtering-astropy-convolution" title="Permalink to this headline">¶</a></h1>
+<div class="section" id="introduction">
+<h2>Introduction<a class="headerlink" href="#introduction" title="Permalink to this headline">¶</a></h2>
+<p><a class="reference internal" href="#module-astropy.convolution" title="astropy.convolution"><code class="xref py py-obj docutils literal"><span class="pre">astropy.convolution</span></code></a> provides convolution functions and kernels that offers
+improvements compared to the scipy <a class="reference external" href="https://docs.scipy.org/doc/scipy/reference/ndimage.html#module-scipy.ndimage" title="(in SciPy v0.19.1)"><code class="xref py py-obj docutils literal"><span class="pre">scipy.ndimage</span></code></a> convolution routines,
+including:</p>
+<ul class="simple">
+<li>Proper treatment of NaN values (ignoring them during convolution and
+replacing NaN pixels with interpolated values)</li>
+<li>A single function for 1-D, 2-D, and 3-D convolution</li>
+<li>Improved options for the treatment of edges</li>
+<li>Both direct and Fast Fourier Transform (FFT) versions</li>
+<li>Built-in kernels that are commonly used in Astronomy</li>
+</ul>
+<p>The following thumbnails show the difference between Scipy&#8217;s and
+Astropy&#8217;s convolve functions on an Astronomical image that contains NaN
+values. Scipy&#8217;s function essentially returns NaN for all pixels that are
+within a kernel of any NaN value, which is often not the desired result.</p>
+<div class="highlight-python"><div class="highlight"><pre><span></span><span class="kn">import</span> <span class="nn">numpy</span> <span class="kn">as</span> <span class="nn">np</span>
+<span class="kn">import</span> <span class="nn">matplotlib.pyplot</span> <span class="kn">as</span> <span class="nn">plt</span>
+
+<span class="kn">from</span> <span class="nn">astropy.io</span> <span class="kn">import</span> <span class="n">fits</span>
+<span class="kn">from</span> <span class="nn">astropy.utils.data</span> <span class="kn">import</span> <span class="n">get_pkg_data_filename</span>
+<span class="kn">from</span> <span class="nn">astropy.convolution</span> <span class="kn">import</span> <span class="n">Gaussian2DKernel</span>
+<span class="kn">from</span> <span class="nn">scipy.signal</span> <span class="kn">import</span> <span class="n">convolve</span> <span class="k">as</span> <span class="n">scipy_convolve</span>
+<span class="kn">from</span> <span class="nn">astropy.convolution</span> <span class="kn">import</span> <span class="n">convolve</span>
+
+
+<span class="c1"># Load the data from data.astropy.org</span>
+<span class="n">filename</span> <span class="o">=</span> <span class="n">get_pkg_data_filename</span><span class="p">(</span><span class="s1">&#39;galactic_center/gc_msx_e.fits&#39;</span><span class="p">)</span>
+<span class="n">hdu</span> <span class="o">=</span> <span class="n">fits</span><span class="o">.</span><span class="n">open</span><span class="p">(</span><span class="n">filename</span><span class="p">)[</span><span class="mi">0</span><span class="p">]</span>
+
+<span class="c1"># Scale the file to have reasonable numbers</span>
+<span class="c1"># (this is mostly so that colorbars don&#39;t have too many digits)</span>
+<span class="c1"># Also, we crop it so you can see individual pixels</span>
+<span class="n">img</span> <span class="o">=</span> <span class="n">hdu</span><span class="o">.</span><span class="n">data</span><span class="p">[</span><span class="mi">50</span><span class="p">:</span><span class="mi">90</span><span class="p">,</span> <span class="mi">60</span><span class="p">:</span><span class="mi">100</span><span class="p">]</span> <span class="o">*</span> <span class="mf">1e5</span>
+
+<span class="c1"># This example is intended to demonstrate how astropy.convolve and</span>
+<span class="c1"># scipy.convolve handle missing data, so we start by setting the</span>
+<span class="c1"># brightest pixels to NaN to simulate a &quot;saturated&quot; data set</span>
+<span class="n">img</span><span class="p">[</span><span class="n">img</span> <span class="o">&gt;</span> <span class="mf">2e1</span><span class="p">]</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">nan</span>
+
+<span class="c1"># We also create a copy of the data and set those NaNs to zero.  We&#39;ll</span>
+<span class="c1"># use this for the scipy convolution</span>
+<span class="n">img_zerod</span> <span class="o">=</span> <span class="n">img</span><span class="o">.</span><span class="n">copy</span><span class="p">()</span>
+<span class="n">img_zerod</span><span class="p">[</span><span class="n">np</span><span class="o">.</span><span class="n">isnan</span><span class="p">(</span><span class="n">img</span><span class="p">)]</span> <span class="o">=</span> <span class="mi">0</span>
+
+<span class="c1"># We smooth with a Gaussian kernel with stddev=1</span>
+<span class="c1"># It is a 9x9 array</span>
+<span class="n">kernel</span> <span class="o">=</span> <span class="n">Gaussian2DKernel</span><span class="p">(</span><span class="n">stddev</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span>
+
+<span class="c1"># Convolution: scipy&#39;s direct convolution mode spreads out NaNs (see</span>
+<span class="c1"># panel 2 below)</span>
+<span class="n">scipy_conv</span> <span class="o">=</span> <span class="n">scipy_convolve</span><span class="p">(</span><span class="n">img</span><span class="p">,</span> <span class="n">kernel</span><span class="p">,</span> <span class="n">mode</span><span class="o">=</span><span class="s1">&#39;same&#39;</span><span class="p">,</span> <span class="n">method</span><span class="o">=</span><span class="s1">&#39;direct&#39;</span><span class="p">)</span>
+
+<span class="c1"># scipy&#39;s direct convolution mode run on the &#39;zero&#39;d&#39; image will not</span>
+<span class="c1"># have NaNs, but will have some very low value zones where the NaNs were</span>
+<span class="c1"># (see panel 3 below)</span>
+<span class="n">scipy_conv_zerod</span> <span class="o">=</span> <span class="n">scipy_convolve</span><span class="p">(</span><span class="n">img_zerod</span><span class="p">,</span> <span class="n">kernel</span><span class="p">,</span> <span class="n">mode</span><span class="o">=</span><span class="s1">&#39;same&#39;</span><span class="p">,</span>
+                                  <span class="n">method</span><span class="o">=</span><span class="s1">&#39;direct&#39;</span><span class="p">)</span>
+
+<span class="c1"># astropy&#39;s convolution replaces the NaN pixels with a kernel-weighted</span>
+<span class="c1"># interpolation from their neighbors</span>
+<span class="n">astropy_conv</span> <span class="o">=</span> <span class="n">convolve</span><span class="p">(</span><span class="n">img</span><span class="p">,</span> <span class="n">kernel</span><span class="p">)</span>
+
+
+<span class="c1"># Now we do a bunch of plots.  In the first two plots, the originally masked</span>
+<span class="c1"># values are marked with red X&#39;s</span>
+<span class="n">plt</span><span class="o">.</span><span class="n">figure</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="n">figsize</span><span class="o">=</span><span class="p">(</span><span class="mi">12</span><span class="p">,</span> <span class="mi">12</span><span class="p">))</span><span class="o">.</span><span class="n">clf</span><span class="p">()</span>
+<span class="n">ax1</span> <span class="o">=</span> <span class="n">plt</span><span class="o">.</span><span class="n">subplot</span><span class="p">(</span><span class="mi">2</span><span class="p">,</span> <span class="mi">2</span><span class="p">,</span> <span class="mi">1</span><span class="p">)</span>
+<span class="n">im</span> <span class="o">=</span> <span class="n">ax1</span><span class="o">.</span><span class="n">imshow</span><span class="p">(</span><span class="n">img</span><span class="p">,</span> <span class="n">vmin</span><span class="o">=-</span><span class="mf">2.</span><span class="p">,</span> <span class="n">vmax</span><span class="o">=</span><span class="mf">2.e1</span><span class="p">,</span> <span class="n">origin</span><span class="o">=</span><span class="s1">&#39;lower&#39;</span><span class="p">,</span>
+                <span class="n">interpolation</span><span class="o">=</span><span class="s1">&#39;nearest&#39;</span><span class="p">,</span> <span class="n">cmap</span><span class="o">=</span><span class="s1">&#39;viridis&#39;</span><span class="p">)</span>
+<span class="n">y</span><span class="p">,</span> <span class="n">x</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">where</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">isnan</span><span class="p">(</span><span class="n">img</span><span class="p">))</span>
+<span class="n">ax1</span><span class="o">.</span><span class="n">set_autoscale_on</span><span class="p">(</span><span class="bp">False</span><span class="p">)</span>
+<span class="n">ax1</span><span class="o">.</span><span class="n">plot</span><span class="p">(</span><span class="n">x</span><span class="p">,</span> <span class="n">y</span><span class="p">,</span> <span class="s1">&#39;rx&#39;</span><span class="p">,</span> <span class="n">markersize</span><span class="o">=</span><span class="mi">4</span><span class="p">)</span>
+<span class="n">ax1</span><span class="o">.</span><span class="n">set_title</span><span class="p">(</span><span class="s2">&quot;Original&quot;</span><span class="p">)</span>
+<span class="n">ax1</span><span class="o">.</span><span class="n">set_xticklabels</span><span class="p">([])</span>
+<span class="n">ax1</span><span class="o">.</span><span class="n">set_yticklabels</span><span class="p">([])</span>
+
+<span class="n">ax2</span> <span class="o">=</span> <span class="n">plt</span><span class="o">.</span><span class="n">subplot</span><span class="p">(</span><span class="mi">2</span><span class="p">,</span> <span class="mi">2</span><span class="p">,</span> <span class="mi">2</span><span class="p">)</span>
+<span class="n">im</span> <span class="o">=</span> <span class="n">ax2</span><span class="o">.</span><span class="n">imshow</span><span class="p">(</span><span class="n">scipy_conv</span><span class="p">,</span> <span class="n">vmin</span><span class="o">=-</span><span class="mf">2.</span><span class="p">,</span> <span class="n">vmax</span><span class="o">=</span><span class="mf">2.e1</span><span class="p">,</span> <span class="n">origin</span><span class="o">=</span><span class="s1">&#39;lower&#39;</span><span class="p">,</span>
+                <span class="n">interpolation</span><span class="o">=</span><span class="s1">&#39;nearest&#39;</span><span class="p">,</span> <span class="n">cmap</span><span class="o">=</span><span class="s1">&#39;viridis&#39;</span><span class="p">)</span>
+<span class="n">ax2</span><span class="o">.</span><span class="n">set_autoscale_on</span><span class="p">(</span><span class="bp">False</span><span class="p">)</span>
+<span class="n">ax2</span><span class="o">.</span><span class="n">plot</span><span class="p">(</span><span class="n">x</span><span class="p">,</span> <span class="n">y</span><span class="p">,</span> <span class="s1">&#39;rx&#39;</span><span class="p">,</span> <span class="n">markersize</span><span class="o">=</span><span class="mi">4</span><span class="p">)</span>
+<span class="n">ax2</span><span class="o">.</span><span class="n">set_title</span><span class="p">(</span><span class="s2">&quot;Scipy&quot;</span><span class="p">)</span>
+<span class="n">ax2</span><span class="o">.</span><span class="n">set_xticklabels</span><span class="p">([])</span>
+<span class="n">ax2</span><span class="o">.</span><span class="n">set_yticklabels</span><span class="p">([])</span>
+
+<span class="n">ax3</span> <span class="o">=</span> <span class="n">plt</span><span class="o">.</span><span class="n">subplot</span><span class="p">(</span><span class="mi">2</span><span class="p">,</span> <span class="mi">2</span><span class="p">,</span> <span class="mi">3</span><span class="p">)</span>
+<span class="n">im</span> <span class="o">=</span> <span class="n">ax3</span><span class="o">.</span><span class="n">imshow</span><span class="p">(</span><span class="n">scipy_conv_zerod</span><span class="p">,</span> <span class="n">vmin</span><span class="o">=-</span><span class="mf">2.</span><span class="p">,</span> <span class="n">vmax</span><span class="o">=</span><span class="mf">2.e1</span><span class="p">,</span> <span class="n">origin</span><span class="o">=</span><span class="s1">&#39;lower&#39;</span><span class="p">,</span>
+                <span class="n">interpolation</span><span class="o">=</span><span class="s1">&#39;nearest&#39;</span><span class="p">,</span> <span class="n">cmap</span><span class="o">=</span><span class="s1">&#39;viridis&#39;</span><span class="p">)</span>
+<span class="n">ax3</span><span class="o">.</span><span class="n">set_title</span><span class="p">(</span><span class="s2">&quot;Scipy nan-&gt;zero&quot;</span><span class="p">)</span>
+<span class="n">ax3</span><span class="o">.</span><span class="n">set_xticklabels</span><span class="p">([])</span>
+<span class="n">ax3</span><span class="o">.</span><span class="n">set_yticklabels</span><span class="p">([])</span>
+
+<span class="n">ax4</span> <span class="o">=</span> <span class="n">plt</span><span class="o">.</span><span class="n">subplot</span><span class="p">(</span><span class="mi">2</span><span class="p">,</span> <span class="mi">2</span><span class="p">,</span> <span class="mi">4</span><span class="p">)</span>
+<span class="n">im</span> <span class="o">=</span> <span class="n">ax4</span><span class="o">.</span><span class="n">imshow</span><span class="p">(</span><span class="n">astropy_conv</span><span class="p">,</span> <span class="n">vmin</span><span class="o">=-</span><span class="mf">2.</span><span class="p">,</span> <span class="n">vmax</span><span class="o">=</span><span class="mf">2.e1</span><span class="p">,</span> <span class="n">origin</span><span class="o">=</span><span class="s1">&#39;lower&#39;</span><span class="p">,</span>
+                <span class="n">interpolation</span><span class="o">=</span><span class="s1">&#39;nearest&#39;</span><span class="p">,</span> <span class="n">cmap</span><span class="o">=</span><span class="s1">&#39;viridis&#39;</span><span class="p">)</span>
+<span class="n">ax4</span><span class="o">.</span><span class="n">set_title</span><span class="p">(</span><span class="s2">&quot;Default astropy&quot;</span><span class="p">)</span>
+<span class="n">ax4</span><span class="o">.</span><span class="n">set_xticklabels</span><span class="p">([])</span>
+<span class="n">ax4</span><span class="o">.</span><span class="n">set_yticklabels</span><span class="p">([])</span>
+
+<span class="c1"># we make a second plot of the amplitudes vs offset position to more</span>
+<span class="c1"># clearly illustrate the value differences</span>
+<span class="n">plt</span><span class="o">.</span><span class="n">figure</span><span class="p">(</span><span class="mi">2</span><span class="p">)</span><span class="o">.</span><span class="n">clf</span><span class="p">()</span>
+<span class="n">plt</span><span class="o">.</span><span class="n">plot</span><span class="p">(</span><span class="n">img</span><span class="p">[:,</span> <span class="mi">25</span><span class="p">],</span> <span class="n">label</span><span class="o">=</span><span class="s1">&#39;input&#39;</span><span class="p">,</span> <span class="n">drawstyle</span><span class="o">=</span><span class="s1">&#39;steps-mid&#39;</span><span class="p">,</span> <span class="n">linewidth</span><span class="o">=</span><span class="mi">2</span><span class="p">,</span>
+         <span class="n">alpha</span><span class="o">=</span><span class="mf">0.5</span><span class="p">)</span>
+<span class="n">plt</span><span class="o">.</span><span class="n">plot</span><span class="p">(</span><span class="n">scipy_conv</span><span class="p">[:,</span> <span class="mi">25</span><span class="p">],</span> <span class="n">label</span><span class="o">=</span><span class="s1">&#39;scipy&#39;</span><span class="p">,</span> <span class="n">drawstyle</span><span class="o">=</span><span class="s1">&#39;steps-mid&#39;</span><span class="p">,</span>
+         <span class="n">linewidth</span><span class="o">=</span><span class="mi">2</span><span class="p">,</span> <span class="n">alpha</span><span class="o">=</span><span class="mf">0.5</span><span class="p">,</span> <span class="n">marker</span><span class="o">=</span><span class="s1">&#39;s&#39;</span><span class="p">)</span>
+<span class="n">plt</span><span class="o">.</span><span class="n">plot</span><span class="p">(</span><span class="n">scipy_conv_zerod</span><span class="p">[:,</span> <span class="mi">25</span><span class="p">],</span> <span class="n">label</span><span class="o">=</span><span class="s1">&#39;scipy nan-&gt;zero&#39;</span><span class="p">,</span>
+         <span class="n">drawstyle</span><span class="o">=</span><span class="s1">&#39;steps-mid&#39;</span><span class="p">,</span> <span class="n">linewidth</span><span class="o">=</span><span class="mi">2</span><span class="p">,</span> <span class="n">alpha</span><span class="o">=</span><span class="mf">0.5</span><span class="p">,</span> <span class="n">marker</span><span class="o">=</span><span class="s1">&#39;s&#39;</span><span class="p">)</span>
+<span class="n">plt</span><span class="o">.</span><span class="n">plot</span><span class="p">(</span><span class="n">astropy_conv</span><span class="p">[:,</span> <span class="mi">25</span><span class="p">],</span> <span class="n">label</span><span class="o">=</span><span class="s1">&#39;astropy&#39;</span><span class="p">,</span> <span class="n">drawstyle</span><span class="o">=</span><span class="s1">&#39;steps-mid&#39;</span><span class="p">,</span>
+         <span class="n">linewidth</span><span class="o">=</span><span class="mi">2</span><span class="p">,</span> <span class="n">alpha</span><span class="o">=</span><span class="mf">0.5</span><span class="p">)</span>
+<span class="n">plt</span><span class="o">.</span><span class="n">ylabel</span><span class="p">(</span><span class="s2">&quot;Amplitude&quot;</span><span class="p">)</span>
+<span class="n">plt</span><span class="o">.</span><span class="n">ylabel</span><span class="p">(</span><span class="s2">&quot;Position Offset&quot;</span><span class="p">)</span>
+<span class="n">plt</span><span class="o">.</span><span class="n">legend</span><span class="p">(</span><span class="n">loc</span><span class="o">=</span><span class="s1">&#39;best&#39;</span><span class="p">)</span>
+<span class="n">plt</span><span class="o">.</span><span class="n">show</span><span class="p">()</span>
+</pre></div>
+</div>
+<div class="figure align-center" id="id2">
+<img alt="../_images/index-1_00.png" src="../_images/index-1_00.png" />
+<p class="caption"><span class="caption-text">(<a class="reference external" href="../convolution/index-1_00.png">png</a>, <a class="reference external" href="../convolution/index-1_00.svg">svg</a>, <a class="reference external" href="../convolution/index-1_00.pdf">pdf</a>)</span></p>
+</div>
+<div class="figure align-center" id="id3">
+<img alt="../_images/index-1_01.png" src="../_images/index-1_01.png" />
+<p class="caption"><span class="caption-text">(<a class="reference external" href="../convolution/index-1_01.png">png</a>, <a class="reference external" href="../convolution/index-1_01.svg">svg</a>, <a class="reference external" href="../convolution/index-1_01.pdf">pdf</a>)</span></p>
+</div>
+<p>The following sections describe how to make use of the convolution functions,
+and how to use built-in convolution kernels:</p>
+</div>
+<div class="section" id="getting-started">
+<h2>Getting started<a class="headerlink" href="#getting-started" title="Permalink to this headline">¶</a></h2>
+<p>Two convolution functions are provided.  They are imported as:</p>
+<div class="highlight-default"><div class="highlight"><pre><span></span><span class="kn">from</span> <span class="nn">astropy.convolution</span> <span class="k">import</span> <span class="n">convolve</span><span class="p">,</span> <span class="n">convolve_fft</span>
+</pre></div>
+</div>
+<p>and are both used as:</p>
+<div class="highlight-default"><div class="highlight"><pre><span></span><span class="n">result</span> <span class="o">=</span> <span class="n">convolve</span><span class="p">(</span><span class="n">image</span><span class="p">,</span> <span class="n">kernel</span><span class="p">)</span>
+<span class="n">result</span> <span class="o">=</span> <span class="n">convolve_fft</span><span class="p">(</span><span class="n">image</span><span class="p">,</span> <span class="n">kernel</span><span class="p">)</span>
+</pre></div>
+</div>
+<p><a class="reference internal" href="../api/astropy.convolution.convolve.html#astropy.convolution.convolve" title="astropy.convolution.convolve"><code class="xref py py-func docutils literal"><span class="pre">convolve()</span></code></a> is implemented as a
+direct convolution algorithm, while
+<a class="reference internal" href="../api/astropy.convolution.convolve_fft.html#astropy.convolution.convolve_fft" title="astropy.convolution.convolve_fft"><code class="xref py py-func docutils literal"><span class="pre">convolve_fft()</span></code></a> uses a fast Fourier
+transform (FFT). Thus, the former is better for small kernels, while the latter
+is much more efficient for larger kernels.</p>
+<p>For example, to convolve a 1-d dataset with a user-specified kernel, you can do:</p>
+<div class="highlight-default"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="kn">from</span> <span class="nn">astropy.convolution</span> <span class="k">import</span> <span class="n">convolve</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">convolve</span><span class="p">([</span><span class="mi">1</span><span class="p">,</span> <span class="mi">4</span><span class="p">,</span> <span class="mi">5</span><span class="p">,</span> <span class="mi">6</span><span class="p">,</span> <span class="mi">5</span><span class="p">,</span> <span class="mi">7</span><span class="p">,</span> <span class="mi">8</span><span class="p">],</span> <span class="p">[</span><span class="mf">0.2</span><span class="p">,</span> <span class="mf">0.6</span><span class="p">,</span> <span class="mf">0.2</span><span class="p">])</span>
+<span class="go">array([ 1.4,  3.6,  5. ,  5.6,  5.6,  6.8,  6.2])</span>
+</pre></div>
+</div>
+<p>Notice that the end points are set to zero - by default, points that are too
+close to the boundary to have a convolved value calculated are set to zero.
+However, the <a class="reference internal" href="../api/astropy.convolution.convolve.html#astropy.convolution.convolve" title="astropy.convolution.convolve"><code class="xref py py-func docutils literal"><span class="pre">convolve()</span></code></a> function allows for a
+<code class="docutils literal"><span class="pre">boundary</span></code> argument that can be used to specify alternate behaviors. For
+example, setting <code class="docutils literal"><span class="pre">boundary='extend'</span></code> causes values near the edges to be
+computed, assuming the original data is simply extended using a constant
+extrapolation beyond the boundary:</p>
+<div class="highlight-default"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="kn">from</span> <span class="nn">astropy.convolution</span> <span class="k">import</span> <span class="n">convolve</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">convolve</span><span class="p">([</span><span class="mi">1</span><span class="p">,</span> <span class="mi">4</span><span class="p">,</span> <span class="mi">5</span><span class="p">,</span> <span class="mi">6</span><span class="p">,</span> <span class="mi">5</span><span class="p">,</span> <span class="mi">7</span><span class="p">,</span> <span class="mi">8</span><span class="p">],</span> <span class="p">[</span><span class="mf">0.2</span><span class="p">,</span> <span class="mf">0.6</span><span class="p">,</span> <span class="mf">0.2</span><span class="p">],</span> <span class="n">boundary</span><span class="o">=</span><span class="s1">&#39;extend&#39;</span><span class="p">)</span>
+<span class="go">array([ 1.6,  3.6,  5. ,  5.6,  5.6,  6.8,  7.8])</span>
+</pre></div>
+</div>
+<p>The values at the end are computed assuming that any value below the first
+point is <code class="docutils literal"><span class="pre">1</span></code>, and any value above the last point is <code class="docutils literal"><span class="pre">8</span></code>. For a more
+detailed discussion of boundary treatment, see <a class="reference internal" href="using.html"><span class="doc">Using the convolution functions</span></a>.</p>
+<p>This module also includes built-in kernels that can be imported as e.g.:</p>
+<div class="highlight-default"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="kn">from</span> <span class="nn">astropy.convolution</span> <span class="k">import</span> <span class="n">Gaussian1DKernel</span>
+</pre></div>
+</div>
+<p>To use a kernel, first create a specific instance of the kernel:</p>
+<div class="highlight-default"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="n">gauss</span> <span class="o">=</span> <span class="n">Gaussian1DKernel</span><span class="p">(</span><span class="n">stddev</span><span class="o">=</span><span class="mi">2</span><span class="p">)</span>
+</pre></div>
+</div>
+<p><code class="docutils literal"><span class="pre">gauss</span></code> is not an array, but a kernel object. The underlying array can be retrieved with:</p>
+<div class="highlight-default"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="n">gauss</span><span class="o">.</span><span class="n">array</span>
+<span class="go">array([  6.69151129e-05,   4.36341348e-04,   2.21592421e-03,</span>
+<span class="go">         8.76415025e-03,   2.69954833e-02,   6.47587978e-02,</span>
+<span class="go">         1.20985362e-01,   1.76032663e-01,   1.99471140e-01,</span>
+<span class="go">         1.76032663e-01,   1.20985362e-01,   6.47587978e-02,</span>
+<span class="go">         2.69954833e-02,   8.76415025e-03,   2.21592421e-03,</span>
+<span class="go">         4.36341348e-04,   6.69151129e-05])</span>
+</pre></div>
+</div>
+<p>The kernel can then be used directly when calling
+<a class="reference internal" href="../api/astropy.convolution.convolve.html#astropy.convolution.convolve" title="astropy.convolution.convolve"><code class="xref py py-func docutils literal"><span class="pre">convolve()</span></code></a>:</p>
+<div class="highlight-python"><div class="highlight"><pre><span></span><span class="kn">import</span> <span class="nn">numpy</span> <span class="kn">as</span> <span class="nn">np</span>
+<span class="kn">import</span> <span class="nn">matplotlib.pyplot</span> <span class="kn">as</span> <span class="nn">plt</span>
+
+<span class="kn">from</span> <span class="nn">astropy.convolution</span> <span class="kn">import</span> <span class="n">Gaussian1DKernel</span><span class="p">,</span> <span class="n">convolve</span>
+
+<span class="n">plt</span><span class="o">.</span><span class="n">figure</span><span class="p">(</span><span class="mi">3</span><span class="p">)</span><span class="o">.</span><span class="n">clf</span><span class="p">()</span>
+
+<span class="c1"># Generate fake data</span>
+<span class="n">x</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">arange</span><span class="p">(</span><span class="mi">1000</span><span class="p">)</span><span class="o">.</span><span class="n">astype</span><span class="p">(</span><span class="nb">float</span><span class="p">)</span>
+<span class="n">y</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">sin</span><span class="p">(</span><span class="n">x</span> <span class="o">/</span> <span class="mf">100.</span><span class="p">)</span> <span class="o">+</span> <span class="n">np</span><span class="o">.</span><span class="n">random</span><span class="o">.</span><span class="n">normal</span><span class="p">(</span><span class="mf">0.</span><span class="p">,</span> <span class="mf">1.</span><span class="p">,</span> <span class="n">x</span><span class="o">.</span><span class="n">shape</span><span class="p">)</span>
+<span class="n">y</span><span class="p">[::</span><span class="mi">3</span><span class="p">]</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">nan</span>
+
+<span class="c1"># Create kernel</span>
+<span class="n">g</span> <span class="o">=</span> <span class="n">Gaussian1DKernel</span><span class="p">(</span><span class="n">stddev</span><span class="o">=</span><span class="mi">50</span><span class="p">)</span>
+
+<span class="c1"># Convolve data</span>
+<span class="n">z</span> <span class="o">=</span> <span class="n">convolve</span><span class="p">(</span><span class="n">y</span><span class="p">,</span> <span class="n">g</span><span class="p">)</span>
+
+<span class="c1"># Plot data before and after convolution</span>
+<span class="n">plt</span><span class="o">.</span><span class="n">plot</span><span class="p">(</span><span class="n">x</span><span class="p">,</span> <span class="n">y</span><span class="p">,</span> <span class="s1">&#39;k-&#39;</span><span class="p">,</span> <span class="n">label</span><span class="o">=</span><span class="s1">&#39;Before&#39;</span><span class="p">)</span>
+<span class="n">plt</span><span class="o">.</span><span class="n">plot</span><span class="p">(</span><span class="n">x</span><span class="p">,</span> <span class="n">z</span><span class="p">,</span> <span class="s1">&#39;b-&#39;</span><span class="p">,</span> <span class="n">label</span><span class="o">=</span><span class="s1">&#39;After&#39;</span><span class="p">,</span> <span class="n">alpha</span><span class="o">=</span><span class="mf">0.5</span><span class="p">,</span> <span class="n">linewidth</span><span class="o">=</span><span class="mi">2</span><span class="p">)</span>
+<span class="n">plt</span><span class="o">.</span><span class="n">legend</span><span class="p">(</span><span class="n">loc</span><span class="o">=</span><span class="s1">&#39;best&#39;</span><span class="p">)</span>
+<span class="n">plt</span><span class="o">.</span><span class="n">show</span><span class="p">()</span>
+</pre></div>
+</div>
+<p>(<a class="reference external" href="../convolution/index-2.png">png</a>, <a class="reference external" href="../convolution/index-2.svg">svg</a>, <a class="reference external" href="../convolution/index-2.pdf">pdf</a>)</p>
+<div class="figure">
+<img alt="../_images/index-2.png" src="../_images/index-2.png" />
+</div>
+<div class="section" id="using-astropy-s-convolution-to-replace-bad-data">
+<h3>Using astropy&#8217;s convolution to replace bad data<a class="headerlink" href="#using-astropy-s-convolution-to-replace-bad-data" title="Permalink to this headline">¶</a></h3>
+<p>Astropy&#8217;s convolution methods can be used to replace bad data with values
+interpolated from their neighbors.  Kernel-based interpolation is useful for
+handling images with a few bad pixels or for interpolating sparsely sampled
+images.</p>
+<p>The interpolation tool is implemented and used as:</p>
+<div class="highlight-default"><div class="highlight"><pre><span></span><span class="kn">from</span> <span class="nn">astropy.convolution</span> <span class="k">import</span> <span class="n">interpolate_replace_nans</span>
+<span class="n">result</span> <span class="o">=</span> <span class="n">interpolate_replace_nans</span><span class="p">(</span><span class="n">image</span><span class="p">,</span> <span class="n">kernel</span><span class="p">)</span>
+</pre></div>
+</div>
+<p>Some contexts in which you might want to use kernel-based interpolation include:</p>
+<blockquote>
+<div><ul class="simple">
+<li>images with saturated pixels.  Generally, these are the highest-intensity
+regions in the imaged area, and the interpolated values are not reliable,
+but this can be useful for display purposes</li>
+<li>images with flagged pixels, e.g., with a few small regions affected by cosmic
+rays or other spurious signals that require those pixels to be flagged out.
+If the affected region is small enough, the resulting interpolation will have
+a small effect on source statistics and may allow for robust source finding
+algorithms to be run on the resulting data</li>
+<li>sparsely sampled images such as those constructed with single-pixel
+detectors.  Such images will only have a few discrete points sampled across
+the imaged area, but an approximation of the extended sky emission can still
+be constructed.</li>
+</ul>
+</div></blockquote>
+<p>The script below shows an example of kernel interpolation to fill in
+flagged-out pixels:</p>
+<div class="highlight-python"><div class="highlight"><pre><span></span><span class="kn">import</span> <span class="nn">numpy</span> <span class="kn">as</span> <span class="nn">np</span>
+<span class="kn">import</span> <span class="nn">matplotlib.pyplot</span> <span class="kn">as</span> <span class="nn">plt</span>
+
+<span class="kn">from</span> <span class="nn">astropy.io</span> <span class="kn">import</span> <span class="n">fits</span>
+<span class="kn">from</span> <span class="nn">astropy.utils.data</span> <span class="kn">import</span> <span class="n">get_pkg_data_filename</span>
+<span class="kn">from</span> <span class="nn">astropy.convolution</span> <span class="kn">import</span> <span class="n">Gaussian2DKernel</span><span class="p">,</span> <span class="n">interpolate_replace_nans</span>
+
+<span class="c1"># Load the data from data.astropy.org</span>
+<span class="n">filename</span> <span class="o">=</span> <span class="n">get_pkg_data_filename</span><span class="p">(</span><span class="s1">&#39;galactic_center/gc_msx_e.fits&#39;</span><span class="p">)</span>
+
+<span class="n">hdu</span> <span class="o">=</span> <span class="n">fits</span><span class="o">.</span><span class="n">open</span><span class="p">(</span><span class="n">filename</span><span class="p">)[</span><span class="mi">0</span><span class="p">]</span>
+<span class="n">img</span> <span class="o">=</span> <span class="n">hdu</span><span class="o">.</span><span class="n">data</span><span class="p">[</span><span class="mi">50</span><span class="p">:</span><span class="mi">90</span><span class="p">,</span> <span class="mi">60</span><span class="p">:</span><span class="mi">100</span><span class="p">]</span> <span class="o">*</span> <span class="mf">1e5</span>
+
+<span class="c1"># This example is intended to demonstrate how astropy.convolve and</span>
+<span class="c1"># scipy.convolve handle missing data, so we start by setting the brightest</span>
+<span class="c1"># pixels to NaN to simulate a &quot;saturated&quot; data set</span>
+<span class="n">img</span><span class="p">[</span><span class="n">img</span> <span class="o">&gt;</span> <span class="mf">2e1</span><span class="p">]</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">nan</span>
+
+<span class="c1"># We smooth with a Gaussian kernel with stddev=1</span>
+<span class="c1"># It is a 9x9 array</span>
+<span class="n">kernel</span> <span class="o">=</span> <span class="n">Gaussian2DKernel</span><span class="p">(</span><span class="n">stddev</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span>
+
+<span class="c1"># create a &quot;fixed&quot; image with NaNs replaced by interpolated values</span>
+<span class="n">fixed_image</span> <span class="o">=</span> <span class="n">interpolate_replace_nans</span><span class="p">(</span><span class="n">img</span><span class="p">,</span> <span class="n">kernel</span><span class="p">)</span>
+
+<span class="c1"># Now we do a bunch of plots.  In the first two plots, the originally masked</span>
+<span class="c1"># values are marked with red X&#39;s</span>
+<span class="n">plt</span><span class="o">.</span><span class="n">figure</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="n">figsize</span><span class="o">=</span><span class="p">(</span><span class="mi">12</span><span class="p">,</span> <span class="mi">6</span><span class="p">))</span><span class="o">.</span><span class="n">clf</span><span class="p">()</span>
+<span class="n">plt</span><span class="o">.</span><span class="n">close</span><span class="p">(</span><span class="mi">2</span><span class="p">)</span> <span class="c1"># close the second plot from above</span>
+
+<span class="n">ax1</span> <span class="o">=</span> <span class="n">plt</span><span class="o">.</span><span class="n">subplot</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="mi">2</span><span class="p">,</span> <span class="mi">1</span><span class="p">)</span>
+<span class="n">im</span> <span class="o">=</span> <span class="n">ax1</span><span class="o">.</span><span class="n">imshow</span><span class="p">(</span><span class="n">img</span><span class="p">,</span> <span class="n">vmin</span><span class="o">=-</span><span class="mf">2.</span><span class="p">,</span> <span class="n">vmax</span><span class="o">=</span><span class="mf">2.e1</span><span class="p">,</span> <span class="n">origin</span><span class="o">=</span><span class="s1">&#39;lower&#39;</span><span class="p">,</span>
+                <span class="n">interpolation</span><span class="o">=</span><span class="s1">&#39;nearest&#39;</span><span class="p">,</span> <span class="n">cmap</span><span class="o">=</span><span class="s1">&#39;viridis&#39;</span><span class="p">)</span>
+<span class="n">y</span><span class="p">,</span> <span class="n">x</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">where</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">isnan</span><span class="p">(</span><span class="n">img</span><span class="p">))</span>
+<span class="n">ax1</span><span class="o">.</span><span class="n">set_autoscale_on</span><span class="p">(</span><span class="bp">False</span><span class="p">)</span>
+<span class="n">ax1</span><span class="o">.</span><span class="n">plot</span><span class="p">(</span><span class="n">x</span><span class="p">,</span> <span class="n">y</span><span class="p">,</span> <span class="s1">&#39;rx&#39;</span><span class="p">,</span> <span class="n">markersize</span><span class="o">=</span><span class="mi">4</span><span class="p">)</span>
+<span class="n">ax1</span><span class="o">.</span><span class="n">set_title</span><span class="p">(</span><span class="s2">&quot;Original&quot;</span><span class="p">)</span>
+<span class="n">ax1</span><span class="o">.</span><span class="n">set_xticklabels</span><span class="p">([])</span>
+<span class="n">ax1</span><span class="o">.</span><span class="n">set_yticklabels</span><span class="p">([])</span>
+
+<span class="n">ax2</span> <span class="o">=</span> <span class="n">plt</span><span class="o">.</span><span class="n">subplot</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="mi">2</span><span class="p">,</span> <span class="mi">2</span><span class="p">)</span>
+<span class="n">im</span> <span class="o">=</span> <span class="n">ax2</span><span class="o">.</span><span class="n">imshow</span><span class="p">(</span><span class="n">fixed_image</span><span class="p">,</span> <span class="n">vmin</span><span class="o">=-</span><span class="mf">2.</span><span class="p">,</span> <span class="n">vmax</span><span class="o">=</span><span class="mf">2.e1</span><span class="p">,</span> <span class="n">origin</span><span class="o">=</span><span class="s1">&#39;lower&#39;</span><span class="p">,</span>
+                <span class="n">interpolation</span><span class="o">=</span><span class="s1">&#39;nearest&#39;</span><span class="p">,</span> <span class="n">cmap</span><span class="o">=</span><span class="s1">&#39;viridis&#39;</span><span class="p">)</span>
+<span class="n">ax2</span><span class="o">.</span><span class="n">set_title</span><span class="p">(</span><span class="s2">&quot;Fixed&quot;</span><span class="p">)</span>
+<span class="n">ax2</span><span class="o">.</span><span class="n">set_xticklabels</span><span class="p">([])</span>
+<span class="n">ax2</span><span class="o">.</span><span class="n">set_yticklabels</span><span class="p">([])</span>
+</pre></div>
+</div>
+<p>(<a class="reference external" href="../convolution/index-3.png">png</a>, <a class="reference external" href="../convolution/index-3.svg">svg</a>, <a class="reference external" href="../convolution/index-3.pdf">pdf</a>)</p>
+<div class="figure align-center">
+<img alt="../_images/index-3.png" src="../_images/index-3.png" />
+</div>
+<p>This script shows the power of this technique for reconstructing images from
+sparse sampling.  Note that the image is not perfect - the pointlike sources
+are sometimes missed - but the extended structure is very well recovered (by
+eye).</p>
+<div class="highlight-python"><div class="highlight"><pre><span></span><span class="kn">import</span> <span class="nn">numpy</span> <span class="kn">as</span> <span class="nn">np</span>
+<span class="kn">import</span> <span class="nn">matplotlib.pyplot</span> <span class="kn">as</span> <span class="nn">plt</span>
+
+<span class="kn">from</span> <span class="nn">astropy.io</span> <span class="kn">import</span> <span class="n">fits</span>
+<span class="kn">from</span> <span class="nn">astropy.utils.data</span> <span class="kn">import</span> <span class="n">get_pkg_data_filename</span>
+<span class="kn">from</span> <span class="nn">astropy.convolution</span> <span class="kn">import</span> <span class="n">Gaussian2DKernel</span><span class="p">,</span> <span class="n">interpolate_replace_nans</span>
+
+<span class="c1"># Load the data from data.astropy.org</span>
+<span class="n">filename</span> <span class="o">=</span> <span class="n">get_pkg_data_filename</span><span class="p">(</span><span class="s1">&#39;galactic_center/gc_msx_e.fits&#39;</span><span class="p">)</span>
+
+<span class="n">hdu</span> <span class="o">=</span> <span class="n">fits</span><span class="o">.</span><span class="n">open</span><span class="p">(</span><span class="n">filename</span><span class="p">)[</span><span class="mi">0</span><span class="p">]</span>
+<span class="n">img</span> <span class="o">=</span> <span class="n">hdu</span><span class="o">.</span><span class="n">data</span><span class="p">[</span><span class="mi">50</span><span class="p">:</span><span class="mi">90</span><span class="p">,</span> <span class="mi">60</span><span class="p">:</span><span class="mi">100</span><span class="p">]</span> <span class="o">*</span> <span class="mf">1e5</span>
+
+<span class="n">indices</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">random</span><span class="o">.</span><span class="n">randint</span><span class="p">(</span><span class="n">low</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span> <span class="n">high</span><span class="o">=</span><span class="n">img</span><span class="o">.</span><span class="n">size</span><span class="p">,</span> <span class="n">size</span><span class="o">=</span><span class="mi">300</span><span class="p">)</span>
+
+<span class="n">sampled_data</span> <span class="o">=</span> <span class="n">img</span><span class="o">.</span><span class="n">flat</span><span class="p">[</span><span class="n">indices</span><span class="p">]</span>
+
+<span class="c1"># Build a new, sparsely sampled version of the original image</span>
+<span class="n">new_img</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">tile</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">nan</span><span class="p">,</span> <span class="n">img</span><span class="o">.</span><span class="n">shape</span><span class="p">)</span>
+<span class="n">new_img</span><span class="o">.</span><span class="n">flat</span><span class="p">[</span><span class="n">indices</span><span class="p">]</span> <span class="o">=</span> <span class="n">sampled_data</span>
+
+<span class="c1"># We smooth with a Gaussian kernel with stddev=1</span>
+<span class="c1"># It is a 9x9 array</span>
+<span class="n">kernel</span> <span class="o">=</span> <span class="n">Gaussian2DKernel</span><span class="p">(</span><span class="n">stddev</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span>
+
+<span class="c1"># create a &quot;reconstructed&quot; image with NaNs replaced by interpolated values</span>
+<span class="n">reconstructed_image</span> <span class="o">=</span> <span class="n">interpolate_replace_nans</span><span class="p">(</span><span class="n">new_img</span><span class="p">,</span> <span class="n">kernel</span><span class="p">)</span>
+
+<span class="c1"># Now we do a bunch of plots.  In the first two plots, the originally masked</span>
+<span class="c1"># values are marked with red X&#39;s</span>
+<span class="n">plt</span><span class="o">.</span><span class="n">figure</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="n">figsize</span><span class="o">=</span><span class="p">(</span><span class="mi">12</span><span class="p">,</span> <span class="mi">6</span><span class="p">))</span><span class="o">.</span><span class="n">clf</span><span class="p">()</span>
+<span class="n">ax1</span> <span class="o">=</span> <span class="n">plt</span><span class="o">.</span><span class="n">subplot</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="mi">3</span><span class="p">,</span> <span class="mi">1</span><span class="p">)</span>
+<span class="n">im</span> <span class="o">=</span> <span class="n">ax1</span><span class="o">.</span><span class="n">imshow</span><span class="p">(</span><span class="n">img</span><span class="p">,</span> <span class="n">vmin</span><span class="o">=-</span><span class="mf">2.</span><span class="p">,</span> <span class="n">vmax</span><span class="o">=</span><span class="mf">2.e1</span><span class="p">,</span> <span class="n">origin</span><span class="o">=</span><span class="s1">&#39;lower&#39;</span><span class="p">,</span>
+                <span class="n">interpolation</span><span class="o">=</span><span class="s1">&#39;nearest&#39;</span><span class="p">,</span> <span class="n">cmap</span><span class="o">=</span><span class="s1">&#39;viridis&#39;</span><span class="p">)</span>
+<span class="n">y</span><span class="p">,</span> <span class="n">x</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">where</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">isnan</span><span class="p">(</span><span class="n">img</span><span class="p">))</span>
+<span class="n">ax1</span><span class="o">.</span><span class="n">set_autoscale_on</span><span class="p">(</span><span class="bp">False</span><span class="p">)</span>
+<span class="n">ax1</span><span class="o">.</span><span class="n">set_title</span><span class="p">(</span><span class="s2">&quot;Original&quot;</span><span class="p">)</span>
+<span class="n">ax1</span><span class="o">.</span><span class="n">set_xticklabels</span><span class="p">([])</span>
+<span class="n">ax1</span><span class="o">.</span><span class="n">set_yticklabels</span><span class="p">([])</span>
+
+<span class="n">ax2</span> <span class="o">=</span> <span class="n">plt</span><span class="o">.</span><span class="n">subplot</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="mi">3</span><span class="p">,</span> <span class="mi">2</span><span class="p">)</span>
+<span class="n">im</span> <span class="o">=</span> <span class="n">ax2</span><span class="o">.</span><span class="n">imshow</span><span class="p">(</span><span class="n">new_img</span><span class="p">,</span> <span class="n">vmin</span><span class="o">=-</span><span class="mf">2.</span><span class="p">,</span> <span class="n">vmax</span><span class="o">=</span><span class="mf">2.e1</span><span class="p">,</span> <span class="n">origin</span><span class="o">=</span><span class="s1">&#39;lower&#39;</span><span class="p">,</span>
+                <span class="n">interpolation</span><span class="o">=</span><span class="s1">&#39;nearest&#39;</span><span class="p">,</span> <span class="n">cmap</span><span class="o">=</span><span class="s1">&#39;viridis&#39;</span><span class="p">)</span>
+<span class="n">ax2</span><span class="o">.</span><span class="n">set_title</span><span class="p">(</span><span class="s2">&quot;Sparsely Sampled&quot;</span><span class="p">)</span>
+<span class="n">ax2</span><span class="o">.</span><span class="n">set_xticklabels</span><span class="p">([])</span>
+<span class="n">ax2</span><span class="o">.</span><span class="n">set_yticklabels</span><span class="p">([])</span>
+
+<span class="n">ax2</span> <span class="o">=</span> <span class="n">plt</span><span class="o">.</span><span class="n">subplot</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="mi">3</span><span class="p">,</span> <span class="mi">3</span><span class="p">)</span>
+<span class="n">im</span> <span class="o">=</span> <span class="n">ax2</span><span class="o">.</span><span class="n">imshow</span><span class="p">(</span><span class="n">reconstructed_image</span><span class="p">,</span> <span class="n">vmin</span><span class="o">=-</span><span class="mf">2.</span><span class="p">,</span> <span class="n">vmax</span><span class="o">=</span><span class="mf">2.e1</span><span class="p">,</span> <span class="n">origin</span><span class="o">=</span><span class="s1">&#39;lower&#39;</span><span class="p">,</span>
+                <span class="n">interpolation</span><span class="o">=</span><span class="s1">&#39;nearest&#39;</span><span class="p">,</span> <span class="n">cmap</span><span class="o">=</span><span class="s1">&#39;viridis&#39;</span><span class="p">)</span>
+<span class="n">ax2</span><span class="o">.</span><span class="n">set_title</span><span class="p">(</span><span class="s2">&quot;Reconstructed&quot;</span><span class="p">)</span>
+<span class="n">ax2</span><span class="o">.</span><span class="n">set_xticklabels</span><span class="p">([])</span>
+<span class="n">ax2</span><span class="o">.</span><span class="n">set_yticklabels</span><span class="p">([])</span>
+</pre></div>
+</div>
+<p>(<a class="reference external" href="../convolution/index-4.png">png</a>, <a class="reference external" href="../convolution/index-4.svg">svg</a>, <a class="reference external" href="../convolution/index-4.pdf">pdf</a>)</p>
+<div class="figure align-center">
+<img alt="../_images/index-4.png" src="../_images/index-4.png" />
+</div>
+</div>
+<div class="section" id="a-note-on-backward-compatibility-pre-v2-0">
+<span id="astropy-convolve-compat"></span><h3>A note on backward compatibility (pre v2.0)<a class="headerlink" href="#a-note-on-backward-compatibility-pre-v2-0" title="Permalink to this headline">¶</a></h3>
+<p>While you probably do not want unless you are explicitly comparing to
+data convolved with direct convolution in old versions of astropy (see below),
+to get the behavior of the old (astropy version &lt;2.0) direct convolution
+function you can interpolate and then convolve, e.g.:</p>
+<div class="highlight-python"><div class="highlight"><pre><span></span><span class="kn">from</span> <span class="nn">astropy.convolution</span> <span class="kn">import</span> <span class="n">interpolate_replace_nans</span><span class="p">,</span> <span class="n">convolve</span>
+<span class="n">interped_result</span> <span class="o">=</span> <span class="n">interpolate_replace_nans</span><span class="p">(</span><span class="n">image</span><span class="p">,</span> <span class="n">kernel</span><span class="p">)</span>
+<span class="n">result</span> <span class="o">=</span> <span class="n">convolve</span><span class="p">(</span><span class="n">interped_image</span><span class="p">,</span> <span class="n">kernel</span><span class="p">)</span>
+</pre></div>
+</div>
+<p>Note that the default behavior of both <a class="reference internal" href="../api/astropy.convolution.convolve.html#astropy.convolution.convolve" title="astropy.convolution.convolve"><code class="xref py py-obj docutils literal"><span class="pre">convolve</span></code></a> and
+<a class="reference internal" href="../api/astropy.convolution.convolve_fft.html#astropy.convolution.convolve_fft" title="astropy.convolution.convolve_fft"><code class="xref py py-obj docutils literal"><span class="pre">convolve_fft</span></code></a> is to perform <em>normalized convolution</em> and
+interpolate NaNs during that process.  The example given in this note, and what
+was previously done only in direct convolution in old versions of astropy, does
+a two-step process: first, it replaces the NaNs with their interpolated values
+while leaving all non-NaN values unchanged, then it convolves the resulting
+image with the specified kernel.</p>
+</div>
+</div>
+<div class="section" id="using-astropy-convolution">
+<h2>Using <a class="reference internal" href="#module-astropy.convolution" title="astropy.convolution"><code class="xref py py-obj docutils literal"><span class="pre">astropy.convolution</span></code></a><a class="headerlink" href="#using-astropy-convolution" title="Permalink to this headline">¶</a></h2>
+<div class="toctree-wrapper compound">
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="using.html">Using the convolution functions</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="using.html#overview">Overview</a></li>
+<li class="toctree-l2"><a class="reference internal" href="using.html#examples">Examples</a></li>
+<li class="toctree-l2"><a class="reference internal" href="using.html#kernels">Kernels</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="kernels.html">Convolution Kernels</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="kernels.html#introduction-and-concept">Introduction and Concept</a></li>
+<li class="toctree-l2"><a class="reference internal" href="kernels.html#examples">Examples</a></li>
+<li class="toctree-l2"><a class="reference internal" href="kernels.html#available-kernels">Available Kernels</a></li>
+<li class="toctree-l2"><a class="reference internal" href="kernels.html#kernel-arithmetics">Kernel Arithmetics</a></li>
+<li class="toctree-l2"><a class="reference internal" href="kernels.html#discretization">Discretization</a></li>
+<li class="toctree-l2"><a class="reference internal" href="kernels.html#normalization">Normalization</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="non_normalized_kernels.html">Convolving with un-normalized kernels</a></li>
+</ul>
+</div>
+</div>
+<div class="section" id="reference-api">
+<h2>Reference/API<a class="headerlink" href="#reference-api" title="Permalink to this headline">¶</a></h2>
+<div class="section" id="module-astropy.convolution">
+<span id="astropy-convolution-package"></span><h3>astropy.convolution Package<a class="headerlink" href="#module-astropy.convolution" title="Permalink to this headline">¶</a></h3>
+<div class="section" id="functions">
+<h4>Functions<a class="headerlink" href="#functions" title="Permalink to this headline">¶</a></h4>
+<table border="1" class="longtable docutils">
+<colgroup>
+<col width="10%" />
+<col width="90%" />
+</colgroup>
+<tbody valign="top">
+<tr class="row-odd"><td><a class="reference internal" href="../api/astropy.convolution.convolve.html#astropy.convolution.convolve" title="astropy.convolution.convolve"><code class="xref py py-obj docutils literal"><span class="pre">convolve</span></code></a>(array,&nbsp;kernel[,&nbsp;boundary,&nbsp;...])</td>
+<td>Convolve an array with a kernel.</td>
+</tr>
+<tr class="row-even"><td><a class="reference internal" href="../api/astropy.convolution.convolve_fft.html#astropy.convolution.convolve_fft" title="astropy.convolution.convolve_fft"><code class="xref py py-obj docutils literal"><span class="pre">convolve_fft</span></code></a>(array,&nbsp;kernel[,&nbsp;boundary,&nbsp;...])</td>
+<td>Convolve an ndarray with an nd-kernel.</td>
+</tr>
+<tr class="row-odd"><td><a class="reference internal" href="../api/astropy.convolution.convolve_models.html#astropy.convolution.convolve_models" title="astropy.convolution.convolve_models"><code class="xref py py-obj docutils literal"><span class="pre">convolve_models</span></code></a>(model,&nbsp;kernel[,&nbsp;mode])</td>
+<td>Convolve two models using <a class="reference internal" href="../api/astropy.convolution.convolve_fft.html#astropy.convolution.convolve_fft" title="astropy.convolution.convolve_fft"><code class="xref py py-obj docutils literal"><span class="pre">convolve_fft</span></code></a>.</td>
+</tr>
+<tr class="row-even"><td><a class="reference internal" href="../api/astropy.convolution.discretize_model.html#astropy.convolution.discretize_model" title="astropy.convolution.discretize_model"><code class="xref py py-obj docutils literal"><span class="pre">discretize_model</span></code></a>(model,&nbsp;x_range[,&nbsp;y_range,&nbsp;...])</td>
+<td>Function to evaluate analytical model functions on a grid.</td>
+</tr>
+<tr class="row-odd"><td><a class="reference internal" href="../api/astropy.convolution.interpolate_replace_nans.html#astropy.convolution.interpolate_replace_nans" title="astropy.convolution.interpolate_replace_nans"><code class="xref py py-obj docutils literal"><span class="pre">interpolate_replace_nans</span></code></a>(array,&nbsp;kernel[,&nbsp;...])</td>
+<td>Given a data set containing NaNs, replace the NaNs by interpolating from neighboring data points with a given kernel.</td>
+</tr>
+<tr class="row-even"><td><a class="reference internal" href="../api/astropy.convolution.kernel_arithmetics.html#astropy.convolution.kernel_arithmetics" title="astropy.convolution.kernel_arithmetics"><code class="xref py py-obj docutils literal"><span class="pre">kernel_arithmetics</span></code></a>(kernel,&nbsp;value,&nbsp;operation)</td>
+<td>Add, subtract or multiply two kernels.</td>
+</tr>
+</tbody>
+</table>
+</div>
+<div class="section" id="classes">
+<h4>Classes<a class="headerlink" href="#classes" title="Permalink to this headline">¶</a></h4>
+<table border="1" class="longtable docutils">
+<colgroup>
+<col width="10%" />
+<col width="90%" />
+</colgroup>
+<tbody valign="top">
+<tr class="row-odd"><td><a class="reference internal" href="../api/astropy.convolution.AiryDisk2DKernel.html#astropy.convolution.AiryDisk2DKernel" title="astropy.convolution.AiryDisk2DKernel"><code class="xref py py-obj docutils literal"><span class="pre">AiryDisk2DKernel</span></code></a>(radius,&nbsp;**kwargs)</td>
+<td>2D Airy disk kernel.</td>
+</tr>
+<tr class="row-even"><td><a class="reference internal" href="../api/astropy.convolution.Box1DKernel.html#astropy.convolution.Box1DKernel" title="astropy.convolution.Box1DKernel"><code class="xref py py-obj docutils literal"><span class="pre">Box1DKernel</span></code></a>(width,&nbsp;**kwargs)</td>
+<td>1D Box filter kernel.</td>
+</tr>
+<tr class="row-odd"><td><a class="reference internal" href="../api/astropy.convolution.Box2DKernel.html#astropy.convolution.Box2DKernel" title="astropy.convolution.Box2DKernel"><code class="xref py py-obj docutils literal"><span class="pre">Box2DKernel</span></code></a>(width,&nbsp;**kwargs)</td>
+<td>2D Box filter kernel.</td>
+</tr>
+<tr class="row-even"><td><a class="reference internal" href="../api/astropy.convolution.CustomKernel.html#astropy.convolution.CustomKernel" title="astropy.convolution.CustomKernel"><code class="xref py py-obj docutils literal"><span class="pre">CustomKernel</span></code></a>(array)</td>
+<td>Create filter kernel from list or array.</td>
+</tr>
+<tr class="row-odd"><td><a class="reference internal" href="../api/astropy.convolution.Gaussian1DKernel.html#astropy.convolution.Gaussian1DKernel" title="astropy.convolution.Gaussian1DKernel"><code class="xref py py-obj docutils literal"><span class="pre">Gaussian1DKernel</span></code></a>(stddev,&nbsp;**kwargs)</td>
+<td>1D Gaussian filter kernel.</td>
+</tr>
+<tr class="row-even"><td><a class="reference internal" href="../api/astropy.convolution.Gaussian2DKernel.html#astropy.convolution.Gaussian2DKernel" title="astropy.convolution.Gaussian2DKernel"><code class="xref py py-obj docutils literal"><span class="pre">Gaussian2DKernel</span></code></a>(stddev,&nbsp;**kwargs)</td>
+<td>2D Gaussian filter kernel.</td>
+</tr>
+<tr class="row-odd"><td><a class="reference internal" href="../api/astropy.convolution.Kernel.html#astropy.convolution.Kernel" title="astropy.convolution.Kernel"><code class="xref py py-obj docutils literal"><span class="pre">Kernel</span></code></a>(array)</td>
+<td>Convolution kernel base class.</td>
+</tr>
+<tr class="row-even"><td><a class="reference internal" href="../api/astropy.convolution.Kernel1D.html#astropy.convolution.Kernel1D" title="astropy.convolution.Kernel1D"><code class="xref py py-obj docutils literal"><span class="pre">Kernel1D</span></code></a>([model,&nbsp;x_size,&nbsp;array])</td>
+<td>Base class for 1D filter kernels.</td>
+</tr>
+<tr class="row-odd"><td><a class="reference internal" href="../api/astropy.convolution.Kernel2D.html#astropy.convolution.Kernel2D" title="astropy.convolution.Kernel2D"><code class="xref py py-obj docutils literal"><span class="pre">Kernel2D</span></code></a>([model,&nbsp;x_size,&nbsp;y_size,&nbsp;array])</td>
+<td>Base class for 2D filter kernels.</td>
+</tr>
+<tr class="row-even"><td><a class="reference internal" href="../api/astropy.convolution.MexicanHat1DKernel.html#astropy.convolution.MexicanHat1DKernel" title="astropy.convolution.MexicanHat1DKernel"><code class="xref py py-obj docutils literal"><span class="pre">MexicanHat1DKernel</span></code></a>(width,&nbsp;**kwargs)</td>
+<td>1D Mexican hat filter kernel.</td>
+</tr>
+<tr class="row-odd"><td><a class="reference internal" href="../api/astropy.convolution.MexicanHat2DKernel.html#astropy.convolution.MexicanHat2DKernel" title="astropy.convolution.MexicanHat2DKernel"><code class="xref py py-obj docutils literal"><span class="pre">MexicanHat2DKernel</span></code></a>(width,&nbsp;**kwargs)</td>
+<td>2D Mexican hat filter kernel.</td>
+</tr>
+<tr class="row-even"><td><a class="reference internal" href="../api/astropy.convolution.Model1DKernel.html#astropy.convolution.Model1DKernel" title="astropy.convolution.Model1DKernel"><code class="xref py py-obj docutils literal"><span class="pre">Model1DKernel</span></code></a>(model,&nbsp;**kwargs)</td>
+<td>Create kernel from 1D model.</td>
+</tr>
+<tr class="row-odd"><td><a class="reference internal" href="../api/astropy.convolution.Model2DKernel.html#astropy.convolution.Model2DKernel" title="astropy.convolution.Model2DKernel"><code class="xref py py-obj docutils literal"><span class="pre">Model2DKernel</span></code></a>(model,&nbsp;**kwargs)</td>
+<td>Create kernel from 2D model.</td>
+</tr>
+<tr class="row-even"><td><a class="reference internal" href="../api/astropy.convolution.Moffat2DKernel.html#astropy.convolution.Moffat2DKernel" title="astropy.convolution.Moffat2DKernel"><code class="xref py py-obj docutils literal"><span class="pre">Moffat2DKernel</span></code></a>(gamma,&nbsp;alpha,&nbsp;**kwargs)</td>
+<td>2D Moffat kernel.</td>
+</tr>
+<tr class="row-odd"><td><a class="reference internal" href="../api/astropy.convolution.Ring2DKernel.html#astropy.convolution.Ring2DKernel" title="astropy.convolution.Ring2DKernel"><code class="xref py py-obj docutils literal"><span class="pre">Ring2DKernel</span></code></a>(radius_in,&nbsp;width,&nbsp;**kwargs)</td>
+<td>2D Ring filter kernel.</td>
+</tr>
+<tr class="row-even"><td><a class="reference internal" href="../api/astropy.convolution.Tophat2DKernel.html#astropy.convolution.Tophat2DKernel" title="astropy.convolution.Tophat2DKernel"><code class="xref py py-obj docutils literal"><span class="pre">Tophat2DKernel</span></code></a>(radius,&nbsp;**kwargs)</td>
+<td>2D Tophat filter kernel.</td>
+</tr>
+<tr class="row-odd"><td><a class="reference internal" href="../api/astropy.convolution.Trapezoid1DKernel.html#astropy.convolution.Trapezoid1DKernel" title="astropy.convolution.Trapezoid1DKernel"><code class="xref py py-obj docutils literal"><span class="pre">Trapezoid1DKernel</span></code></a>(width[,&nbsp;slope])</td>
+<td>1D trapezoid kernel.</td>
+</tr>
+<tr class="row-even"><td><a class="reference internal" href="../api/astropy.convolution.TrapezoidDisk2DKernel.html#astropy.convolution.TrapezoidDisk2DKernel" title="astropy.convolution.TrapezoidDisk2DKernel"><code class="xref py py-obj docutils literal"><span class="pre">TrapezoidDisk2DKernel</span></code></a>(radius[,&nbsp;slope])</td>
+<td>2D trapezoid kernel.</td>
+</tr>
+</tbody>
+</table>
+</div>
+</div>
+</div>
+</div>
+
+
+          </div>
+        </div>
+      </div>
+      <div class="sphinxsidebar" role="navigation" aria-label="main navigation">
+        <div class="sphinxsidebarwrapper"><h3>Page Contents</h3>
+<ul>
+<li><a class="reference internal" href="#">Convolution and filtering (<code class="docutils literal"><span class="pre">astropy.convolution</span></code>)</a><ul>
+<li><a class="reference internal" href="#introduction">Introduction</a></li>
+<li><a class="reference internal" href="#getting-started">Getting started</a><ul>
+<li><a class="reference internal" href="#using-astropy-s-convolution-to-replace-bad-data">Using astropy&#8217;s convolution to replace bad data</a></li>
+<li><a class="reference internal" href="#a-note-on-backward-compatibility-pre-v2-0">A note on backward compatibility (pre v2.0)</a></li>
+</ul>
+</li>
+<li><a class="reference internal" href="#using-astropy-convolution">Using <code class="docutils literal"><span class="pre">astropy.convolution</span></code></a></li>
+<li><a class="reference internal" href="#reference-api">Reference/API</a><ul>
+<li><a class="reference internal" href="#module-astropy.convolution">astropy.convolution Package</a><ul>
+<li><a class="reference internal" href="#functions">Functions</a></li>
+<li><a class="reference internal" href="#classes">Classes</a></li>
+</ul>
+</li>
+</ul>
+</li>
+</ul>
+</li>
+</ul>
+
+
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+<footer class="footer">
+  <p class="pull-right">
+    <a href="http://github.com/astropy/astropy/tree/master/docs/convolution/index.rst">Edit This Page on Github</a> &nbsp;
+    <a href="../_sources/convolution/index.rst.txt"
+       rel="nofollow">Page Source</a> &nbsp;
+    <a href="#">Back to Top</a></p>
+  <p>
+    &copy; Copyright 2011-2016, The Astropy Developers.<br/>
+    Created using <a href="http://sphinx.pocoo.org/">Sphinx</a> 1.5.6. &nbsp;
+    Last built 05 Jul 2017. <br/>
+  </p>
+</footer>
+  </body>
+</html>

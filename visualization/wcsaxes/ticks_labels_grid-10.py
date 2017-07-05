@@ -1,0 +1,6 @@
+lon.set_ticks_position('bt')
+lon.set_ticklabel_position('bt')
+lon.set_axislabel_position('bt')
+lat.set_ticks_position('lr')
+lat.set_ticklabel_position('lr')
+lat.set_axislabel_position('lr')

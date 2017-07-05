@@ -1,0 +1,821 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <head>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    
+    <title>astropy.table.pprint &#8212; Astropy v3.0.dev19489</title>
+    
+    <link rel="stylesheet" href="../../../_static/bootstrap-astropy.css" type="text/css" />
+    <link rel="stylesheet" href="../../../_static/pygments.css" type="text/css" />
+    <link rel="stylesheet" href="../../../_static/gallery.css" type="text/css" />
+    
+    <script type="text/javascript">
+      var DOCUMENTATION_OPTIONS = {
+        URL_ROOT:    '../../../',
+        VERSION:     '3.0.dev19489',
+        COLLAPSE_INDEX: false,
+        FILE_SUFFIX: '.html',
+        HAS_SOURCE:  true,
+        SOURCELINK_SUFFIX: '.txt'
+      };
+    </script>
+    <script type="text/javascript" src="../../../_static/jquery.js"></script>
+    <script type="text/javascript" src="../../../_static/underscore.js"></script>
+    <script type="text/javascript" src="../../../_static/doctools.js"></script>
+    <script type="text/javascript" src="../../../_static/sidebar.js"></script>
+    <link rel="shortcut icon" href="../../../_static/astropy_logo.ico"/>
+    <link rel="index" title="Index" href="../../../genindex.html" />
+    <link rel="search" title="Search" href="../../../search.html" />
+<link href='https://fonts.googleapis.com/css?family=Source+Sans+Pro:200,600' rel='stylesheet' type='text/css'/>
+<script type="text/javascript" src="../../../_static/copybutton.js"></script>
+
+
+  </head>
+  <body role="document">
+<div class="topbar">
+  <a class="brand" title="Documentation Home" href="../../../index.html"><span id="logotext1">astro</span><span id="logotext2">py</span><span id="logotext3">:docs</span></a>
+  <ul>
+    <li><a class="homelink" title="Astropy Homepage" href="http://www.astropy.org"></a></li>
+    <li><a title="General Index" href="../../../genindex.html">Index</a></li>
+    <li><a title="Module Index" href="../../../py-modindex.html">Modules</a></li>
+    <li>
+      
+      
+<form action="../../../search.html" method="get">
+  <input type="text" name="q" placeholder="Search" />
+  <input type="hidden" name="check_keywords" value="yes" />
+  <input type="hidden" name="area" value="default" />
+</form>
+      
+    </li>
+  </ul>
+</div>
+
+<div class="related">
+    <h3>Navigation</h3>
+    <ul>
+      <li>
+	<a href="../../../index.html">Astropy v3.0.dev19489</a>
+	 &#187;
+      </li>
+      <li><a href="../../index.html" >Module code</a> &#187;</li>
+      <li><a href="../../astropy.html" >astropy</a> &#187;</li>
+      <li><a href="../table.html" accesskey="U">astropy.table</a> &#187;</li>
+      
+       
+    </ul>
+</div>
+  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          <div class="body" role="main">
+            
+  <h1>Source code for astropy.table.pprint</h1><div class="highlight"><pre>
+<span></span><span class="c1"># Licensed under a 3-clause BSD style license - see LICENSE.rst</span>
+<span class="kn">from</span> <span class="nn">__future__</span> <span class="k">import</span> <span class="p">(</span><span class="n">absolute_import</span><span class="p">,</span> <span class="n">division</span><span class="p">,</span> <span class="n">print_function</span><span class="p">,</span>
+                        <span class="n">unicode_literals</span><span class="p">)</span>
+<span class="kn">from</span> <span class="nn">..extern</span> <span class="k">import</span> <span class="n">six</span>
+<span class="kn">from</span> <span class="nn">..extern.six</span> <span class="k">import</span> <span class="n">text_type</span>
+<span class="kn">from</span> <span class="nn">..extern.six.moves</span> <span class="k">import</span> <span class="nb">zip</span><span class="p">,</span> <span class="nb">range</span>
+
+<span class="kn">import</span> <span class="nn">os</span>
+<span class="kn">import</span> <span class="nn">sys</span>
+<span class="kn">import</span> <span class="nn">re</span>
+
+<span class="kn">import</span> <span class="nn">numpy</span> <span class="k">as</span> <span class="nn">np</span>
+
+<span class="kn">from</span> <span class="nn">..</span> <span class="k">import</span> <span class="n">log</span>
+<span class="kn">from</span> <span class="nn">..utils.console</span> <span class="k">import</span> <span class="n">Getch</span><span class="p">,</span> <span class="n">color_print</span><span class="p">,</span> <span class="n">terminal_size</span><span class="p">,</span> <span class="n">conf</span>
+<span class="kn">from</span> <span class="nn">..utils.data_info</span> <span class="k">import</span> <span class="n">dtype_info_name</span>
+
+<span class="n">__all__</span> <span class="o">=</span> <span class="p">[]</span>
+
+
+<span class="k">def</span> <span class="nf">default_format_func</span><span class="p">(</span><span class="n">format_</span><span class="p">,</span> <span class="n">val</span><span class="p">):</span>
+    <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">val</span><span class="p">,</span> <span class="nb">bytes</span><span class="p">):</span>
+        <span class="k">return</span> <span class="n">val</span><span class="o">.</span><span class="n">decode</span><span class="p">(</span><span class="s1">&#39;utf-8&#39;</span><span class="p">,</span> <span class="n">errors</span><span class="o">=</span><span class="s1">&#39;replace&#39;</span><span class="p">)</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="k">return</span> <span class="n">text_type</span><span class="p">(</span><span class="n">val</span><span class="p">)</span>
+
+
+<span class="n">_format_funcs</span> <span class="o">=</span> <span class="p">{}</span>
+
+
+<span class="c1"># The first three functions are helpers for _auto_format_func</span>
+
+
+<span class="k">def</span> <span class="nf">_use_str_for_masked_values</span><span class="p">(</span><span class="n">format_func</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;Wrap format function to trap masked values.</span>
+
+<span class="sd">    String format functions and most user functions will not be able to deal</span>
+<span class="sd">    with masked values, so we wrap them to ensure they are passed to str().</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">return</span> <span class="k">lambda</span> <span class="n">format_</span><span class="p">,</span> <span class="n">val</span><span class="p">:</span> <span class="p">(</span><span class="nb">str</span><span class="p">(</span><span class="n">val</span><span class="p">)</span> <span class="k">if</span> <span class="n">val</span> <span class="ow">is</span> <span class="n">np</span><span class="o">.</span><span class="n">ma</span><span class="o">.</span><span class="n">masked</span>
+                                 <span class="k">else</span> <span class="n">format_func</span><span class="p">(</span><span class="n">format_</span><span class="p">,</span> <span class="n">val</span><span class="p">))</span>
+
+
+<span class="k">def</span> <span class="nf">_possible_string_format_functions</span><span class="p">(</span><span class="n">format_</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;Iterate through possible string-derived format functions.</span>
+
+<span class="sd">    A string can either be a format specifier for the format built-in,</span>
+<span class="sd">    a new-style format string, or an old-style format string.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">yield</span> <span class="k">lambda</span> <span class="n">format_</span><span class="p">,</span> <span class="n">val</span><span class="p">:</span> <span class="nb">format</span><span class="p">(</span><span class="n">val</span><span class="p">,</span> <span class="n">format_</span><span class="p">)</span>
+    <span class="k">yield</span> <span class="k">lambda</span> <span class="n">format_</span><span class="p">,</span> <span class="n">val</span><span class="p">:</span> <span class="n">format_</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">val</span><span class="p">)</span>
+    <span class="k">yield</span> <span class="k">lambda</span> <span class="n">format_</span><span class="p">,</span> <span class="n">val</span><span class="p">:</span> <span class="n">format_</span> <span class="o">%</span> <span class="n">val</span>
+
+
+<span class="k">def</span> <span class="nf">get_auto_format_func</span><span class="p">(</span>
+        <span class="n">col_name</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+        <span class="n">possible_string_format_functions</span><span class="o">=</span><span class="n">_possible_string_format_functions</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Return a wrapped ``auto_format_func`` function which is used in</span>
+<span class="sd">    formatting table columns.  This is primarily an internal function but</span>
+<span class="sd">    gets used directly in other parts of astropy, e.g. `astropy.io.ascii`.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    col_name : object, optional</span>
+<span class="sd">        Hashable object to identify column like id or name. Default is None.</span>
+
+<span class="sd">    possible_string_format_functions : func, optional</span>
+<span class="sd">        Function that yields possible string formatting functions</span>
+<span class="sd">        (defaults to internal function to do this).</span>
+
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+<span class="sd">    Wrapped ``auto_format_func`` function</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="k">def</span> <span class="nf">_auto_format_func</span><span class="p">(</span><span class="n">format_</span><span class="p">,</span> <span class="n">val</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Format ``val`` according to ``format_`` for a plain format specifier,</span>
+<span class="sd">        old- or new-style format strings, or using a user supplied function.</span>
+<span class="sd">        More importantly, determine and cache (in _format_funcs) a function</span>
+<span class="sd">        that will do this subsequently.  In this way this complicated logic is</span>
+<span class="sd">        only done for the first value.</span>
+
+<span class="sd">        Returns the formatted value.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="n">format_</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="k">return</span> <span class="n">default_format_func</span><span class="p">(</span><span class="n">format_</span><span class="p">,</span> <span class="n">val</span><span class="p">)</span>
+
+        <span class="n">format_key</span> <span class="o">=</span> <span class="p">(</span><span class="n">format_</span><span class="p">,</span> <span class="n">col_name</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">format_key</span> <span class="ow">in</span> <span class="n">_format_funcs</span><span class="p">:</span>
+            <span class="k">return</span> <span class="n">_format_funcs</span><span class="p">[</span><span class="n">format_key</span><span class="p">](</span><span class="n">format_</span><span class="p">,</span> <span class="n">val</span><span class="p">)</span>
+
+        <span class="k">if</span> <span class="n">six</span><span class="o">.</span><span class="n">callable</span><span class="p">(</span><span class="n">format_</span><span class="p">):</span>
+            <span class="n">format_func</span> <span class="o">=</span> <span class="k">lambda</span> <span class="n">format_</span><span class="p">,</span> <span class="n">val</span><span class="p">:</span> <span class="n">format_</span><span class="p">(</span><span class="n">val</span><span class="p">)</span>
+            <span class="k">try</span><span class="p">:</span>
+                <span class="n">out</span> <span class="o">=</span> <span class="n">format_func</span><span class="p">(</span><span class="n">format_</span><span class="p">,</span> <span class="n">val</span><span class="p">)</span>
+                <span class="k">if</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">out</span><span class="p">,</span> <span class="n">six</span><span class="o">.</span><span class="n">string_types</span><span class="p">):</span>
+                    <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s1">&#39;Format function for value </span><span class="si">{0}</span><span class="s1"> returned </span><span class="si">{1}</span><span class="s1"> &#39;</span>
+                                     <span class="s1">&#39;instead of string type&#39;</span>
+                                     <span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">val</span><span class="p">,</span> <span class="nb">type</span><span class="p">(</span><span class="n">val</span><span class="p">)))</span>
+            <span class="k">except</span> <span class="ne">Exception</span> <span class="k">as</span> <span class="n">err</span><span class="p">:</span>
+                <span class="c1"># For a masked element, the format function call likely failed</span>
+                <span class="c1"># to handle it.  Just return the string representation for now,</span>
+                <span class="c1"># and retry when a non-masked value comes along.</span>
+                <span class="k">if</span> <span class="n">val</span> <span class="ow">is</span> <span class="n">np</span><span class="o">.</span><span class="n">ma</span><span class="o">.</span><span class="n">masked</span><span class="p">:</span>
+                    <span class="k">return</span> <span class="nb">str</span><span class="p">(</span><span class="n">val</span><span class="p">)</span>
+
+                <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s1">&#39;Format function for value </span><span class="si">{0}</span><span class="s1"> failed: </span><span class="si">{1}</span><span class="s1">&#39;</span>
+                                 <span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">val</span><span class="p">,</span> <span class="n">err</span><span class="p">))</span>
+            <span class="c1"># If the user-supplied function handles formatting masked elements, use</span>
+            <span class="c1"># it directly.  Otherwise, wrap it in a function that traps them.</span>
+            <span class="k">try</span><span class="p">:</span>
+                <span class="n">format_func</span><span class="p">(</span><span class="n">format_</span><span class="p">,</span> <span class="n">np</span><span class="o">.</span><span class="n">ma</span><span class="o">.</span><span class="n">masked</span><span class="p">)</span>
+            <span class="k">except</span> <span class="ne">Exception</span><span class="p">:</span>
+                <span class="n">format_func</span> <span class="o">=</span> <span class="n">_use_str_for_masked_values</span><span class="p">(</span><span class="n">format_func</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="c1"># For a masked element, we cannot set string-based format functions yet,</span>
+            <span class="c1"># as all tests below will fail.  Just return the string representation</span>
+            <span class="c1"># of masked for now, and retry when a non-masked value comes along.</span>
+            <span class="k">if</span> <span class="n">val</span> <span class="ow">is</span> <span class="n">np</span><span class="o">.</span><span class="n">ma</span><span class="o">.</span><span class="n">masked</span><span class="p">:</span>
+                <span class="k">return</span> <span class="nb">str</span><span class="p">(</span><span class="n">val</span><span class="p">)</span>
+
+            <span class="k">for</span> <span class="n">format_func</span> <span class="ow">in</span> <span class="n">possible_string_format_functions</span><span class="p">(</span><span class="n">format_</span><span class="p">):</span>
+                <span class="k">try</span><span class="p">:</span>
+                    <span class="c1"># Does this string format method work?</span>
+                    <span class="n">out</span> <span class="o">=</span> <span class="n">format_func</span><span class="p">(</span><span class="n">format_</span><span class="p">,</span> <span class="n">val</span><span class="p">)</span>
+                    <span class="c1"># Require that the format statement actually did something.</span>
+                    <span class="k">if</span> <span class="n">out</span> <span class="o">==</span> <span class="n">format_</span><span class="p">:</span>
+                        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s1">&#39;the format passed in did nothing.&#39;</span><span class="p">)</span>
+                <span class="k">except</span> <span class="ne">Exception</span><span class="p">:</span>
+                    <span class="k">continue</span>
+                <span class="k">else</span><span class="p">:</span>
+                    <span class="k">break</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="c1"># None of the possible string functions passed muster.</span>
+                <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s1">&#39;Unable to parse format string </span><span class="si">{0}</span><span class="s1">&#39;</span>
+                                 <span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">format_</span><span class="p">))</span>
+
+            <span class="c1"># String-based format functions will fail on masked elements;</span>
+            <span class="c1"># wrap them in a function that traps them.</span>
+            <span class="n">format_func</span> <span class="o">=</span> <span class="n">_use_str_for_masked_values</span><span class="p">(</span><span class="n">format_func</span><span class="p">)</span>
+
+        <span class="n">_format_funcs</span><span class="p">[</span><span class="n">format_key</span><span class="p">]</span> <span class="o">=</span> <span class="n">format_func</span>
+        <span class="k">return</span> <span class="n">out</span>
+
+    <span class="k">return</span> <span class="n">_auto_format_func</span>
+
+
+<div class="viewcode-block" id="TableFormatter"><a class="viewcode-back" href="../../../api/astropy.table.TableFormatter.html#astropy.table.TableFormatter">[docs]</a><span class="k">class</span> <span class="nc">TableFormatter</span><span class="p">(</span><span class="nb">object</span><span class="p">):</span>
+    <span class="nd">@staticmethod</span>
+    <span class="k">def</span> <span class="nf">_get_pprint_size</span><span class="p">(</span><span class="n">max_lines</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">max_width</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Get the output size (number of lines and character width) for Column and</span>
+<span class="sd">        Table pformat/pprint methods.</span>
+
+<span class="sd">        If no value of ``max_lines`` is supplied then the height of the</span>
+<span class="sd">        screen terminal is used to set ``max_lines``.  If the terminal</span>
+<span class="sd">        height cannot be determined then the default will be determined</span>
+<span class="sd">        using the ``astropy.table.conf.max_lines`` configuration item. If a</span>
+<span class="sd">        negative value of ``max_lines`` is supplied then there is no line</span>
+<span class="sd">        limit applied.</span>
+
+<span class="sd">        The same applies for max_width except the configuration item is</span>
+<span class="sd">        ``astropy.table.conf.max_width``.</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        max_lines : int or None</span>
+<span class="sd">            Maximum lines of output (header + data rows)</span>
+
+<span class="sd">        max_width : int or None</span>
+<span class="sd">            Maximum width (characters) output</span>
+
+<span class="sd">        Returns</span>
+<span class="sd">        -------</span>
+<span class="sd">        max_lines, max_width : int</span>
+
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="n">max_lines</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">max_lines</span> <span class="o">=</span> <span class="n">conf</span><span class="o">.</span><span class="n">max_lines</span>
+
+        <span class="k">if</span> <span class="n">max_width</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">max_width</span> <span class="o">=</span> <span class="n">conf</span><span class="o">.</span><span class="n">max_width</span>
+
+        <span class="k">if</span> <span class="n">max_lines</span> <span class="ow">is</span> <span class="kc">None</span> <span class="ow">or</span> <span class="n">max_width</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">lines</span><span class="p">,</span> <span class="n">width</span> <span class="o">=</span> <span class="n">terminal_size</span><span class="p">()</span>
+
+        <span class="k">if</span> <span class="n">max_lines</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">max_lines</span> <span class="o">=</span> <span class="n">lines</span>
+        <span class="k">elif</span> <span class="n">max_lines</span> <span class="o">&lt;</span> <span class="mi">0</span><span class="p">:</span>
+            <span class="n">max_lines</span> <span class="o">=</span> <span class="n">sys</span><span class="o">.</span><span class="n">maxsize</span>
+        <span class="k">if</span> <span class="n">max_lines</span> <span class="o">&lt;</span> <span class="mi">8</span><span class="p">:</span>
+            <span class="n">max_lines</span> <span class="o">=</span> <span class="mi">8</span>
+
+        <span class="k">if</span> <span class="n">max_width</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">max_width</span> <span class="o">=</span> <span class="n">width</span>
+        <span class="k">elif</span> <span class="n">max_width</span> <span class="o">&lt;</span> <span class="mi">0</span><span class="p">:</span>
+            <span class="n">max_width</span> <span class="o">=</span> <span class="n">sys</span><span class="o">.</span><span class="n">maxsize</span>
+        <span class="k">if</span> <span class="n">max_width</span> <span class="o">&lt;</span> <span class="mi">10</span><span class="p">:</span>
+            <span class="n">max_width</span> <span class="o">=</span> <span class="mi">10</span>
+
+        <span class="k">return</span> <span class="n">max_lines</span><span class="p">,</span> <span class="n">max_width</span>
+
+    <span class="k">def</span> <span class="nf">_pformat_col</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">col</span><span class="p">,</span> <span class="n">max_lines</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">show_name</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">show_unit</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+                     <span class="n">show_dtype</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="n">show_length</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">html</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="n">align</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Return a list of formatted string representation of column values.</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        max_lines : int</span>
+<span class="sd">            Maximum lines of output (header + data rows)</span>
+
+<span class="sd">        show_name : bool</span>
+<span class="sd">            Include column name. Default is True.</span>
+
+<span class="sd">        show_unit : bool</span>
+<span class="sd">            Include a header row for unit.  Default is to show a row</span>
+<span class="sd">            for units only if one or more columns has a defined value</span>
+<span class="sd">            for the unit.</span>
+
+<span class="sd">        show_dtype : bool</span>
+<span class="sd">            Include column dtype. Default is False.</span>
+
+<span class="sd">        show_length : bool</span>
+<span class="sd">            Include column length at end.  Default is to show this only</span>
+<span class="sd">            if the column is not shown completely.</span>
+
+<span class="sd">        html : bool</span>
+<span class="sd">            Output column as HTML</span>
+
+<span class="sd">        align : str</span>
+<span class="sd">            Left/right alignment of columns. Default is &#39;&gt;&#39; (right) for all</span>
+<span class="sd">            columns. Other allowed values are &#39;&lt;&#39;, &#39;^&#39;, and &#39;0=&#39; for left,</span>
+<span class="sd">            centered, and 0-padded, respectively.</span>
+
+<span class="sd">        Returns</span>
+<span class="sd">        -------</span>
+<span class="sd">        lines : list</span>
+<span class="sd">            List of lines with formatted column values</span>
+
+<span class="sd">        outs : dict</span>
+<span class="sd">            Dict which is used to pass back additional values</span>
+<span class="sd">            defined within the iterator.</span>
+
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="n">show_unit</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">show_unit</span> <span class="o">=</span> <span class="n">col</span><span class="o">.</span><span class="n">info</span><span class="o">.</span><span class="n">unit</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span>
+
+        <span class="n">outs</span> <span class="o">=</span> <span class="p">{}</span>  <span class="c1"># Some values from _pformat_col_iter iterator that are needed here</span>
+        <span class="n">col_strs_iter</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_pformat_col_iter</span><span class="p">(</span><span class="n">col</span><span class="p">,</span> <span class="n">max_lines</span><span class="p">,</span> <span class="n">show_name</span><span class="o">=</span><span class="n">show_name</span><span class="p">,</span>
+                                               <span class="n">show_unit</span><span class="o">=</span><span class="n">show_unit</span><span class="p">,</span>
+                                               <span class="n">show_dtype</span><span class="o">=</span><span class="n">show_dtype</span><span class="p">,</span>
+                                               <span class="n">show_length</span><span class="o">=</span><span class="n">show_length</span><span class="p">,</span>
+                                               <span class="n">outs</span><span class="o">=</span><span class="n">outs</span><span class="p">)</span>
+        <span class="n">col_strs</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="n">col_strs_iter</span><span class="p">)</span>
+        <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">col_strs</span><span class="p">)</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">:</span>
+            <span class="n">col_width</span> <span class="o">=</span> <span class="nb">max</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">x</span><span class="p">)</span> <span class="k">for</span> <span class="n">x</span> <span class="ow">in</span> <span class="n">col_strs</span><span class="p">)</span>
+
+        <span class="k">if</span> <span class="n">html</span><span class="p">:</span>
+            <span class="kn">from</span> <span class="nn">..utils.xml.writer</span> <span class="k">import</span> <span class="n">xml_escape</span>
+            <span class="n">n_header</span> <span class="o">=</span> <span class="n">outs</span><span class="p">[</span><span class="s1">&#39;n_header&#39;</span><span class="p">]</span>
+            <span class="k">for</span> <span class="n">i</span><span class="p">,</span> <span class="n">col_str</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="n">col_strs</span><span class="p">):</span>
+                <span class="c1"># _pformat_col output has a header line &#39;----&#39; which is not needed here</span>
+                <span class="k">if</span> <span class="n">i</span> <span class="o">==</span> <span class="n">n_header</span> <span class="o">-</span> <span class="mi">1</span><span class="p">:</span>
+                    <span class="k">continue</span>
+                <span class="n">td</span> <span class="o">=</span> <span class="s1">&#39;th&#39;</span> <span class="k">if</span> <span class="n">i</span> <span class="o">&lt;</span> <span class="n">n_header</span> <span class="k">else</span> <span class="s1">&#39;td&#39;</span>
+                <span class="n">val</span> <span class="o">=</span> <span class="s1">&#39;&lt;</span><span class="si">{0}</span><span class="s1">&gt;</span><span class="si">{1}</span><span class="s1">&lt;/</span><span class="si">{2}</span><span class="s1">&gt;&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">td</span><span class="p">,</span> <span class="n">xml_escape</span><span class="p">(</span><span class="n">col_str</span><span class="o">.</span><span class="n">strip</span><span class="p">()),</span> <span class="n">td</span><span class="p">)</span>
+                <span class="n">row</span> <span class="o">=</span> <span class="p">(</span><span class="s1">&#39;&lt;tr&gt;&#39;</span> <span class="o">+</span> <span class="n">val</span> <span class="o">+</span> <span class="s1">&#39;&lt;/tr&gt;&#39;</span><span class="p">)</span>
+                <span class="k">if</span> <span class="n">i</span> <span class="o">&lt;</span> <span class="n">n_header</span><span class="p">:</span>
+                    <span class="n">row</span> <span class="o">=</span> <span class="p">(</span><span class="s1">&#39;&lt;thead&gt;&#39;</span> <span class="o">+</span> <span class="n">row</span> <span class="o">+</span> <span class="s1">&#39;&lt;/thead&gt;&#39;</span><span class="p">)</span>
+                <span class="n">col_strs</span><span class="p">[</span><span class="n">i</span><span class="p">]</span> <span class="o">=</span> <span class="n">row</span>
+
+            <span class="k">if</span> <span class="n">n_header</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">:</span>
+                <span class="c1"># Get rid of &#39;---&#39; header line</span>
+                <span class="n">col_strs</span><span class="o">.</span><span class="n">pop</span><span class="p">(</span><span class="n">n_header</span> <span class="o">-</span> <span class="mi">1</span><span class="p">)</span>
+            <span class="n">col_strs</span><span class="o">.</span><span class="n">insert</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="s1">&#39;&lt;table&gt;&#39;</span><span class="p">)</span>
+            <span class="n">col_strs</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="s1">&#39;&lt;/table&gt;&#39;</span><span class="p">)</span>
+
+        <span class="c1"># Now bring all the column string values to the same fixed width</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">col_width</span> <span class="o">=</span> <span class="nb">max</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">x</span><span class="p">)</span> <span class="k">for</span> <span class="n">x</span> <span class="ow">in</span> <span class="n">col_strs</span><span class="p">)</span> <span class="k">if</span> <span class="n">col_strs</span> <span class="k">else</span> <span class="mi">1</span>
+
+            <span class="c1"># Center line header content and generate dashed headerline</span>
+            <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">outs</span><span class="p">[</span><span class="s1">&#39;i_centers&#39;</span><span class="p">]:</span>
+                <span class="n">col_strs</span><span class="p">[</span><span class="n">i</span><span class="p">]</span> <span class="o">=</span> <span class="n">col_strs</span><span class="p">[</span><span class="n">i</span><span class="p">]</span><span class="o">.</span><span class="n">center</span><span class="p">(</span><span class="n">col_width</span><span class="p">)</span>
+            <span class="k">if</span> <span class="n">outs</span><span class="p">[</span><span class="s1">&#39;i_dashes&#39;</span><span class="p">]</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+                <span class="n">col_strs</span><span class="p">[</span><span class="n">outs</span><span class="p">[</span><span class="s1">&#39;i_dashes&#39;</span><span class="p">]]</span> <span class="o">=</span> <span class="s1">&#39;-&#39;</span> <span class="o">*</span> <span class="n">col_width</span>
+
+            <span class="c1"># Format columns according to alignment.  `align` arg has precedent, otherwise</span>
+            <span class="c1"># use `col.format` if it starts as a legal alignment string.  If neither applies</span>
+            <span class="c1"># then right justify.</span>
+            <span class="n">re_fill_align</span> <span class="o">=</span> <span class="n">re</span><span class="o">.</span><span class="n">compile</span><span class="p">(</span><span class="s1">r&#39;(?P&lt;fill&gt;.?)(?P&lt;align&gt;[&lt;^&gt;=])&#39;</span><span class="p">)</span>
+            <span class="n">match</span> <span class="o">=</span> <span class="kc">None</span>
+            <span class="k">if</span> <span class="n">align</span><span class="p">:</span>
+                <span class="c1"># If there is an align specified then it must match</span>
+                <span class="n">match</span> <span class="o">=</span> <span class="n">re_fill_align</span><span class="o">.</span><span class="n">match</span><span class="p">(</span><span class="n">align</span><span class="p">)</span>
+                <span class="k">if</span> <span class="ow">not</span> <span class="n">match</span><span class="p">:</span>
+                    <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;column align must be one of &#39;&lt;&#39;, &#39;^&#39;, &#39;&gt;&#39;, or &#39;=&#39;&quot;</span><span class="p">)</span>
+            <span class="k">elif</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">col</span><span class="o">.</span><span class="n">info</span><span class="o">.</span><span class="n">format</span><span class="p">,</span> <span class="n">six</span><span class="o">.</span><span class="n">string_types</span><span class="p">):</span>
+                <span class="c1"># col.info.format need not match, in which case rjust gets used</span>
+                <span class="n">match</span> <span class="o">=</span> <span class="n">re_fill_align</span><span class="o">.</span><span class="n">match</span><span class="p">(</span><span class="n">col</span><span class="o">.</span><span class="n">info</span><span class="o">.</span><span class="n">format</span><span class="p">)</span>
+
+            <span class="k">if</span> <span class="n">match</span><span class="p">:</span>
+                <span class="n">fill_char</span> <span class="o">=</span> <span class="n">match</span><span class="o">.</span><span class="n">group</span><span class="p">(</span><span class="s1">&#39;fill&#39;</span><span class="p">)</span>
+                <span class="n">align_char</span> <span class="o">=</span> <span class="n">match</span><span class="o">.</span><span class="n">group</span><span class="p">(</span><span class="s1">&#39;align&#39;</span><span class="p">)</span>
+                <span class="k">if</span> <span class="n">align_char</span> <span class="o">==</span> <span class="s1">&#39;=&#39;</span><span class="p">:</span>
+                    <span class="k">if</span> <span class="n">fill_char</span> <span class="o">!=</span> <span class="s1">&#39;0&#39;</span><span class="p">:</span>
+                        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;fill character must be &#39;0&#39; for &#39;=&#39; align&quot;</span><span class="p">)</span>
+                    <span class="n">fill_char</span> <span class="o">=</span> <span class="s1">&#39;&#39;</span>  <span class="c1"># str.zfill gets used which does not take fill char arg</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="n">fill_char</span> <span class="o">=</span> <span class="s1">&#39;&#39;</span>
+                <span class="n">align_char</span> <span class="o">=</span> <span class="s1">&#39;&gt;&#39;</span>
+
+            <span class="n">justify_methods</span> <span class="o">=</span> <span class="p">{</span><span class="s1">&#39;&lt;&#39;</span><span class="p">:</span> <span class="s1">&#39;ljust&#39;</span><span class="p">,</span> <span class="s1">&#39;^&#39;</span><span class="p">:</span> <span class="s1">&#39;center&#39;</span><span class="p">,</span> <span class="s1">&#39;&gt;&#39;</span><span class="p">:</span> <span class="s1">&#39;rjust&#39;</span><span class="p">,</span> <span class="s1">&#39;=&#39;</span><span class="p">:</span> <span class="s1">&#39;zfill&#39;</span><span class="p">}</span>
+            <span class="n">justify_method</span> <span class="o">=</span> <span class="n">justify_methods</span><span class="p">[</span><span class="n">align_char</span><span class="p">]</span>
+            <span class="n">justify_args</span> <span class="o">=</span> <span class="p">(</span><span class="n">col_width</span><span class="p">,</span> <span class="n">fill_char</span><span class="p">)</span> <span class="k">if</span> <span class="n">fill_char</span> <span class="k">else</span> <span class="p">(</span><span class="n">col_width</span><span class="p">,)</span>
+
+            <span class="k">for</span> <span class="n">i</span><span class="p">,</span> <span class="n">col_str</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="n">col_strs</span><span class="p">):</span>
+                <span class="n">col_strs</span><span class="p">[</span><span class="n">i</span><span class="p">]</span> <span class="o">=</span> <span class="nb">getattr</span><span class="p">(</span><span class="n">col_str</span><span class="p">,</span> <span class="n">justify_method</span><span class="p">)(</span><span class="o">*</span><span class="n">justify_args</span><span class="p">)</span>
+
+        <span class="k">if</span> <span class="n">outs</span><span class="p">[</span><span class="s1">&#39;show_length&#39;</span><span class="p">]:</span>
+            <span class="n">col_strs</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="s1">&#39;Length = </span><span class="si">{0}</span><span class="s1"> rows&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">col</span><span class="p">)))</span>
+
+        <span class="k">return</span> <span class="n">col_strs</span><span class="p">,</span> <span class="n">outs</span>
+
+    <span class="k">def</span> <span class="nf">_pformat_col_iter</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">col</span><span class="p">,</span> <span class="n">max_lines</span><span class="p">,</span> <span class="n">show_name</span><span class="p">,</span> <span class="n">show_unit</span><span class="p">,</span> <span class="n">outs</span><span class="p">,</span>
+                          <span class="n">show_dtype</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="n">show_length</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Iterator which yields formatted string representation of column values.</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        max_lines : int</span>
+<span class="sd">            Maximum lines of output (header + data rows)</span>
+
+<span class="sd">        show_name : bool</span>
+<span class="sd">            Include column name. Default is True.</span>
+
+<span class="sd">        show_unit : bool</span>
+<span class="sd">            Include a header row for unit.  Default is to show a row</span>
+<span class="sd">            for units only if one or more columns has a defined value</span>
+<span class="sd">            for the unit.</span>
+
+<span class="sd">        outs : dict</span>
+<span class="sd">            Must be a dict which is used to pass back additional values</span>
+<span class="sd">            defined within the iterator.</span>
+
+<span class="sd">        show_dtype : bool</span>
+<span class="sd">            Include column dtype. Default is False.</span>
+
+<span class="sd">        show_length : bool</span>
+<span class="sd">            Include column length at end.  Default is to show this only</span>
+<span class="sd">            if the column is not shown completely.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">max_lines</span><span class="p">,</span> <span class="n">_</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_get_pprint_size</span><span class="p">(</span><span class="n">max_lines</span><span class="p">,</span> <span class="o">-</span><span class="mi">1</span><span class="p">)</span>
+
+        <span class="n">multidims</span> <span class="o">=</span> <span class="nb">getattr</span><span class="p">(</span><span class="n">col</span><span class="p">,</span> <span class="s1">&#39;shape&#39;</span><span class="p">,</span> <span class="p">[</span><span class="mi">0</span><span class="p">])[</span><span class="mi">1</span><span class="p">:]</span>
+        <span class="k">if</span> <span class="n">multidims</span><span class="p">:</span>
+            <span class="n">multidim0</span> <span class="o">=</span> <span class="nb">tuple</span><span class="p">(</span><span class="mi">0</span> <span class="k">for</span> <span class="n">n</span> <span class="ow">in</span> <span class="n">multidims</span><span class="p">)</span>
+            <span class="n">multidim1</span> <span class="o">=</span> <span class="nb">tuple</span><span class="p">(</span><span class="n">n</span> <span class="o">-</span> <span class="mi">1</span> <span class="k">for</span> <span class="n">n</span> <span class="ow">in</span> <span class="n">multidims</span><span class="p">)</span>
+            <span class="n">trivial_multidims</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">prod</span><span class="p">(</span><span class="n">multidims</span><span class="p">)</span> <span class="o">==</span> <span class="mi">1</span>
+
+        <span class="n">i_dashes</span> <span class="o">=</span> <span class="kc">None</span>
+        <span class="n">i_centers</span> <span class="o">=</span> <span class="p">[]</span>  <span class="c1"># Line indexes where content should be centered</span>
+        <span class="n">n_header</span> <span class="o">=</span> <span class="mi">0</span>
+        <span class="k">if</span> <span class="n">show_name</span><span class="p">:</span>
+            <span class="n">i_centers</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">n_header</span><span class="p">)</span>
+            <span class="c1"># Get column name (or &#39;None&#39; if not set)</span>
+            <span class="n">col_name</span> <span class="o">=</span> <span class="n">six</span><span class="o">.</span><span class="n">text_type</span><span class="p">(</span><span class="n">col</span><span class="o">.</span><span class="n">info</span><span class="o">.</span><span class="n">name</span><span class="p">)</span>
+            <span class="k">if</span> <span class="n">multidims</span><span class="p">:</span>
+                <span class="n">col_name</span> <span class="o">+=</span> <span class="s1">&#39; [</span><span class="si">{0}</span><span class="s1">]&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span>
+                    <span class="s1">&#39;,&#39;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">six</span><span class="o">.</span><span class="n">text_type</span><span class="p">(</span><span class="n">n</span><span class="p">)</span> <span class="k">for</span> <span class="n">n</span> <span class="ow">in</span> <span class="n">multidims</span><span class="p">))</span>
+            <span class="n">n_header</span> <span class="o">+=</span> <span class="mi">1</span>
+            <span class="k">yield</span> <span class="n">col_name</span>
+        <span class="k">if</span> <span class="n">show_unit</span><span class="p">:</span>
+            <span class="n">i_centers</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">n_header</span><span class="p">)</span>
+            <span class="n">n_header</span> <span class="o">+=</span> <span class="mi">1</span>
+            <span class="k">yield</span> <span class="n">six</span><span class="o">.</span><span class="n">text_type</span><span class="p">(</span><span class="n">col</span><span class="o">.</span><span class="n">info</span><span class="o">.</span><span class="n">unit</span> <span class="ow">or</span> <span class="s1">&#39;&#39;</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">show_dtype</span><span class="p">:</span>
+            <span class="n">i_centers</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">n_header</span><span class="p">)</span>
+            <span class="n">n_header</span> <span class="o">+=</span> <span class="mi">1</span>
+            <span class="k">try</span><span class="p">:</span>
+                <span class="n">dtype</span> <span class="o">=</span> <span class="n">dtype_info_name</span><span class="p">(</span><span class="n">col</span><span class="o">.</span><span class="n">dtype</span><span class="p">)</span>
+            <span class="k">except</span> <span class="ne">AttributeError</span><span class="p">:</span>
+                <span class="n">dtype</span> <span class="o">=</span> <span class="s1">&#39;object&#39;</span>
+            <span class="k">yield</span> <span class="n">six</span><span class="o">.</span><span class="n">text_type</span><span class="p">(</span><span class="n">dtype</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">show_unit</span> <span class="ow">or</span> <span class="n">show_name</span> <span class="ow">or</span> <span class="n">show_dtype</span><span class="p">:</span>
+            <span class="n">i_dashes</span> <span class="o">=</span> <span class="n">n_header</span>
+            <span class="n">n_header</span> <span class="o">+=</span> <span class="mi">1</span>
+            <span class="k">yield</span> <span class="s1">&#39;---&#39;</span>
+
+        <span class="n">max_lines</span> <span class="o">-=</span> <span class="n">n_header</span>
+        <span class="n">n_print2</span> <span class="o">=</span> <span class="n">max_lines</span> <span class="o">//</span> <span class="mi">2</span>
+        <span class="n">n_rows</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="n">col</span><span class="p">)</span>
+
+        <span class="c1"># This block of code is responsible for producing the function that</span>
+        <span class="c1"># will format values for this column.  The ``format_func`` function</span>
+        <span class="c1"># takes two args (col_format, val) and returns the string-formatted</span>
+        <span class="c1"># version.  Some points to understand:</span>
+        <span class="c1">#</span>
+        <span class="c1"># - col_format could itself be the formatting function, so it will</span>
+        <span class="c1">#    actually end up being called with itself as the first arg.  In</span>
+        <span class="c1">#    this case the function is expected to ignore its first arg.</span>
+        <span class="c1">#</span>
+        <span class="c1"># - auto_format_func is a function that gets called on the first</span>
+        <span class="c1">#    column value that is being formatted.  It then determines an</span>
+        <span class="c1">#    appropriate formatting function given the actual value to be</span>
+        <span class="c1">#    formatted.  This might be deterministic or it might involve</span>
+        <span class="c1">#    try/except.  The latter allows for different string formatting</span>
+        <span class="c1">#    options like %f or {:5.3f}.  When auto_format_func is called it:</span>
+
+        <span class="c1">#    1. Caches the function in the _format_funcs dict so for subsequent</span>
+        <span class="c1">#       values the right function is called right away.</span>
+        <span class="c1">#    2. Returns the formatted value.</span>
+        <span class="c1">#</span>
+        <span class="c1"># - possible_string_format_functions is a function that yields a</span>
+        <span class="c1">#    succession of functions that might successfully format the</span>
+        <span class="c1">#    value.  There is a default, but Mixin methods can override this.</span>
+        <span class="c1">#    See Quantity for an example.</span>
+        <span class="c1">#</span>
+        <span class="c1"># - get_auto_format_func() returns a wrapped version of auto_format_func</span>
+        <span class="c1">#    with the column id and possible_string_format_functions as</span>
+        <span class="c1">#    enclosed variables.</span>
+        <span class="n">col_format</span> <span class="o">=</span> <span class="n">col</span><span class="o">.</span><span class="n">info</span><span class="o">.</span><span class="n">format</span> <span class="ow">or</span> <span class="nb">getattr</span><span class="p">(</span><span class="n">col</span><span class="o">.</span><span class="n">info</span><span class="p">,</span> <span class="s1">&#39;default_format&#39;</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span>
+        <span class="n">pssf</span> <span class="o">=</span> <span class="p">(</span><span class="nb">getattr</span><span class="p">(</span><span class="n">col</span><span class="o">.</span><span class="n">info</span><span class="p">,</span> <span class="s1">&#39;possible_string_format_functions&#39;</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span> <span class="ow">or</span>
+                <span class="n">_possible_string_format_functions</span><span class="p">)</span>
+        <span class="n">auto_format_func</span> <span class="o">=</span> <span class="n">get_auto_format_func</span><span class="p">(</span><span class="nb">id</span><span class="p">(</span><span class="n">col</span><span class="p">),</span> <span class="n">pssf</span><span class="p">)</span>
+        <span class="n">format_key</span> <span class="o">=</span> <span class="p">(</span><span class="n">col_format</span><span class="p">,</span> <span class="nb">id</span><span class="p">(</span><span class="n">col</span><span class="p">))</span>
+        <span class="n">format_func</span> <span class="o">=</span> <span class="n">_format_funcs</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">format_key</span><span class="p">,</span> <span class="n">auto_format_func</span><span class="p">)</span>
+
+        <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">col</span><span class="p">)</span> <span class="o">&gt;</span> <span class="n">max_lines</span><span class="p">:</span>
+            <span class="k">if</span> <span class="n">show_length</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+                <span class="n">show_length</span> <span class="o">=</span> <span class="kc">True</span>
+            <span class="n">i0</span> <span class="o">=</span> <span class="n">n_print2</span> <span class="o">-</span> <span class="p">(</span><span class="mi">1</span> <span class="k">if</span> <span class="n">show_length</span> <span class="k">else</span> <span class="mi">0</span><span class="p">)</span>
+            <span class="n">i1</span> <span class="o">=</span> <span class="n">n_rows</span> <span class="o">-</span> <span class="n">n_print2</span> <span class="o">-</span> <span class="n">max_lines</span> <span class="o">%</span> <span class="mi">2</span>
+            <span class="n">ii</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">concatenate</span><span class="p">([</span><span class="n">np</span><span class="o">.</span><span class="n">arange</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="n">i0</span> <span class="o">+</span> <span class="mi">1</span><span class="p">),</span> <span class="n">np</span><span class="o">.</span><span class="n">arange</span><span class="p">(</span><span class="n">i1</span> <span class="o">+</span> <span class="mi">1</span><span class="p">,</span> <span class="nb">len</span><span class="p">(</span><span class="n">col</span><span class="p">))])</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">i0</span> <span class="o">=</span> <span class="o">-</span><span class="mi">1</span>
+            <span class="n">ii</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">arange</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">col</span><span class="p">))</span>
+
+        <span class="c1"># Add formatted values if within bounds allowed by max_lines</span>
+        <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">ii</span><span class="p">:</span>
+            <span class="k">if</span> <span class="n">i</span> <span class="o">==</span> <span class="n">i0</span><span class="p">:</span>
+                <span class="k">yield</span> <span class="s1">&#39;...&#39;</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="k">if</span> <span class="n">multidims</span><span class="p">:</span>
+                    <span class="c1"># Prevents columns like Column(data=[[(1,)],[(2,)]], name=&#39;a&#39;)</span>
+                    <span class="c1"># with shape (n,1,...,1) from being printed as if there was</span>
+                    <span class="c1"># more than one element in a row</span>
+                    <span class="k">if</span> <span class="n">trivial_multidims</span><span class="p">:</span>
+                        <span class="n">col_str</span> <span class="o">=</span> <span class="n">format_func</span><span class="p">(</span><span class="n">col_format</span><span class="p">,</span> <span class="n">col</span><span class="p">[(</span><span class="n">i</span><span class="p">,)</span> <span class="o">+</span> <span class="n">multidim0</span><span class="p">])</span>
+                    <span class="k">else</span><span class="p">:</span>
+                        <span class="n">col_str</span> <span class="o">=</span> <span class="p">(</span><span class="n">format_func</span><span class="p">(</span><span class="n">col_format</span><span class="p">,</span> <span class="n">col</span><span class="p">[(</span><span class="n">i</span><span class="p">,)</span> <span class="o">+</span> <span class="n">multidim0</span><span class="p">])</span> <span class="o">+</span>
+                                  <span class="s1">&#39; .. &#39;</span> <span class="o">+</span>
+                                  <span class="n">format_func</span><span class="p">(</span><span class="n">col_format</span><span class="p">,</span> <span class="n">col</span><span class="p">[(</span><span class="n">i</span><span class="p">,)</span> <span class="o">+</span> <span class="n">multidim1</span><span class="p">]))</span>
+                <span class="k">else</span><span class="p">:</span>
+                    <span class="n">col_str</span> <span class="o">=</span> <span class="n">format_func</span><span class="p">(</span><span class="n">col_format</span><span class="p">,</span> <span class="n">col</span><span class="p">[</span><span class="n">i</span><span class="p">])</span>
+                <span class="k">yield</span> <span class="n">col_str</span>
+
+        <span class="n">outs</span><span class="p">[</span><span class="s1">&#39;show_length&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">show_length</span>
+        <span class="n">outs</span><span class="p">[</span><span class="s1">&#39;n_header&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">n_header</span>
+        <span class="n">outs</span><span class="p">[</span><span class="s1">&#39;i_centers&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">i_centers</span>
+        <span class="n">outs</span><span class="p">[</span><span class="s1">&#39;i_dashes&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">i_dashes</span>
+
+    <span class="k">def</span> <span class="nf">_pformat_table</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">table</span><span class="p">,</span> <span class="n">max_lines</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">max_width</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+                       <span class="n">show_name</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">show_unit</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">show_dtype</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span>
+                       <span class="n">html</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="n">tableid</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">tableclass</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">align</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Return a list of lines for the formatted string representation of</span>
+<span class="sd">        the table.</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        max_lines : int or None</span>
+<span class="sd">            Maximum number of rows to output</span>
+
+<span class="sd">        max_width : int or None</span>
+<span class="sd">            Maximum character width of output</span>
+
+<span class="sd">        show_name : bool</span>
+<span class="sd">            Include a header row for column names. Default is True.</span>
+
+<span class="sd">        show_unit : bool</span>
+<span class="sd">            Include a header row for unit.  Default is to show a row</span>
+<span class="sd">            for units only if one or more columns has a defined value</span>
+<span class="sd">            for the unit.</span>
+
+<span class="sd">        show_dtype : bool</span>
+<span class="sd">            Include a header row for column dtypes. Default is False.</span>
+
+<span class="sd">        html : bool</span>
+<span class="sd">            Format the output as an HTML table. Default is False.</span>
+
+<span class="sd">        tableid : str or None</span>
+<span class="sd">            An ID tag for the table; only used if html is set.  Default is</span>
+<span class="sd">            &quot;table{id}&quot;, where id is the unique integer id of the table object,</span>
+<span class="sd">            id(table)</span>
+
+<span class="sd">        tableclass : str or list of str or `None`</span>
+<span class="sd">            CSS classes for the table; only used if html is set.  Default is</span>
+<span class="sd">            none</span>
+
+<span class="sd">        align : str or list or tuple</span>
+<span class="sd">            Left/right alignment of columns. Default is &#39;&gt;&#39; (right) for all</span>
+<span class="sd">            columns. Other allowed values are &#39;&lt;&#39;, &#39;^&#39;, and &#39;0=&#39; for left,</span>
+<span class="sd">            centered, and 0-padded, respectively. A list of strings can be</span>
+<span class="sd">            provided for alignment of tables with multiple columns.</span>
+
+<span class="sd">        Returns</span>
+<span class="sd">        -------</span>
+<span class="sd">        rows : list</span>
+<span class="sd">            Formatted table as a list of strings</span>
+
+<span class="sd">        outs : dict</span>
+<span class="sd">            Dict which is used to pass back additional values</span>
+<span class="sd">            defined within the iterator.</span>
+
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="c1"># &quot;Print&quot; all the values into temporary lists by column for subsequent</span>
+        <span class="c1"># use and to determine the width</span>
+        <span class="n">max_lines</span><span class="p">,</span> <span class="n">max_width</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_get_pprint_size</span><span class="p">(</span><span class="n">max_lines</span><span class="p">,</span> <span class="n">max_width</span><span class="p">)</span>
+        <span class="n">cols</span> <span class="o">=</span> <span class="p">[]</span>
+
+        <span class="k">if</span> <span class="n">show_unit</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">show_unit</span> <span class="o">=</span> <span class="nb">any</span><span class="p">(</span><span class="n">col</span><span class="o">.</span><span class="n">info</span><span class="o">.</span><span class="n">unit</span> <span class="k">for</span> <span class="n">col</span> <span class="ow">in</span> <span class="n">six</span><span class="o">.</span><span class="n">itervalues</span><span class="p">(</span><span class="n">table</span><span class="o">.</span><span class="n">columns</span><span class="p">))</span>
+
+        <span class="c1"># Coerce align into a correctly-sized list of alignments (if possible)</span>
+        <span class="n">n_cols</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="n">table</span><span class="o">.</span><span class="n">columns</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">align</span> <span class="ow">is</span> <span class="kc">None</span> <span class="ow">or</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">align</span><span class="p">,</span> <span class="n">six</span><span class="o">.</span><span class="n">string_types</span><span class="p">):</span>
+            <span class="n">align</span> <span class="o">=</span> <span class="p">[</span><span class="n">align</span><span class="p">]</span> <span class="o">*</span> <span class="n">n_cols</span>
+
+        <span class="k">elif</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">align</span><span class="p">,</span> <span class="p">(</span><span class="nb">list</span><span class="p">,</span> <span class="nb">tuple</span><span class="p">)):</span>
+            <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">align</span><span class="p">)</span> <span class="o">!=</span> <span class="n">n_cols</span><span class="p">:</span>
+                <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s1">&#39;got </span><span class="si">{0}</span><span class="s1"> alignment values instead of &#39;</span>
+                                 <span class="s1">&#39;the number of columns (</span><span class="si">{1}</span><span class="s1">)&#39;</span>
+                                 <span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">align</span><span class="p">),</span> <span class="n">n_cols</span><span class="p">))</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">TypeError</span><span class="p">(</span><span class="s1">&#39;align keyword must be str or list or tuple (got </span><span class="si">{0}</span><span class="s1">)&#39;</span>
+                            <span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="nb">type</span><span class="p">(</span><span class="n">align</span><span class="p">)))</span>
+
+        <span class="k">for</span> <span class="n">align_</span><span class="p">,</span> <span class="n">col</span> <span class="ow">in</span> <span class="nb">zip</span><span class="p">(</span><span class="n">align</span><span class="p">,</span> <span class="n">table</span><span class="o">.</span><span class="n">columns</span><span class="o">.</span><span class="n">values</span><span class="p">()):</span>
+            <span class="n">lines</span><span class="p">,</span> <span class="n">outs</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_pformat_col</span><span class="p">(</span><span class="n">col</span><span class="p">,</span> <span class="n">max_lines</span><span class="p">,</span> <span class="n">show_name</span><span class="o">=</span><span class="n">show_name</span><span class="p">,</span>
+                                            <span class="n">show_unit</span><span class="o">=</span><span class="n">show_unit</span><span class="p">,</span> <span class="n">show_dtype</span><span class="o">=</span><span class="n">show_dtype</span><span class="p">,</span>
+                                            <span class="n">align</span><span class="o">=</span><span class="n">align_</span><span class="p">)</span>
+            <span class="k">if</span> <span class="n">outs</span><span class="p">[</span><span class="s1">&#39;show_length&#39;</span><span class="p">]:</span>
+                <span class="n">lines</span> <span class="o">=</span> <span class="n">lines</span><span class="p">[:</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span>
+            <span class="n">cols</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">lines</span><span class="p">)</span>
+
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">cols</span><span class="p">:</span>
+            <span class="k">return</span> <span class="p">[</span><span class="s1">&#39;&lt;No columns&gt;&#39;</span><span class="p">],</span> <span class="p">{</span><span class="s1">&#39;show_length&#39;</span><span class="p">:</span> <span class="kc">False</span><span class="p">}</span>
+
+        <span class="c1"># Use the values for the last column since they are all the same</span>
+        <span class="n">n_header</span> <span class="o">=</span> <span class="n">outs</span><span class="p">[</span><span class="s1">&#39;n_header&#39;</span><span class="p">]</span>
+
+        <span class="n">n_rows</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="n">cols</span><span class="p">[</span><span class="mi">0</span><span class="p">])</span>
+        <span class="n">outwidth</span> <span class="o">=</span> <span class="k">lambda</span> <span class="n">cols</span><span class="p">:</span> <span class="nb">sum</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">c</span><span class="p">[</span><span class="mi">0</span><span class="p">])</span> <span class="k">for</span> <span class="n">c</span> <span class="ow">in</span> <span class="n">cols</span><span class="p">)</span> <span class="o">+</span> <span class="nb">len</span><span class="p">(</span><span class="n">cols</span><span class="p">)</span> <span class="o">-</span> <span class="mi">1</span>
+        <span class="n">dots_col</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;...&#39;</span><span class="p">]</span> <span class="o">*</span> <span class="n">n_rows</span>
+        <span class="n">middle</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="n">cols</span><span class="p">)</span> <span class="o">//</span> <span class="mi">2</span>
+        <span class="k">while</span> <span class="n">outwidth</span><span class="p">(</span><span class="n">cols</span><span class="p">)</span> <span class="o">&gt;</span> <span class="n">max_width</span><span class="p">:</span>
+            <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">cols</span><span class="p">)</span> <span class="o">==</span> <span class="mi">1</span><span class="p">:</span>
+                <span class="k">break</span>
+            <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">cols</span><span class="p">)</span> <span class="o">==</span> <span class="mi">2</span><span class="p">:</span>
+                <span class="n">cols</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span> <span class="o">=</span> <span class="n">dots_col</span>
+                <span class="k">break</span>
+            <span class="k">if</span> <span class="n">cols</span><span class="p">[</span><span class="n">middle</span><span class="p">]</span> <span class="ow">is</span> <span class="n">dots_col</span><span class="p">:</span>
+                <span class="n">cols</span><span class="o">.</span><span class="n">pop</span><span class="p">(</span><span class="n">middle</span><span class="p">)</span>
+                <span class="n">middle</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="n">cols</span><span class="p">)</span> <span class="o">//</span> <span class="mi">2</span>
+            <span class="n">cols</span><span class="p">[</span><span class="n">middle</span><span class="p">]</span> <span class="o">=</span> <span class="n">dots_col</span>
+
+        <span class="c1"># Now &quot;print&quot; the (already-stringified) column values into a</span>
+        <span class="c1"># row-oriented list.</span>
+        <span class="n">rows</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="k">if</span> <span class="n">html</span><span class="p">:</span>
+            <span class="kn">from</span> <span class="nn">..utils.xml.writer</span> <span class="k">import</span> <span class="n">xml_escape</span>
+
+            <span class="k">if</span> <span class="n">tableid</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+                <span class="n">tableid</span> <span class="o">=</span> <span class="s1">&#39;table</span><span class="si">{id}</span><span class="s1">&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="nb">id</span><span class="o">=</span><span class="nb">id</span><span class="p">(</span><span class="n">table</span><span class="p">))</span>
+
+            <span class="k">if</span> <span class="n">tableclass</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+                <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">tableclass</span><span class="p">,</span> <span class="nb">list</span><span class="p">):</span>
+                    <span class="n">tableclass</span> <span class="o">=</span> <span class="s1">&#39; &#39;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">tableclass</span><span class="p">)</span>
+                <span class="n">rows</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="s1">&#39;&lt;table id=&quot;</span><span class="si">{tid}</span><span class="s1">&quot; class=&quot;</span><span class="si">{tcls}</span><span class="s1">&quot;&gt;&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span>
+                    <span class="n">tid</span><span class="o">=</span><span class="n">tableid</span><span class="p">,</span> <span class="n">tcls</span><span class="o">=</span><span class="n">tableclass</span><span class="p">))</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="n">rows</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="s1">&#39;&lt;table id=&quot;</span><span class="si">{tid}</span><span class="s1">&quot;&gt;&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">tid</span><span class="o">=</span><span class="n">tableid</span><span class="p">))</span>
+
+            <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">n_rows</span><span class="p">):</span>
+                <span class="c1"># _pformat_col output has a header line &#39;----&#39; which is not needed here</span>
+                <span class="k">if</span> <span class="n">i</span> <span class="o">==</span> <span class="n">n_header</span> <span class="o">-</span> <span class="mi">1</span><span class="p">:</span>
+                    <span class="k">continue</span>
+                <span class="n">td</span> <span class="o">=</span> <span class="s1">&#39;th&#39;</span> <span class="k">if</span> <span class="n">i</span> <span class="o">&lt;</span> <span class="n">n_header</span> <span class="k">else</span> <span class="s1">&#39;td&#39;</span>
+                <span class="n">vals</span> <span class="o">=</span> <span class="p">(</span><span class="s1">&#39;&lt;</span><span class="si">{0}</span><span class="s1">&gt;</span><span class="si">{1}</span><span class="s1">&lt;/</span><span class="si">{2}</span><span class="s1">&gt;&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">td</span><span class="p">,</span> <span class="n">xml_escape</span><span class="p">(</span><span class="n">col</span><span class="p">[</span><span class="n">i</span><span class="p">]</span><span class="o">.</span><span class="n">strip</span><span class="p">()),</span> <span class="n">td</span><span class="p">)</span>
+                        <span class="k">for</span> <span class="n">col</span> <span class="ow">in</span> <span class="n">cols</span><span class="p">)</span>
+                <span class="n">row</span> <span class="o">=</span> <span class="p">(</span><span class="s1">&#39;&lt;tr&gt;&#39;</span> <span class="o">+</span> <span class="s1">&#39;&#39;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">vals</span><span class="p">)</span> <span class="o">+</span> <span class="s1">&#39;&lt;/tr&gt;&#39;</span><span class="p">)</span>
+                <span class="k">if</span> <span class="n">i</span> <span class="o">&lt;</span> <span class="n">n_header</span><span class="p">:</span>
+                    <span class="n">row</span> <span class="o">=</span> <span class="p">(</span><span class="s1">&#39;&lt;thead&gt;&#39;</span> <span class="o">+</span> <span class="n">row</span> <span class="o">+</span> <span class="s1">&#39;&lt;/thead&gt;&#39;</span><span class="p">)</span>
+                <span class="n">rows</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">row</span><span class="p">)</span>
+            <span class="n">rows</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="s1">&#39;&lt;/table&gt;&#39;</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">n_rows</span><span class="p">):</span>
+                <span class="n">row</span> <span class="o">=</span> <span class="s1">&#39; &#39;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">col</span><span class="p">[</span><span class="n">i</span><span class="p">]</span> <span class="k">for</span> <span class="n">col</span> <span class="ow">in</span> <span class="n">cols</span><span class="p">)</span>
+                <span class="n">rows</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">row</span><span class="p">)</span>
+
+        <span class="k">return</span> <span class="n">rows</span><span class="p">,</span> <span class="n">outs</span>
+
+    <span class="k">def</span> <span class="nf">_more_tabcol</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">tabcol</span><span class="p">,</span> <span class="n">max_lines</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">max_width</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+                     <span class="n">show_name</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">show_unit</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">show_dtype</span><span class="o">=</span><span class="kc">False</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Interactive &quot;more&quot; of a table or column.</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        max_lines : int or None</span>
+<span class="sd">            Maximum number of rows to output</span>
+
+<span class="sd">        max_width : int or None</span>
+<span class="sd">            Maximum character width of output</span>
+
+<span class="sd">        show_name : bool</span>
+<span class="sd">            Include a header row for column names. Default is True.</span>
+
+<span class="sd">        show_unit : bool</span>
+<span class="sd">            Include a header row for unit.  Default is to show a row</span>
+<span class="sd">            for units only if one or more columns has a defined value</span>
+<span class="sd">            for the unit.</span>
+
+<span class="sd">        show_dtype : bool</span>
+<span class="sd">            Include a header row for column dtypes. Default is False.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">allowed_keys</span> <span class="o">=</span> <span class="s1">&#39;f br&lt;&gt;qhpn&#39;</span>
+
+        <span class="c1"># Count the header lines</span>
+        <span class="n">n_header</span> <span class="o">=</span> <span class="mi">0</span>
+        <span class="k">if</span> <span class="n">show_name</span><span class="p">:</span>
+            <span class="n">n_header</span> <span class="o">+=</span> <span class="mi">1</span>
+        <span class="k">if</span> <span class="n">show_unit</span><span class="p">:</span>
+            <span class="n">n_header</span> <span class="o">+=</span> <span class="mi">1</span>
+        <span class="k">if</span> <span class="n">show_dtype</span><span class="p">:</span>
+            <span class="n">n_header</span> <span class="o">+=</span> <span class="mi">1</span>
+        <span class="k">if</span> <span class="n">show_name</span> <span class="ow">or</span> <span class="n">show_unit</span> <span class="ow">or</span> <span class="n">show_dtype</span><span class="p">:</span>
+            <span class="n">n_header</span> <span class="o">+=</span> <span class="mi">1</span>
+
+        <span class="c1"># Set up kwargs for pformat call.  Only Table gets max_width.</span>
+        <span class="n">kwargs</span> <span class="o">=</span> <span class="nb">dict</span><span class="p">(</span><span class="n">max_lines</span><span class="o">=-</span><span class="mi">1</span><span class="p">,</span> <span class="n">show_name</span><span class="o">=</span><span class="n">show_name</span><span class="p">,</span> <span class="n">show_unit</span><span class="o">=</span><span class="n">show_unit</span><span class="p">,</span>
+                      <span class="n">show_dtype</span><span class="o">=</span><span class="n">show_dtype</span><span class="p">)</span>
+        <span class="k">if</span> <span class="nb">hasattr</span><span class="p">(</span><span class="n">tabcol</span><span class="p">,</span> <span class="s1">&#39;columns&#39;</span><span class="p">):</span>  <span class="c1"># tabcol is a table</span>
+            <span class="n">kwargs</span><span class="p">[</span><span class="s1">&#39;max_width&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">max_width</span>
+
+        <span class="c1"># If max_lines is None (=&gt; query screen size) then increase by 2.</span>
+        <span class="c1"># This is because get_pprint_size leaves 6 extra lines so that in</span>
+        <span class="c1"># ipython you normally see the last input line.</span>
+        <span class="n">max_lines1</span><span class="p">,</span> <span class="n">max_width</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_get_pprint_size</span><span class="p">(</span><span class="n">max_lines</span><span class="p">,</span> <span class="n">max_width</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">max_lines</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">max_lines1</span> <span class="o">+=</span> <span class="mi">2</span>
+        <span class="n">delta_lines</span> <span class="o">=</span> <span class="n">max_lines1</span> <span class="o">-</span> <span class="n">n_header</span>
+
+        <span class="c1"># Set up a function to get a single character on any platform</span>
+        <span class="n">inkey</span> <span class="o">=</span> <span class="n">Getch</span><span class="p">()</span>
+
+        <span class="n">i0</span> <span class="o">=</span> <span class="mi">0</span>  <span class="c1"># First table/column row to show</span>
+        <span class="n">showlines</span> <span class="o">=</span> <span class="kc">True</span>
+        <span class="k">while</span> <span class="kc">True</span><span class="p">:</span>
+            <span class="n">i1</span> <span class="o">=</span> <span class="n">i0</span> <span class="o">+</span> <span class="n">delta_lines</span>  <span class="c1"># Last table/col row to show</span>
+            <span class="k">if</span> <span class="n">showlines</span><span class="p">:</span>  <span class="c1"># Don&#39;t always show the table (e.g. after help)</span>
+                <span class="k">try</span><span class="p">:</span>
+                    <span class="n">os</span><span class="o">.</span><span class="n">system</span><span class="p">(</span><span class="s1">&#39;cls&#39;</span> <span class="k">if</span> <span class="n">os</span><span class="o">.</span><span class="n">name</span> <span class="o">==</span> <span class="s1">&#39;nt&#39;</span> <span class="k">else</span> <span class="s1">&#39;clear&#39;</span><span class="p">)</span>
+                <span class="k">except</span> <span class="ne">Exception</span><span class="p">:</span>
+                    <span class="k">pass</span>  <span class="c1"># No worries if clear screen call fails</span>
+                <span class="n">lines</span> <span class="o">=</span> <span class="n">tabcol</span><span class="p">[</span><span class="n">i0</span><span class="p">:</span><span class="n">i1</span><span class="p">]</span><span class="o">.</span><span class="n">pformat</span><span class="p">(</span><span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
+                <span class="n">colors</span> <span class="o">=</span> <span class="p">(</span><span class="s1">&#39;red&#39;</span> <span class="k">if</span> <span class="n">i</span> <span class="o">&lt;</span> <span class="n">n_header</span> <span class="k">else</span> <span class="s1">&#39;default&#39;</span>
+                          <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">lines</span><span class="p">)))</span>
+                <span class="k">for</span> <span class="n">color</span><span class="p">,</span> <span class="n">line</span> <span class="ow">in</span> <span class="nb">zip</span><span class="p">(</span><span class="n">colors</span><span class="p">,</span> <span class="n">lines</span><span class="p">):</span>
+                    <span class="n">color_print</span><span class="p">(</span><span class="n">line</span><span class="p">,</span> <span class="n">color</span><span class="p">)</span>
+            <span class="n">showlines</span> <span class="o">=</span> <span class="kc">True</span>
+            <span class="nb">print</span><span class="p">()</span>
+            <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;-- f, &lt;space&gt;, b, r, p, n, &lt;, &gt;, q h (help) --&quot;</span><span class="p">,</span> <span class="n">end</span><span class="o">=</span><span class="s1">&#39; &#39;</span><span class="p">)</span>
+            <span class="c1"># Get a valid key</span>
+            <span class="k">while</span> <span class="kc">True</span><span class="p">:</span>
+                <span class="k">try</span><span class="p">:</span>
+                    <span class="n">key</span> <span class="o">=</span> <span class="n">inkey</span><span class="p">()</span><span class="o">.</span><span class="n">lower</span><span class="p">()</span>
+                <span class="k">except</span> <span class="ne">Exception</span><span class="p">:</span>
+                    <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;</span><span class="se">\n</span><span class="s2">&quot;</span><span class="p">)</span>
+                    <span class="n">log</span><span class="o">.</span><span class="n">error</span><span class="p">(</span><span class="s1">&#39;Console does not support getting a character&#39;</span>
+                              <span class="s1">&#39; as required by more().  Use pprint() instead.&#39;</span><span class="p">)</span>
+                    <span class="k">return</span>
+                <span class="k">if</span> <span class="n">key</span> <span class="ow">in</span> <span class="n">allowed_keys</span><span class="p">:</span>
+                    <span class="k">break</span>
+            <span class="nb">print</span><span class="p">(</span><span class="n">key</span><span class="p">)</span>
+
+            <span class="k">if</span> <span class="n">key</span><span class="o">.</span><span class="n">lower</span><span class="p">()</span> <span class="o">==</span> <span class="s1">&#39;q&#39;</span><span class="p">:</span>
+                <span class="k">break</span>
+            <span class="k">elif</span> <span class="n">key</span> <span class="o">==</span> <span class="s1">&#39; &#39;</span> <span class="ow">or</span> <span class="n">key</span> <span class="o">==</span> <span class="s1">&#39;f&#39;</span><span class="p">:</span>
+                <span class="n">i0</span> <span class="o">+=</span> <span class="n">delta_lines</span>
+            <span class="k">elif</span> <span class="n">key</span> <span class="o">==</span> <span class="s1">&#39;b&#39;</span><span class="p">:</span>
+                <span class="n">i0</span> <span class="o">=</span> <span class="n">i0</span> <span class="o">-</span> <span class="n">delta_lines</span>
+            <span class="k">elif</span> <span class="n">key</span> <span class="o">==</span> <span class="s1">&#39;r&#39;</span><span class="p">:</span>
+                <span class="k">pass</span>
+            <span class="k">elif</span> <span class="n">key</span> <span class="o">==</span> <span class="s1">&#39;&lt;&#39;</span><span class="p">:</span>
+                <span class="n">i0</span> <span class="o">=</span> <span class="mi">0</span>
+            <span class="k">elif</span> <span class="n">key</span> <span class="o">==</span> <span class="s1">&#39;&gt;&#39;</span><span class="p">:</span>
+                <span class="n">i0</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="n">tabcol</span><span class="p">)</span>
+            <span class="k">elif</span> <span class="n">key</span> <span class="o">==</span> <span class="s1">&#39;p&#39;</span><span class="p">:</span>
+                <span class="n">i0</span> <span class="o">-=</span> <span class="mi">1</span>
+            <span class="k">elif</span> <span class="n">key</span> <span class="o">==</span> <span class="s1">&#39;n&#39;</span><span class="p">:</span>
+                <span class="n">i0</span> <span class="o">+=</span> <span class="mi">1</span>
+            <span class="k">elif</span> <span class="n">key</span> <span class="o">==</span> <span class="s1">&#39;h&#39;</span><span class="p">:</span>
+                <span class="n">showlines</span> <span class="o">=</span> <span class="kc">False</span>
+                <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;&quot;&quot;</span>
+<span class="s2">    Browsing keys:</span>
+<span class="s2">       f, &lt;space&gt; : forward one page</span>
+<span class="s2">       b : back one page</span>
+<span class="s2">       r : refresh same page</span>
+<span class="s2">       n : next row</span>
+<span class="s2">       p : previous row</span>
+<span class="s2">       &lt; : go to beginning</span>
+<span class="s2">       &gt; : go to end</span>
+<span class="s2">       q : quit browsing</span>
+<span class="s2">       h : print this help&quot;&quot;&quot;</span><span class="p">,</span> <span class="n">end</span><span class="o">=</span><span class="s1">&#39; &#39;</span><span class="p">)</span>
+            <span class="k">if</span> <span class="n">i0</span> <span class="o">&lt;</span> <span class="mi">0</span><span class="p">:</span>
+                <span class="n">i0</span> <span class="o">=</span> <span class="mi">0</span>
+            <span class="k">if</span> <span class="n">i0</span> <span class="o">&gt;=</span> <span class="nb">len</span><span class="p">(</span><span class="n">tabcol</span><span class="p">)</span> <span class="o">-</span> <span class="n">delta_lines</span><span class="p">:</span>
+                <span class="n">i0</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="n">tabcol</span><span class="p">)</span> <span class="o">-</span> <span class="n">delta_lines</span>
+            <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;</span><span class="se">\n</span><span class="s2">&quot;</span><span class="p">)</span></div>
+</pre></div>
+
+          </div>
+        </div>
+      </div>
+      <div class="sphinxsidebar" role="navigation" aria-label="main navigation">
+        <div class="sphinxsidebarwrapper"><h3>Page Contents</h3>
+
+
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+<footer class="footer">
+  <p class="pull-right"> &nbsp;
+    <a href="#">Back to Top</a></p>
+  <p>
+    &copy; Copyright 2011-2016, The Astropy Developers.<br/>
+    Created using <a href="http://sphinx.pocoo.org/">Sphinx</a> 1.5.6. &nbsp;
+    Last built 05 Jul 2017. <br/>
+  </p>
+</footer>
+  </body>
+</html>

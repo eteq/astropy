@@ -1,0 +1,621 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <head>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    
+    <title>astropy.modeling.powerlaws &#8212; Astropy v3.0.dev19489</title>
+    
+    <link rel="stylesheet" href="../../../_static/bootstrap-astropy.css" type="text/css" />
+    <link rel="stylesheet" href="../../../_static/pygments.css" type="text/css" />
+    <link rel="stylesheet" href="../../../_static/gallery.css" type="text/css" />
+    
+    <script type="text/javascript">
+      var DOCUMENTATION_OPTIONS = {
+        URL_ROOT:    '../../../',
+        VERSION:     '3.0.dev19489',
+        COLLAPSE_INDEX: false,
+        FILE_SUFFIX: '.html',
+        HAS_SOURCE:  true,
+        SOURCELINK_SUFFIX: '.txt'
+      };
+    </script>
+    <script type="text/javascript" src="../../../_static/jquery.js"></script>
+    <script type="text/javascript" src="../../../_static/underscore.js"></script>
+    <script type="text/javascript" src="../../../_static/doctools.js"></script>
+    <script type="text/javascript" src="../../../_static/sidebar.js"></script>
+    <link rel="shortcut icon" href="../../../_static/astropy_logo.ico"/>
+    <link rel="index" title="Index" href="../../../genindex.html" />
+    <link rel="search" title="Search" href="../../../search.html" />
+<link href='https://fonts.googleapis.com/css?family=Source+Sans+Pro:200,600' rel='stylesheet' type='text/css'/>
+<script type="text/javascript" src="../../../_static/copybutton.js"></script>
+
+
+  </head>
+  <body role="document">
+<div class="topbar">
+  <a class="brand" title="Documentation Home" href="../../../index.html"><span id="logotext1">astro</span><span id="logotext2">py</span><span id="logotext3">:docs</span></a>
+  <ul>
+    <li><a class="homelink" title="Astropy Homepage" href="http://www.astropy.org"></a></li>
+    <li><a title="General Index" href="../../../genindex.html">Index</a></li>
+    <li><a title="Module Index" href="../../../py-modindex.html">Modules</a></li>
+    <li>
+      
+      
+<form action="../../../search.html" method="get">
+  <input type="text" name="q" placeholder="Search" />
+  <input type="hidden" name="check_keywords" value="yes" />
+  <input type="hidden" name="area" value="default" />
+</form>
+      
+    </li>
+  </ul>
+</div>
+
+<div class="related">
+    <h3>Navigation</h3>
+    <ul>
+      <li>
+	<a href="../../../index.html">Astropy v3.0.dev19489</a>
+	 &#187;
+      </li>
+      <li><a href="../../index.html" >Module code</a> &#187;</li>
+      <li><a href="../../astropy.html" accesskey="U">astropy</a> &#187;</li>
+      
+       
+    </ul>
+</div>
+  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          <div class="body" role="main">
+            
+  <h1>Source code for astropy.modeling.powerlaws</h1><div class="highlight"><pre>
+<span></span><span class="c1"># Licensed under a 3-clause BSD style license - see LICENSE.rst</span>
+
+<span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">Power law model variants</span>
+<span class="sd">&quot;&quot;&quot;</span>
+
+<span class="kn">from</span> <span class="nn">__future__</span> <span class="k">import</span> <span class="p">(</span><span class="n">absolute_import</span><span class="p">,</span> <span class="n">unicode_literals</span><span class="p">,</span> <span class="n">division</span><span class="p">,</span>
+                        <span class="n">print_function</span><span class="p">)</span>
+
+<span class="kn">from</span> <span class="nn">collections</span> <span class="k">import</span> <span class="n">OrderedDict</span>
+
+<span class="kn">import</span> <span class="nn">numpy</span> <span class="k">as</span> <span class="nn">np</span>
+
+<span class="kn">from</span> <span class="nn">.core</span> <span class="k">import</span> <span class="n">Fittable1DModel</span>
+<span class="kn">from</span> <span class="nn">.parameters</span> <span class="k">import</span> <span class="n">Parameter</span><span class="p">,</span> <span class="n">InputParameterError</span>
+<span class="kn">from</span> <span class="nn">..units</span> <span class="k">import</span> <span class="n">Quantity</span>
+
+<span class="n">__all__</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;PowerLaw1D&#39;</span><span class="p">,</span> <span class="s1">&#39;BrokenPowerLaw1D&#39;</span><span class="p">,</span> <span class="s1">&#39;SmoothlyBrokenPowerLaw1D&#39;</span><span class="p">,</span>
+           <span class="s1">&#39;ExponentialCutoffPowerLaw1D&#39;</span><span class="p">,</span> <span class="s1">&#39;LogParabola1D&#39;</span><span class="p">]</span>
+
+
+<div class="viewcode-block" id="PowerLaw1D"><a class="viewcode-back" href="../../../api/astropy.modeling.powerlaws.PowerLaw1D.html#astropy.modeling.powerlaws.PowerLaw1D">[docs]</a><span class="k">class</span> <span class="nc">PowerLaw1D</span><span class="p">(</span><span class="n">Fittable1DModel</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    One dimensional power law model.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    amplitude : float</span>
+<span class="sd">        Model amplitude at the reference point</span>
+<span class="sd">    x_0 : float</span>
+<span class="sd">        Reference point</span>
+<span class="sd">    alpha : float</span>
+<span class="sd">        Power law index</span>
+
+<span class="sd">    See Also</span>
+<span class="sd">    --------</span>
+<span class="sd">    BrokenPowerLaw1D, ExponentialCutoffPowerLaw1D, LogParabola1D</span>
+
+<span class="sd">    Notes</span>
+<span class="sd">    -----</span>
+<span class="sd">    Model formula (with :math:`A` for ``amplitude`` and :math:`\\alpha` for ``alpha``):</span>
+
+<span class="sd">        .. math:: f(x) = A (x / x_0) ^ {-\\alpha}</span>
+
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="n">amplitude</span> <span class="o">=</span> <span class="n">Parameter</span><span class="p">(</span><span class="n">default</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span>
+    <span class="n">x_0</span> <span class="o">=</span> <span class="n">Parameter</span><span class="p">(</span><span class="n">default</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span>
+    <span class="n">alpha</span> <span class="o">=</span> <span class="n">Parameter</span><span class="p">(</span><span class="n">default</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span>
+
+    <span class="nd">@staticmethod</span>
+<div class="viewcode-block" id="PowerLaw1D.evaluate"><a class="viewcode-back" href="../../../api/astropy.modeling.powerlaws.PowerLaw1D.html#astropy.modeling.powerlaws.PowerLaw1D.evaluate">[docs]</a>    <span class="k">def</span> <span class="nf">evaluate</span><span class="p">(</span><span class="n">x</span><span class="p">,</span> <span class="n">amplitude</span><span class="p">,</span> <span class="n">x_0</span><span class="p">,</span> <span class="n">alpha</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;One dimensional power law model function&quot;&quot;&quot;</span>
+        <span class="n">xx</span> <span class="o">=</span> <span class="n">x</span> <span class="o">/</span> <span class="n">x_0</span>
+        <span class="k">return</span> <span class="n">amplitude</span> <span class="o">*</span> <span class="n">xx</span> <span class="o">**</span> <span class="p">(</span><span class="o">-</span><span class="n">alpha</span><span class="p">)</span></div>
+
+    <span class="nd">@staticmethod</span>
+<div class="viewcode-block" id="PowerLaw1D.fit_deriv"><a class="viewcode-back" href="../../../api/astropy.modeling.powerlaws.PowerLaw1D.html#astropy.modeling.powerlaws.PowerLaw1D.fit_deriv">[docs]</a>    <span class="k">def</span> <span class="nf">fit_deriv</span><span class="p">(</span><span class="n">x</span><span class="p">,</span> <span class="n">amplitude</span><span class="p">,</span> <span class="n">x_0</span><span class="p">,</span> <span class="n">alpha</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;One dimensional power law derivative with respect to parameters&quot;&quot;&quot;</span>
+
+        <span class="n">xx</span> <span class="o">=</span> <span class="n">x</span> <span class="o">/</span> <span class="n">x_0</span>
+
+        <span class="n">d_amplitude</span> <span class="o">=</span> <span class="n">xx</span> <span class="o">**</span> <span class="p">(</span><span class="o">-</span><span class="n">alpha</span><span class="p">)</span>
+        <span class="n">d_x_0</span> <span class="o">=</span> <span class="n">amplitude</span> <span class="o">*</span> <span class="n">alpha</span> <span class="o">*</span> <span class="n">d_amplitude</span> <span class="o">/</span> <span class="n">x_0</span>
+        <span class="n">d_alpha</span> <span class="o">=</span> <span class="o">-</span><span class="n">amplitude</span> <span class="o">*</span> <span class="n">d_amplitude</span> <span class="o">*</span> <span class="n">np</span><span class="o">.</span><span class="n">log</span><span class="p">(</span><span class="n">xx</span><span class="p">)</span>
+
+        <span class="k">return</span> <span class="p">[</span><span class="n">d_amplitude</span><span class="p">,</span> <span class="n">d_x_0</span><span class="p">,</span> <span class="n">d_alpha</span><span class="p">]</span></div>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">input_units</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">x_0</span><span class="o">.</span><span class="n">unit</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="k">return</span> <span class="kc">None</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">return</span> <span class="p">{</span><span class="s1">&#39;x&#39;</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">x_0</span><span class="o">.</span><span class="n">unit</span><span class="p">}</span>
+
+    <span class="k">def</span> <span class="nf">_parameter_units_for_data_units</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">inputs_unit</span><span class="p">,</span> <span class="n">outputs_unit</span><span class="p">):</span>
+        <span class="k">return</span> <span class="n">OrderedDict</span><span class="p">([(</span><span class="s1">&#39;x_0&#39;</span><span class="p">,</span> <span class="n">inputs_unit</span><span class="p">[</span><span class="s1">&#39;x&#39;</span><span class="p">]),</span>
+                            <span class="p">(</span><span class="s1">&#39;amplitude&#39;</span><span class="p">,</span> <span class="n">outputs_unit</span><span class="p">[</span><span class="s1">&#39;y&#39;</span><span class="p">])])</span></div>
+
+
+<div class="viewcode-block" id="BrokenPowerLaw1D"><a class="viewcode-back" href="../../../api/astropy.modeling.powerlaws.BrokenPowerLaw1D.html#astropy.modeling.powerlaws.BrokenPowerLaw1D">[docs]</a><span class="k">class</span> <span class="nc">BrokenPowerLaw1D</span><span class="p">(</span><span class="n">Fittable1DModel</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    One dimensional power law model with a break.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    amplitude : float</span>
+<span class="sd">        Model amplitude at the break point.</span>
+<span class="sd">    x_break : float</span>
+<span class="sd">        Break point.</span>
+<span class="sd">    alpha_1 : float</span>
+<span class="sd">        Power law index for x &lt; x_break.</span>
+<span class="sd">    alpha_2 : float</span>
+<span class="sd">        Power law index for x &gt; x_break.</span>
+
+<span class="sd">    See Also</span>
+<span class="sd">    --------</span>
+<span class="sd">    PowerLaw1D, ExponentialCutoffPowerLaw1D, LogParabola1D</span>
+
+<span class="sd">    Notes</span>
+<span class="sd">    -----</span>
+<span class="sd">    Model formula (with :math:`A` for ``amplitude`` and :math:`\\alpha_1`</span>
+<span class="sd">    for ``alpha_1`` and :math:`\\alpha_2` for ``alpha_2``):</span>
+
+<span class="sd">        .. math::</span>
+
+<span class="sd">            f(x) = \\left \\{</span>
+<span class="sd">                     \\begin{array}{ll}</span>
+<span class="sd">                       A (x / x_{break}) ^ {-\\alpha_1} &amp; : x &lt; x_{break} \\\\</span>
+<span class="sd">                       A (x / x_{break}) ^ {-\\alpha_2} &amp; :  x &gt; x_{break} \\\\</span>
+<span class="sd">                     \\end{array}</span>
+<span class="sd">                   \\right.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="n">amplitude</span> <span class="o">=</span> <span class="n">Parameter</span><span class="p">(</span><span class="n">default</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span>
+    <span class="n">x_break</span> <span class="o">=</span> <span class="n">Parameter</span><span class="p">(</span><span class="n">default</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span>
+    <span class="n">alpha_1</span> <span class="o">=</span> <span class="n">Parameter</span><span class="p">(</span><span class="n">default</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span>
+    <span class="n">alpha_2</span> <span class="o">=</span> <span class="n">Parameter</span><span class="p">(</span><span class="n">default</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span>
+
+    <span class="nd">@staticmethod</span>
+<div class="viewcode-block" id="BrokenPowerLaw1D.evaluate"><a class="viewcode-back" href="../../../api/astropy.modeling.powerlaws.BrokenPowerLaw1D.html#astropy.modeling.powerlaws.BrokenPowerLaw1D.evaluate">[docs]</a>    <span class="k">def</span> <span class="nf">evaluate</span><span class="p">(</span><span class="n">x</span><span class="p">,</span> <span class="n">amplitude</span><span class="p">,</span> <span class="n">x_break</span><span class="p">,</span> <span class="n">alpha_1</span><span class="p">,</span> <span class="n">alpha_2</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;One dimensional broken power law model function&quot;&quot;&quot;</span>
+
+        <span class="n">alpha</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">where</span><span class="p">(</span><span class="n">x</span> <span class="o">&lt;</span> <span class="n">x_break</span><span class="p">,</span> <span class="n">alpha_1</span><span class="p">,</span> <span class="n">alpha_2</span><span class="p">)</span>
+        <span class="n">xx</span> <span class="o">=</span> <span class="n">x</span> <span class="o">/</span> <span class="n">x_break</span>
+        <span class="k">return</span> <span class="n">amplitude</span> <span class="o">*</span> <span class="n">xx</span> <span class="o">**</span> <span class="p">(</span><span class="o">-</span><span class="n">alpha</span><span class="p">)</span></div>
+
+    <span class="nd">@staticmethod</span>
+<div class="viewcode-block" id="BrokenPowerLaw1D.fit_deriv"><a class="viewcode-back" href="../../../api/astropy.modeling.powerlaws.BrokenPowerLaw1D.html#astropy.modeling.powerlaws.BrokenPowerLaw1D.fit_deriv">[docs]</a>    <span class="k">def</span> <span class="nf">fit_deriv</span><span class="p">(</span><span class="n">x</span><span class="p">,</span> <span class="n">amplitude</span><span class="p">,</span> <span class="n">x_break</span><span class="p">,</span> <span class="n">alpha_1</span><span class="p">,</span> <span class="n">alpha_2</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;One dimensional broken power law derivative with respect to parameters&quot;&quot;&quot;</span>
+
+        <span class="n">alpha</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">where</span><span class="p">(</span><span class="n">x</span> <span class="o">&lt;</span> <span class="n">x_break</span><span class="p">,</span> <span class="n">alpha_1</span><span class="p">,</span> <span class="n">alpha_2</span><span class="p">)</span>
+        <span class="n">xx</span> <span class="o">=</span> <span class="n">x</span> <span class="o">/</span> <span class="n">x_break</span>
+
+        <span class="n">d_amplitude</span> <span class="o">=</span> <span class="n">xx</span> <span class="o">**</span> <span class="p">(</span><span class="o">-</span><span class="n">alpha</span><span class="p">)</span>
+        <span class="n">d_x_break</span> <span class="o">=</span> <span class="n">amplitude</span> <span class="o">*</span> <span class="n">alpha</span> <span class="o">*</span> <span class="n">d_amplitude</span> <span class="o">/</span> <span class="n">x_break</span>
+        <span class="n">d_alpha</span> <span class="o">=</span> <span class="o">-</span><span class="n">amplitude</span> <span class="o">*</span> <span class="n">d_amplitude</span> <span class="o">*</span> <span class="n">np</span><span class="o">.</span><span class="n">log</span><span class="p">(</span><span class="n">xx</span><span class="p">)</span>
+        <span class="n">d_alpha_1</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">where</span><span class="p">(</span><span class="n">x</span> <span class="o">&lt;</span> <span class="n">x_break</span><span class="p">,</span> <span class="n">d_alpha</span><span class="p">,</span> <span class="mi">0</span><span class="p">)</span>
+        <span class="n">d_alpha_2</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">where</span><span class="p">(</span><span class="n">x</span> <span class="o">&gt;=</span> <span class="n">x_break</span><span class="p">,</span> <span class="n">d_alpha</span><span class="p">,</span> <span class="mi">0</span><span class="p">)</span>
+
+        <span class="k">return</span> <span class="p">[</span><span class="n">d_amplitude</span><span class="p">,</span> <span class="n">d_x_break</span><span class="p">,</span> <span class="n">d_alpha_1</span><span class="p">,</span> <span class="n">d_alpha_2</span><span class="p">]</span></div>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">input_units</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">x_break</span><span class="o">.</span><span class="n">unit</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="k">return</span> <span class="kc">None</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">return</span> <span class="p">{</span><span class="s1">&#39;x&#39;</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">x_break</span><span class="o">.</span><span class="n">unit</span><span class="p">}</span>
+
+    <span class="k">def</span> <span class="nf">_parameter_units_for_data_units</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">inputs_unit</span><span class="p">,</span> <span class="n">outputs_unit</span><span class="p">):</span>
+        <span class="k">return</span> <span class="n">OrderedDict</span><span class="p">([(</span><span class="s1">&#39;x_break&#39;</span><span class="p">,</span> <span class="n">inputs_unit</span><span class="p">[</span><span class="s1">&#39;x&#39;</span><span class="p">]),</span>
+                            <span class="p">(</span><span class="s1">&#39;amplitude&#39;</span><span class="p">,</span> <span class="n">outputs_unit</span><span class="p">[</span><span class="s1">&#39;y&#39;</span><span class="p">])])</span></div>
+
+
+<div class="viewcode-block" id="SmoothlyBrokenPowerLaw1D"><a class="viewcode-back" href="../../../api/astropy.modeling.powerlaws.SmoothlyBrokenPowerLaw1D.html#astropy.modeling.powerlaws.SmoothlyBrokenPowerLaw1D">[docs]</a><span class="k">class</span> <span class="nc">SmoothlyBrokenPowerLaw1D</span><span class="p">(</span><span class="n">Fittable1DModel</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;One dimensional smoothly broken power law model.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    amplitude : float</span>
+<span class="sd">        Model amplitude at the break point.</span>
+<span class="sd">    x_break : float</span>
+<span class="sd">        Break point.</span>
+<span class="sd">    alpha_1 : float</span>
+<span class="sd">        Power law index for ``x &lt;&lt; x_break``.</span>
+<span class="sd">    alpha_2 : float</span>
+<span class="sd">        Power law index for ``x &gt;&gt; x_break``.</span>
+<span class="sd">    delta : float</span>
+<span class="sd">        Smoothness parameter.</span>
+
+<span class="sd">    See Also</span>
+<span class="sd">    --------</span>
+<span class="sd">    BrokenPowerLaw1D</span>
+
+<span class="sd">    Notes</span>
+<span class="sd">    -----</span>
+<span class="sd">    Model formula (with :math:`A` for ``amplitude``, :math:`x_b` for</span>
+<span class="sd">    ``x_break``, :math:`\\alpha_1` for ``alpha_1``,</span>
+<span class="sd">    :math:`\\alpha_2` for ``alpha_2`` and :math:`\\Delta` for</span>
+<span class="sd">    ``delta``):</span>
+
+<span class="sd">        .. math::</span>
+
+<span class="sd">            f(x) = A \\left( \\frac{x}{x_b} \\right) ^ {-\\alpha_1}</span>
+<span class="sd">                   \\left\\{</span>
+<span class="sd">                      \\frac{1}{2}</span>
+<span class="sd">                      \\left[</span>
+<span class="sd">                        1 + \\left( \\frac{x}{x_b}\\right)^{1 / \\Delta}</span>
+<span class="sd">                      \\right]</span>
+<span class="sd">                   \\right\\}^{(\\alpha_1 - \\alpha_2) \\Delta}</span>
+
+
+<span class="sd">    The change of slope occurs between the values :math:`x_1`</span>
+<span class="sd">    and :math:`x_2` such that:</span>
+
+<span class="sd">        .. math::</span>
+<span class="sd">            \\log_{10} \\frac{x_2}{x_b} = \\log_{10} \\frac{x_b}{x_1}</span>
+<span class="sd">            \\sim \\Delta</span>
+
+
+<span class="sd">    At values :math:`x \\lesssim x_1` and :math:`x \\gtrsim x_2` the</span>
+<span class="sd">    model is approximately a simple power law with index</span>
+<span class="sd">    :math:`\\alpha_1` and :math:`\\alpha_2` respectively.  The two</span>
+<span class="sd">    power laws are smoothly joined at values :math:`x_1 &lt; x &lt; x_2`,</span>
+<span class="sd">    hence the :math:`\\Delta` parameter sets the &quot;smoothness&quot; of the</span>
+<span class="sd">    slope change.</span>
+
+<span class="sd">    The ``delta`` parameter is bounded to values greater than 1e-3</span>
+<span class="sd">    (corresponding to :math:`x_2 / x_1 \\gtrsim 1.002`) to avoid</span>
+<span class="sd">    overflow errors.</span>
+
+<span class="sd">    The ``amplitude`` parameter is bounded to positive values since</span>
+<span class="sd">    this model is typically used to represent positive quantities.</span>
+
+
+<span class="sd">    Examples</span>
+<span class="sd">    --------</span>
+<span class="sd">    .. plot::</span>
+<span class="sd">        :include-source:</span>
+
+<span class="sd">        import numpy as np</span>
+<span class="sd">        import matplotlib.pyplot as plt</span>
+<span class="sd">        from astropy.modeling import models</span>
+
+<span class="sd">        x = np.logspace(0.7, 2.3, 500)</span>
+<span class="sd">        f = models.SmoothlyBrokenPowerLaw1D(amplitude=1, x_break=20,</span>
+<span class="sd">                                            alpha_1=-2, alpha_2=2)</span>
+
+<span class="sd">        plt.figure()</span>
+<span class="sd">        plt.title(&quot;amplitude=1, x_break=20, alpha_1=-2, alpha_2=2&quot;)</span>
+
+<span class="sd">        f.delta = 0.5</span>
+<span class="sd">        plt.loglog(x, f(x), &#39;--&#39;, label=&#39;delta=0.5&#39;)</span>
+
+<span class="sd">        f.delta = 0.3</span>
+<span class="sd">        plt.loglog(x, f(x), &#39;-.&#39;, label=&#39;delta=0.3&#39;)</span>
+
+<span class="sd">        f.delta = 0.1</span>
+<span class="sd">        plt.loglog(x, f(x), label=&#39;delta=0.1&#39;)</span>
+
+<span class="sd">        plt.axis([x.min(), x.max(), 0.1, 1.1])</span>
+<span class="sd">        plt.legend(loc=&#39;lower center&#39;)</span>
+<span class="sd">        plt.grid(True)</span>
+<span class="sd">        plt.show()</span>
+
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="n">amplitude</span> <span class="o">=</span> <span class="n">Parameter</span><span class="p">(</span><span class="n">default</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span> <span class="nb">min</span><span class="o">=</span><span class="mi">0</span><span class="p">)</span>
+    <span class="n">x_break</span> <span class="o">=</span> <span class="n">Parameter</span><span class="p">(</span><span class="n">default</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span>
+    <span class="n">alpha_1</span> <span class="o">=</span> <span class="n">Parameter</span><span class="p">(</span><span class="n">default</span><span class="o">=-</span><span class="mi">2</span><span class="p">)</span>
+    <span class="n">alpha_2</span> <span class="o">=</span> <span class="n">Parameter</span><span class="p">(</span><span class="n">default</span><span class="o">=</span><span class="mi">2</span><span class="p">)</span>
+    <span class="n">delta</span> <span class="o">=</span> <span class="n">Parameter</span><span class="p">(</span><span class="n">default</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span> <span class="nb">min</span><span class="o">=</span><span class="mf">1.e-3</span><span class="p">)</span>
+
+    <span class="nd">@amplitude</span><span class="o">.</span><span class="n">validator</span>
+    <span class="k">def</span> <span class="nf">amplitude</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">value</span><span class="p">):</span>
+        <span class="k">if</span> <span class="n">np</span><span class="o">.</span><span class="n">any</span><span class="p">(</span><span class="n">value</span> <span class="o">&lt;=</span> <span class="mi">0</span><span class="p">):</span>
+            <span class="k">raise</span> <span class="n">InputParameterError</span><span class="p">(</span>
+                <span class="s2">&quot;amplitude parameter must be &gt; 0&quot;</span><span class="p">)</span>
+
+    <span class="nd">@delta</span><span class="o">.</span><span class="n">validator</span>
+    <span class="k">def</span> <span class="nf">delta</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">value</span><span class="p">):</span>
+        <span class="k">if</span> <span class="n">np</span><span class="o">.</span><span class="n">any</span><span class="p">(</span><span class="n">value</span> <span class="o">&lt;</span> <span class="mf">0.001</span><span class="p">):</span>
+            <span class="k">raise</span> <span class="n">InputParameterError</span><span class="p">(</span>
+                <span class="s2">&quot;delta parameter must be &gt;= 0.001&quot;</span><span class="p">)</span>
+
+    <span class="nd">@staticmethod</span>
+<div class="viewcode-block" id="SmoothlyBrokenPowerLaw1D.evaluate"><a class="viewcode-back" href="../../../api/astropy.modeling.powerlaws.SmoothlyBrokenPowerLaw1D.html#astropy.modeling.powerlaws.SmoothlyBrokenPowerLaw1D.evaluate">[docs]</a>    <span class="k">def</span> <span class="nf">evaluate</span><span class="p">(</span><span class="n">x</span><span class="p">,</span> <span class="n">amplitude</span><span class="p">,</span> <span class="n">x_break</span><span class="p">,</span> <span class="n">alpha_1</span><span class="p">,</span> <span class="n">alpha_2</span><span class="p">,</span> <span class="n">delta</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;One dimensional smoothly broken power law model function&quot;&quot;&quot;</span>
+
+        <span class="c1"># Pre-calculate `x/x_b`</span>
+        <span class="n">xx</span> <span class="o">=</span> <span class="n">x</span> <span class="o">/</span> <span class="n">x_break</span>
+
+        <span class="c1"># Initialize the return value</span>
+        <span class="n">f</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">zeros_like</span><span class="p">(</span><span class="n">xx</span><span class="p">,</span> <span class="n">subok</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
+
+        <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">amplitude</span><span class="p">,</span> <span class="n">Quantity</span><span class="p">):</span>
+            <span class="n">return_unit</span> <span class="o">=</span> <span class="n">amplitude</span><span class="o">.</span><span class="n">unit</span>
+            <span class="n">amplitude</span> <span class="o">=</span> <span class="n">amplitude</span><span class="o">.</span><span class="n">value</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">return_unit</span> <span class="o">=</span> <span class="kc">None</span>
+
+        <span class="c1"># The quantity `t = (x / x_b)^(1 / delta)` can become quite</span>
+        <span class="c1"># large.  To avoid overflow errors we will start by calculating</span>
+        <span class="c1"># its natural logarithm:</span>
+        <span class="n">logt</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">log</span><span class="p">(</span><span class="n">xx</span><span class="p">)</span> <span class="o">/</span> <span class="n">delta</span>
+
+        <span class="c1"># When `t &gt;&gt; 1` or `t &lt;&lt; 1` we don&#39;t actually need to compute</span>
+        <span class="c1"># the `t` value since the main formula (see docstring) can be</span>
+        <span class="c1"># significantly simplified by neglecting `1` or `t`</span>
+        <span class="c1"># respectively.  In the following we will check whether `t` is</span>
+        <span class="c1"># much greater, much smaller, or comparable to 1 by comparing</span>
+        <span class="c1"># the `logt` value with an appropriate threshold.</span>
+        <span class="n">threshold</span> <span class="o">=</span> <span class="mi">30</span>  <span class="c1"># corresponding to exp(30) ~ 1e13</span>
+        <span class="n">i</span> <span class="o">=</span> <span class="n">logt</span> <span class="o">&gt;</span> <span class="n">threshold</span>
+        <span class="k">if</span> <span class="p">(</span><span class="n">i</span><span class="o">.</span><span class="n">max</span><span class="p">()):</span>
+            <span class="c1"># In this case the main formula reduces to a simple power</span>
+            <span class="c1"># law with index `alpha_2`.</span>
+            <span class="n">f</span><span class="p">[</span><span class="n">i</span><span class="p">]</span> <span class="o">=</span> <span class="n">amplitude</span> <span class="o">*</span> <span class="n">xx</span><span class="p">[</span><span class="n">i</span><span class="p">]</span> <span class="o">**</span> <span class="p">(</span><span class="o">-</span><span class="n">alpha_2</span><span class="p">)</span> \
+                   <span class="o">/</span> <span class="p">(</span><span class="mf">2.</span> <span class="o">**</span> <span class="p">((</span><span class="n">alpha_1</span> <span class="o">-</span> <span class="n">alpha_2</span><span class="p">)</span> <span class="o">*</span> <span class="n">delta</span><span class="p">))</span>
+
+        <span class="n">i</span> <span class="o">=</span> <span class="n">logt</span> <span class="o">&lt;</span> <span class="o">-</span><span class="n">threshold</span>
+        <span class="k">if</span> <span class="p">(</span><span class="n">i</span><span class="o">.</span><span class="n">max</span><span class="p">()):</span>
+            <span class="c1"># In this case the main formula reduces to a simple power</span>
+            <span class="c1"># law with index `alpha_1`.</span>
+            <span class="n">f</span><span class="p">[</span><span class="n">i</span><span class="p">]</span> <span class="o">=</span> <span class="n">amplitude</span> <span class="o">*</span> <span class="n">xx</span><span class="p">[</span><span class="n">i</span><span class="p">]</span> <span class="o">**</span> <span class="p">(</span><span class="o">-</span><span class="n">alpha_1</span><span class="p">)</span> \
+                   <span class="o">/</span> <span class="p">(</span><span class="mf">2.</span> <span class="o">**</span> <span class="p">((</span><span class="n">alpha_1</span> <span class="o">-</span> <span class="n">alpha_2</span><span class="p">)</span> <span class="o">*</span> <span class="n">delta</span><span class="p">))</span>
+
+        <span class="n">i</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">abs</span><span class="p">(</span><span class="n">logt</span><span class="p">)</span> <span class="o">&lt;=</span> <span class="n">threshold</span>
+        <span class="k">if</span> <span class="p">(</span><span class="n">i</span><span class="o">.</span><span class="n">max</span><span class="p">()):</span>
+            <span class="c1"># In this case the `t` value is &quot;comparable&quot; to 1, hence we</span>
+            <span class="c1"># we will evaluate the whole formula.</span>
+            <span class="n">t</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">exp</span><span class="p">(</span><span class="n">logt</span><span class="p">[</span><span class="n">i</span><span class="p">])</span>
+            <span class="n">r</span> <span class="o">=</span> <span class="p">(</span><span class="mf">1.</span> <span class="o">+</span> <span class="n">t</span><span class="p">)</span> <span class="o">/</span> <span class="mf">2.</span>
+            <span class="n">f</span><span class="p">[</span><span class="n">i</span><span class="p">]</span> <span class="o">=</span> <span class="n">amplitude</span> <span class="o">*</span> <span class="n">xx</span><span class="p">[</span><span class="n">i</span><span class="p">]</span> <span class="o">**</span> <span class="p">(</span><span class="o">-</span><span class="n">alpha_1</span><span class="p">)</span> \
+                   <span class="o">*</span> <span class="n">r</span> <span class="o">**</span> <span class="p">((</span><span class="n">alpha_1</span> <span class="o">-</span> <span class="n">alpha_2</span><span class="p">)</span> <span class="o">*</span> <span class="n">delta</span><span class="p">)</span>
+
+        <span class="k">if</span> <span class="n">return_unit</span><span class="p">:</span>
+            <span class="k">return</span> <span class="n">Quantity</span><span class="p">(</span><span class="n">f</span><span class="p">,</span> <span class="n">unit</span><span class="o">=</span><span class="n">return_unit</span><span class="p">,</span> <span class="n">copy</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">return</span> <span class="n">f</span></div>
+
+    <span class="nd">@staticmethod</span>
+<div class="viewcode-block" id="SmoothlyBrokenPowerLaw1D.fit_deriv"><a class="viewcode-back" href="../../../api/astropy.modeling.powerlaws.SmoothlyBrokenPowerLaw1D.html#astropy.modeling.powerlaws.SmoothlyBrokenPowerLaw1D.fit_deriv">[docs]</a>    <span class="k">def</span> <span class="nf">fit_deriv</span><span class="p">(</span><span class="n">x</span><span class="p">,</span> <span class="n">amplitude</span><span class="p">,</span> <span class="n">x_break</span><span class="p">,</span> <span class="n">alpha_1</span><span class="p">,</span> <span class="n">alpha_2</span><span class="p">,</span> <span class="n">delta</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;One dimensional smoothly broken power law derivative with respect</span>
+<span class="sd">           to parameters&quot;&quot;&quot;</span>
+
+        <span class="c1"># Pre-calculate `x_b` and `x/x_b` and `logt` (see comments in</span>
+        <span class="c1"># SmoothlyBrokenPowerLaw1D.evaluate)</span>
+        <span class="n">xx</span> <span class="o">=</span> <span class="n">x</span> <span class="o">/</span> <span class="n">x_break</span>
+        <span class="n">logt</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">log</span><span class="p">(</span><span class="n">xx</span><span class="p">)</span> <span class="o">/</span> <span class="n">delta</span>
+
+        <span class="c1"># Initialize the return values</span>
+        <span class="n">f</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">zeros_like</span><span class="p">(</span><span class="n">xx</span><span class="p">)</span>
+        <span class="n">d_amplitude</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">zeros_like</span><span class="p">(</span><span class="n">xx</span><span class="p">)</span>
+        <span class="n">d_x_break</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">zeros_like</span><span class="p">(</span><span class="n">xx</span><span class="p">)</span>
+        <span class="n">d_alpha_1</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">zeros_like</span><span class="p">(</span><span class="n">xx</span><span class="p">)</span>
+        <span class="n">d_alpha_2</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">zeros_like</span><span class="p">(</span><span class="n">xx</span><span class="p">)</span>
+        <span class="n">d_delta</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">zeros_like</span><span class="p">(</span><span class="n">xx</span><span class="p">)</span>
+
+        <span class="n">threshold</span> <span class="o">=</span> <span class="mi">30</span>  <span class="c1"># (see comments in SmoothlyBrokenPowerLaw1D.evaluate)</span>
+        <span class="n">i</span> <span class="o">=</span> <span class="n">logt</span> <span class="o">&gt;</span> <span class="n">threshold</span>
+        <span class="k">if</span> <span class="p">(</span><span class="n">i</span><span class="o">.</span><span class="n">max</span><span class="p">()):</span>
+            <span class="n">f</span><span class="p">[</span><span class="n">i</span><span class="p">]</span> <span class="o">=</span> <span class="n">amplitude</span> <span class="o">*</span> <span class="n">xx</span><span class="p">[</span><span class="n">i</span><span class="p">]</span> <span class="o">**</span> <span class="p">(</span><span class="o">-</span><span class="n">alpha_2</span><span class="p">)</span> \
+                   <span class="o">/</span> <span class="p">(</span><span class="mf">2.</span> <span class="o">**</span> <span class="p">((</span><span class="n">alpha_1</span> <span class="o">-</span> <span class="n">alpha_2</span><span class="p">)</span> <span class="o">*</span> <span class="n">delta</span><span class="p">))</span>
+
+            <span class="n">d_amplitude</span><span class="p">[</span><span class="n">i</span><span class="p">]</span> <span class="o">=</span> <span class="n">f</span><span class="p">[</span><span class="n">i</span><span class="p">]</span> <span class="o">/</span> <span class="n">amplitude</span>
+            <span class="n">d_x_break</span><span class="p">[</span><span class="n">i</span><span class="p">]</span> <span class="o">=</span> <span class="n">f</span><span class="p">[</span><span class="n">i</span><span class="p">]</span> <span class="o">*</span> <span class="n">alpha_2</span> <span class="o">/</span> <span class="n">x_break</span>
+            <span class="n">d_alpha_1</span><span class="p">[</span><span class="n">i</span><span class="p">]</span> <span class="o">=</span> <span class="n">f</span><span class="p">[</span><span class="n">i</span><span class="p">]</span> <span class="o">*</span> <span class="p">(</span><span class="o">-</span><span class="n">delta</span> <span class="o">*</span> <span class="n">np</span><span class="o">.</span><span class="n">log</span><span class="p">(</span><span class="mi">2</span><span class="p">))</span>
+            <span class="n">d_alpha_2</span><span class="p">[</span><span class="n">i</span><span class="p">]</span> <span class="o">=</span> <span class="n">f</span><span class="p">[</span><span class="n">i</span><span class="p">]</span> <span class="o">*</span> <span class="p">(</span><span class="o">-</span><span class="n">np</span><span class="o">.</span><span class="n">log</span><span class="p">(</span><span class="n">xx</span><span class="p">[</span><span class="n">i</span><span class="p">])</span> <span class="o">+</span> <span class="n">delta</span> <span class="o">*</span> <span class="n">np</span><span class="o">.</span><span class="n">log</span><span class="p">(</span><span class="mi">2</span><span class="p">))</span>
+            <span class="n">d_delta</span><span class="p">[</span><span class="n">i</span><span class="p">]</span> <span class="o">=</span> <span class="n">f</span><span class="p">[</span><span class="n">i</span><span class="p">]</span> <span class="o">*</span> <span class="p">(</span><span class="o">-</span><span class="p">(</span><span class="n">alpha_1</span> <span class="o">-</span> <span class="n">alpha_2</span><span class="p">)</span> <span class="o">*</span> <span class="n">np</span><span class="o">.</span><span class="n">log</span><span class="p">(</span><span class="mi">2</span><span class="p">))</span>
+
+        <span class="n">i</span> <span class="o">=</span> <span class="n">logt</span> <span class="o">&lt;</span> <span class="o">-</span><span class="n">threshold</span>
+        <span class="k">if</span> <span class="p">(</span><span class="n">i</span><span class="o">.</span><span class="n">max</span><span class="p">()):</span>
+            <span class="n">f</span><span class="p">[</span><span class="n">i</span><span class="p">]</span> <span class="o">=</span> <span class="n">amplitude</span> <span class="o">*</span> <span class="n">xx</span><span class="p">[</span><span class="n">i</span><span class="p">]</span> <span class="o">**</span> <span class="p">(</span><span class="o">-</span><span class="n">alpha_1</span><span class="p">)</span> \
+                   <span class="o">/</span> <span class="p">(</span><span class="mf">2.</span> <span class="o">**</span> <span class="p">((</span><span class="n">alpha_1</span> <span class="o">-</span> <span class="n">alpha_2</span><span class="p">)</span> <span class="o">*</span> <span class="n">delta</span><span class="p">))</span>
+
+            <span class="n">d_amplitude</span><span class="p">[</span><span class="n">i</span><span class="p">]</span> <span class="o">=</span> <span class="n">f</span><span class="p">[</span><span class="n">i</span><span class="p">]</span> <span class="o">/</span> <span class="n">amplitude</span>
+            <span class="n">d_x_break</span><span class="p">[</span><span class="n">i</span><span class="p">]</span> <span class="o">=</span> <span class="n">f</span><span class="p">[</span><span class="n">i</span><span class="p">]</span> <span class="o">*</span> <span class="n">alpha_1</span> <span class="o">/</span> <span class="n">x_break</span>
+            <span class="n">d_alpha_1</span><span class="p">[</span><span class="n">i</span><span class="p">]</span> <span class="o">=</span> <span class="n">f</span><span class="p">[</span><span class="n">i</span><span class="p">]</span> <span class="o">*</span> <span class="p">(</span><span class="o">-</span><span class="n">np</span><span class="o">.</span><span class="n">log</span><span class="p">(</span><span class="n">xx</span><span class="p">[</span><span class="n">i</span><span class="p">])</span> <span class="o">-</span> <span class="n">delta</span> <span class="o">*</span> <span class="n">np</span><span class="o">.</span><span class="n">log</span><span class="p">(</span><span class="mi">2</span><span class="p">))</span>
+            <span class="n">d_alpha_2</span><span class="p">[</span><span class="n">i</span><span class="p">]</span> <span class="o">=</span> <span class="n">f</span><span class="p">[</span><span class="n">i</span><span class="p">]</span> <span class="o">*</span> <span class="n">delta</span> <span class="o">*</span> <span class="n">np</span><span class="o">.</span><span class="n">log</span><span class="p">(</span><span class="mi">2</span><span class="p">)</span>
+            <span class="n">d_delta</span><span class="p">[</span><span class="n">i</span><span class="p">]</span> <span class="o">=</span> <span class="n">f</span><span class="p">[</span><span class="n">i</span><span class="p">]</span> <span class="o">*</span> <span class="p">(</span><span class="o">-</span><span class="p">(</span><span class="n">alpha_1</span> <span class="o">-</span> <span class="n">alpha_2</span><span class="p">)</span> <span class="o">*</span> <span class="n">np</span><span class="o">.</span><span class="n">log</span><span class="p">(</span><span class="mi">2</span><span class="p">))</span>
+
+        <span class="n">i</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">abs</span><span class="p">(</span><span class="n">logt</span><span class="p">)</span> <span class="o">&lt;=</span> <span class="n">threshold</span>
+        <span class="k">if</span> <span class="p">(</span><span class="n">i</span><span class="o">.</span><span class="n">max</span><span class="p">()):</span>
+            <span class="n">t</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">exp</span><span class="p">(</span><span class="n">logt</span><span class="p">[</span><span class="n">i</span><span class="p">])</span>
+            <span class="n">r</span> <span class="o">=</span> <span class="p">(</span><span class="mf">1.</span> <span class="o">+</span> <span class="n">t</span><span class="p">)</span> <span class="o">/</span> <span class="mf">2.</span>
+            <span class="n">f</span><span class="p">[</span><span class="n">i</span><span class="p">]</span> <span class="o">=</span> <span class="n">amplitude</span> <span class="o">*</span> <span class="n">xx</span><span class="p">[</span><span class="n">i</span><span class="p">]</span> <span class="o">**</span> <span class="p">(</span><span class="o">-</span><span class="n">alpha_1</span><span class="p">)</span> \
+                   <span class="o">*</span> <span class="n">r</span> <span class="o">**</span> <span class="p">((</span><span class="n">alpha_1</span> <span class="o">-</span> <span class="n">alpha_2</span><span class="p">)</span> <span class="o">*</span> <span class="n">delta</span><span class="p">)</span>
+
+            <span class="n">d_amplitude</span><span class="p">[</span><span class="n">i</span><span class="p">]</span> <span class="o">=</span> <span class="n">f</span><span class="p">[</span><span class="n">i</span><span class="p">]</span> <span class="o">/</span> <span class="n">amplitude</span>
+            <span class="n">d_x_break</span><span class="p">[</span><span class="n">i</span><span class="p">]</span> <span class="o">=</span> <span class="n">f</span><span class="p">[</span><span class="n">i</span><span class="p">]</span> <span class="o">*</span> <span class="p">(</span><span class="n">alpha_1</span> <span class="o">-</span> <span class="p">(</span><span class="n">alpha_1</span> <span class="o">-</span> <span class="n">alpha_2</span><span class="p">)</span> <span class="o">*</span> <span class="n">t</span> <span class="o">/</span> <span class="mf">2.</span> <span class="o">/</span> <span class="n">r</span><span class="p">)</span> <span class="o">/</span> <span class="n">x_break</span>
+            <span class="n">d_alpha_1</span><span class="p">[</span><span class="n">i</span><span class="p">]</span> <span class="o">=</span> <span class="n">f</span><span class="p">[</span><span class="n">i</span><span class="p">]</span> <span class="o">*</span> <span class="p">(</span><span class="o">-</span><span class="n">np</span><span class="o">.</span><span class="n">log</span><span class="p">(</span><span class="n">xx</span><span class="p">[</span><span class="n">i</span><span class="p">])</span> <span class="o">+</span> <span class="n">delta</span> <span class="o">*</span> <span class="n">np</span><span class="o">.</span><span class="n">log</span><span class="p">(</span><span class="n">r</span><span class="p">))</span>
+            <span class="n">d_alpha_2</span><span class="p">[</span><span class="n">i</span><span class="p">]</span> <span class="o">=</span> <span class="n">f</span><span class="p">[</span><span class="n">i</span><span class="p">]</span> <span class="o">*</span> <span class="p">(</span><span class="o">-</span><span class="n">delta</span> <span class="o">*</span> <span class="n">np</span><span class="o">.</span><span class="n">log</span><span class="p">(</span><span class="n">r</span><span class="p">))</span>
+            <span class="n">d_delta</span><span class="p">[</span><span class="n">i</span><span class="p">]</span> <span class="o">=</span> <span class="n">f</span><span class="p">[</span><span class="n">i</span><span class="p">]</span> <span class="o">*</span> <span class="p">(</span><span class="n">alpha_1</span> <span class="o">-</span> <span class="n">alpha_2</span><span class="p">)</span> \
+                         <span class="o">*</span> <span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">log</span><span class="p">(</span><span class="n">r</span><span class="p">)</span> <span class="o">-</span> <span class="n">t</span> <span class="o">/</span> <span class="p">(</span><span class="mf">1.</span> <span class="o">+</span> <span class="n">t</span><span class="p">)</span> <span class="o">/</span> <span class="n">delta</span> <span class="o">*</span> <span class="n">np</span><span class="o">.</span><span class="n">log</span><span class="p">(</span><span class="n">xx</span><span class="p">[</span><span class="n">i</span><span class="p">]))</span>
+
+        <span class="k">return</span> <span class="p">[</span><span class="n">d_amplitude</span><span class="p">,</span> <span class="n">d_x_break</span><span class="p">,</span> <span class="n">d_alpha_1</span><span class="p">,</span> <span class="n">d_alpha_2</span><span class="p">,</span> <span class="n">d_delta</span><span class="p">]</span></div>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">input_units</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">x_break</span><span class="o">.</span><span class="n">unit</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="k">return</span> <span class="kc">None</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">return</span> <span class="p">{</span><span class="s1">&#39;x&#39;</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">x_break</span><span class="o">.</span><span class="n">unit</span><span class="p">}</span>
+
+    <span class="k">def</span> <span class="nf">_parameter_units_for_data_units</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">inputs_unit</span><span class="p">,</span> <span class="n">outputs_unit</span><span class="p">):</span>
+        <span class="k">return</span> <span class="n">OrderedDict</span><span class="p">([(</span><span class="s1">&#39;x_break&#39;</span><span class="p">,</span> <span class="n">inputs_unit</span><span class="p">[</span><span class="s1">&#39;x&#39;</span><span class="p">]),</span>
+                            <span class="p">(</span><span class="s1">&#39;amplitude&#39;</span><span class="p">,</span> <span class="n">outputs_unit</span><span class="p">[</span><span class="s1">&#39;y&#39;</span><span class="p">])])</span></div>
+
+
+<div class="viewcode-block" id="ExponentialCutoffPowerLaw1D"><a class="viewcode-back" href="../../../api/astropy.modeling.powerlaws.ExponentialCutoffPowerLaw1D.html#astropy.modeling.powerlaws.ExponentialCutoffPowerLaw1D">[docs]</a><span class="k">class</span> <span class="nc">ExponentialCutoffPowerLaw1D</span><span class="p">(</span><span class="n">Fittable1DModel</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    One dimensional power law model with an exponential cutoff.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    amplitude : float</span>
+<span class="sd">        Model amplitude</span>
+<span class="sd">    x_0 : float</span>
+<span class="sd">        Reference point</span>
+<span class="sd">    alpha : float</span>
+<span class="sd">        Power law index</span>
+<span class="sd">    x_cutoff : float</span>
+<span class="sd">        Cutoff point</span>
+
+<span class="sd">    See Also</span>
+<span class="sd">    --------</span>
+<span class="sd">    PowerLaw1D, BrokenPowerLaw1D, LogParabola1D</span>
+
+<span class="sd">    Notes</span>
+<span class="sd">    -----</span>
+<span class="sd">    Model formula (with :math:`A` for ``amplitude`` and :math:`\\alpha` for ``alpha``):</span>
+
+<span class="sd">        .. math:: f(x) = A (x / x_0) ^ {-\\alpha} \\exp (-x / x_{cutoff})</span>
+
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="n">amplitude</span> <span class="o">=</span> <span class="n">Parameter</span><span class="p">(</span><span class="n">default</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span>
+    <span class="n">x_0</span> <span class="o">=</span> <span class="n">Parameter</span><span class="p">(</span><span class="n">default</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span>
+    <span class="n">alpha</span> <span class="o">=</span> <span class="n">Parameter</span><span class="p">(</span><span class="n">default</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span>
+    <span class="n">x_cutoff</span> <span class="o">=</span> <span class="n">Parameter</span><span class="p">(</span><span class="n">default</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span>
+
+    <span class="nd">@staticmethod</span>
+<div class="viewcode-block" id="ExponentialCutoffPowerLaw1D.evaluate"><a class="viewcode-back" href="../../../api/astropy.modeling.powerlaws.ExponentialCutoffPowerLaw1D.html#astropy.modeling.powerlaws.ExponentialCutoffPowerLaw1D.evaluate">[docs]</a>    <span class="k">def</span> <span class="nf">evaluate</span><span class="p">(</span><span class="n">x</span><span class="p">,</span> <span class="n">amplitude</span><span class="p">,</span> <span class="n">x_0</span><span class="p">,</span> <span class="n">alpha</span><span class="p">,</span> <span class="n">x_cutoff</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;One dimensional exponential cutoff power law model function&quot;&quot;&quot;</span>
+
+        <span class="n">xx</span> <span class="o">=</span> <span class="n">x</span> <span class="o">/</span> <span class="n">x_0</span>
+        <span class="k">return</span> <span class="n">amplitude</span> <span class="o">*</span> <span class="n">xx</span> <span class="o">**</span> <span class="p">(</span><span class="o">-</span><span class="n">alpha</span><span class="p">)</span> <span class="o">*</span> <span class="n">np</span><span class="o">.</span><span class="n">exp</span><span class="p">(</span><span class="o">-</span><span class="n">x</span> <span class="o">/</span> <span class="n">x_cutoff</span><span class="p">)</span></div>
+
+    <span class="nd">@staticmethod</span>
+<div class="viewcode-block" id="ExponentialCutoffPowerLaw1D.fit_deriv"><a class="viewcode-back" href="../../../api/astropy.modeling.powerlaws.ExponentialCutoffPowerLaw1D.html#astropy.modeling.powerlaws.ExponentialCutoffPowerLaw1D.fit_deriv">[docs]</a>    <span class="k">def</span> <span class="nf">fit_deriv</span><span class="p">(</span><span class="n">x</span><span class="p">,</span> <span class="n">amplitude</span><span class="p">,</span> <span class="n">x_0</span><span class="p">,</span> <span class="n">alpha</span><span class="p">,</span> <span class="n">x_cutoff</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;One dimensional exponential cutoff power law derivative with respect to parameters&quot;&quot;&quot;</span>
+
+        <span class="n">xx</span> <span class="o">=</span> <span class="n">x</span> <span class="o">/</span> <span class="n">x_0</span>
+        <span class="n">xc</span> <span class="o">=</span> <span class="n">x</span> <span class="o">/</span> <span class="n">x_cutoff</span>
+
+        <span class="n">d_amplitude</span> <span class="o">=</span> <span class="n">xx</span> <span class="o">**</span> <span class="p">(</span><span class="o">-</span><span class="n">alpha</span><span class="p">)</span> <span class="o">*</span> <span class="n">np</span><span class="o">.</span><span class="n">exp</span><span class="p">(</span><span class="o">-</span><span class="n">xc</span><span class="p">)</span>
+        <span class="n">d_x_0</span> <span class="o">=</span> <span class="n">alpha</span> <span class="o">*</span> <span class="n">amplitude</span> <span class="o">*</span> <span class="n">d_amplitude</span> <span class="o">/</span> <span class="n">x_0</span>
+        <span class="n">d_alpha</span> <span class="o">=</span> <span class="o">-</span><span class="n">amplitude</span> <span class="o">*</span> <span class="n">d_amplitude</span> <span class="o">*</span> <span class="n">np</span><span class="o">.</span><span class="n">log</span><span class="p">(</span><span class="n">xx</span><span class="p">)</span>
+        <span class="n">d_x_cutoff</span> <span class="o">=</span> <span class="n">amplitude</span> <span class="o">*</span> <span class="n">x</span> <span class="o">*</span> <span class="n">d_amplitude</span> <span class="o">/</span> <span class="n">x_cutoff</span> <span class="o">**</span> <span class="mi">2</span>
+
+        <span class="k">return</span> <span class="p">[</span><span class="n">d_amplitude</span><span class="p">,</span> <span class="n">d_x_0</span><span class="p">,</span> <span class="n">d_alpha</span><span class="p">,</span> <span class="n">d_x_cutoff</span><span class="p">]</span></div>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">input_units</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">x_0</span><span class="o">.</span><span class="n">unit</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="k">return</span> <span class="kc">None</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">return</span> <span class="p">{</span><span class="s1">&#39;x&#39;</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">x_0</span><span class="o">.</span><span class="n">unit</span><span class="p">}</span>
+
+    <span class="k">def</span> <span class="nf">_parameter_units_for_data_units</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">inputs_unit</span><span class="p">,</span> <span class="n">outputs_unit</span><span class="p">):</span>
+        <span class="k">return</span> <span class="n">OrderedDict</span><span class="p">([(</span><span class="s1">&#39;x_0&#39;</span><span class="p">,</span> <span class="n">inputs_unit</span><span class="p">[</span><span class="s1">&#39;x&#39;</span><span class="p">]),</span>
+                            <span class="p">(</span><span class="s1">&#39;x_cutoff&#39;</span><span class="p">,</span> <span class="n">inputs_unit</span><span class="p">[</span><span class="s1">&#39;x&#39;</span><span class="p">]),</span>
+                            <span class="p">(</span><span class="s1">&#39;amplitude&#39;</span><span class="p">,</span> <span class="n">outputs_unit</span><span class="p">[</span><span class="s1">&#39;y&#39;</span><span class="p">])])</span></div>
+
+
+<div class="viewcode-block" id="LogParabola1D"><a class="viewcode-back" href="../../../api/astropy.modeling.powerlaws.LogParabola1D.html#astropy.modeling.powerlaws.LogParabola1D">[docs]</a><span class="k">class</span> <span class="nc">LogParabola1D</span><span class="p">(</span><span class="n">Fittable1DModel</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    One dimensional log parabola model (sometimes called curved power law).</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    amplitude : float</span>
+<span class="sd">        Model amplitude</span>
+<span class="sd">    x_0 : float</span>
+<span class="sd">        Reference point</span>
+<span class="sd">    alpha : float</span>
+<span class="sd">        Power law index</span>
+<span class="sd">    beta : float</span>
+<span class="sd">        Power law curvature</span>
+
+<span class="sd">    See Also</span>
+<span class="sd">    --------</span>
+<span class="sd">    PowerLaw1D, BrokenPowerLaw1D, ExponentialCutoffPowerLaw1D</span>
+
+<span class="sd">    Notes</span>
+<span class="sd">    -----</span>
+<span class="sd">    Model formula (with :math:`A` for ``amplitude`` and :math:`\\alpha` for ``alpha`` and :math:`\\beta` for ``beta``):</span>
+
+<span class="sd">        .. math:: f(x) = A \\left(\\frac{x}{x_{0}}\\right)^{- \\alpha - \\beta \\log{\\left (\\frac{x}{x_{0}} \\right )}}</span>
+
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="n">amplitude</span> <span class="o">=</span> <span class="n">Parameter</span><span class="p">(</span><span class="n">default</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span>
+    <span class="n">x_0</span> <span class="o">=</span> <span class="n">Parameter</span><span class="p">(</span><span class="n">default</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span>
+    <span class="n">alpha</span> <span class="o">=</span> <span class="n">Parameter</span><span class="p">(</span><span class="n">default</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span>
+    <span class="n">beta</span> <span class="o">=</span> <span class="n">Parameter</span><span class="p">(</span><span class="n">default</span><span class="o">=</span><span class="mi">0</span><span class="p">)</span>
+
+    <span class="nd">@staticmethod</span>
+<div class="viewcode-block" id="LogParabola1D.evaluate"><a class="viewcode-back" href="../../../api/astropy.modeling.powerlaws.LogParabola1D.html#astropy.modeling.powerlaws.LogParabola1D.evaluate">[docs]</a>    <span class="k">def</span> <span class="nf">evaluate</span><span class="p">(</span><span class="n">x</span><span class="p">,</span> <span class="n">amplitude</span><span class="p">,</span> <span class="n">x_0</span><span class="p">,</span> <span class="n">alpha</span><span class="p">,</span> <span class="n">beta</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;One dimensional log parabola model function&quot;&quot;&quot;</span>
+
+        <span class="n">xx</span> <span class="o">=</span> <span class="n">x</span> <span class="o">/</span> <span class="n">x_0</span>
+        <span class="n">exponent</span> <span class="o">=</span> <span class="o">-</span><span class="n">alpha</span> <span class="o">-</span> <span class="n">beta</span> <span class="o">*</span> <span class="n">np</span><span class="o">.</span><span class="n">log</span><span class="p">(</span><span class="n">xx</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">amplitude</span> <span class="o">*</span> <span class="n">xx</span> <span class="o">**</span> <span class="n">exponent</span></div>
+
+    <span class="nd">@staticmethod</span>
+<div class="viewcode-block" id="LogParabola1D.fit_deriv"><a class="viewcode-back" href="../../../api/astropy.modeling.powerlaws.LogParabola1D.html#astropy.modeling.powerlaws.LogParabola1D.fit_deriv">[docs]</a>    <span class="k">def</span> <span class="nf">fit_deriv</span><span class="p">(</span><span class="n">x</span><span class="p">,</span> <span class="n">amplitude</span><span class="p">,</span> <span class="n">x_0</span><span class="p">,</span> <span class="n">alpha</span><span class="p">,</span> <span class="n">beta</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;One dimensional log parabola derivative with respect to parameters&quot;&quot;&quot;</span>
+
+        <span class="n">xx</span> <span class="o">=</span> <span class="n">x</span> <span class="o">/</span> <span class="n">x_0</span>
+        <span class="n">log_xx</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">log</span><span class="p">(</span><span class="n">xx</span><span class="p">)</span>
+        <span class="n">exponent</span> <span class="o">=</span> <span class="o">-</span><span class="n">alpha</span> <span class="o">-</span> <span class="n">beta</span> <span class="o">*</span> <span class="n">log_xx</span>
+
+        <span class="n">d_amplitude</span> <span class="o">=</span> <span class="n">xx</span> <span class="o">**</span> <span class="n">exponent</span>
+        <span class="n">d_beta</span> <span class="o">=</span> <span class="o">-</span><span class="n">amplitude</span> <span class="o">*</span> <span class="n">d_amplitude</span> <span class="o">*</span> <span class="n">log_xx</span> <span class="o">**</span> <span class="mi">2</span>
+        <span class="n">d_x_0</span> <span class="o">=</span> <span class="n">amplitude</span> <span class="o">*</span> <span class="n">d_amplitude</span> <span class="o">*</span> <span class="p">(</span><span class="n">beta</span> <span class="o">*</span> <span class="n">log_xx</span> <span class="o">/</span> <span class="n">x_0</span> <span class="o">-</span> <span class="n">exponent</span> <span class="o">/</span> <span class="n">x_0</span><span class="p">)</span>
+        <span class="n">d_alpha</span> <span class="o">=</span> <span class="o">-</span><span class="n">amplitude</span> <span class="o">*</span> <span class="n">d_amplitude</span> <span class="o">*</span> <span class="n">log_xx</span>
+        <span class="k">return</span> <span class="p">[</span><span class="n">d_amplitude</span><span class="p">,</span> <span class="n">d_x_0</span><span class="p">,</span> <span class="n">d_alpha</span><span class="p">,</span> <span class="n">d_beta</span><span class="p">]</span></div>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">input_units</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">x_0</span><span class="o">.</span><span class="n">unit</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="k">return</span> <span class="kc">None</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">return</span> <span class="p">{</span><span class="s1">&#39;x&#39;</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">x_0</span><span class="o">.</span><span class="n">unit</span><span class="p">}</span>
+
+    <span class="k">def</span> <span class="nf">_parameter_units_for_data_units</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">inputs_unit</span><span class="p">,</span> <span class="n">outputs_unit</span><span class="p">):</span>
+        <span class="k">return</span> <span class="n">OrderedDict</span><span class="p">([(</span><span class="s1">&#39;x_0&#39;</span><span class="p">,</span> <span class="n">inputs_unit</span><span class="p">[</span><span class="s1">&#39;x&#39;</span><span class="p">]),</span>
+                            <span class="p">(</span><span class="s1">&#39;amplitude&#39;</span><span class="p">,</span> <span class="n">outputs_unit</span><span class="p">[</span><span class="s1">&#39;y&#39;</span><span class="p">])])</span></div>
+</pre></div>
+
+          </div>
+        </div>
+      </div>
+      <div class="sphinxsidebar" role="navigation" aria-label="main navigation">
+        <div class="sphinxsidebarwrapper"><h3>Page Contents</h3>
+
+
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+<footer class="footer">
+  <p class="pull-right"> &nbsp;
+    <a href="#">Back to Top</a></p>
+  <p>
+    &copy; Copyright 2011-2016, The Astropy Developers.<br/>
+    Created using <a href="http://sphinx.pocoo.org/">Sphinx</a> 1.5.6. &nbsp;
+    Last built 05 Jul 2017. <br/>
+  </p>
+</footer>
+  </body>
+</html>

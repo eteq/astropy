@@ -1,0 +1,347 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <head>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    
+    <title>astropy.modeling.optimizers &#8212; Astropy v3.0.dev19489</title>
+    
+    <link rel="stylesheet" href="../../../_static/bootstrap-astropy.css" type="text/css" />
+    <link rel="stylesheet" href="../../../_static/pygments.css" type="text/css" />
+    <link rel="stylesheet" href="../../../_static/gallery.css" type="text/css" />
+    
+    <script type="text/javascript">
+      var DOCUMENTATION_OPTIONS = {
+        URL_ROOT:    '../../../',
+        VERSION:     '3.0.dev19489',
+        COLLAPSE_INDEX: false,
+        FILE_SUFFIX: '.html',
+        HAS_SOURCE:  true,
+        SOURCELINK_SUFFIX: '.txt'
+      };
+    </script>
+    <script type="text/javascript" src="../../../_static/jquery.js"></script>
+    <script type="text/javascript" src="../../../_static/underscore.js"></script>
+    <script type="text/javascript" src="../../../_static/doctools.js"></script>
+    <script type="text/javascript" src="../../../_static/sidebar.js"></script>
+    <link rel="shortcut icon" href="../../../_static/astropy_logo.ico"/>
+    <link rel="index" title="Index" href="../../../genindex.html" />
+    <link rel="search" title="Search" href="../../../search.html" />
+<link href='https://fonts.googleapis.com/css?family=Source+Sans+Pro:200,600' rel='stylesheet' type='text/css'/>
+<script type="text/javascript" src="../../../_static/copybutton.js"></script>
+
+
+  </head>
+  <body role="document">
+<div class="topbar">
+  <a class="brand" title="Documentation Home" href="../../../index.html"><span id="logotext1">astro</span><span id="logotext2">py</span><span id="logotext3">:docs</span></a>
+  <ul>
+    <li><a class="homelink" title="Astropy Homepage" href="http://www.astropy.org"></a></li>
+    <li><a title="General Index" href="../../../genindex.html">Index</a></li>
+    <li><a title="Module Index" href="../../../py-modindex.html">Modules</a></li>
+    <li>
+      
+      
+<form action="../../../search.html" method="get">
+  <input type="text" name="q" placeholder="Search" />
+  <input type="hidden" name="check_keywords" value="yes" />
+  <input type="hidden" name="area" value="default" />
+</form>
+      
+    </li>
+  </ul>
+</div>
+
+<div class="related">
+    <h3>Navigation</h3>
+    <ul>
+      <li>
+	<a href="../../../index.html">Astropy v3.0.dev19489</a>
+	 &#187;
+      </li>
+      <li><a href="../../index.html" >Module code</a> &#187;</li>
+      <li><a href="../../astropy.html" accesskey="U">astropy</a> &#187;</li>
+      
+       
+    </ul>
+</div>
+  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          <div class="body" role="main">
+            
+  <h1>Source code for astropy.modeling.optimizers</h1><div class="highlight"><pre>
+<span></span><span class="c1"># Licensed under a 3-clause BSD style license - see LICENSE.rst</span>
+
+<span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">Optimization algorithms used in `~astropy.modeling.fitting`.</span>
+<span class="sd">&quot;&quot;&quot;</span>
+
+<span class="kn">from</span> <span class="nn">__future__</span> <span class="k">import</span> <span class="p">(</span><span class="n">absolute_import</span><span class="p">,</span> <span class="n">unicode_literals</span><span class="p">,</span> <span class="n">division</span><span class="p">,</span>
+                        <span class="n">print_function</span><span class="p">)</span>
+<span class="kn">import</span> <span class="nn">warnings</span>
+<span class="kn">import</span> <span class="nn">abc</span>
+<span class="kn">import</span> <span class="nn">numpy</span> <span class="k">as</span> <span class="nn">np</span>
+<span class="kn">from</span> <span class="nn">..extern</span> <span class="k">import</span> <span class="n">six</span>
+<span class="kn">from</span> <span class="nn">..utils.exceptions</span> <span class="k">import</span> <span class="n">AstropyUserWarning</span>
+
+<span class="n">__all__</span> <span class="o">=</span> <span class="p">[</span><span class="s2">&quot;Optimization&quot;</span><span class="p">,</span> <span class="s2">&quot;SLSQP&quot;</span><span class="p">,</span> <span class="s2">&quot;Simplex&quot;</span><span class="p">]</span>
+
+<span class="c1"># Maximum number of iterations</span>
+<span class="n">DEFAULT_MAXITER</span> <span class="o">=</span> <span class="mi">100</span>
+
+<span class="c1"># Step for the forward difference approximation of the Jacobian</span>
+<span class="n">DEFAULT_EPS</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">sqrt</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">finfo</span><span class="p">(</span><span class="nb">float</span><span class="p">)</span><span class="o">.</span><span class="n">eps</span><span class="p">)</span>
+
+<span class="c1"># Default requested accuracy</span>
+<span class="n">DEFAULT_ACC</span> <span class="o">=</span> <span class="mi">1</span><span class="n">e</span><span class="o">-</span><span class="mi">07</span>
+
+<span class="n">DEFAULT_BOUNDS</span> <span class="o">=</span> <span class="p">(</span><span class="o">-</span><span class="mi">10</span> <span class="o">**</span> <span class="mi">12</span><span class="p">,</span> <span class="mi">10</span> <span class="o">**</span> <span class="mi">12</span><span class="p">)</span>
+
+
+<span class="nd">@six</span><span class="o">.</span><span class="n">add_metaclass</span><span class="p">(</span><span class="n">abc</span><span class="o">.</span><span class="n">ABCMeta</span><span class="p">)</span>
+<div class="viewcode-block" id="Optimization"><a class="viewcode-back" href="../../../api/astropy.modeling.optimizers.Optimization.html#astropy.modeling.optimizers.Optimization">[docs]</a><span class="k">class</span> <span class="nc">Optimization</span><span class="p">(</span><span class="nb">object</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Base class for optimizers.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    opt_method : callable</span>
+<span class="sd">        Implements optimization method</span>
+
+<span class="sd">    Notes</span>
+<span class="sd">    -----</span>
+<span class="sd">    The base Optimizer does not support any constraints by default; individual</span>
+<span class="sd">    optimizers should explicitly set this list to the specific constraints</span>
+<span class="sd">    it supports.</span>
+
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="n">supported_constraints</span> <span class="o">=</span> <span class="p">[]</span>
+
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">opt_method</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_opt_method</span> <span class="o">=</span> <span class="n">opt_method</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_maxiter</span> <span class="o">=</span> <span class="n">DEFAULT_MAXITER</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_eps</span> <span class="o">=</span> <span class="n">DEFAULT_EPS</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_acc</span> <span class="o">=</span> <span class="n">DEFAULT_ACC</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">maxiter</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Maximum number of iterations&quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_maxiter</span>
+
+    <span class="nd">@maxiter</span><span class="o">.</span><span class="n">setter</span>
+    <span class="k">def</span> <span class="nf">maxiter</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">val</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Set maxiter&quot;&quot;&quot;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_maxiter</span> <span class="o">=</span> <span class="n">val</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">eps</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Step for the forward difference approximation of the Jacobian&quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_eps</span>
+
+    <span class="nd">@eps</span><span class="o">.</span><span class="n">setter</span>
+    <span class="k">def</span> <span class="nf">eps</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">val</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Set eps value&quot;&quot;&quot;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_eps</span> <span class="o">=</span> <span class="n">val</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">acc</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Requested accuracy&quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_acc</span>
+
+    <span class="nd">@acc</span><span class="o">.</span><span class="n">setter</span>
+    <span class="k">def</span> <span class="nf">acc</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">val</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Set accuracy&quot;&quot;&quot;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_acc</span> <span class="o">=</span> <span class="n">val</span>
+
+    <span class="k">def</span> <span class="nf">__repr__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="n">fmt</span> <span class="o">=</span> <span class="s2">&quot;</span><span class="si">{0}</span><span class="s2">()&quot;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">__class__</span><span class="o">.</span><span class="n">__name__</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">fmt</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">opt_method</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_opt_method</span>
+
+    <span class="nd">@abc</span><span class="o">.</span><span class="n">abstractmethod</span>
+<div class="viewcode-block" id="Optimization.__call__"><a class="viewcode-back" href="../../../api/astropy.modeling.optimizers.Optimization.html#astropy.modeling.optimizers.Optimization.__call__">[docs]</a>    <span class="k">def</span> <span class="nf">__call__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">raise</span> <span class="ne">NotImplementedError</span><span class="p">(</span><span class="s2">&quot;Subclasses should implement this method&quot;</span><span class="p">)</span></div></div>
+
+
+<div class="viewcode-block" id="SLSQP"><a class="viewcode-back" href="../../../api/astropy.modeling.optimizers.SLSQP.html#astropy.modeling.optimizers.SLSQP">[docs]</a><span class="k">class</span> <span class="nc">SLSQP</span><span class="p">(</span><span class="n">Optimization</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Sequential Least Squares Programming optimization algorithm.</span>
+
+<span class="sd">    The algorithm is described in [1]_. It supports tied and fixed</span>
+<span class="sd">    parameters, as well as bounded constraints. Uses</span>
+<span class="sd">    `scipy.optimize.fmin_slsqp`.</span>
+
+<span class="sd">    References</span>
+<span class="sd">    ----------</span>
+<span class="sd">    .. [1] http://www.netlib.org/toms/733</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">supported_constraints</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;bounds&#39;</span><span class="p">,</span> <span class="s1">&#39;eqcons&#39;</span><span class="p">,</span> <span class="s1">&#39;ineqcons&#39;</span><span class="p">,</span> <span class="s1">&#39;fixed&#39;</span><span class="p">,</span> <span class="s1">&#39;tied&#39;</span><span class="p">]</span>
+
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="kn">from</span> <span class="nn">scipy.optimize</span> <span class="k">import</span> <span class="n">fmin_slsqp</span>
+        <span class="nb">super</span><span class="p">(</span><span class="n">SLSQP</span><span class="p">,</span> <span class="bp">self</span><span class="p">)</span><span class="o">.</span><span class="n">__init__</span><span class="p">(</span><span class="n">fmin_slsqp</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">fit_info</span> <span class="o">=</span> <span class="p">{</span>
+            <span class="s1">&#39;final_func_val&#39;</span><span class="p">:</span> <span class="kc">None</span><span class="p">,</span>
+            <span class="s1">&#39;numiter&#39;</span><span class="p">:</span> <span class="kc">None</span><span class="p">,</span>
+            <span class="s1">&#39;exit_mode&#39;</span><span class="p">:</span> <span class="kc">None</span><span class="p">,</span>
+            <span class="s1">&#39;message&#39;</span><span class="p">:</span> <span class="kc">None</span>
+        <span class="p">}</span>
+
+<div class="viewcode-block" id="SLSQP.__call__"><a class="viewcode-back" href="../../../api/astropy.modeling.optimizers.SLSQP.html#astropy.modeling.optimizers.SLSQP.__call__">[docs]</a>    <span class="k">def</span> <span class="nf">__call__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">objfunc</span><span class="p">,</span> <span class="n">initval</span><span class="p">,</span> <span class="n">fargs</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Run the solver.</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        objfunc : callable</span>
+<span class="sd">            objection function</span>
+<span class="sd">        initval : iterable</span>
+<span class="sd">            initial guess for the parameter values</span>
+<span class="sd">        fargs : tuple</span>
+<span class="sd">            other arguments to be passed to the statistic function</span>
+<span class="sd">        kwargs : dict</span>
+<span class="sd">            other keyword arguments to be passed to the solver</span>
+
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">kwargs</span><span class="p">[</span><span class="s1">&#39;iter&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">kwargs</span><span class="o">.</span><span class="n">pop</span><span class="p">(</span><span class="s1">&#39;maxiter&#39;</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">_maxiter</span><span class="p">)</span>
+
+        <span class="k">if</span> <span class="s1">&#39;epsilon&#39;</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">kwargs</span><span class="p">:</span>
+            <span class="n">kwargs</span><span class="p">[</span><span class="s1">&#39;epsilon&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_eps</span>
+        <span class="k">if</span> <span class="s1">&#39;acc&#39;</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">kwargs</span><span class="p">:</span>
+            <span class="n">kwargs</span><span class="p">[</span><span class="s1">&#39;acc&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_acc</span>
+        <span class="c1"># Get the verbosity level</span>
+        <span class="n">disp</span> <span class="o">=</span> <span class="n">kwargs</span><span class="o">.</span><span class="n">pop</span><span class="p">(</span><span class="s1">&#39;verblevel&#39;</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span>
+
+        <span class="c1"># set the values of constraints to match the requirements of fmin_slsqp</span>
+        <span class="n">model</span> <span class="o">=</span> <span class="n">fargs</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+        <span class="n">pars</span> <span class="o">=</span> <span class="p">[</span><span class="nb">getattr</span><span class="p">(</span><span class="n">model</span><span class="p">,</span> <span class="n">name</span><span class="p">)</span> <span class="k">for</span> <span class="n">name</span> <span class="ow">in</span> <span class="n">model</span><span class="o">.</span><span class="n">param_names</span><span class="p">]</span>
+        <span class="n">bounds</span> <span class="o">=</span> <span class="p">[</span><span class="n">par</span><span class="o">.</span><span class="n">bounds</span> <span class="k">for</span> <span class="n">par</span> <span class="ow">in</span> <span class="n">pars</span> <span class="k">if</span> <span class="ow">not</span> <span class="p">(</span><span class="n">par</span><span class="o">.</span><span class="n">fixed</span> <span class="ow">or</span> <span class="n">par</span><span class="o">.</span><span class="n">tied</span><span class="p">)]</span>
+        <span class="n">bounds</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span><span class="n">bounds</span><span class="p">)</span>
+        <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">bounds</span><span class="p">:</span>
+            <span class="k">if</span> <span class="n">i</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+                <span class="n">i</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">=</span> <span class="n">DEFAULT_BOUNDS</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+            <span class="k">if</span> <span class="n">i</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+                <span class="n">i</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span> <span class="o">=</span> <span class="n">DEFAULT_BOUNDS</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span>
+        <span class="c1"># older versions of scipy require this array to be float</span>
+        <span class="n">bounds</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span><span class="n">bounds</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="n">np</span><span class="o">.</span><span class="n">float</span><span class="p">)</span>
+        <span class="n">eqcons</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">(</span><span class="n">model</span><span class="o">.</span><span class="n">eqcons</span><span class="p">)</span>
+        <span class="n">ineqcons</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">(</span><span class="n">model</span><span class="o">.</span><span class="n">ineqcons</span><span class="p">)</span>
+        <span class="n">fitparams</span><span class="p">,</span> <span class="n">final_func_val</span><span class="p">,</span> <span class="n">numiter</span><span class="p">,</span> <span class="n">exit_mode</span><span class="p">,</span> <span class="n">mess</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">opt_method</span><span class="p">(</span>
+            <span class="n">objfunc</span><span class="p">,</span> <span class="n">initval</span><span class="p">,</span> <span class="n">args</span><span class="o">=</span><span class="n">fargs</span><span class="p">,</span> <span class="n">full_output</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">disp</span><span class="o">=</span><span class="n">disp</span><span class="p">,</span>
+            <span class="n">bounds</span><span class="o">=</span><span class="n">bounds</span><span class="p">,</span> <span class="n">eqcons</span><span class="o">=</span><span class="n">eqcons</span><span class="p">,</span> <span class="n">ieqcons</span><span class="o">=</span><span class="n">ineqcons</span><span class="p">,</span>
+            <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">fit_info</span><span class="p">[</span><span class="s1">&#39;final_func_val&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">final_func_val</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">fit_info</span><span class="p">[</span><span class="s1">&#39;numiter&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">numiter</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">fit_info</span><span class="p">[</span><span class="s1">&#39;exit_mode&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">exit_mode</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">fit_info</span><span class="p">[</span><span class="s1">&#39;message&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">mess</span>
+
+        <span class="k">if</span> <span class="n">exit_mode</span> <span class="o">!=</span> <span class="mi">0</span><span class="p">:</span>
+            <span class="n">warnings</span><span class="o">.</span><span class="n">warn</span><span class="p">(</span><span class="s2">&quot;The fit may be unsuccessful; check &quot;</span>
+                          <span class="s2">&quot;fit_info[&#39;message&#39;] for more information.&quot;</span><span class="p">,</span>
+                          <span class="n">AstropyUserWarning</span><span class="p">)</span>
+
+        <span class="k">return</span> <span class="n">fitparams</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">fit_info</span></div></div>
+
+
+<div class="viewcode-block" id="Simplex"><a class="viewcode-back" href="../../../api/astropy.modeling.optimizers.Simplex.html#astropy.modeling.optimizers.Simplex">[docs]</a><span class="k">class</span> <span class="nc">Simplex</span><span class="p">(</span><span class="n">Optimization</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Neald-Mead (downhill simplex) algorithm.</span>
+
+<span class="sd">    This algorithm [1]_ only uses function values, not derivatives.</span>
+<span class="sd">    Uses `scipy.optimize.fmin`.</span>
+
+<span class="sd">    References</span>
+<span class="sd">    ----------</span>
+<span class="sd">    .. [1] Nelder, J.A. and Mead, R. (1965), &quot;A simplex method for function</span>
+<span class="sd">       minimization&quot;, The Computer Journal, 7, pp. 308-313</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="n">supported_constraints</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;bounds&#39;</span><span class="p">,</span> <span class="s1">&#39;fixed&#39;</span><span class="p">,</span> <span class="s1">&#39;tied&#39;</span><span class="p">]</span>
+
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="kn">from</span> <span class="nn">scipy.optimize</span> <span class="k">import</span> <span class="n">fmin</span> <span class="k">as</span> <span class="n">simplex</span>
+        <span class="nb">super</span><span class="p">(</span><span class="n">Simplex</span><span class="p">,</span> <span class="bp">self</span><span class="p">)</span><span class="o">.</span><span class="n">__init__</span><span class="p">(</span><span class="n">simplex</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">fit_info</span> <span class="o">=</span> <span class="p">{</span>
+            <span class="s1">&#39;final_func_val&#39;</span><span class="p">:</span> <span class="kc">None</span><span class="p">,</span>
+            <span class="s1">&#39;numiter&#39;</span><span class="p">:</span> <span class="kc">None</span><span class="p">,</span>
+            <span class="s1">&#39;exit_mode&#39;</span><span class="p">:</span> <span class="kc">None</span><span class="p">,</span>
+            <span class="s1">&#39;num_function_calls&#39;</span><span class="p">:</span> <span class="kc">None</span>
+        <span class="p">}</span>
+
+<div class="viewcode-block" id="Simplex.__call__"><a class="viewcode-back" href="../../../api/astropy.modeling.optimizers.Simplex.html#astropy.modeling.optimizers.Simplex.__call__">[docs]</a>    <span class="k">def</span> <span class="nf">__call__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">objfunc</span><span class="p">,</span> <span class="n">initval</span><span class="p">,</span> <span class="n">fargs</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Run the solver.</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        objfunc : callable</span>
+<span class="sd">            objection function</span>
+<span class="sd">        initval : iterable</span>
+<span class="sd">            initial guess for the parameter values</span>
+<span class="sd">        fargs : tuple</span>
+<span class="sd">            other arguments to be passed to the statistic function</span>
+<span class="sd">        kwargs : dict</span>
+<span class="sd">            other keyword arguments to be passed to the solver</span>
+
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="s1">&#39;maxiter&#39;</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">kwargs</span><span class="p">:</span>
+            <span class="n">kwargs</span><span class="p">[</span><span class="s1">&#39;maxiter&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_maxiter</span>
+        <span class="k">if</span> <span class="s1">&#39;acc&#39;</span> <span class="ow">in</span> <span class="n">kwargs</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_acc</span> <span class="o">=</span> <span class="n">kwargs</span><span class="p">[</span><span class="s1">&#39;acc&#39;</span><span class="p">]</span>
+            <span class="n">kwargs</span><span class="o">.</span><span class="n">pop</span><span class="p">(</span><span class="s1">&#39;acc&#39;</span><span class="p">)</span>
+        <span class="k">if</span> <span class="s1">&#39;xtol&#39;</span> <span class="ow">in</span> <span class="n">kwargs</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_acc</span> <span class="o">=</span> <span class="n">kwargs</span><span class="p">[</span><span class="s1">&#39;xtol&#39;</span><span class="p">]</span>
+            <span class="n">kwargs</span><span class="o">.</span><span class="n">pop</span><span class="p">(</span><span class="s1">&#39;xtol&#39;</span><span class="p">)</span>
+        <span class="c1"># Get the verbosity level</span>
+        <span class="n">disp</span> <span class="o">=</span> <span class="n">kwargs</span><span class="o">.</span><span class="n">pop</span><span class="p">(</span><span class="s1">&#39;verblevel&#39;</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span>
+
+        <span class="n">fitparams</span><span class="p">,</span> <span class="n">final_func_val</span><span class="p">,</span> <span class="n">numiter</span><span class="p">,</span> <span class="n">funcalls</span><span class="p">,</span> <span class="n">exit_mode</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">opt_method</span><span class="p">(</span>
+            <span class="n">objfunc</span><span class="p">,</span> <span class="n">initval</span><span class="p">,</span> <span class="n">args</span><span class="o">=</span><span class="n">fargs</span><span class="p">,</span> <span class="n">xtol</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">_acc</span><span class="p">,</span> <span class="n">disp</span><span class="o">=</span><span class="n">disp</span><span class="p">,</span>
+            <span class="n">full_output</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">fit_info</span><span class="p">[</span><span class="s1">&#39;final_func_val&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">final_func_val</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">fit_info</span><span class="p">[</span><span class="s1">&#39;numiter&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">numiter</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">fit_info</span><span class="p">[</span><span class="s1">&#39;exit_mode&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">exit_mode</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">fit_info</span><span class="p">[</span><span class="s1">&#39;num_function_calls&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">funcalls</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">fit_info</span><span class="p">[</span><span class="s1">&#39;exit_mode&#39;</span><span class="p">]</span> <span class="o">==</span> <span class="mi">1</span><span class="p">:</span>
+            <span class="n">warnings</span><span class="o">.</span><span class="n">warn</span><span class="p">(</span><span class="s2">&quot;The fit may be unsuccessful; &quot;</span>
+                          <span class="s2">&quot;Maximum number of function evaluations reached.&quot;</span><span class="p">,</span>
+                          <span class="n">AstropyUserWarning</span><span class="p">)</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">fit_info</span><span class="p">[</span><span class="s1">&#39;exit_mode&#39;</span><span class="p">]</span> <span class="o">==</span> <span class="mi">2</span><span class="p">:</span>
+            <span class="n">warnings</span><span class="o">.</span><span class="n">warn</span><span class="p">(</span><span class="s2">&quot;The fit may be unsuccessful; &quot;</span>
+                          <span class="s2">&quot;Maximum number of iterations reached.&quot;</span><span class="p">,</span>
+                          <span class="n">AstropyUserWarning</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">fitparams</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">fit_info</span></div></div>
+</pre></div>
+
+          </div>
+        </div>
+      </div>
+      <div class="sphinxsidebar" role="navigation" aria-label="main navigation">
+        <div class="sphinxsidebarwrapper"><h3>Page Contents</h3>
+
+
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+<footer class="footer">
+  <p class="pull-right"> &nbsp;
+    <a href="#">Back to Top</a></p>
+  <p>
+    &copy; Copyright 2011-2016, The Astropy Developers.<br/>
+    Created using <a href="http://sphinx.pocoo.org/">Sphinx</a> 1.5.6. &nbsp;
+    Last built 05 Jul 2017. <br/>
+  </p>
+</footer>
+  </body>
+</html>

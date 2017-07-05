@@ -1,0 +1,1356 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <head>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    
+    <title>astropy.table.column &#8212; Astropy v3.0.dev19489</title>
+    
+    <link rel="stylesheet" href="../../../_static/bootstrap-astropy.css" type="text/css" />
+    <link rel="stylesheet" href="../../../_static/pygments.css" type="text/css" />
+    <link rel="stylesheet" href="../../../_static/gallery.css" type="text/css" />
+    
+    <script type="text/javascript">
+      var DOCUMENTATION_OPTIONS = {
+        URL_ROOT:    '../../../',
+        VERSION:     '3.0.dev19489',
+        COLLAPSE_INDEX: false,
+        FILE_SUFFIX: '.html',
+        HAS_SOURCE:  true,
+        SOURCELINK_SUFFIX: '.txt'
+      };
+    </script>
+    <script type="text/javascript" src="../../../_static/jquery.js"></script>
+    <script type="text/javascript" src="../../../_static/underscore.js"></script>
+    <script type="text/javascript" src="../../../_static/doctools.js"></script>
+    <script type="text/javascript" src="../../../_static/sidebar.js"></script>
+    <link rel="shortcut icon" href="../../../_static/astropy_logo.ico"/>
+    <link rel="index" title="Index" href="../../../genindex.html" />
+    <link rel="search" title="Search" href="../../../search.html" />
+<link href='https://fonts.googleapis.com/css?family=Source+Sans+Pro:200,600' rel='stylesheet' type='text/css'/>
+<script type="text/javascript" src="../../../_static/copybutton.js"></script>
+
+
+  </head>
+  <body role="document">
+<div class="topbar">
+  <a class="brand" title="Documentation Home" href="../../../index.html"><span id="logotext1">astro</span><span id="logotext2">py</span><span id="logotext3">:docs</span></a>
+  <ul>
+    <li><a class="homelink" title="Astropy Homepage" href="http://www.astropy.org"></a></li>
+    <li><a title="General Index" href="../../../genindex.html">Index</a></li>
+    <li><a title="Module Index" href="../../../py-modindex.html">Modules</a></li>
+    <li>
+      
+      
+<form action="../../../search.html" method="get">
+  <input type="text" name="q" placeholder="Search" />
+  <input type="hidden" name="check_keywords" value="yes" />
+  <input type="hidden" name="area" value="default" />
+</form>
+      
+    </li>
+  </ul>
+</div>
+
+<div class="related">
+    <h3>Navigation</h3>
+    <ul>
+      <li>
+	<a href="../../../index.html">Astropy v3.0.dev19489</a>
+	 &#187;
+      </li>
+      <li><a href="../../index.html" >Module code</a> &#187;</li>
+      <li><a href="../../astropy.html" >astropy</a> &#187;</li>
+      <li><a href="../table.html" accesskey="U">astropy.table</a> &#187;</li>
+      
+       
+    </ul>
+</div>
+  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          <div class="body" role="main">
+            
+  <h1>Source code for astropy.table.column</h1><div class="highlight"><pre>
+<span></span><span class="c1"># Licensed under a 3-clause BSD style license - see LICENSE.rst</span>
+<span class="kn">from</span> <span class="nn">__future__</span> <span class="k">import</span> <span class="p">(</span><span class="n">absolute_import</span><span class="p">,</span> <span class="n">division</span><span class="p">,</span> <span class="n">print_function</span><span class="p">,</span>
+                        <span class="n">unicode_literals</span><span class="p">)</span>
+<span class="kn">from</span> <span class="nn">..extern</span> <span class="k">import</span> <span class="n">six</span>
+<span class="kn">from</span> <span class="nn">..extern.six.moves</span> <span class="k">import</span> <span class="nb">zip</span>
+
+<span class="kn">import</span> <span class="nn">warnings</span>
+<span class="kn">import</span> <span class="nn">weakref</span>
+<span class="kn">import</span> <span class="nn">re</span>
+
+<span class="kn">from</span> <span class="nn">copy</span> <span class="k">import</span> <span class="n">deepcopy</span>
+
+<span class="kn">import</span> <span class="nn">numpy</span> <span class="k">as</span> <span class="nn">np</span>
+<span class="kn">from</span> <span class="nn">numpy</span> <span class="k">import</span> <span class="n">ma</span>
+<span class="k">try</span><span class="p">:</span>
+    <span class="kn">from</span> <span class="nn">numpy.ma.core</span> <span class="k">import</span> <span class="n">MaskedArrayFutureWarning</span>
+<span class="k">except</span> <span class="ne">ImportError</span><span class="p">:</span>
+    <span class="c1"># For Numpy versions that do not raise this warning.</span>
+    <span class="n">MaskedArrayFutureWarning</span> <span class="o">=</span> <span class="kc">None</span>
+
+<span class="kn">from</span> <span class="nn">..units</span> <span class="k">import</span> <span class="n">Unit</span><span class="p">,</span> <span class="n">Quantity</span>
+<span class="kn">from</span> <span class="nn">..utils.console</span> <span class="k">import</span> <span class="n">color_print</span>
+<span class="kn">from</span> <span class="nn">..utils.metadata</span> <span class="k">import</span> <span class="n">MetaData</span>
+<span class="kn">from</span> <span class="nn">..utils.data_info</span> <span class="k">import</span> <span class="n">BaseColumnInfo</span><span class="p">,</span> <span class="n">dtype_info_name</span>
+<span class="kn">from</span> <span class="nn">..extern.six.moves</span> <span class="k">import</span> <span class="nb">range</span>
+<span class="kn">from</span> <span class="nn">.</span> <span class="k">import</span> <span class="n">groups</span>
+<span class="kn">from</span> <span class="nn">.</span> <span class="k">import</span> <span class="n">pprint</span>
+<span class="kn">from</span> <span class="nn">.np_utils</span> <span class="k">import</span> <span class="n">fix_column_name</span>
+
+<span class="c1"># These &quot;shims&quot; provide __getitem__ implementations for Column and MaskedColumn</span>
+<span class="kn">from</span> <span class="nn">._column_mixins</span> <span class="k">import</span> <span class="n">_ColumnGetitemShim</span><span class="p">,</span> <span class="n">_MaskedColumnGetitemShim</span>
+
+<span class="c1"># Create a generic TableFormatter object for use by bare columns with no</span>
+<span class="c1"># parent table.</span>
+<span class="n">FORMATTER</span> <span class="o">=</span> <span class="n">pprint</span><span class="o">.</span><span class="n">TableFormatter</span><span class="p">()</span>
+
+
+<div class="viewcode-block" id="StringTruncateWarning"><a class="viewcode-back" href="../../../api/astropy.table.StringTruncateWarning.html#astropy.table.StringTruncateWarning">[docs]</a><span class="k">class</span> <span class="nc">StringTruncateWarning</span><span class="p">(</span><span class="ne">UserWarning</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Warning class for when a string column is assigned a value</span>
+<span class="sd">    that gets truncated because the base (numpy) string length</span>
+<span class="sd">    is too short.</span>
+
+<span class="sd">    This does not inherit from AstropyWarning because we want to use</span>
+<span class="sd">    stacklevel=2 to show the user where the issue occurred in their code.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">pass</span></div>
+
+
+<span class="c1"># Always emit this warning, not just the first instance</span>
+<span class="n">warnings</span><span class="o">.</span><span class="n">simplefilter</span><span class="p">(</span><span class="s1">&#39;always&#39;</span><span class="p">,</span> <span class="n">StringTruncateWarning</span><span class="p">)</span>
+
+
+<span class="k">def</span> <span class="nf">_auto_names</span><span class="p">(</span><span class="n">n_cols</span><span class="p">):</span>
+    <span class="kn">from</span> <span class="nn">.</span> <span class="k">import</span> <span class="n">conf</span>
+    <span class="k">return</span> <span class="p">[</span><span class="nb">str</span><span class="p">(</span><span class="n">conf</span><span class="o">.</span><span class="n">auto_colname</span><span class="p">)</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">i</span><span class="p">)</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">n_cols</span><span class="p">)]</span>
+
+
+<span class="c1"># list of one and two-dimensional comparison functions, which sometimes return</span>
+<span class="c1"># a Column class and sometimes a plain array. Used in __array_wrap__ to ensure</span>
+<span class="c1"># they only return plain (masked) arrays (see #1446 and #1685)</span>
+<span class="n">_comparison_functions</span> <span class="o">=</span> <span class="nb">set</span><span class="p">(</span>
+    <span class="p">[</span><span class="n">np</span><span class="o">.</span><span class="n">greater</span><span class="p">,</span> <span class="n">np</span><span class="o">.</span><span class="n">greater_equal</span><span class="p">,</span> <span class="n">np</span><span class="o">.</span><span class="n">less</span><span class="p">,</span> <span class="n">np</span><span class="o">.</span><span class="n">less_equal</span><span class="p">,</span>
+     <span class="n">np</span><span class="o">.</span><span class="n">not_equal</span><span class="p">,</span> <span class="n">np</span><span class="o">.</span><span class="n">equal</span><span class="p">,</span>
+     <span class="n">np</span><span class="o">.</span><span class="n">isfinite</span><span class="p">,</span> <span class="n">np</span><span class="o">.</span><span class="n">isinf</span><span class="p">,</span> <span class="n">np</span><span class="o">.</span><span class="n">isnan</span><span class="p">,</span> <span class="n">np</span><span class="o">.</span><span class="n">sign</span><span class="p">,</span> <span class="n">np</span><span class="o">.</span><span class="n">signbit</span><span class="p">])</span>
+
+
+<span class="k">def</span> <span class="nf">col_copy</span><span class="p">(</span><span class="n">col</span><span class="p">,</span> <span class="n">copy_indices</span><span class="o">=</span><span class="kc">True</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Mixin-safe version of Column.copy() (with copy_data=True).</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    col : Column or mixin column</span>
+<span class="sd">        Input column</span>
+<span class="sd">    copy_indices : bool</span>
+<span class="sd">        Copy the column ``indices`` attribute</span>
+
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+<span class="sd">    col : Copy of input column</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">col</span><span class="p">,</span> <span class="n">BaseColumn</span><span class="p">):</span>
+        <span class="k">return</span> <span class="n">col</span><span class="o">.</span><span class="n">copy</span><span class="p">()</span>
+
+    <span class="c1"># The new column should have None for the parent_table ref.  If the</span>
+    <span class="c1"># original parent_table weakref there at the point of copying then it</span>
+    <span class="c1"># generates an infinite recursion.  Instead temporarily remove the weakref</span>
+    <span class="c1"># on the original column and restore after the copy in an exception-safe</span>
+    <span class="c1"># manner.</span>
+
+    <span class="n">parent_table</span> <span class="o">=</span> <span class="n">col</span><span class="o">.</span><span class="n">info</span><span class="o">.</span><span class="n">parent_table</span>
+    <span class="n">indices</span> <span class="o">=</span> <span class="n">col</span><span class="o">.</span><span class="n">info</span><span class="o">.</span><span class="n">indices</span>
+    <span class="n">col</span><span class="o">.</span><span class="n">info</span><span class="o">.</span><span class="n">parent_table</span> <span class="o">=</span> <span class="kc">None</span>
+    <span class="n">col</span><span class="o">.</span><span class="n">info</span><span class="o">.</span><span class="n">indices</span> <span class="o">=</span> <span class="p">[]</span>
+
+    <span class="k">try</span><span class="p">:</span>
+        <span class="n">newcol</span> <span class="o">=</span> <span class="n">col</span><span class="o">.</span><span class="n">copy</span><span class="p">()</span> <span class="k">if</span> <span class="nb">hasattr</span><span class="p">(</span><span class="n">col</span><span class="p">,</span> <span class="s1">&#39;copy&#39;</span><span class="p">)</span> <span class="k">else</span> <span class="n">deepcopy</span><span class="p">(</span><span class="n">col</span><span class="p">)</span>
+        <span class="n">newcol</span><span class="o">.</span><span class="n">info</span> <span class="o">=</span> <span class="n">col</span><span class="o">.</span><span class="n">info</span>
+        <span class="n">newcol</span><span class="o">.</span><span class="n">info</span><span class="o">.</span><span class="n">indices</span> <span class="o">=</span> <span class="n">deepcopy</span><span class="p">(</span><span class="n">indices</span> <span class="ow">or</span> <span class="p">[])</span> <span class="k">if</span> <span class="n">copy_indices</span> <span class="k">else</span> <span class="p">[]</span>
+        <span class="k">for</span> <span class="n">index</span> <span class="ow">in</span> <span class="n">newcol</span><span class="o">.</span><span class="n">info</span><span class="o">.</span><span class="n">indices</span><span class="p">:</span>
+            <span class="n">index</span><span class="o">.</span><span class="n">replace_col</span><span class="p">(</span><span class="n">col</span><span class="p">,</span> <span class="n">newcol</span><span class="p">)</span>
+    <span class="k">finally</span><span class="p">:</span>
+        <span class="n">col</span><span class="o">.</span><span class="n">info</span><span class="o">.</span><span class="n">parent_table</span> <span class="o">=</span> <span class="n">parent_table</span>
+        <span class="n">col</span><span class="o">.</span><span class="n">info</span><span class="o">.</span><span class="n">indices</span> <span class="o">=</span> <span class="n">indices</span>
+
+    <span class="k">return</span> <span class="n">newcol</span>
+
+
+<span class="k">class</span> <span class="nc">FalseArray</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">ndarray</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Boolean mask array that is always False.</span>
+
+<span class="sd">    This is used to create a stub ``mask`` property which is a boolean array of</span>
+<span class="sd">    ``False`` used by default for mixin columns and corresponding to the mixin</span>
+<span class="sd">    column data shape.  The ``mask`` looks like a normal numpy array but an</span>
+<span class="sd">    exception will be raised if ``True`` is assigned to any element.  The</span>
+<span class="sd">    consequences of the limitation are most obvious in the high-level table</span>
+<span class="sd">    operations.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    shape : tuple</span>
+<span class="sd">        Data shape</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">def</span> <span class="nf">__new__</span><span class="p">(</span><span class="n">cls</span><span class="p">,</span> <span class="n">shape</span><span class="p">):</span>
+        <span class="n">obj</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">zeros</span><span class="p">(</span><span class="n">shape</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="n">np</span><span class="o">.</span><span class="n">bool</span><span class="p">)</span><span class="o">.</span><span class="n">view</span><span class="p">(</span><span class="n">cls</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">obj</span>
+
+    <span class="k">def</span> <span class="nf">__setitem__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">item</span><span class="p">,</span> <span class="n">val</span><span class="p">):</span>
+        <span class="n">val</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span><span class="n">val</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">np</span><span class="o">.</span><span class="n">any</span><span class="p">(</span><span class="n">val</span><span class="p">):</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s1">&#39;Cannot set any element of </span><span class="si">{0}</span><span class="s1"> class to True&#39;</span>
+                             <span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">__class__</span><span class="o">.</span><span class="n">__name__</span><span class="p">))</span>
+
+    <span class="k">if</span> <span class="n">six</span><span class="o">.</span><span class="n">PY2</span><span class="p">:</span>  <span class="c1"># avoid falling back to ndarray.__setslice__</span>
+        <span class="k">def</span> <span class="nf">__setslice__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">start</span><span class="p">,</span> <span class="n">stop</span><span class="p">,</span> <span class="n">val</span><span class="p">):</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">__setitem__</span><span class="p">(</span><span class="nb">slice</span><span class="p">(</span><span class="n">start</span><span class="p">,</span> <span class="n">stop</span><span class="p">),</span> <span class="n">val</span><span class="p">)</span>
+
+
+<div class="viewcode-block" id="ColumnInfo"><a class="viewcode-back" href="../../../api/astropy.table.ColumnInfo.html#astropy.table.ColumnInfo">[docs]</a><span class="k">class</span> <span class="nc">ColumnInfo</span><span class="p">(</span><span class="n">BaseColumnInfo</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Container for meta information like name, description, format.</span>
+
+<span class="sd">    This is required when the object is used as a mixin column within a table,</span>
+<span class="sd">    but can be used as a general way to store meta information.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">attrs_from_parent</span> <span class="o">=</span> <span class="n">BaseColumnInfo</span><span class="o">.</span><span class="n">attr_names</span>
+    <span class="n">_supports_indexing</span> <span class="o">=</span> <span class="kc">True</span>
+
+<div class="viewcode-block" id="ColumnInfo.new_like"><a class="viewcode-back" href="../../../api/astropy.table.ColumnInfo.html#astropy.table.ColumnInfo.new_like">[docs]</a>    <span class="k">def</span> <span class="nf">new_like</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">cols</span><span class="p">,</span> <span class="n">length</span><span class="p">,</span> <span class="n">metadata_conflicts</span><span class="o">=</span><span class="s1">&#39;warn&#39;</span><span class="p">,</span> <span class="n">name</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Return a new Column instance which is consistent with the</span>
+<span class="sd">        input ``cols`` and has ``length`` rows.</span>
+
+<span class="sd">        This is intended for creating an empty column object whose elements can</span>
+<span class="sd">        be set in-place for table operations like join or vstack.</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        cols : list</span>
+<span class="sd">            List of input columns</span>
+<span class="sd">        length : int</span>
+<span class="sd">            Length of the output column object</span>
+<span class="sd">        metadata_conflicts : str (&#39;warn&#39;|&#39;error&#39;|&#39;silent&#39;)</span>
+<span class="sd">            How to handle metadata conflicts</span>
+<span class="sd">        name : str</span>
+<span class="sd">            Output column name</span>
+
+<span class="sd">        Returns</span>
+<span class="sd">        -------</span>
+<span class="sd">        col : Column (or subclass)</span>
+<span class="sd">            New instance of this class consistent with ``cols``</span>
+
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">attrs</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">merge_cols_attributes</span><span class="p">(</span><span class="n">cols</span><span class="p">,</span> <span class="n">metadata_conflicts</span><span class="p">,</span> <span class="n">name</span><span class="p">,</span>
+                                           <span class="p">(</span><span class="s1">&#39;meta&#39;</span><span class="p">,</span> <span class="s1">&#39;unit&#39;</span><span class="p">,</span> <span class="s1">&#39;format&#39;</span><span class="p">,</span> <span class="s1">&#39;description&#39;</span><span class="p">))</span>
+
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_parent_cls</span><span class="p">(</span><span class="n">length</span><span class="o">=</span><span class="n">length</span><span class="p">,</span> <span class="o">**</span><span class="n">attrs</span><span class="p">)</span></div></div>
+
+
+<span class="k">class</span> <span class="nc">BaseColumn</span><span class="p">(</span><span class="n">_ColumnGetitemShim</span><span class="p">,</span> <span class="n">np</span><span class="o">.</span><span class="n">ndarray</span><span class="p">):</span>
+
+    <span class="n">meta</span> <span class="o">=</span> <span class="n">MetaData</span><span class="p">()</span>
+
+    <span class="k">def</span> <span class="nf">__new__</span><span class="p">(</span><span class="n">cls</span><span class="p">,</span> <span class="n">data</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">name</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+                <span class="n">dtype</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">shape</span><span class="o">=</span><span class="p">(),</span> <span class="n">length</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span>
+                <span class="n">description</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">unit</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="nb">format</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">meta</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+                <span class="n">copy</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="n">copy_indices</span><span class="o">=</span><span class="kc">True</span><span class="p">):</span>
+        <span class="k">if</span> <span class="n">data</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">dtype</span> <span class="o">=</span> <span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">dtype</span><span class="p">(</span><span class="n">dtype</span><span class="p">)</span><span class="o">.</span><span class="n">str</span><span class="p">,</span> <span class="n">shape</span><span class="p">)</span>
+            <span class="n">self_data</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">zeros</span><span class="p">(</span><span class="n">length</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="n">dtype</span><span class="p">)</span>
+        <span class="k">elif</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">data</span><span class="p">,</span> <span class="n">BaseColumn</span><span class="p">)</span> <span class="ow">and</span> <span class="nb">hasattr</span><span class="p">(</span><span class="n">data</span><span class="p">,</span> <span class="s1">&#39;_name&#39;</span><span class="p">):</span>
+            <span class="c1"># When unpickling a MaskedColumn, ``data`` will be a bare</span>
+            <span class="c1"># BaseColumn with none of the expected attributes.  In this case</span>
+            <span class="c1"># do NOT execute this block which initializes from ``data``</span>
+            <span class="c1"># attributes.</span>
+            <span class="n">self_data</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">(</span><span class="n">data</span><span class="o">.</span><span class="n">data</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="n">dtype</span><span class="p">,</span> <span class="n">copy</span><span class="o">=</span><span class="n">copy</span><span class="p">)</span>
+            <span class="k">if</span> <span class="n">description</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+                <span class="n">description</span> <span class="o">=</span> <span class="n">data</span><span class="o">.</span><span class="n">description</span>
+            <span class="k">if</span> <span class="n">unit</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+                <span class="n">unit</span> <span class="o">=</span> <span class="n">unit</span> <span class="ow">or</span> <span class="n">data</span><span class="o">.</span><span class="n">unit</span>
+            <span class="k">if</span> <span class="nb">format</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+                <span class="nb">format</span> <span class="o">=</span> <span class="n">data</span><span class="o">.</span><span class="n">format</span>
+            <span class="k">if</span> <span class="n">meta</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+                <span class="n">meta</span> <span class="o">=</span> <span class="n">deepcopy</span><span class="p">(</span><span class="n">data</span><span class="o">.</span><span class="n">meta</span><span class="p">)</span>
+            <span class="k">if</span> <span class="n">name</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+                <span class="n">name</span> <span class="o">=</span> <span class="n">data</span><span class="o">.</span><span class="n">name</span>
+        <span class="k">elif</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">data</span><span class="p">,</span> <span class="n">Quantity</span><span class="p">):</span>
+            <span class="k">if</span> <span class="n">unit</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+                <span class="n">self_data</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">(</span><span class="n">data</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="n">dtype</span><span class="p">,</span> <span class="n">copy</span><span class="o">=</span><span class="n">copy</span><span class="p">)</span>
+                <span class="n">unit</span> <span class="o">=</span> <span class="n">data</span><span class="o">.</span><span class="n">unit</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="n">self_data</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">(</span><span class="n">data</span><span class="o">.</span><span class="n">to</span><span class="p">(</span><span class="n">unit</span><span class="p">),</span> <span class="n">dtype</span><span class="o">=</span><span class="n">dtype</span><span class="p">,</span> <span class="n">copy</span><span class="o">=</span><span class="n">copy</span><span class="p">)</span>
+            <span class="k">if</span> <span class="n">description</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+                <span class="n">description</span> <span class="o">=</span> <span class="n">data</span><span class="o">.</span><span class="n">info</span><span class="o">.</span><span class="n">description</span>
+            <span class="k">if</span> <span class="nb">format</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+                <span class="nb">format</span> <span class="o">=</span> <span class="n">data</span><span class="o">.</span><span class="n">info</span><span class="o">.</span><span class="n">format</span>
+            <span class="k">if</span> <span class="n">meta</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+                <span class="n">meta</span> <span class="o">=</span> <span class="n">deepcopy</span><span class="p">(</span><span class="n">data</span><span class="o">.</span><span class="n">info</span><span class="o">.</span><span class="n">meta</span><span class="p">)</span>
+
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">if</span> <span class="ow">not</span> <span class="n">six</span><span class="o">.</span><span class="n">PY2</span> <span class="ow">and</span> <span class="n">np</span><span class="o">.</span><span class="n">dtype</span><span class="p">(</span><span class="n">dtype</span><span class="p">)</span><span class="o">.</span><span class="n">char</span> <span class="o">==</span> <span class="s1">&#39;S&#39;</span><span class="p">:</span>
+                <span class="n">data</span> <span class="o">=</span> <span class="n">cls</span><span class="o">.</span><span class="n">_encode_str</span><span class="p">(</span><span class="n">data</span><span class="p">)</span>
+            <span class="n">self_data</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">(</span><span class="n">data</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="n">dtype</span><span class="p">,</span> <span class="n">copy</span><span class="o">=</span><span class="n">copy</span><span class="p">)</span>
+
+        <span class="bp">self</span> <span class="o">=</span> <span class="n">self_data</span><span class="o">.</span><span class="n">view</span><span class="p">(</span><span class="n">cls</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_name</span> <span class="o">=</span> <span class="n">fix_column_name</span><span class="p">(</span><span class="n">name</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">unit</span> <span class="o">=</span> <span class="n">unit</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">format</span> <span class="o">=</span> <span class="nb">format</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">description</span> <span class="o">=</span> <span class="n">description</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">meta</span> <span class="o">=</span> <span class="n">meta</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_parent_table</span> <span class="o">=</span> <span class="kc">None</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">indices</span> <span class="o">=</span> <span class="n">deepcopy</span><span class="p">(</span><span class="nb">getattr</span><span class="p">(</span><span class="n">data</span><span class="p">,</span> <span class="s1">&#39;indices&#39;</span><span class="p">,</span> <span class="p">[]))</span> <span class="k">if</span> \
+                       <span class="n">copy_indices</span> <span class="k">else</span> <span class="p">[]</span>
+        <span class="k">for</span> <span class="n">index</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">indices</span><span class="p">:</span>
+            <span class="n">index</span><span class="o">.</span><span class="n">replace_col</span><span class="p">(</span><span class="n">data</span><span class="p">,</span> <span class="bp">self</span><span class="p">)</span>
+
+        <span class="k">return</span> <span class="bp">self</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">data</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">view</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">ndarray</span><span class="p">)</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">parent_table</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_parent_table</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="k">return</span> <span class="kc">None</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_parent_table</span><span class="p">()</span>
+
+    <span class="nd">@parent_table</span><span class="o">.</span><span class="n">setter</span>
+    <span class="k">def</span> <span class="nf">parent_table</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">table</span><span class="p">):</span>
+        <span class="k">if</span> <span class="n">table</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_parent_table</span> <span class="o">=</span> <span class="kc">None</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_parent_table</span> <span class="o">=</span> <span class="n">weakref</span><span class="o">.</span><span class="n">ref</span><span class="p">(</span><span class="n">table</span><span class="p">)</span>
+
+    <span class="n">info</span> <span class="o">=</span> <span class="n">ColumnInfo</span><span class="p">()</span>
+
+    <span class="k">def</span> <span class="nf">copy</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">order</span><span class="o">=</span><span class="s1">&#39;C&#39;</span><span class="p">,</span> <span class="n">data</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">copy_data</span><span class="o">=</span><span class="kc">True</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Return a copy of the current instance.</span>
+
+<span class="sd">        If ``data`` is supplied then a view (reference) of ``data`` is used,</span>
+<span class="sd">        and ``copy_data`` is ignored.</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        order : {&#39;C&#39;, &#39;F&#39;, &#39;A&#39;, &#39;K&#39;}, optional</span>
+<span class="sd">            Controls the memory layout of the copy. &#39;C&#39; means C-order,</span>
+<span class="sd">            &#39;F&#39; means F-order, &#39;A&#39; means &#39;F&#39; if ``a`` is Fortran contiguous,</span>
+<span class="sd">            &#39;C&#39; otherwise. &#39;K&#39; means match the layout of ``a`` as closely</span>
+<span class="sd">            as possible. (Note that this function and :func:numpy.copy are very</span>
+<span class="sd">            similar, but have different default values for their order=</span>
+<span class="sd">            arguments.)  Default is &#39;C&#39;.</span>
+<span class="sd">        data : array, optional</span>
+<span class="sd">            If supplied then use a view of ``data`` instead of the instance</span>
+<span class="sd">            data.  This allows copying the instance attributes and meta.</span>
+<span class="sd">        copy_data : bool, optional</span>
+<span class="sd">            Make a copy of the internal numpy array instead of using a</span>
+<span class="sd">            reference.  Default is True.</span>
+
+<span class="sd">        Returns</span>
+<span class="sd">        -------</span>
+<span class="sd">        col : Column or MaskedColumn</span>
+<span class="sd">            Copy of the current column (same type as original)</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="n">data</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">data</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">data</span>
+            <span class="k">if</span> <span class="n">copy_data</span><span class="p">:</span>
+                <span class="n">data</span> <span class="o">=</span> <span class="n">data</span><span class="o">.</span><span class="n">copy</span><span class="p">(</span><span class="n">order</span><span class="p">)</span>
+
+        <span class="n">out</span> <span class="o">=</span> <span class="n">data</span><span class="o">.</span><span class="n">view</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">__class__</span><span class="p">)</span>
+        <span class="n">out</span><span class="o">.</span><span class="n">__array_finalize__</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span>
+        <span class="c1"># for MaskedColumn, MaskedArray.__array_finalize__ also copies mask</span>
+        <span class="c1"># from self, which is not the idea here, so undo</span>
+        <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">MaskedColumn</span><span class="p">):</span>
+            <span class="n">out</span><span class="o">.</span><span class="n">_mask</span> <span class="o">=</span> <span class="n">data</span><span class="o">.</span><span class="n">_mask</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">_copy_groups</span><span class="p">(</span><span class="n">out</span><span class="p">)</span>
+
+        <span class="k">return</span> <span class="n">out</span>
+
+    <span class="k">def</span> <span class="nf">__setstate__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">state</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Restore the internal state of the Column/MaskedColumn for pickling</span>
+<span class="sd">        purposes.  This requires that the last element of ``state`` is a</span>
+<span class="sd">        5-tuple that has Column-specific state values.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="c1"># Get the Column attributes</span>
+        <span class="n">names</span> <span class="o">=</span> <span class="p">(</span><span class="s1">&#39;_name&#39;</span><span class="p">,</span> <span class="s1">&#39;unit&#39;</span><span class="p">,</span> <span class="s1">&#39;format&#39;</span><span class="p">,</span> <span class="s1">&#39;description&#39;</span><span class="p">,</span> <span class="s1">&#39;meta&#39;</span><span class="p">,</span> <span class="s1">&#39;indices&#39;</span><span class="p">)</span>
+        <span class="n">attrs</span> <span class="o">=</span> <span class="p">{</span><span class="n">name</span><span class="p">:</span> <span class="n">val</span> <span class="k">for</span> <span class="n">name</span><span class="p">,</span> <span class="n">val</span> <span class="ow">in</span> <span class="nb">zip</span><span class="p">(</span><span class="n">names</span><span class="p">,</span> <span class="n">state</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">])}</span>
+
+        <span class="n">state</span> <span class="o">=</span> <span class="n">state</span><span class="p">[:</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span>
+
+        <span class="c1"># Using super(type(self), self).__setstate__() gives an infinite</span>
+        <span class="c1"># recursion.  Manually call the right super class to actually set up</span>
+        <span class="c1"># the array object.</span>
+        <span class="n">super_class</span> <span class="o">=</span> <span class="n">ma</span><span class="o">.</span><span class="n">MaskedArray</span> <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">ma</span><span class="o">.</span><span class="n">MaskedArray</span><span class="p">)</span> <span class="k">else</span> <span class="n">np</span><span class="o">.</span><span class="n">ndarray</span>
+        <span class="n">super_class</span><span class="o">.</span><span class="n">__setstate__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">state</span><span class="p">)</span>
+
+        <span class="c1"># Set the Column attributes</span>
+        <span class="k">for</span> <span class="n">name</span><span class="p">,</span> <span class="n">val</span> <span class="ow">in</span> <span class="n">attrs</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
+            <span class="nb">setattr</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">name</span><span class="p">,</span> <span class="n">val</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_parent_table</span> <span class="o">=</span> <span class="kc">None</span>
+
+    <span class="k">def</span> <span class="nf">__reduce__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Return a 3-tuple for pickling a Column.  Use the super-class</span>
+<span class="sd">        functionality but then add in a 5-tuple of Column-specific values</span>
+<span class="sd">        that get used in __setstate__.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">super_class</span> <span class="o">=</span> <span class="n">ma</span><span class="o">.</span><span class="n">MaskedArray</span> <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">ma</span><span class="o">.</span><span class="n">MaskedArray</span><span class="p">)</span> <span class="k">else</span> <span class="n">np</span><span class="o">.</span><span class="n">ndarray</span>
+        <span class="n">reconstruct_func</span><span class="p">,</span> <span class="n">reconstruct_func_args</span><span class="p">,</span> <span class="n">state</span> <span class="o">=</span> <span class="n">super_class</span><span class="o">.</span><span class="n">__reduce__</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span>
+
+        <span class="c1"># Define Column-specific attrs and meta that gets added to state.</span>
+        <span class="n">column_state</span> <span class="o">=</span> <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">name</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">unit</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">format</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">description</span><span class="p">,</span>
+                        <span class="bp">self</span><span class="o">.</span><span class="n">meta</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">indices</span><span class="p">)</span>
+        <span class="n">state</span> <span class="o">=</span> <span class="n">state</span> <span class="o">+</span> <span class="p">(</span><span class="n">column_state</span><span class="p">,)</span>
+
+        <span class="k">return</span> <span class="n">reconstruct_func</span><span class="p">,</span> <span class="n">reconstruct_func_args</span><span class="p">,</span> <span class="n">state</span>
+
+    <span class="k">def</span> <span class="nf">__array_finalize__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">obj</span><span class="p">):</span>
+        <span class="c1"># Obj will be none for direct call to Column() creator</span>
+        <span class="k">if</span> <span class="n">obj</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="k">return</span>
+
+        <span class="k">if</span> <span class="n">six</span><span class="o">.</span><span class="n">callable</span><span class="p">(</span><span class="nb">super</span><span class="p">(</span><span class="n">BaseColumn</span><span class="p">,</span> <span class="bp">self</span><span class="p">)</span><span class="o">.</span><span class="n">__array_finalize__</span><span class="p">):</span>
+            <span class="nb">super</span><span class="p">(</span><span class="n">BaseColumn</span><span class="p">,</span> <span class="bp">self</span><span class="p">)</span><span class="o">.</span><span class="n">__array_finalize__</span><span class="p">(</span><span class="n">obj</span><span class="p">)</span>
+
+        <span class="c1"># Self was created from template (e.g. obj[slice] or (obj * 2))</span>
+        <span class="c1"># or viewcast e.g. obj.view(Column).  In either case we want to</span>
+        <span class="c1"># init Column attributes for self from obj if possible.</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">parent_table</span> <span class="o">=</span> <span class="kc">None</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="nb">hasattr</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="s1">&#39;indices&#39;</span><span class="p">):</span>  <span class="c1"># may have been copied in __new__</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">indices</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_copy_attrs</span><span class="p">(</span><span class="n">obj</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">__array_wrap__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">out_arr</span><span class="p">,</span> <span class="n">context</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        __array_wrap__ is called at the end of every ufunc.</span>
+
+<span class="sd">        Normally, we want a Column object back and do not have to do anything</span>
+<span class="sd">        special. But there are two exceptions:</span>
+
+<span class="sd">        1) If the output shape is different (e.g. for reduction ufuncs</span>
+<span class="sd">           like sum() or mean()), a Column still linking to a parent_table</span>
+<span class="sd">           makes little sense, so we return the output viewed as the</span>
+<span class="sd">           column content (ndarray or MaskedArray).</span>
+<span class="sd">           For this case, we use &quot;[()]&quot; to select everything, and to ensure we</span>
+<span class="sd">           convert a zero rank array to a scalar. (For some reason np.sum()</span>
+<span class="sd">           returns a zero rank scalar array while np.mean() returns a scalar;</span>
+<span class="sd">           So the [()] is needed for this case.</span>
+
+<span class="sd">        2) When the output is created by any function that returns a boolean</span>
+<span class="sd">           we also want to consistently return an array rather than a column</span>
+<span class="sd">           (see #1446 and #1685)</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">out_arr</span> <span class="o">=</span> <span class="nb">super</span><span class="p">(</span><span class="n">BaseColumn</span><span class="p">,</span> <span class="bp">self</span><span class="p">)</span><span class="o">.</span><span class="n">__array_wrap__</span><span class="p">(</span><span class="n">out_arr</span><span class="p">,</span> <span class="n">context</span><span class="p">)</span>
+        <span class="k">if</span> <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">shape</span> <span class="o">!=</span> <span class="n">out_arr</span><span class="o">.</span><span class="n">shape</span> <span class="ow">or</span>
+            <span class="p">(</span><span class="nb">isinstance</span><span class="p">(</span><span class="n">out_arr</span><span class="p">,</span> <span class="n">BaseColumn</span><span class="p">)</span> <span class="ow">and</span>
+             <span class="p">(</span><span class="n">context</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="ow">and</span> <span class="n">context</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="ow">in</span> <span class="n">_comparison_functions</span><span class="p">))):</span>
+            <span class="k">return</span> <span class="n">out_arr</span><span class="o">.</span><span class="n">data</span><span class="p">[()]</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">return</span> <span class="n">out_arr</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">name</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        The name of this column.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_name</span>
+
+    <span class="nd">@name</span><span class="o">.</span><span class="n">setter</span>
+    <span class="k">def</span> <span class="nf">name</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">val</span><span class="p">):</span>
+        <span class="n">val</span> <span class="o">=</span> <span class="n">fix_column_name</span><span class="p">(</span><span class="n">val</span><span class="p">)</span>
+
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">parent_table</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">table</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">parent_table</span>
+            <span class="n">table</span><span class="o">.</span><span class="n">columns</span><span class="o">.</span><span class="n">_rename_column</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">name</span><span class="p">,</span> <span class="n">val</span><span class="p">)</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">_name</span> <span class="o">=</span> <span class="n">val</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">descr</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Array-interface compliant full description of the column.</span>
+
+<span class="sd">        This returns a 3-tuple (name, type, shape) that can always be</span>
+<span class="sd">        used in a structured array dtype definition.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">name</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">dtype</span><span class="o">.</span><span class="n">str</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">1</span><span class="p">:])</span>
+
+    <span class="k">def</span> <span class="nf">iter_str_vals</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Return an iterator that yields the string-formatted values of this</span>
+<span class="sd">        column.</span>
+
+<span class="sd">        Returns</span>
+<span class="sd">        -------</span>
+<span class="sd">        str_vals : iterator</span>
+<span class="sd">            Column values formatted as strings</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="c1"># Iterate over formatted values with no max number of lines, no column</span>
+        <span class="c1"># name, no unit, and ignoring the returned header info in outs.</span>
+        <span class="n">_pformat_col_iter</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_formatter</span><span class="o">.</span><span class="n">_pformat_col_iter</span>
+        <span class="k">for</span> <span class="n">str_val</span> <span class="ow">in</span> <span class="n">_pformat_col_iter</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="o">-</span><span class="mi">1</span><span class="p">,</span> <span class="n">show_name</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="n">show_unit</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span>
+                                         <span class="n">show_dtype</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="n">outs</span><span class="o">=</span><span class="p">{}):</span>
+            <span class="k">yield</span> <span class="n">str_val</span>
+
+    <span class="k">def</span> <span class="nf">attrs_equal</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">col</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Compare the column attributes of ``col`` to this object.</span>
+
+<span class="sd">        The comparison attributes are: ``name``, ``unit``, ``dtype``,</span>
+<span class="sd">        ``format``, ``description``, and ``meta``.</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        col : Column</span>
+<span class="sd">            Comparison column</span>
+
+<span class="sd">        Returns</span>
+<span class="sd">        -------</span>
+<span class="sd">        equal : boolean</span>
+<span class="sd">            True if all attributes are equal</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">col</span><span class="p">,</span> <span class="n">BaseColumn</span><span class="p">):</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s1">&#39;Comparison `col` must be a Column or &#39;</span>
+                             <span class="s1">&#39;MaskedColumn object&#39;</span><span class="p">)</span>
+
+        <span class="n">attrs</span> <span class="o">=</span> <span class="p">(</span><span class="s1">&#39;name&#39;</span><span class="p">,</span> <span class="s1">&#39;unit&#39;</span><span class="p">,</span> <span class="s1">&#39;dtype&#39;</span><span class="p">,</span> <span class="s1">&#39;format&#39;</span><span class="p">,</span> <span class="s1">&#39;description&#39;</span><span class="p">,</span> <span class="s1">&#39;meta&#39;</span><span class="p">)</span>
+        <span class="n">equal</span> <span class="o">=</span> <span class="nb">all</span><span class="p">(</span><span class="nb">getattr</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">x</span><span class="p">)</span> <span class="o">==</span> <span class="nb">getattr</span><span class="p">(</span><span class="n">col</span><span class="p">,</span> <span class="n">x</span><span class="p">)</span> <span class="k">for</span> <span class="n">x</span> <span class="ow">in</span> <span class="n">attrs</span><span class="p">)</span>
+
+        <span class="k">return</span> <span class="n">equal</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">_formatter</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="n">FORMATTER</span> <span class="k">if</span> <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">parent_table</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">)</span> <span class="k">else</span> <span class="bp">self</span><span class="o">.</span><span class="n">parent_table</span><span class="o">.</span><span class="n">formatter</span>
+
+    <span class="k">def</span> <span class="nf">pformat</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">max_lines</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">show_name</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">show_unit</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="n">show_dtype</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span>
+                <span class="n">html</span><span class="o">=</span><span class="kc">False</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Return a list of formatted string representation of column values.</span>
+
+<span class="sd">        If no value of ``max_lines`` is supplied then the height of the</span>
+<span class="sd">        screen terminal is used to set ``max_lines``.  If the terminal</span>
+<span class="sd">        height cannot be determined then the default will be</span>
+<span class="sd">        determined using the ``astropy.conf.max_lines`` configuration</span>
+<span class="sd">        item. If a negative value of ``max_lines`` is supplied then</span>
+<span class="sd">        there is no line limit applied.</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        max_lines : int</span>
+<span class="sd">            Maximum lines of output (header + data rows)</span>
+
+<span class="sd">        show_name : bool</span>
+<span class="sd">            Include column name. Default is True.</span>
+
+<span class="sd">        show_unit : bool</span>
+<span class="sd">            Include a header row for unit. Default is False.</span>
+
+<span class="sd">        show_dtype : bool</span>
+<span class="sd">            Include column dtype. Default is False.</span>
+
+<span class="sd">        html : bool</span>
+<span class="sd">            Format the output as an HTML table. Default is False.</span>
+
+<span class="sd">        Returns</span>
+<span class="sd">        -------</span>
+<span class="sd">        lines : list</span>
+<span class="sd">            List of lines with header and formatted column values</span>
+
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">_pformat_col</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_formatter</span><span class="o">.</span><span class="n">_pformat_col</span>
+        <span class="n">lines</span><span class="p">,</span> <span class="n">outs</span> <span class="o">=</span> <span class="n">_pformat_col</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">max_lines</span><span class="p">,</span> <span class="n">show_name</span><span class="o">=</span><span class="n">show_name</span><span class="p">,</span>
+                                   <span class="n">show_unit</span><span class="o">=</span><span class="n">show_unit</span><span class="p">,</span> <span class="n">show_dtype</span><span class="o">=</span><span class="n">show_dtype</span><span class="p">,</span>
+                                   <span class="n">html</span><span class="o">=</span><span class="n">html</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">lines</span>
+
+    <span class="k">def</span> <span class="nf">pprint</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">max_lines</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">show_name</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">show_unit</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="n">show_dtype</span><span class="o">=</span><span class="kc">False</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Print a formatted string representation of column values.</span>
+
+<span class="sd">        If no value of ``max_lines`` is supplied then the height of the</span>
+<span class="sd">        screen terminal is used to set ``max_lines``.  If the terminal</span>
+<span class="sd">        height cannot be determined then the default will be</span>
+<span class="sd">        determined using the ``astropy.conf.max_lines`` configuration</span>
+<span class="sd">        item. If a negative value of ``max_lines`` is supplied then</span>
+<span class="sd">        there is no line limit applied.</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        max_lines : int</span>
+<span class="sd">            Maximum number of values in output</span>
+
+<span class="sd">        show_name : bool</span>
+<span class="sd">            Include column name. Default is True.</span>
+
+<span class="sd">        show_unit : bool</span>
+<span class="sd">            Include a header row for unit. Default is False.</span>
+
+<span class="sd">        show_dtype : bool</span>
+<span class="sd">            Include column dtype. Default is True.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">_pformat_col</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_formatter</span><span class="o">.</span><span class="n">_pformat_col</span>
+        <span class="n">lines</span><span class="p">,</span> <span class="n">outs</span> <span class="o">=</span> <span class="n">_pformat_col</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">max_lines</span><span class="p">,</span> <span class="n">show_name</span><span class="o">=</span><span class="n">show_name</span><span class="p">,</span> <span class="n">show_unit</span><span class="o">=</span><span class="n">show_unit</span><span class="p">,</span>
+                                   <span class="n">show_dtype</span><span class="o">=</span><span class="n">show_dtype</span><span class="p">)</span>
+
+        <span class="n">n_header</span> <span class="o">=</span> <span class="n">outs</span><span class="p">[</span><span class="s1">&#39;n_header&#39;</span><span class="p">]</span>
+        <span class="k">for</span> <span class="n">i</span><span class="p">,</span> <span class="n">line</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="n">lines</span><span class="p">):</span>
+            <span class="k">if</span> <span class="n">i</span> <span class="o">&lt;</span> <span class="n">n_header</span><span class="p">:</span>
+                <span class="n">color_print</span><span class="p">(</span><span class="n">line</span><span class="p">,</span> <span class="s1">&#39;red&#39;</span><span class="p">)</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="nb">print</span><span class="p">(</span><span class="n">line</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">more</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">max_lines</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">show_name</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">show_unit</span><span class="o">=</span><span class="kc">False</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Interactively browse column with a paging interface.</span>
+
+<span class="sd">        Supported keys::</span>
+
+<span class="sd">          f, &lt;space&gt; : forward one page</span>
+<span class="sd">          b : back one page</span>
+<span class="sd">          r : refresh same page</span>
+<span class="sd">          n : next row</span>
+<span class="sd">          p : previous row</span>
+<span class="sd">          &lt; : go to beginning</span>
+<span class="sd">          &gt; : go to end</span>
+<span class="sd">          q : quit browsing</span>
+<span class="sd">          h : print this help</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        max_lines : int</span>
+<span class="sd">            Maximum number of lines in table output.</span>
+
+<span class="sd">        show_name : bool</span>
+<span class="sd">            Include a header row for column names. Default is True.</span>
+
+<span class="sd">        show_unit : bool</span>
+<span class="sd">            Include a header row for unit. Default is False.</span>
+
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">_more_tabcol</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_formatter</span><span class="o">.</span><span class="n">_more_tabcol</span>
+        <span class="n">_more_tabcol</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">max_lines</span><span class="o">=</span><span class="n">max_lines</span><span class="p">,</span> <span class="n">show_name</span><span class="o">=</span><span class="n">show_name</span><span class="p">,</span>
+                     <span class="n">show_unit</span><span class="o">=</span><span class="n">show_unit</span><span class="p">)</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">unit</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        The unit associated with this column.  May be a string or a</span>
+<span class="sd">        `astropy.units.UnitBase` instance.</span>
+
+<span class="sd">        Setting the ``unit`` property does not change the values of the</span>
+<span class="sd">        data.  To perform a unit conversion, use ``convert_unit_to``.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_unit</span>
+
+    <span class="nd">@unit</span><span class="o">.</span><span class="n">setter</span>
+    <span class="k">def</span> <span class="nf">unit</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">unit</span><span class="p">):</span>
+        <span class="k">if</span> <span class="n">unit</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_unit</span> <span class="o">=</span> <span class="kc">None</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_unit</span> <span class="o">=</span> <span class="n">Unit</span><span class="p">(</span><span class="n">unit</span><span class="p">,</span> <span class="n">parse_strict</span><span class="o">=</span><span class="s1">&#39;silent&#39;</span><span class="p">)</span>
+
+    <span class="nd">@unit</span><span class="o">.</span><span class="n">deleter</span>
+    <span class="k">def</span> <span class="nf">unit</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_unit</span> <span class="o">=</span> <span class="kc">None</span>
+
+    <span class="k">def</span> <span class="nf">convert_unit_to</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">new_unit</span><span class="p">,</span> <span class="n">equivalencies</span><span class="o">=</span><span class="p">[]):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Converts the values of the column in-place from the current</span>
+<span class="sd">        unit to the given unit.</span>
+
+<span class="sd">        To change the unit associated with this column without</span>
+<span class="sd">        actually changing the data values, simply set the ``unit``</span>
+<span class="sd">        property.</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        new_unit : str or `astropy.units.UnitBase` instance</span>
+<span class="sd">            The unit to convert to.</span>
+
+<span class="sd">        equivalencies : list of equivalence pairs, optional</span>
+<span class="sd">           A list of equivalence pairs to try if the unit are not</span>
+<span class="sd">           directly convertible.  See :ref:`unit_equivalencies`.</span>
+
+<span class="sd">        Raises</span>
+<span class="sd">        ------</span>
+<span class="sd">        astropy.units.UnitsError</span>
+<span class="sd">            If units are inconsistent</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">unit</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;No unit set on column&quot;</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">data</span><span class="p">[:]</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">unit</span><span class="o">.</span><span class="n">to</span><span class="p">(</span>
+            <span class="n">new_unit</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">data</span><span class="p">,</span> <span class="n">equivalencies</span><span class="o">=</span><span class="n">equivalencies</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">unit</span> <span class="o">=</span> <span class="n">new_unit</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">groups</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="nb">hasattr</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="s1">&#39;_groups&#39;</span><span class="p">):</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_groups</span> <span class="o">=</span> <span class="n">groups</span><span class="o">.</span><span class="n">ColumnGroups</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_groups</span>
+
+    <span class="k">def</span> <span class="nf">group_by</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">keys</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Group this column by the specified ``keys``</span>
+
+<span class="sd">        This effectively splits the column into groups which correspond to</span>
+<span class="sd">        unique values of the ``keys`` grouping object.  The output is a new</span>
+<span class="sd">        `Column` or `MaskedColumn` which contains a copy of this column but</span>
+<span class="sd">        sorted by row according to ``keys``.</span>
+
+<span class="sd">        The ``keys`` input to ``group_by`` must be a numpy array with the</span>
+<span class="sd">        same length as this column.</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        keys : numpy array</span>
+<span class="sd">            Key grouping object</span>
+
+<span class="sd">        Returns</span>
+<span class="sd">        -------</span>
+<span class="sd">        out : Column</span>
+<span class="sd">            New column with groups attribute set accordingly</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="n">groups</span><span class="o">.</span><span class="n">column_group_by</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">keys</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">_copy_groups</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">out</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Copy current groups into a copy of self ``out``</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">parent_table</span><span class="p">:</span>
+            <span class="k">if</span> <span class="nb">hasattr</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">parent_table</span><span class="p">,</span> <span class="s1">&#39;_groups&#39;</span><span class="p">):</span>
+                <span class="n">out</span><span class="o">.</span><span class="n">_groups</span> <span class="o">=</span> <span class="n">groups</span><span class="o">.</span><span class="n">ColumnGroups</span><span class="p">(</span><span class="n">out</span><span class="p">,</span> <span class="n">indices</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">parent_table</span><span class="o">.</span><span class="n">_groups</span><span class="o">.</span><span class="n">_indices</span><span class="p">)</span>
+        <span class="k">elif</span> <span class="nb">hasattr</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="s1">&#39;_groups&#39;</span><span class="p">):</span>
+            <span class="n">out</span><span class="o">.</span><span class="n">_groups</span> <span class="o">=</span> <span class="n">groups</span><span class="o">.</span><span class="n">ColumnGroups</span><span class="p">(</span><span class="n">out</span><span class="p">,</span> <span class="n">indices</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">_groups</span><span class="o">.</span><span class="n">_indices</span><span class="p">)</span>
+
+    <span class="c1"># Strip off the BaseColumn-ness for repr and str so that</span>
+    <span class="c1"># MaskedColumn.data __repr__ does not include masked_BaseColumn(data =</span>
+    <span class="c1"># [1 2], ...).</span>
+    <span class="k">def</span> <span class="nf">__repr__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="n">np</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span><span class="o">.</span><span class="n">__repr__</span><span class="p">()</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">quantity</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        A view of this table column as a `~astropy.units.Quantity` object with</span>
+<span class="sd">        units given by the Column&#39;s `unit` parameter.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="c1"># the Quantity initializer is used here because it correctly fails</span>
+        <span class="c1"># if the column&#39;s values are non-numeric (like strings), while .view</span>
+        <span class="c1"># will happily return a quantity with gibberish for numerical values</span>
+        <span class="k">return</span> <span class="n">Quantity</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">copy</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">dtype</span><span class="p">,</span> <span class="n">order</span><span class="o">=</span><span class="s1">&#39;A&#39;</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">to</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">unit</span><span class="p">,</span> <span class="n">equivalencies</span><span class="o">=</span><span class="p">[],</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Converts this table column to a `~astropy.units.Quantity` object with</span>
+<span class="sd">        the requested units.</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        unit : `~astropy.units.Unit` or str</span>
+<span class="sd">            The unit to convert to (i.e., a valid argument to the</span>
+<span class="sd">            :meth:`astropy.units.Quantity.to` method).</span>
+<span class="sd">        equivalencies : list of equivalence pairs, optional</span>
+<span class="sd">            Equivalencies to use for this conversion.  See</span>
+<span class="sd">            :meth:`astropy.units.Quantity.to` for more details.</span>
+
+<span class="sd">        Returns</span>
+<span class="sd">        -------</span>
+<span class="sd">        quantity : `~astropy.units.Quantity`</span>
+<span class="sd">            A quantity object with the contents of this column in the units</span>
+<span class="sd">            ``unit``.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">quantity</span><span class="o">.</span><span class="n">to</span><span class="p">(</span><span class="n">unit</span><span class="p">,</span> <span class="n">equivalencies</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">_copy_attrs</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">obj</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Copy key column attributes from ``obj`` to self</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">for</span> <span class="n">attr</span> <span class="ow">in</span> <span class="p">(</span><span class="s1">&#39;name&#39;</span><span class="p">,</span> <span class="s1">&#39;unit&#39;</span><span class="p">,</span> <span class="s1">&#39;format&#39;</span><span class="p">,</span> <span class="s1">&#39;description&#39;</span><span class="p">):</span>
+            <span class="n">val</span> <span class="o">=</span> <span class="nb">getattr</span><span class="p">(</span><span class="n">obj</span><span class="p">,</span> <span class="n">attr</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span>
+            <span class="nb">setattr</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">attr</span><span class="p">,</span> <span class="n">val</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">meta</span> <span class="o">=</span> <span class="n">deepcopy</span><span class="p">(</span><span class="nb">getattr</span><span class="p">(</span><span class="n">obj</span><span class="p">,</span> <span class="s1">&#39;meta&#39;</span><span class="p">,</span> <span class="p">{}))</span>
+
+    <span class="nd">@staticmethod</span>
+    <span class="k">def</span> <span class="nf">_encode_str</span><span class="p">(</span><span class="n">value</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Encode anything that is unicode-ish as utf-8.  This method is only</span>
+<span class="sd">        called for Py3+.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">value</span><span class="p">,</span> <span class="nb">str</span><span class="p">):</span>
+            <span class="n">value</span> <span class="o">=</span> <span class="n">value</span><span class="o">.</span><span class="n">encode</span><span class="p">(</span><span class="s1">&#39;utf-8&#39;</span><span class="p">)</span>
+        <span class="k">elif</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">value</span><span class="p">,</span> <span class="nb">bytes</span><span class="p">)</span> <span class="ow">or</span> <span class="n">value</span> <span class="ow">is</span> <span class="n">np</span><span class="o">.</span><span class="n">ma</span><span class="o">.</span><span class="n">masked</span><span class="p">:</span>
+            <span class="k">pass</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">value</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span><span class="n">value</span><span class="p">)</span>
+            <span class="k">if</span> <span class="n">value</span><span class="o">.</span><span class="n">dtype</span><span class="o">.</span><span class="n">char</span> <span class="o">==</span> <span class="s1">&#39;U&#39;</span><span class="p">:</span>
+                <span class="n">value</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">char</span><span class="o">.</span><span class="n">encode</span><span class="p">(</span><span class="n">value</span><span class="p">,</span> <span class="n">encoding</span><span class="o">=</span><span class="s1">&#39;utf-8&#39;</span><span class="p">)</span>
+
+        <span class="k">return</span> <span class="n">value</span>
+
+
+<div class="viewcode-block" id="Column"><a class="viewcode-back" href="../../../api/astropy.table.Column.html#astropy.table.Column">[docs]</a><span class="k">class</span> <span class="nc">Column</span><span class="p">(</span><span class="n">BaseColumn</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;Define a data column for use in a Table object.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    data : list, ndarray or None</span>
+<span class="sd">        Column data values</span>
+<span class="sd">    name : str</span>
+<span class="sd">        Column name and key for reference within Table</span>
+<span class="sd">    dtype : numpy.dtype compatible value</span>
+<span class="sd">        Data type for column</span>
+<span class="sd">    shape : tuple or ()</span>
+<span class="sd">        Dimensions of a single row element in the column data</span>
+<span class="sd">    length : int or 0</span>
+<span class="sd">        Number of row elements in column data</span>
+<span class="sd">    description : str or None</span>
+<span class="sd">        Full description of column</span>
+<span class="sd">    unit : str or None</span>
+<span class="sd">        Physical unit</span>
+<span class="sd">    format : str or None or function or callable</span>
+<span class="sd">        Format string for outputting column values.  This can be an</span>
+<span class="sd">        &quot;old-style&quot; (``format % value``) or &quot;new-style&quot; (`str.format`)</span>
+<span class="sd">        format specification string or a function or any callable object that</span>
+<span class="sd">        accepts a single value and returns a string.</span>
+<span class="sd">    meta : dict-like or None</span>
+<span class="sd">        Meta-data associated with the column</span>
+
+<span class="sd">    Examples</span>
+<span class="sd">    --------</span>
+<span class="sd">    A Column can be created in two different ways:</span>
+
+<span class="sd">    - Provide a ``data`` value but not ``shape`` or ``length`` (which are</span>
+<span class="sd">      inferred from the data).</span>
+
+<span class="sd">      Examples::</span>
+
+<span class="sd">        col = Column(data=[1, 2], name=&#39;name&#39;)  # shape=(2,)</span>
+<span class="sd">        col = Column(data=[[1, 2], [3, 4]], name=&#39;name&#39;)  # shape=(2, 2)</span>
+<span class="sd">        col = Column(data=[1, 2], name=&#39;name&#39;, dtype=float)</span>
+<span class="sd">        col = Column(data=np.array([1, 2]), name=&#39;name&#39;)</span>
+<span class="sd">        col = Column(data=[&#39;hello&#39;, &#39;world&#39;], name=&#39;name&#39;)</span>
+
+<span class="sd">      The ``dtype`` argument can be any value which is an acceptable</span>
+<span class="sd">      fixed-size data-type initializer for the numpy.dtype() method.  See</span>
+<span class="sd">      `&lt;http://docs.scipy.org/doc/numpy/reference/arrays.dtypes.html&gt;`_.</span>
+<span class="sd">      Examples include:</span>
+
+<span class="sd">      - Python non-string type (float, int, bool)</span>
+<span class="sd">      - Numpy non-string type (e.g. np.float32, np.int64, np.bool)</span>
+<span class="sd">      - Numpy.dtype array-protocol type strings (e.g. &#39;i4&#39;, &#39;f8&#39;, &#39;S15&#39;)</span>
+
+<span class="sd">      If no ``dtype`` value is provide then the type is inferred using</span>
+<span class="sd">      ``np.array(data)``.</span>
+
+<span class="sd">    - Provide ``length`` and optionally ``shape``, but not ``data``</span>
+
+<span class="sd">      Examples::</span>
+
+<span class="sd">        col = Column(name=&#39;name&#39;, length=5)</span>
+<span class="sd">        col = Column(name=&#39;name&#39;, dtype=int, length=10, shape=(3,4))</span>
+
+<span class="sd">      The default ``dtype`` is ``np.float64``.  The ``shape`` argument is the</span>
+<span class="sd">      array shape of a single cell in the column.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="k">def</span> <span class="nf">__new__</span><span class="p">(</span><span class="n">cls</span><span class="p">,</span> <span class="n">data</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">name</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+                <span class="n">dtype</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">shape</span><span class="o">=</span><span class="p">(),</span> <span class="n">length</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span>
+                <span class="n">description</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">unit</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="nb">format</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">meta</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+                <span class="n">copy</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="n">copy_indices</span><span class="o">=</span><span class="kc">True</span><span class="p">):</span>
+
+        <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">data</span><span class="p">,</span> <span class="n">MaskedColumn</span><span class="p">)</span> <span class="ow">and</span> <span class="n">np</span><span class="o">.</span><span class="n">any</span><span class="p">(</span><span class="n">data</span><span class="o">.</span><span class="n">mask</span><span class="p">):</span>
+            <span class="k">raise</span> <span class="ne">TypeError</span><span class="p">(</span><span class="s2">&quot;Cannot convert a MaskedColumn with masked value to a Column&quot;</span><span class="p">)</span>
+
+        <span class="bp">self</span> <span class="o">=</span> <span class="nb">super</span><span class="p">(</span><span class="n">Column</span><span class="p">,</span> <span class="n">cls</span><span class="p">)</span><span class="o">.</span><span class="n">__new__</span><span class="p">(</span><span class="n">cls</span><span class="p">,</span> <span class="n">data</span><span class="o">=</span><span class="n">data</span><span class="p">,</span> <span class="n">name</span><span class="o">=</span><span class="n">name</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="n">dtype</span><span class="p">,</span>
+                                          <span class="n">shape</span><span class="o">=</span><span class="n">shape</span><span class="p">,</span> <span class="n">length</span><span class="o">=</span><span class="n">length</span><span class="p">,</span> <span class="n">description</span><span class="o">=</span><span class="n">description</span><span class="p">,</span>
+                                          <span class="n">unit</span><span class="o">=</span><span class="n">unit</span><span class="p">,</span> <span class="nb">format</span><span class="o">=</span><span class="nb">format</span><span class="p">,</span> <span class="n">meta</span><span class="o">=</span><span class="n">meta</span><span class="p">,</span>
+                                          <span class="n">copy</span><span class="o">=</span><span class="n">copy</span><span class="p">,</span> <span class="n">copy_indices</span><span class="o">=</span><span class="n">copy_indices</span><span class="p">)</span>
+        <span class="k">return</span> <span class="bp">self</span>
+
+    <span class="k">def</span> <span class="nf">__setattr__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">item</span><span class="p">,</span> <span class="n">value</span><span class="p">):</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">MaskedColumn</span><span class="p">)</span> <span class="ow">and</span> <span class="n">item</span> <span class="o">==</span> <span class="s2">&quot;mask&quot;</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">AttributeError</span><span class="p">(</span><span class="s2">&quot;cannot set mask value to a column in non-masked Table&quot;</span><span class="p">)</span>
+        <span class="nb">super</span><span class="p">(</span><span class="n">Column</span><span class="p">,</span> <span class="bp">self</span><span class="p">)</span><span class="o">.</span><span class="n">__setattr__</span><span class="p">(</span><span class="n">item</span><span class="p">,</span> <span class="n">value</span><span class="p">)</span>
+
+        <span class="k">if</span> <span class="n">item</span> <span class="o">==</span> <span class="s1">&#39;unit&#39;</span> <span class="ow">and</span> <span class="nb">issubclass</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">dtype</span><span class="o">.</span><span class="n">type</span><span class="p">,</span> <span class="n">np</span><span class="o">.</span><span class="n">number</span><span class="p">):</span>
+            <span class="k">try</span><span class="p">:</span>
+                <span class="n">converted</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">parent_table</span><span class="o">.</span><span class="n">_convert_col_for_table</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span>
+            <span class="k">except</span> <span class="ne">AttributeError</span><span class="p">:</span>  <span class="c1"># Either no parent table or parent table is None</span>
+                <span class="k">pass</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="k">if</span> <span class="n">converted</span> <span class="ow">is</span> <span class="ow">not</span> <span class="bp">self</span><span class="p">:</span>
+                    <span class="bp">self</span><span class="o">.</span><span class="n">parent_table</span><span class="o">.</span><span class="n">replace_column</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">name</span><span class="p">,</span> <span class="n">converted</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">_base_repr_</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">html</span><span class="o">=</span><span class="kc">False</span><span class="p">):</span>
+        <span class="c1"># If scalar then just convert to correct numpy type and use numpy repr</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">ndim</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
+            <span class="k">return</span> <span class="nb">repr</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">item</span><span class="p">())</span>
+
+        <span class="n">descr_vals</span> <span class="o">=</span> <span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">__class__</span><span class="o">.</span><span class="n">__name__</span><span class="p">]</span>
+        <span class="n">unit</span> <span class="o">=</span> <span class="kc">None</span> <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">unit</span> <span class="ow">is</span> <span class="kc">None</span> <span class="k">else</span> <span class="nb">str</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">unit</span><span class="p">)</span>
+        <span class="n">shape</span> <span class="o">=</span> <span class="kc">None</span> <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">ndim</span> <span class="o">&lt;=</span> <span class="mi">1</span> <span class="k">else</span> <span class="bp">self</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">1</span><span class="p">:]</span>
+        <span class="k">for</span> <span class="n">attr</span><span class="p">,</span> <span class="n">val</span> <span class="ow">in</span> <span class="p">((</span><span class="s1">&#39;name&#39;</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">name</span><span class="p">),</span>
+                          <span class="p">(</span><span class="s1">&#39;dtype&#39;</span><span class="p">,</span> <span class="n">dtype_info_name</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">dtype</span><span class="p">)),</span>
+                          <span class="p">(</span><span class="s1">&#39;shape&#39;</span><span class="p">,</span> <span class="n">shape</span><span class="p">),</span>
+                          <span class="p">(</span><span class="s1">&#39;unit&#39;</span><span class="p">,</span> <span class="n">unit</span><span class="p">),</span>
+                          <span class="p">(</span><span class="s1">&#39;format&#39;</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">format</span><span class="p">),</span>
+                          <span class="p">(</span><span class="s1">&#39;description&#39;</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">description</span><span class="p">),</span>
+                          <span class="p">(</span><span class="s1">&#39;length&#39;</span><span class="p">,</span> <span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="p">))):</span>
+
+            <span class="k">if</span> <span class="n">val</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+                <span class="n">descr_vals</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="s1">&#39;</span><span class="si">{0}</span><span class="s1">=</span><span class="si">{1!r}</span><span class="s1">&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">attr</span><span class="p">,</span> <span class="n">val</span><span class="p">))</span>
+
+        <span class="n">descr</span> <span class="o">=</span> <span class="s1">&#39;&lt;&#39;</span> <span class="o">+</span> <span class="s1">&#39; &#39;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">descr_vals</span><span class="p">)</span> <span class="o">+</span> <span class="s1">&#39;&gt;</span><span class="se">\n</span><span class="s1">&#39;</span>
+
+        <span class="k">if</span> <span class="n">html</span><span class="p">:</span>
+            <span class="kn">from</span> <span class="nn">..utils.xml.writer</span> <span class="k">import</span> <span class="n">xml_escape</span>
+            <span class="n">descr</span> <span class="o">=</span> <span class="n">xml_escape</span><span class="p">(</span><span class="n">descr</span><span class="p">)</span>
+
+        <span class="n">data_lines</span><span class="p">,</span> <span class="n">outs</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_formatter</span><span class="o">.</span><span class="n">_pformat_col</span><span class="p">(</span>
+            <span class="bp">self</span><span class="p">,</span> <span class="n">show_name</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="n">show_unit</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="n">show_length</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="n">html</span><span class="o">=</span><span class="n">html</span><span class="p">)</span>
+
+        <span class="n">out</span> <span class="o">=</span> <span class="n">descr</span> <span class="o">+</span> <span class="s1">&#39;</span><span class="se">\n</span><span class="s1">&#39;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">data_lines</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">six</span><span class="o">.</span><span class="n">PY2</span> <span class="ow">and</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">out</span><span class="p">,</span> <span class="n">six</span><span class="o">.</span><span class="n">text_type</span><span class="p">):</span>
+            <span class="n">out</span> <span class="o">=</span> <span class="n">out</span><span class="o">.</span><span class="n">encode</span><span class="p">(</span><span class="s1">&#39;utf-8&#39;</span><span class="p">)</span>
+
+        <span class="k">return</span> <span class="n">out</span>
+
+    <span class="k">def</span> <span class="nf">_repr_html_</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_base_repr_</span><span class="p">(</span><span class="n">html</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">__repr__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_base_repr_</span><span class="p">(</span><span class="n">html</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">__unicode__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="c1"># If scalar then just convert to correct numpy type and use numpy repr</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">ndim</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
+            <span class="k">return</span> <span class="nb">str</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">item</span><span class="p">())</span>
+
+        <span class="n">lines</span><span class="p">,</span> <span class="n">outs</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_formatter</span><span class="o">.</span><span class="n">_pformat_col</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span>
+        <span class="k">return</span> <span class="s1">&#39;</span><span class="se">\n</span><span class="s1">&#39;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">lines</span><span class="p">)</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="n">six</span><span class="o">.</span><span class="n">PY2</span><span class="p">:</span>
+        <span class="n">__str__</span> <span class="o">=</span> <span class="n">__unicode__</span>
+
+    <span class="k">def</span> <span class="nf">__bytes__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="n">six</span><span class="o">.</span><span class="n">text_type</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span><span class="o">.</span><span class="n">encode</span><span class="p">(</span><span class="s1">&#39;utf-8&#39;</span><span class="p">)</span>
+    <span class="k">if</span> <span class="n">six</span><span class="o">.</span><span class="n">PY2</span><span class="p">:</span>
+        <span class="n">__str__</span> <span class="o">=</span> <span class="n">__bytes__</span>
+
+    <span class="k">def</span> <span class="nf">_check_string_truncate</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">value</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Emit a warning if any elements of ``value`` will be truncated when</span>
+<span class="sd">        ``value`` is assigned to self.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="c1"># Convert input ``value`` to the string dtype of this column and</span>
+        <span class="c1"># find the length of the longest string in the array.</span>
+        <span class="n">value</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">asanyarray</span><span class="p">(</span><span class="n">value</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">dtype</span><span class="o">.</span><span class="n">type</span><span class="p">)</span>
+        <span class="n">value_str_len</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">char</span><span class="o">.</span><span class="n">str_len</span><span class="p">(</span><span class="n">value</span><span class="p">)</span><span class="o">.</span><span class="n">max</span><span class="p">()</span>
+
+        <span class="c1"># Parse the array-protocol typestring (e.g. &#39;|U15&#39;) of self.dtype which</span>
+        <span class="c1"># has the character repeat count on the right side.</span>
+        <span class="n">self_str_len</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="n">re</span><span class="o">.</span><span class="n">search</span><span class="p">(</span><span class="s1">r&#39;(\d+)$&#39;</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">dtype</span><span class="o">.</span><span class="n">str</span><span class="p">)</span><span class="o">.</span><span class="n">group</span><span class="p">(</span><span class="mi">1</span><span class="p">))</span>
+
+        <span class="k">if</span> <span class="n">value_str_len</span> <span class="o">&gt;</span> <span class="n">self_str_len</span><span class="p">:</span>
+            <span class="n">warnings</span><span class="o">.</span><span class="n">warn</span><span class="p">(</span><span class="s1">&#39;truncated right side string(s) longer than </span><span class="si">{}</span><span class="s1"> &#39;</span>
+                          <span class="s1">&#39;character(s) during assignment&#39;</span>
+                          <span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">self_str_len</span><span class="p">),</span>
+                          <span class="n">StringTruncateWarning</span><span class="p">,</span>
+                          <span class="n">stacklevel</span><span class="o">=</span><span class="mi">3</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">__setitem__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">index</span><span class="p">,</span> <span class="n">value</span><span class="p">):</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">six</span><span class="o">.</span><span class="n">PY2</span> <span class="ow">and</span> <span class="bp">self</span><span class="o">.</span><span class="n">dtype</span><span class="o">.</span><span class="n">char</span> <span class="o">==</span> <span class="s1">&#39;S&#39;</span><span class="p">:</span>
+            <span class="n">value</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_encode_str</span><span class="p">(</span><span class="n">value</span><span class="p">)</span>
+
+        <span class="c1"># Issue warning for string assignment that truncates ``value``</span>
+        <span class="k">if</span> <span class="nb">issubclass</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">dtype</span><span class="o">.</span><span class="n">type</span><span class="p">,</span> <span class="n">np</span><span class="o">.</span><span class="n">character</span><span class="p">):</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_check_string_truncate</span><span class="p">(</span><span class="n">value</span><span class="p">)</span>
+
+        <span class="c1"># update indices</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">info</span><span class="o">.</span><span class="n">adjust_indices</span><span class="p">(</span><span class="n">index</span><span class="p">,</span> <span class="n">value</span><span class="p">,</span> <span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="p">))</span>
+
+        <span class="c1"># Set items using a view of the underlying data, as it gives an</span>
+        <span class="c1"># order-of-magnitude speed-up. [#2994]</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">data</span><span class="p">[</span><span class="n">index</span><span class="p">]</span> <span class="o">=</span> <span class="n">value</span>
+
+    <span class="k">if</span> <span class="n">six</span><span class="o">.</span><span class="n">PY2</span><span class="p">:</span>
+        <span class="c1"># avoid falling through to ndarray.__setslice__, instead using</span>
+        <span class="c1"># self.__setitem__, which is much faster (see above).  [#3020]</span>
+        <span class="k">def</span> <span class="nf">__setslice__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">start</span><span class="p">,</span> <span class="n">stop</span><span class="p">,</span> <span class="n">value</span><span class="p">):</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">__setitem__</span><span class="p">(</span><span class="nb">slice</span><span class="p">(</span><span class="n">start</span><span class="p">,</span> <span class="n">stop</span><span class="p">),</span> <span class="n">value</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">_make_compare</span><span class="p">(</span><span class="n">oper</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Make comparison methods which encode the ``other`` object to utf-8</span>
+<span class="sd">        in the case of a bytestring dtype for Py3+.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+
+        <span class="k">def</span> <span class="nf">_compare</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">other</span><span class="p">):</span>
+            <span class="k">if</span> <span class="ow">not</span> <span class="n">six</span><span class="o">.</span><span class="n">PY2</span> <span class="ow">and</span> <span class="bp">self</span><span class="o">.</span><span class="n">dtype</span><span class="o">.</span><span class="n">char</span> <span class="o">==</span> <span class="s1">&#39;S&#39;</span><span class="p">:</span>
+                <span class="n">other</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_encode_str</span><span class="p">(</span><span class="n">other</span><span class="p">)</span>
+            <span class="k">return</span> <span class="nb">getattr</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">data</span><span class="p">,</span> <span class="n">oper</span><span class="p">)(</span><span class="n">other</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">_compare</span>
+
+    <span class="n">__eq__</span> <span class="o">=</span> <span class="n">_make_compare</span><span class="p">(</span><span class="s1">&#39;__eq__&#39;</span><span class="p">)</span>
+    <span class="n">__ne__</span> <span class="o">=</span> <span class="n">_make_compare</span><span class="p">(</span><span class="s1">&#39;__ne__&#39;</span><span class="p">)</span>
+    <span class="n">__gt__</span> <span class="o">=</span> <span class="n">_make_compare</span><span class="p">(</span><span class="s1">&#39;__gt__&#39;</span><span class="p">)</span>
+    <span class="n">__lt__</span> <span class="o">=</span> <span class="n">_make_compare</span><span class="p">(</span><span class="s1">&#39;__lt__&#39;</span><span class="p">)</span>
+    <span class="n">__ge__</span> <span class="o">=</span> <span class="n">_make_compare</span><span class="p">(</span><span class="s1">&#39;__ge__&#39;</span><span class="p">)</span>
+    <span class="n">__le__</span> <span class="o">=</span> <span class="n">_make_compare</span><span class="p">(</span><span class="s1">&#39;__le__&#39;</span><span class="p">)</span>
+
+<div class="viewcode-block" id="Column.insert"><a class="viewcode-back" href="../../../api/astropy.table.Column.html#astropy.table.Column.insert">[docs]</a>    <span class="k">def</span> <span class="nf">insert</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">obj</span><span class="p">,</span> <span class="n">values</span><span class="p">,</span> <span class="n">axis</span><span class="o">=</span><span class="mi">0</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Insert values before the given indices in the column and return</span>
+<span class="sd">        a new `~astropy.table.Column` object.</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        obj : int, slice or sequence of ints</span>
+<span class="sd">            Object that defines the index or indices before which ``values`` is</span>
+<span class="sd">            inserted.</span>
+<span class="sd">        values : array_like</span>
+<span class="sd">            Value(s) to insert.  If the type of ``values`` is different</span>
+<span class="sd">            from that of quantity, ``values`` is converted to the matching type.</span>
+<span class="sd">            ``values`` should be shaped so that it can be broadcast appropriately</span>
+<span class="sd">        axis : int, optional</span>
+<span class="sd">            Axis along which to insert ``values``.  If ``axis`` is None then</span>
+<span class="sd">            the column array is flattened before insertion.  Default is 0,</span>
+<span class="sd">            which will insert a row.</span>
+
+<span class="sd">        Returns</span>
+<span class="sd">        -------</span>
+<span class="sd">        out : `~astropy.table.Column`</span>
+<span class="sd">            A copy of column with ``values`` and ``mask`` inserted.  Note that the</span>
+<span class="sd">            insertion does not occur in-place: a new column is returned.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">dtype</span><span class="o">.</span><span class="n">kind</span> <span class="o">==</span> <span class="s1">&#39;O&#39;</span><span class="p">:</span>
+            <span class="c1"># Even if values is array-like (e.g. [1,2,3]), insert as a single</span>
+            <span class="c1"># object.  Numpy.insert instead inserts each element in an array-like</span>
+            <span class="c1"># input individually.</span>
+            <span class="n">data</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">insert</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">obj</span><span class="p">,</span> <span class="kc">None</span><span class="p">,</span> <span class="n">axis</span><span class="o">=</span><span class="n">axis</span><span class="p">)</span>
+            <span class="n">data</span><span class="p">[</span><span class="n">obj</span><span class="p">]</span> <span class="o">=</span> <span class="n">values</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="c1"># Explicitly convert to dtype of this column.  Needed because numpy 1.7</span>
+            <span class="c1"># enforces safe casting by default, so .  This isn&#39;t the case for 1.6 or 1.8+.</span>
+            <span class="n">values</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span><span class="n">values</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">dtype</span><span class="p">)</span>
+            <span class="n">data</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">insert</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">obj</span><span class="p">,</span> <span class="n">values</span><span class="p">,</span> <span class="n">axis</span><span class="o">=</span><span class="n">axis</span><span class="p">)</span>
+        <span class="n">out</span> <span class="o">=</span> <span class="n">data</span><span class="o">.</span><span class="n">view</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">__class__</span><span class="p">)</span>
+        <span class="n">out</span><span class="o">.</span><span class="n">__array_finalize__</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">out</span></div>
+
+    <span class="c1"># We do this to make the methods show up in the API docs</span>
+    <span class="n">name</span> <span class="o">=</span> <span class="n">BaseColumn</span><span class="o">.</span><span class="n">name</span>
+    <span class="n">unit</span> <span class="o">=</span> <span class="n">BaseColumn</span><span class="o">.</span><span class="n">unit</span>
+    <span class="n">copy</span> <span class="o">=</span> <span class="n">BaseColumn</span><span class="o">.</span><span class="n">copy</span>
+    <span class="n">more</span> <span class="o">=</span> <span class="n">BaseColumn</span><span class="o">.</span><span class="n">more</span>
+    <span class="n">pprint</span> <span class="o">=</span> <span class="n">BaseColumn</span><span class="o">.</span><span class="n">pprint</span>
+    <span class="n">pformat</span> <span class="o">=</span> <span class="n">BaseColumn</span><span class="o">.</span><span class="n">pformat</span>
+    <span class="n">convert_unit_to</span> <span class="o">=</span> <span class="n">BaseColumn</span><span class="o">.</span><span class="n">convert_unit_to</span>
+    <span class="n">quantity</span> <span class="o">=</span> <span class="n">BaseColumn</span><span class="o">.</span><span class="n">quantity</span>
+    <span class="n">to</span> <span class="o">=</span> <span class="n">BaseColumn</span><span class="o">.</span><span class="n">to</span></div>
+
+
+<div class="viewcode-block" id="MaskedColumn"><a class="viewcode-back" href="../../../api/astropy.table.MaskedColumn.html#astropy.table.MaskedColumn">[docs]</a><span class="k">class</span> <span class="nc">MaskedColumn</span><span class="p">(</span><span class="n">Column</span><span class="p">,</span> <span class="n">_MaskedColumnGetitemShim</span><span class="p">,</span> <span class="n">ma</span><span class="o">.</span><span class="n">MaskedArray</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;Define a masked data column for use in a Table object.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    data : list, ndarray or None</span>
+<span class="sd">        Column data values</span>
+<span class="sd">    name : str</span>
+<span class="sd">        Column name and key for reference within Table</span>
+<span class="sd">    mask : list, ndarray or None</span>
+<span class="sd">        Boolean mask for which True indicates missing or invalid data</span>
+<span class="sd">    fill_value : float, int, str or None</span>
+<span class="sd">        Value used when filling masked column elements</span>
+<span class="sd">    dtype : numpy.dtype compatible value</span>
+<span class="sd">        Data type for column</span>
+<span class="sd">    shape : tuple or ()</span>
+<span class="sd">        Dimensions of a single row element in the column data</span>
+<span class="sd">    length : int or 0</span>
+<span class="sd">        Number of row elements in column data</span>
+<span class="sd">    description : str or None</span>
+<span class="sd">        Full description of column</span>
+<span class="sd">    unit : str or None</span>
+<span class="sd">        Physical unit</span>
+<span class="sd">    format : str or None or function or callable</span>
+<span class="sd">        Format string for outputting column values.  This can be an</span>
+<span class="sd">        &quot;old-style&quot; (``format % value``) or &quot;new-style&quot; (`str.format`)</span>
+<span class="sd">        format specification string or a function or any callable object that</span>
+<span class="sd">        accepts a single value and returns a string.</span>
+<span class="sd">    meta : dict-like or None</span>
+<span class="sd">        Meta-data associated with the column</span>
+
+<span class="sd">    Examples</span>
+<span class="sd">    --------</span>
+<span class="sd">    A MaskedColumn is similar to a Column except that it includes ``mask`` and</span>
+<span class="sd">    ``fill_value`` attributes.  It can be created in two different ways:</span>
+
+<span class="sd">    - Provide a ``data`` value but not ``shape`` or ``length`` (which are</span>
+<span class="sd">      inferred from the data).</span>
+
+<span class="sd">      Examples::</span>
+
+<span class="sd">        col = MaskedColumn(data=[1, 2], name=&#39;name&#39;)</span>
+<span class="sd">        col = MaskedColumn(data=[1, 2], name=&#39;name&#39;, mask=[True, False])</span>
+<span class="sd">        col = MaskedColumn(data=[1, 2], name=&#39;name&#39;, dtype=float, fill_value=99)</span>
+
+<span class="sd">      The ``mask`` argument will be cast as a boolean array and specifies</span>
+<span class="sd">      which elements are considered to be missing or invalid.</span>
+
+<span class="sd">      The ``dtype`` argument can be any value which is an acceptable</span>
+<span class="sd">      fixed-size data-type initializer for the numpy.dtype() method.  See</span>
+<span class="sd">      `&lt;http://docs.scipy.org/doc/numpy/reference/arrays.dtypes.html&gt;`_.</span>
+<span class="sd">      Examples include:</span>
+
+<span class="sd">      - Python non-string type (float, int, bool)</span>
+<span class="sd">      - Numpy non-string type (e.g. np.float32, np.int64, np.bool)</span>
+<span class="sd">      - Numpy.dtype array-protocol type strings (e.g. &#39;i4&#39;, &#39;f8&#39;, &#39;S15&#39;)</span>
+
+<span class="sd">      If no ``dtype`` value is provide then the type is inferred using</span>
+<span class="sd">      ``np.array(data)``.  When ``data`` is provided then the ``shape``</span>
+<span class="sd">      and ``length`` arguments are ignored.</span>
+
+<span class="sd">    - Provide ``length`` and optionally ``shape``, but not ``data``</span>
+
+<span class="sd">      Examples::</span>
+
+<span class="sd">        col = MaskedColumn(name=&#39;name&#39;, length=5)</span>
+<span class="sd">        col = MaskedColumn(name=&#39;name&#39;, dtype=int, length=10, shape=(3,4))</span>
+
+<span class="sd">      The default ``dtype`` is ``np.float64``.  The ``shape`` argument is the</span>
+<span class="sd">      array shape of a single cell in the column.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="k">def</span> <span class="nf">__new__</span><span class="p">(</span><span class="n">cls</span><span class="p">,</span> <span class="n">data</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">name</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">mask</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">fill_value</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+                <span class="n">dtype</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">shape</span><span class="o">=</span><span class="p">(),</span> <span class="n">length</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span>
+                <span class="n">description</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">unit</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="nb">format</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">meta</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+                <span class="n">copy</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="n">copy_indices</span><span class="o">=</span><span class="kc">True</span><span class="p">):</span>
+
+        <span class="k">if</span> <span class="n">mask</span> <span class="ow">is</span> <span class="kc">None</span> <span class="ow">and</span> <span class="nb">hasattr</span><span class="p">(</span><span class="n">data</span><span class="p">,</span> <span class="s1">&#39;mask&#39;</span><span class="p">):</span>
+            <span class="n">mask</span> <span class="o">=</span> <span class="n">data</span><span class="o">.</span><span class="n">mask</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">mask</span> <span class="o">=</span> <span class="n">deepcopy</span><span class="p">(</span><span class="n">mask</span><span class="p">)</span>
+
+        <span class="c1"># Create self using MaskedArray as a wrapper class, following the example of</span>
+        <span class="c1"># class MSubArray in</span>
+        <span class="c1"># https://github.com/numpy/numpy/blob/maintenance/1.8.x/numpy/ma/tests/test_subclassing.py</span>
+        <span class="c1"># This pattern makes it so that __array_finalize__ is called as expected (e.g. #1471 and</span>
+        <span class="c1"># https://github.com/astropy/astropy/commit/ff6039e8)</span>
+
+        <span class="c1"># First just pass through all args and kwargs to BaseColumn, then wrap that object</span>
+        <span class="c1"># with MaskedArray.</span>
+        <span class="n">self_data</span> <span class="o">=</span> <span class="n">BaseColumn</span><span class="p">(</span><span class="n">data</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="n">dtype</span><span class="p">,</span> <span class="n">shape</span><span class="o">=</span><span class="n">shape</span><span class="p">,</span> <span class="n">length</span><span class="o">=</span><span class="n">length</span><span class="p">,</span> <span class="n">name</span><span class="o">=</span><span class="n">name</span><span class="p">,</span>
+                               <span class="n">unit</span><span class="o">=</span><span class="n">unit</span><span class="p">,</span> <span class="nb">format</span><span class="o">=</span><span class="nb">format</span><span class="p">,</span> <span class="n">description</span><span class="o">=</span><span class="n">description</span><span class="p">,</span>
+                               <span class="n">meta</span><span class="o">=</span><span class="n">meta</span><span class="p">,</span> <span class="n">copy</span><span class="o">=</span><span class="n">copy</span><span class="p">,</span> <span class="n">copy_indices</span><span class="o">=</span><span class="n">copy_indices</span><span class="p">)</span>
+        <span class="bp">self</span> <span class="o">=</span> <span class="n">ma</span><span class="o">.</span><span class="n">MaskedArray</span><span class="o">.</span><span class="n">__new__</span><span class="p">(</span><span class="n">cls</span><span class="p">,</span> <span class="n">data</span><span class="o">=</span><span class="n">self_data</span><span class="p">,</span> <span class="n">mask</span><span class="o">=</span><span class="n">mask</span><span class="p">)</span>
+
+        <span class="c1"># Note: do not set fill_value in the MaskedArray constructor because this does not</span>
+        <span class="c1"># go through the fill_value workarounds.</span>
+        <span class="k">if</span> <span class="n">fill_value</span> <span class="ow">is</span> <span class="kc">None</span> <span class="ow">and</span> <span class="nb">getattr</span><span class="p">(</span><span class="n">data</span><span class="p">,</span> <span class="s1">&#39;fill_value&#39;</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="c1"># Coerce the fill_value to the correct type since `data` may be a</span>
+            <span class="c1"># different dtype than self.</span>
+            <span class="n">fill_value</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">dtype</span><span class="o">.</span><span class="n">type</span><span class="p">(</span><span class="n">data</span><span class="o">.</span><span class="n">fill_value</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">fill_value</span> <span class="o">=</span> <span class="n">fill_value</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">parent_table</span> <span class="o">=</span> <span class="kc">None</span>
+
+        <span class="c1"># needs to be done here since self doesn&#39;t come from BaseColumn.__new__</span>
+        <span class="k">for</span> <span class="n">index</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">indices</span><span class="p">:</span>
+            <span class="n">index</span><span class="o">.</span><span class="n">replace_col</span><span class="p">(</span><span class="n">self_data</span><span class="p">,</span> <span class="bp">self</span><span class="p">)</span>
+
+        <span class="k">return</span> <span class="bp">self</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">fill_value</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">get_fill_value</span><span class="p">()</span>  <span class="c1"># defer to native ma.MaskedArray method</span>
+
+    <span class="nd">@fill_value</span><span class="o">.</span><span class="n">setter</span>
+    <span class="k">def</span> <span class="nf">fill_value</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">val</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Set fill value both in the masked column view and in the parent table</span>
+<span class="sd">        if it exists.  Setting one or the other alone doesn&#39;t work.&quot;&quot;&quot;</span>
+
+        <span class="c1"># another ma bug workaround: If the value of fill_value for a string array is</span>
+        <span class="c1"># requested but not yet set then it gets created as &#39;N/A&#39;.  From this point onward</span>
+        <span class="c1"># any new fill_values are truncated to 3 characters.  Note that this does not</span>
+        <span class="c1"># occur if the masked array is a structured array (as in the previous block that</span>
+        <span class="c1"># deals with the parent table).</span>
+        <span class="c1">#</span>
+        <span class="c1"># &gt;&gt;&gt; x = ma.array([&#39;xxxx&#39;])</span>
+        <span class="c1"># &gt;&gt;&gt; x.fill_value  # fill_value now gets represented as an &#39;S3&#39; array</span>
+        <span class="c1"># &#39;N/A&#39;</span>
+        <span class="c1"># &gt;&gt;&gt; x.fill_value=&#39;yyyy&#39;</span>
+        <span class="c1"># &gt;&gt;&gt; x.fill_value</span>
+        <span class="c1"># &#39;yyy&#39;</span>
+        <span class="c1">#</span>
+        <span class="c1"># To handle this we are forced to reset a private variable first:</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_fill_value</span> <span class="o">=</span> <span class="kc">None</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">set_fill_value</span><span class="p">(</span><span class="n">val</span><span class="p">)</span>  <span class="c1"># defer to native ma.MaskedArray method</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">data</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="n">out</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">view</span><span class="p">(</span><span class="n">ma</span><span class="o">.</span><span class="n">MaskedArray</span><span class="p">)</span>
+        <span class="c1"># The following is necessary because of a bug in Numpy, which was</span>
+        <span class="c1"># fixed in numpy/numpy#2703. The fix should be included in Numpy 1.8.0.</span>
+        <span class="n">out</span><span class="o">.</span><span class="n">fill_value</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">fill_value</span>
+        <span class="k">return</span> <span class="n">out</span>
+
+<div class="viewcode-block" id="MaskedColumn.filled"><a class="viewcode-back" href="../../../api/astropy.table.MaskedColumn.html#astropy.table.MaskedColumn.filled">[docs]</a>    <span class="k">def</span> <span class="nf">filled</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">fill_value</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Return a copy of self, with masked values filled with a given value.</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        fill_value : scalar; optional</span>
+<span class="sd">            The value to use for invalid entries (`None` by default).  If</span>
+<span class="sd">            `None`, the ``fill_value`` attribute of the array is used</span>
+<span class="sd">            instead.</span>
+
+<span class="sd">        Returns</span>
+<span class="sd">        -------</span>
+<span class="sd">        filled_column : Column</span>
+<span class="sd">            A copy of ``self`` with masked entries replaced by `fill_value`</span>
+<span class="sd">            (be it the function argument or the attribute of ``self``).</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="n">fill_value</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">fill_value</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">fill_value</span>
+
+        <span class="n">data</span> <span class="o">=</span> <span class="nb">super</span><span class="p">(</span><span class="n">MaskedColumn</span><span class="p">,</span> <span class="bp">self</span><span class="p">)</span><span class="o">.</span><span class="n">filled</span><span class="p">(</span><span class="n">fill_value</span><span class="p">)</span>
+        <span class="c1"># Use parent table definition of Column if available</span>
+        <span class="n">column_cls</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">parent_table</span><span class="o">.</span><span class="n">Column</span> <span class="k">if</span> <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">parent_table</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">)</span> <span class="k">else</span> <span class="n">Column</span>
+        <span class="n">out</span> <span class="o">=</span> <span class="n">column_cls</span><span class="p">(</span><span class="n">name</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">name</span><span class="p">,</span> <span class="n">data</span><span class="o">=</span><span class="n">data</span><span class="p">,</span> <span class="n">unit</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">unit</span><span class="p">,</span>
+                         <span class="nb">format</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">format</span><span class="p">,</span> <span class="n">description</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">description</span><span class="p">,</span>
+                         <span class="n">meta</span><span class="o">=</span><span class="n">deepcopy</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">meta</span><span class="p">))</span>
+        <span class="k">return</span> <span class="n">out</span></div>
+
+<div class="viewcode-block" id="MaskedColumn.insert"><a class="viewcode-back" href="../../../api/astropy.table.MaskedColumn.html#astropy.table.MaskedColumn.insert">[docs]</a>    <span class="k">def</span> <span class="nf">insert</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">obj</span><span class="p">,</span> <span class="n">values</span><span class="p">,</span> <span class="n">mask</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">axis</span><span class="o">=</span><span class="mi">0</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Insert values along the given axis before the given indices and return</span>
+<span class="sd">        a new `~astropy.table.MaskedColumn` object.</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        obj : int, slice or sequence of ints</span>
+<span class="sd">            Object that defines the index or indices before which ``values`` is</span>
+<span class="sd">            inserted.</span>
+<span class="sd">        values : array_like</span>
+<span class="sd">            Value(s) to insert.  If the type of ``values`` is different</span>
+<span class="sd">            from that of quantity, ``values`` is converted to the matching type.</span>
+<span class="sd">            ``values`` should be shaped so that it can be broadcast appropriately</span>
+<span class="sd">        mask : boolean array_like</span>
+<span class="sd">            Mask value(s) to insert.  If not supplied then False is used.</span>
+<span class="sd">        axis : int, optional</span>
+<span class="sd">            Axis along which to insert ``values``.  If ``axis`` is None then</span>
+<span class="sd">            the column array is flattened before insertion.  Default is 0,</span>
+<span class="sd">            which will insert a row.</span>
+
+<span class="sd">        Returns</span>
+<span class="sd">        -------</span>
+<span class="sd">        out : `~astropy.table.MaskedColumn`</span>
+<span class="sd">            A copy of column with ``values`` and ``mask`` inserted.  Note that the</span>
+<span class="sd">            insertion does not occur in-place: a new masked column is returned.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">self_ma</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">data</span>  <span class="c1"># self viewed as MaskedArray</span>
+
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">dtype</span><span class="o">.</span><span class="n">kind</span> <span class="o">==</span> <span class="s1">&#39;O&#39;</span><span class="p">:</span>
+            <span class="c1"># Even if values is array-like (e.g. [1,2,3]), insert as a single</span>
+            <span class="c1"># object.  Numpy.insert instead inserts each element in an array-like</span>
+            <span class="c1"># input individually.</span>
+            <span class="n">new_data</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">insert</span><span class="p">(</span><span class="n">self_ma</span><span class="o">.</span><span class="n">data</span><span class="p">,</span> <span class="n">obj</span><span class="p">,</span> <span class="kc">None</span><span class="p">,</span> <span class="n">axis</span><span class="o">=</span><span class="n">axis</span><span class="p">)</span>
+            <span class="n">new_data</span><span class="p">[</span><span class="n">obj</span><span class="p">]</span> <span class="o">=</span> <span class="n">values</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="c1"># Explicitly convert to dtype of this column.  Needed because numpy 1.7</span>
+            <span class="c1"># enforces safe casting by default, so .  This isn&#39;t the case for 1.6 or 1.8+.</span>
+            <span class="n">values</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span><span class="n">values</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">dtype</span><span class="p">)</span>
+            <span class="n">new_data</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">insert</span><span class="p">(</span><span class="n">self_ma</span><span class="o">.</span><span class="n">data</span><span class="p">,</span> <span class="n">obj</span><span class="p">,</span> <span class="n">values</span><span class="p">,</span> <span class="n">axis</span><span class="o">=</span><span class="n">axis</span><span class="p">)</span>
+
+        <span class="k">if</span> <span class="n">mask</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">dtype</span><span class="o">.</span><span class="n">kind</span> <span class="o">==</span> <span class="s1">&#39;O&#39;</span><span class="p">:</span>
+                <span class="n">mask</span> <span class="o">=</span> <span class="kc">False</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="n">mask</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">zeros</span><span class="p">(</span><span class="n">values</span><span class="o">.</span><span class="n">shape</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="n">np</span><span class="o">.</span><span class="n">bool</span><span class="p">)</span>
+        <span class="n">new_mask</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">insert</span><span class="p">(</span><span class="n">self_ma</span><span class="o">.</span><span class="n">mask</span><span class="p">,</span> <span class="n">obj</span><span class="p">,</span> <span class="n">mask</span><span class="p">,</span> <span class="n">axis</span><span class="o">=</span><span class="n">axis</span><span class="p">)</span>
+        <span class="n">new_ma</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">ma</span><span class="o">.</span><span class="n">array</span><span class="p">(</span><span class="n">new_data</span><span class="p">,</span> <span class="n">mask</span><span class="o">=</span><span class="n">new_mask</span><span class="p">,</span> <span class="n">copy</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
+
+        <span class="n">out</span> <span class="o">=</span> <span class="n">new_ma</span><span class="o">.</span><span class="n">view</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">__class__</span><span class="p">)</span>
+        <span class="n">out</span><span class="o">.</span><span class="n">parent_table</span> <span class="o">=</span> <span class="kc">None</span>
+        <span class="n">out</span><span class="o">.</span><span class="n">indices</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="n">out</span><span class="o">.</span><span class="n">_copy_attrs</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span>
+
+        <span class="k">return</span> <span class="n">out</span></div>
+
+    <span class="k">def</span> <span class="nf">_copy_attrs_slice</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">out</span><span class="p">):</span>
+        <span class="c1"># Fixes issue #3023: when calling getitem with a MaskedArray subclass</span>
+        <span class="c1"># the original object attributes are not copied.</span>
+        <span class="k">if</span> <span class="n">out</span><span class="o">.</span><span class="n">__class__</span> <span class="ow">is</span> <span class="bp">self</span><span class="o">.</span><span class="n">__class__</span><span class="p">:</span>
+            <span class="n">out</span><span class="o">.</span><span class="n">parent_table</span> <span class="o">=</span> <span class="kc">None</span>
+            <span class="c1"># we need this because __getitem__ does a shallow copy of indices</span>
+            <span class="k">if</span> <span class="n">out</span><span class="o">.</span><span class="n">indices</span> <span class="ow">is</span> <span class="bp">self</span><span class="o">.</span><span class="n">indices</span><span class="p">:</span>
+                <span class="n">out</span><span class="o">.</span><span class="n">indices</span> <span class="o">=</span> <span class="p">[]</span>
+            <span class="n">out</span><span class="o">.</span><span class="n">_copy_attrs</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">out</span>
+
+    <span class="k">def</span> <span class="nf">__setitem__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">index</span><span class="p">,</span> <span class="n">value</span><span class="p">):</span>
+        <span class="c1"># Issue warning for string assignment that truncates ``value``</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">six</span><span class="o">.</span><span class="n">PY2</span> <span class="ow">and</span> <span class="bp">self</span><span class="o">.</span><span class="n">dtype</span><span class="o">.</span><span class="n">char</span> <span class="o">==</span> <span class="s1">&#39;S&#39;</span><span class="p">:</span>
+            <span class="n">value</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_encode_str</span><span class="p">(</span><span class="n">value</span><span class="p">)</span>
+
+        <span class="k">if</span> <span class="nb">issubclass</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">dtype</span><span class="o">.</span><span class="n">type</span><span class="p">,</span> <span class="n">np</span><span class="o">.</span><span class="n">character</span><span class="p">):</span>
+            <span class="c1"># Account for a bug in np.ma.MaskedArray setitem.</span>
+            <span class="c1"># https://github.com/numpy/numpy/issues/8624</span>
+            <span class="n">value</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">ma</span><span class="o">.</span><span class="n">asanyarray</span><span class="p">(</span><span class="n">value</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">dtype</span><span class="o">.</span><span class="n">type</span><span class="p">)</span>
+
+            <span class="c1"># Check for string truncation after filling masked items with</span>
+            <span class="c1"># empty (zero-length) string.  Note that filled() does not make</span>
+            <span class="c1"># a copy if there are no masked items.</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_check_string_truncate</span><span class="p">(</span><span class="n">value</span><span class="o">.</span><span class="n">filled</span><span class="p">(</span><span class="s1">&#39;&#39;</span><span class="p">))</span>
+
+        <span class="c1"># update indices</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">info</span><span class="o">.</span><span class="n">adjust_indices</span><span class="p">(</span><span class="n">index</span><span class="p">,</span> <span class="n">value</span><span class="p">,</span> <span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="p">))</span>
+        <span class="k">if</span> <span class="n">MaskedArrayFutureWarning</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">ma</span><span class="o">.</span><span class="n">MaskedArray</span><span class="o">.</span><span class="n">__setitem__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">index</span><span class="p">,</span> <span class="n">value</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">with</span> <span class="n">warnings</span><span class="o">.</span><span class="n">catch_warnings</span><span class="p">():</span>
+                <span class="n">warnings</span><span class="o">.</span><span class="n">simplefilter</span><span class="p">(</span><span class="s1">&#39;ignore&#39;</span><span class="p">,</span> <span class="n">MaskedArrayFutureWarning</span><span class="p">)</span>
+                <span class="n">ma</span><span class="o">.</span><span class="n">MaskedArray</span><span class="o">.</span><span class="n">__setitem__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">index</span><span class="p">,</span> <span class="n">value</span><span class="p">)</span>
+
+    <span class="c1"># We do this to make the methods show up in the API docs</span>
+    <span class="n">name</span> <span class="o">=</span> <span class="n">BaseColumn</span><span class="o">.</span><span class="n">name</span>
+    <span class="n">copy</span> <span class="o">=</span> <span class="n">BaseColumn</span><span class="o">.</span><span class="n">copy</span>
+    <span class="n">more</span> <span class="o">=</span> <span class="n">BaseColumn</span><span class="o">.</span><span class="n">more</span>
+    <span class="n">pprint</span> <span class="o">=</span> <span class="n">BaseColumn</span><span class="o">.</span><span class="n">pprint</span>
+    <span class="n">pformat</span> <span class="o">=</span> <span class="n">BaseColumn</span><span class="o">.</span><span class="n">pformat</span>
+    <span class="n">convert_unit_to</span> <span class="o">=</span> <span class="n">BaseColumn</span><span class="o">.</span><span class="n">convert_unit_to</span></div>
+</pre></div>
+
+          </div>
+        </div>
+      </div>
+      <div class="sphinxsidebar" role="navigation" aria-label="main navigation">
+        <div class="sphinxsidebarwrapper"><h3>Page Contents</h3>
+
+
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+<footer class="footer">
+  <p class="pull-right"> &nbsp;
+    <a href="#">Back to Top</a></p>
+  <p>
+    &copy; Copyright 2011-2016, The Astropy Developers.<br/>
+    Created using <a href="http://sphinx.pocoo.org/">Sphinx</a> 1.5.6. &nbsp;
+    Last built 05 Jul 2017. <br/>
+  </p>
+</footer>
+  </body>
+</html>

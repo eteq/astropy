@@ -1,0 +1,1462 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <head>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    
+    <title>astropy.io.fits.fitsrec &#8212; Astropy v3.0.dev19489</title>
+    
+    <link rel="stylesheet" href="../../../../_static/bootstrap-astropy.css" type="text/css" />
+    <link rel="stylesheet" href="../../../../_static/pygments.css" type="text/css" />
+    <link rel="stylesheet" href="../../../../_static/gallery.css" type="text/css" />
+    
+    <script type="text/javascript">
+      var DOCUMENTATION_OPTIONS = {
+        URL_ROOT:    '../../../../',
+        VERSION:     '3.0.dev19489',
+        COLLAPSE_INDEX: false,
+        FILE_SUFFIX: '.html',
+        HAS_SOURCE:  true,
+        SOURCELINK_SUFFIX: '.txt'
+      };
+    </script>
+    <script type="text/javascript" src="../../../../_static/jquery.js"></script>
+    <script type="text/javascript" src="../../../../_static/underscore.js"></script>
+    <script type="text/javascript" src="../../../../_static/doctools.js"></script>
+    <script type="text/javascript" src="../../../../_static/sidebar.js"></script>
+    <link rel="shortcut icon" href="../../../../_static/astropy_logo.ico"/>
+    <link rel="index" title="Index" href="../../../../genindex.html" />
+    <link rel="search" title="Search" href="../../../../search.html" />
+<link href='https://fonts.googleapis.com/css?family=Source+Sans+Pro:200,600' rel='stylesheet' type='text/css'/>
+<script type="text/javascript" src="../../../../_static/copybutton.js"></script>
+
+
+  </head>
+  <body role="document">
+<div class="topbar">
+  <a class="brand" title="Documentation Home" href="../../../../index.html"><span id="logotext1">astro</span><span id="logotext2">py</span><span id="logotext3">:docs</span></a>
+  <ul>
+    <li><a class="homelink" title="Astropy Homepage" href="http://www.astropy.org"></a></li>
+    <li><a title="General Index" href="../../../../genindex.html">Index</a></li>
+    <li><a title="Module Index" href="../../../../py-modindex.html">Modules</a></li>
+    <li>
+      
+      
+<form action="../../../../search.html" method="get">
+  <input type="text" name="q" placeholder="Search" />
+  <input type="hidden" name="check_keywords" value="yes" />
+  <input type="hidden" name="area" value="default" />
+</form>
+      
+    </li>
+  </ul>
+</div>
+
+<div class="related">
+    <h3>Navigation</h3>
+    <ul>
+      <li>
+	<a href="../../../../index.html">Astropy v3.0.dev19489</a>
+	 &#187;
+      </li>
+      <li><a href="../../../index.html" >Module code</a> &#187;</li>
+      <li><a href="../../../astropy.html" accesskey="U">astropy</a> &#187;</li>
+      
+       
+    </ul>
+</div>
+  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          <div class="body" role="main">
+            
+  <h1>Source code for astropy.io.fits.fitsrec</h1><div class="highlight"><pre>
+<span></span><span class="c1"># Licensed under a 3-clause BSD style license - see PYFITS.rst</span>
+
+<span class="kn">import</span> <span class="nn">copy</span>
+<span class="kn">import</span> <span class="nn">operator</span>
+<span class="kn">import</span> <span class="nn">warnings</span>
+<span class="kn">import</span> <span class="nn">weakref</span>
+
+<span class="kn">from</span> <span class="nn">functools</span> <span class="k">import</span> <span class="n">reduce</span>
+
+<span class="kn">import</span> <span class="nn">numpy</span> <span class="k">as</span> <span class="nn">np</span>
+
+<span class="kn">from</span> <span class="nn">numpy</span> <span class="k">import</span> <span class="n">char</span> <span class="k">as</span> <span class="n">chararray</span>
+
+<span class="kn">from</span> <span class="nn">.column</span> <span class="k">import</span> <span class="p">(</span><span class="n">ASCIITNULL</span><span class="p">,</span> <span class="n">FITS2NUMPY</span><span class="p">,</span> <span class="n">ASCII2NUMPY</span><span class="p">,</span> <span class="n">ASCII2STR</span><span class="p">,</span> <span class="n">ColDefs</span><span class="p">,</span>
+                     <span class="n">_AsciiColDefs</span><span class="p">,</span> <span class="n">_FormatX</span><span class="p">,</span> <span class="n">_FormatP</span><span class="p">,</span> <span class="n">_VLF</span><span class="p">,</span> <span class="n">_get_index</span><span class="p">,</span>
+                     <span class="n">_wrapx</span><span class="p">,</span> <span class="n">_unwrapx</span><span class="p">,</span> <span class="n">_makep</span><span class="p">,</span> <span class="n">Delayed</span><span class="p">)</span>
+<span class="kn">from</span> <span class="nn">.util</span> <span class="k">import</span> <span class="n">decode_ascii</span><span class="p">,</span> <span class="n">encode_ascii</span>
+<span class="kn">from</span> <span class="nn">...extern.six</span> <span class="k">import</span> <span class="n">string_types</span><span class="p">,</span> <span class="n">PY2</span>
+<span class="kn">from</span> <span class="nn">...extern.six.moves</span> <span class="k">import</span> <span class="nb">range</span><span class="p">,</span> <span class="nb">zip</span>
+<span class="kn">from</span> <span class="nn">...utils</span> <span class="k">import</span> <span class="n">lazyproperty</span>
+<span class="kn">from</span> <span class="nn">...utils.compat</span> <span class="k">import</span> <span class="n">suppress</span>
+
+
+<div class="viewcode-block" id="FITS_record"><a class="viewcode-back" href="../../../../io/fits/api/tables.html#astropy.io.fits.FITS_record">[docs]</a><span class="k">class</span> <span class="nc">FITS_record</span><span class="p">(</span><span class="nb">object</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    FITS record class.</span>
+
+<span class="sd">    `FITS_record` is used to access records of the `FITS_rec` object.</span>
+<span class="sd">    This will allow us to deal with scaled columns.  It also handles</span>
+<span class="sd">    conversion/scaling of columns in ASCII tables.  The `FITS_record`</span>
+<span class="sd">    class expects a `FITS_rec` object as input.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="nb">input</span><span class="p">,</span> <span class="n">row</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span> <span class="n">start</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">end</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">step</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+                 <span class="n">base</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        input : array</span>
+<span class="sd">           The array to wrap.</span>
+
+<span class="sd">        row : int, optional</span>
+<span class="sd">           The starting logical row of the array.</span>
+
+<span class="sd">        start : int, optional</span>
+<span class="sd">           The starting column in the row associated with this object.</span>
+<span class="sd">           Used for subsetting the columns of the `FITS_rec` object.</span>
+
+<span class="sd">        end : int, optional</span>
+<span class="sd">           The ending column in the row associated with this object.</span>
+<span class="sd">           Used for subsetting the columns of the `FITS_rec` object.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">array</span> <span class="o">=</span> <span class="nb">input</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">row</span> <span class="o">=</span> <span class="n">row</span>
+        <span class="k">if</span> <span class="n">base</span><span class="p">:</span>
+            <span class="n">width</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="n">base</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">width</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">array</span><span class="o">.</span><span class="n">_nfields</span>
+
+        <span class="n">s</span> <span class="o">=</span> <span class="nb">slice</span><span class="p">(</span><span class="n">start</span><span class="p">,</span> <span class="n">end</span><span class="p">,</span> <span class="n">step</span><span class="p">)</span><span class="o">.</span><span class="n">indices</span><span class="p">(</span><span class="n">width</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">start</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">end</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">step</span> <span class="o">=</span> <span class="n">s</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">base</span> <span class="o">=</span> <span class="n">base</span>
+
+    <span class="k">def</span> <span class="nf">__getitem__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">key</span><span class="p">):</span>
+        <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">key</span><span class="p">,</span> <span class="n">string_types</span><span class="p">):</span>
+            <span class="n">indx</span> <span class="o">=</span> <span class="n">_get_index</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">array</span><span class="o">.</span><span class="n">names</span><span class="p">,</span> <span class="n">key</span><span class="p">)</span>
+
+            <span class="k">if</span> <span class="n">indx</span> <span class="o">&lt;</span> <span class="bp">self</span><span class="o">.</span><span class="n">start</span> <span class="ow">or</span> <span class="n">indx</span> <span class="o">&gt;</span> <span class="bp">self</span><span class="o">.</span><span class="n">end</span> <span class="o">-</span> <span class="mi">1</span><span class="p">:</span>
+                <span class="k">raise</span> <span class="ne">KeyError</span><span class="p">(</span><span class="s2">&quot;Key &#39;</span><span class="si">{}</span><span class="s2">&#39; does not exist.&quot;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">key</span><span class="p">))</span>
+        <span class="k">elif</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">key</span><span class="p">,</span> <span class="nb">slice</span><span class="p">):</span>
+            <span class="k">return</span> <span class="nb">type</span><span class="p">(</span><span class="bp">self</span><span class="p">)(</span><span class="bp">self</span><span class="o">.</span><span class="n">array</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">row</span><span class="p">,</span> <span class="n">key</span><span class="o">.</span><span class="n">start</span><span class="p">,</span> <span class="n">key</span><span class="o">.</span><span class="n">stop</span><span class="p">,</span>
+                              <span class="n">key</span><span class="o">.</span><span class="n">step</span><span class="p">,</span> <span class="bp">self</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">indx</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_get_index</span><span class="p">(</span><span class="n">key</span><span class="p">)</span>
+
+            <span class="k">if</span> <span class="n">indx</span> <span class="o">&gt;</span> <span class="bp">self</span><span class="o">.</span><span class="n">array</span><span class="o">.</span><span class="n">_nfields</span> <span class="o">-</span> <span class="mi">1</span><span class="p">:</span>
+                <span class="k">raise</span> <span class="ne">IndexError</span><span class="p">(</span><span class="s1">&#39;Index out of bounds&#39;</span><span class="p">)</span>
+
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">array</span><span class="o">.</span><span class="n">field</span><span class="p">(</span><span class="n">indx</span><span class="p">)[</span><span class="bp">self</span><span class="o">.</span><span class="n">row</span><span class="p">]</span>
+
+    <span class="k">def</span> <span class="nf">__setitem__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">key</span><span class="p">,</span> <span class="n">value</span><span class="p">):</span>
+        <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">key</span><span class="p">,</span> <span class="n">string_types</span><span class="p">):</span>
+            <span class="n">indx</span> <span class="o">=</span> <span class="n">_get_index</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">array</span><span class="o">.</span><span class="n">names</span><span class="p">,</span> <span class="n">key</span><span class="p">)</span>
+
+            <span class="k">if</span> <span class="n">indx</span> <span class="o">&lt;</span> <span class="bp">self</span><span class="o">.</span><span class="n">start</span> <span class="ow">or</span> <span class="n">indx</span> <span class="o">&gt;</span> <span class="bp">self</span><span class="o">.</span><span class="n">end</span> <span class="o">-</span> <span class="mi">1</span><span class="p">:</span>
+                <span class="k">raise</span> <span class="ne">KeyError</span><span class="p">(</span><span class="s2">&quot;Key &#39;</span><span class="si">{}</span><span class="s2">&#39; does not exist.&quot;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">key</span><span class="p">))</span>
+        <span class="k">elif</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">key</span><span class="p">,</span> <span class="nb">slice</span><span class="p">):</span>
+            <span class="k">for</span> <span class="n">indx</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="nb">slice</span><span class="o">.</span><span class="n">start</span><span class="p">,</span> <span class="nb">slice</span><span class="o">.</span><span class="n">stop</span><span class="p">,</span> <span class="nb">slice</span><span class="o">.</span><span class="n">step</span><span class="p">):</span>
+                <span class="n">indx</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_get_indx</span><span class="p">(</span><span class="n">indx</span><span class="p">)</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">array</span><span class="o">.</span><span class="n">field</span><span class="p">(</span><span class="n">indx</span><span class="p">)[</span><span class="bp">self</span><span class="o">.</span><span class="n">row</span><span class="p">]</span> <span class="o">=</span> <span class="n">value</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">indx</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_get_index</span><span class="p">(</span><span class="n">key</span><span class="p">)</span>
+            <span class="k">if</span> <span class="n">indx</span> <span class="o">&gt;</span> <span class="bp">self</span><span class="o">.</span><span class="n">array</span><span class="o">.</span><span class="n">_nfields</span> <span class="o">-</span> <span class="mi">1</span><span class="p">:</span>
+                <span class="k">raise</span> <span class="ne">IndexError</span><span class="p">(</span><span class="s1">&#39;Index out of bounds&#39;</span><span class="p">)</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">array</span><span class="o">.</span><span class="n">field</span><span class="p">(</span><span class="n">indx</span><span class="p">)[</span><span class="bp">self</span><span class="o">.</span><span class="n">row</span><span class="p">]</span> <span class="o">=</span> <span class="n">value</span>
+
+    <span class="k">def</span> <span class="nf">__len__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="nb">len</span><span class="p">(</span><span class="nb">range</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">start</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">end</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">step</span><span class="p">))</span>
+
+    <span class="k">def</span> <span class="nf">__repr__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Display a single row.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+
+        <span class="n">outlist</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="k">for</span> <span class="n">idx</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="p">)):</span>
+            <span class="n">outlist</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="nb">repr</span><span class="p">(</span><span class="bp">self</span><span class="p">[</span><span class="n">idx</span><span class="p">]))</span>
+        <span class="k">return</span> <span class="s1">&#39;(</span><span class="si">{}</span><span class="s1">)&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="s1">&#39;, &#39;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">outlist</span><span class="p">))</span>
+
+<div class="viewcode-block" id="FITS_record.field"><a class="viewcode-back" href="../../../../io/fits/api/tables.html#astropy.io.fits.FITS_record.field">[docs]</a>    <span class="k">def</span> <span class="nf">field</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">field</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Get the field data of the record.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">__getitem__</span><span class="p">(</span><span class="n">field</span><span class="p">)</span></div>
+
+<div class="viewcode-block" id="FITS_record.setfield"><a class="viewcode-back" href="../../../../io/fits/api/tables.html#astropy.io.fits.FITS_record.setfield">[docs]</a>    <span class="k">def</span> <span class="nf">setfield</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">field</span><span class="p">,</span> <span class="n">value</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Set the field data of the record.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">__setitem__</span><span class="p">(</span><span class="n">field</span><span class="p">,</span> <span class="n">value</span><span class="p">)</span></div>
+
+    <span class="nd">@lazyproperty</span>
+    <span class="k">def</span> <span class="nf">_bases</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="n">bases</span> <span class="o">=</span> <span class="p">[</span><span class="n">weakref</span><span class="o">.</span><span class="n">proxy</span><span class="p">(</span><span class="bp">self</span><span class="p">)]</span>
+        <span class="n">base</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">base</span>
+        <span class="k">while</span> <span class="n">base</span><span class="p">:</span>
+            <span class="n">bases</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">base</span><span class="p">)</span>
+            <span class="n">base</span> <span class="o">=</span> <span class="n">base</span><span class="o">.</span><span class="n">base</span>
+        <span class="k">return</span> <span class="n">bases</span>
+
+    <span class="k">def</span> <span class="nf">_get_index</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">indx</span><span class="p">):</span>
+        <span class="n">indices</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">ogrid</span><span class="p">[:</span><span class="bp">self</span><span class="o">.</span><span class="n">array</span><span class="o">.</span><span class="n">_nfields</span><span class="p">]</span>
+        <span class="k">for</span> <span class="n">base</span> <span class="ow">in</span> <span class="nb">reversed</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_bases</span><span class="p">):</span>
+            <span class="k">if</span> <span class="n">base</span><span class="o">.</span><span class="n">step</span> <span class="o">&lt;</span> <span class="mi">1</span><span class="p">:</span>
+                <span class="n">s</span> <span class="o">=</span> <span class="nb">slice</span><span class="p">(</span><span class="n">base</span><span class="o">.</span><span class="n">start</span><span class="p">,</span> <span class="kc">None</span><span class="p">,</span> <span class="n">base</span><span class="o">.</span><span class="n">step</span><span class="p">)</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="n">s</span> <span class="o">=</span> <span class="nb">slice</span><span class="p">(</span><span class="n">base</span><span class="o">.</span><span class="n">start</span><span class="p">,</span> <span class="n">base</span><span class="o">.</span><span class="n">end</span><span class="p">,</span> <span class="n">base</span><span class="o">.</span><span class="n">step</span><span class="p">)</span>
+            <span class="n">indices</span> <span class="o">=</span> <span class="n">indices</span><span class="p">[</span><span class="n">s</span><span class="p">]</span>
+        <span class="k">return</span> <span class="n">indices</span><span class="p">[</span><span class="n">indx</span><span class="p">]</span></div>
+
+
+<div class="viewcode-block" id="FITS_rec"><a class="viewcode-back" href="../../../../io/fits/api/tables.html#astropy.io.fits.FITS_rec">[docs]</a><span class="k">class</span> <span class="nc">FITS_rec</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">recarray</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    FITS record array class.</span>
+
+<span class="sd">    `FITS_rec` is the data part of a table HDU&#39;s data part.  This is a layer</span>
+<span class="sd">    over the `~numpy.recarray`, so we can deal with scaled columns.</span>
+
+<span class="sd">    It inherits all of the standard methods from `numpy.ndarray`.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="n">_record_type</span> <span class="o">=</span> <span class="n">FITS_record</span>
+
+    <span class="k">def</span> <span class="nf">__new__</span><span class="p">(</span><span class="n">subtype</span><span class="p">,</span> <span class="nb">input</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Construct a FITS record array from a recarray.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+
+        <span class="c1"># input should be a record array</span>
+        <span class="k">if</span> <span class="nb">input</span><span class="o">.</span><span class="n">dtype</span><span class="o">.</span><span class="n">subdtype</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="bp">self</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">recarray</span><span class="o">.</span><span class="n">__new__</span><span class="p">(</span><span class="n">subtype</span><span class="p">,</span> <span class="nb">input</span><span class="o">.</span><span class="n">shape</span><span class="p">,</span> <span class="nb">input</span><span class="o">.</span><span class="n">dtype</span><span class="p">,</span>
+                                       <span class="n">buf</span><span class="o">=</span><span class="nb">input</span><span class="o">.</span><span class="n">data</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="bp">self</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">recarray</span><span class="o">.</span><span class="n">__new__</span><span class="p">(</span><span class="n">subtype</span><span class="p">,</span> <span class="nb">input</span><span class="o">.</span><span class="n">shape</span><span class="p">,</span> <span class="nb">input</span><span class="o">.</span><span class="n">dtype</span><span class="p">,</span>
+                                       <span class="n">buf</span><span class="o">=</span><span class="nb">input</span><span class="o">.</span><span class="n">data</span><span class="p">,</span> <span class="n">strides</span><span class="o">=</span><span class="nb">input</span><span class="o">.</span><span class="n">strides</span><span class="p">)</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">_init</span><span class="p">()</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">dtype</span><span class="o">.</span><span class="n">fields</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_nfields</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">dtype</span><span class="o">.</span><span class="n">fields</span><span class="p">)</span>
+
+        <span class="k">return</span> <span class="bp">self</span>
+
+    <span class="k">def</span> <span class="nf">__setstate__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">state</span><span class="p">):</span>
+        <span class="n">meta</span> <span class="o">=</span> <span class="n">state</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span>
+        <span class="n">column_state</span> <span class="o">=</span> <span class="n">state</span><span class="p">[</span><span class="o">-</span><span class="mi">2</span><span class="p">]</span>
+        <span class="n">state</span> <span class="o">=</span> <span class="n">state</span><span class="p">[:</span><span class="o">-</span><span class="mi">2</span><span class="p">]</span>
+
+        <span class="nb">super</span><span class="p">(</span><span class="n">FITS_rec</span><span class="p">,</span> <span class="bp">self</span><span class="p">)</span><span class="o">.</span><span class="n">__setstate__</span><span class="p">(</span><span class="n">state</span><span class="p">)</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">_col_weakrefs</span> <span class="o">=</span> <span class="n">weakref</span><span class="o">.</span><span class="n">WeakSet</span><span class="p">()</span>
+
+        <span class="k">for</span> <span class="n">attr</span><span class="p">,</span> <span class="n">value</span> <span class="ow">in</span> <span class="nb">zip</span><span class="p">(</span><span class="n">meta</span><span class="p">,</span> <span class="n">column_state</span><span class="p">):</span>
+            <span class="nb">setattr</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">attr</span><span class="p">,</span> <span class="n">value</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">__reduce__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Return a 3-tuple for pickling a FITS_rec. Use the super-class</span>
+<span class="sd">        functionality but then add in a tuple of FITS_rec-specific</span>
+<span class="sd">        values that get used in __setstate__.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+
+        <span class="n">reconst_func</span><span class="p">,</span> <span class="n">reconst_func_args</span><span class="p">,</span> <span class="n">state</span> <span class="o">=</span> \
+            <span class="nb">super</span><span class="p">(</span><span class="n">FITS_rec</span><span class="p">,</span> <span class="bp">self</span><span class="p">)</span><span class="o">.</span><span class="n">__reduce__</span><span class="p">()</span>
+
+        <span class="c1"># Define FITS_rec-specific attrs that get added to state</span>
+        <span class="n">column_state</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="n">meta</span> <span class="o">=</span> <span class="p">[]</span>
+
+        <span class="k">for</span> <span class="n">attrs</span> <span class="ow">in</span> <span class="p">[</span><span class="s1">&#39;_converted&#39;</span><span class="p">,</span> <span class="s1">&#39;_heapoffset&#39;</span><span class="p">,</span> <span class="s1">&#39;_heapsize&#39;</span><span class="p">,</span> <span class="s1">&#39;_nfields&#39;</span><span class="p">,</span>
+                      <span class="s1">&#39;_gap&#39;</span><span class="p">,</span> <span class="s1">&#39;_uint&#39;</span><span class="p">,</span> <span class="s1">&#39;parnames&#39;</span><span class="p">,</span> <span class="s1">&#39;_coldefs&#39;</span><span class="p">]:</span>
+
+            <span class="k">with</span> <span class="n">suppress</span><span class="p">(</span><span class="ne">AttributeError</span><span class="p">):</span>
+                <span class="c1"># _coldefs can be Delayed, and file objects cannot be</span>
+                <span class="c1"># picked, it needs to be deepcopied first</span>
+                <span class="k">if</span> <span class="n">attrs</span> <span class="o">==</span> <span class="s1">&#39;_coldefs&#39;</span><span class="p">:</span>
+                    <span class="n">column_state</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_coldefs</span><span class="o">.</span><span class="n">__deepcopy__</span><span class="p">(</span><span class="kc">None</span><span class="p">))</span>
+                <span class="k">else</span><span class="p">:</span>
+                    <span class="n">column_state</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="nb">getattr</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">attrs</span><span class="p">))</span>
+                <span class="n">meta</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">attrs</span><span class="p">)</span>
+
+        <span class="n">state</span> <span class="o">=</span> <span class="n">state</span> <span class="o">+</span> <span class="p">(</span><span class="n">column_state</span><span class="p">,</span> <span class="n">meta</span><span class="p">)</span>
+
+        <span class="k">return</span> <span class="n">reconst_func</span><span class="p">,</span> <span class="n">reconst_func_args</span><span class="p">,</span> <span class="n">state</span>
+
+    <span class="k">def</span> <span class="nf">__array_finalize__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">obj</span><span class="p">):</span>
+        <span class="k">if</span> <span class="n">obj</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="k">return</span>
+
+        <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">obj</span><span class="p">,</span> <span class="n">FITS_rec</span><span class="p">)</span> <span class="ow">and</span> <span class="n">obj</span><span class="o">.</span><span class="n">dtype</span> <span class="o">==</span> <span class="bp">self</span><span class="o">.</span><span class="n">dtype</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_converted</span> <span class="o">=</span> <span class="n">obj</span><span class="o">.</span><span class="n">_converted</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_heapoffset</span> <span class="o">=</span> <span class="n">obj</span><span class="o">.</span><span class="n">_heapoffset</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_heapsize</span> <span class="o">=</span> <span class="n">obj</span><span class="o">.</span><span class="n">_heapsize</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_col_weakrefs</span> <span class="o">=</span> <span class="n">obj</span><span class="o">.</span><span class="n">_col_weakrefs</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_coldefs</span> <span class="o">=</span> <span class="n">obj</span><span class="o">.</span><span class="n">_coldefs</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_nfields</span> <span class="o">=</span> <span class="n">obj</span><span class="o">.</span><span class="n">_nfields</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_gap</span> <span class="o">=</span> <span class="n">obj</span><span class="o">.</span><span class="n">_gap</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_uint</span> <span class="o">=</span> <span class="n">obj</span><span class="o">.</span><span class="n">_uint</span>
+        <span class="k">elif</span> <span class="bp">self</span><span class="o">.</span><span class="n">dtype</span><span class="o">.</span><span class="n">fields</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="c1"># This will allow regular ndarrays with fields, rather than</span>
+            <span class="c1"># just other FITS_rec objects</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_nfields</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">dtype</span><span class="o">.</span><span class="n">fields</span><span class="p">)</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_converted</span> <span class="o">=</span> <span class="p">{}</span>
+
+            <span class="bp">self</span><span class="o">.</span><span class="n">_heapoffset</span> <span class="o">=</span> <span class="nb">getattr</span><span class="p">(</span><span class="n">obj</span><span class="p">,</span> <span class="s1">&#39;_heapoffset&#39;</span><span class="p">,</span> <span class="mi">0</span><span class="p">)</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_heapsize</span> <span class="o">=</span> <span class="nb">getattr</span><span class="p">(</span><span class="n">obj</span><span class="p">,</span> <span class="s1">&#39;_heapsize&#39;</span><span class="p">,</span> <span class="mi">0</span><span class="p">)</span>
+
+            <span class="bp">self</span><span class="o">.</span><span class="n">_gap</span> <span class="o">=</span> <span class="nb">getattr</span><span class="p">(</span><span class="n">obj</span><span class="p">,</span> <span class="s1">&#39;_gap&#39;</span><span class="p">,</span> <span class="mi">0</span><span class="p">)</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_uint</span> <span class="o">=</span> <span class="nb">getattr</span><span class="p">(</span><span class="n">obj</span><span class="p">,</span> <span class="s1">&#39;_uint&#39;</span><span class="p">,</span> <span class="kc">False</span><span class="p">)</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_col_weakrefs</span> <span class="o">=</span> <span class="n">weakref</span><span class="o">.</span><span class="n">WeakSet</span><span class="p">()</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_coldefs</span> <span class="o">=</span> <span class="n">ColDefs</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span>
+
+            <span class="c1"># Work around chicken-egg problem.  Column.array relies on the</span>
+            <span class="c1"># _coldefs attribute to set up ref back to parent FITS_rec; however</span>
+            <span class="c1"># in the above line the self._coldefs has not been assigned yet so</span>
+            <span class="c1"># this fails.  This patches that up...</span>
+            <span class="k">for</span> <span class="n">col</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">_coldefs</span><span class="p">:</span>
+                <span class="k">del</span> <span class="n">col</span><span class="o">.</span><span class="n">array</span>
+                <span class="n">col</span><span class="o">.</span><span class="n">_parent_fits_rec</span> <span class="o">=</span> <span class="n">weakref</span><span class="o">.</span><span class="n">ref</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_init</span><span class="p">()</span>
+
+    <span class="k">def</span> <span class="nf">_init</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Initializes internal attributes specific to FITS-isms.&quot;&quot;&quot;</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">_nfields</span> <span class="o">=</span> <span class="mi">0</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_converted</span> <span class="o">=</span> <span class="p">{}</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_heapoffset</span> <span class="o">=</span> <span class="mi">0</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_heapsize</span> <span class="o">=</span> <span class="mi">0</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_col_weakrefs</span> <span class="o">=</span> <span class="n">weakref</span><span class="o">.</span><span class="n">WeakSet</span><span class="p">()</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_coldefs</span> <span class="o">=</span> <span class="kc">None</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_gap</span> <span class="o">=</span> <span class="mi">0</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_uint</span> <span class="o">=</span> <span class="kc">False</span>
+
+    <span class="nd">@classmethod</span>
+<div class="viewcode-block" id="FITS_rec.from_columns"><a class="viewcode-back" href="../../../../io/fits/api/tables.html#astropy.io.fits.FITS_rec.from_columns">[docs]</a>    <span class="k">def</span> <span class="nf">from_columns</span><span class="p">(</span><span class="n">cls</span><span class="p">,</span> <span class="n">columns</span><span class="p">,</span> <span class="n">nrows</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span> <span class="n">fill</span><span class="o">=</span><span class="kc">False</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Given a `ColDefs` object of unknown origin, initialize a new `FITS_rec`</span>
+<span class="sd">        object.</span>
+
+<span class="sd">        .. note::</span>
+
+<span class="sd">            This was originally part of the ``new_table`` function in the table</span>
+<span class="sd">            module but was moved into a class method since most of its</span>
+<span class="sd">            functionality always had more to do with initializing a `FITS_rec`</span>
+<span class="sd">            object than anything else, and much of it also overlapped with</span>
+<span class="sd">            ``FITS_rec._scale_back``.</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        columns : sequence of `Column` or a `ColDefs`</span>
+<span class="sd">            The columns from which to create the table data.  If these</span>
+<span class="sd">            columns have data arrays attached that data may be used in</span>
+<span class="sd">            initializing the new table.  Otherwise the input columns</span>
+<span class="sd">            will be used as a template for a new table with the requested</span>
+<span class="sd">            number of rows.</span>
+
+<span class="sd">        nrows : int</span>
+<span class="sd">            Number of rows in the new table.  If the input columns have data</span>
+<span class="sd">            associated with them, the size of the largest input column is used.</span>
+<span class="sd">            Otherwise the default is 0.</span>
+
+<span class="sd">        fill : bool</span>
+<span class="sd">            If `True`, will fill all cells with zeros or blanks.  If</span>
+<span class="sd">            `False`, copy the data from input, undefined cells will still</span>
+<span class="sd">            be filled with zeros/blanks.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+
+        <span class="k">if</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">columns</span><span class="p">,</span> <span class="n">ColDefs</span><span class="p">):</span>
+            <span class="n">columns</span> <span class="o">=</span> <span class="n">ColDefs</span><span class="p">(</span><span class="n">columns</span><span class="p">)</span>
+
+        <span class="c1"># read the delayed data</span>
+        <span class="k">for</span> <span class="n">column</span> <span class="ow">in</span> <span class="n">columns</span><span class="p">:</span>
+            <span class="n">arr</span> <span class="o">=</span> <span class="n">column</span><span class="o">.</span><span class="n">array</span>
+            <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">arr</span><span class="p">,</span> <span class="n">Delayed</span><span class="p">):</span>
+                <span class="k">if</span> <span class="n">arr</span><span class="o">.</span><span class="n">hdu</span><span class="o">.</span><span class="n">data</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+                    <span class="n">column</span><span class="o">.</span><span class="n">array</span> <span class="o">=</span> <span class="kc">None</span>
+                <span class="k">else</span><span class="p">:</span>
+                    <span class="n">column</span><span class="o">.</span><span class="n">array</span> <span class="o">=</span> <span class="n">_get_recarray_field</span><span class="p">(</span><span class="n">arr</span><span class="o">.</span><span class="n">hdu</span><span class="o">.</span><span class="n">data</span><span class="p">,</span>
+                                                       <span class="n">arr</span><span class="o">.</span><span class="n">field</span><span class="p">)</span>
+        <span class="c1"># Reset columns._arrays (which we may want to just do away with</span>
+        <span class="c1"># altogether</span>
+        <span class="k">del</span> <span class="n">columns</span><span class="o">.</span><span class="n">_arrays</span>
+
+        <span class="c1"># use the largest column shape as the shape of the record</span>
+        <span class="k">if</span> <span class="n">nrows</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
+            <span class="k">for</span> <span class="n">arr</span> <span class="ow">in</span> <span class="n">columns</span><span class="o">.</span><span class="n">_arrays</span><span class="p">:</span>
+                <span class="k">if</span> <span class="n">arr</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+                    <span class="n">dim</span> <span class="o">=</span> <span class="n">arr</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+                <span class="k">else</span><span class="p">:</span>
+                    <span class="n">dim</span> <span class="o">=</span> <span class="mi">0</span>
+                <span class="k">if</span> <span class="n">dim</span> <span class="o">&gt;</span> <span class="n">nrows</span><span class="p">:</span>
+                    <span class="n">nrows</span> <span class="o">=</span> <span class="n">dim</span>
+
+        <span class="n">raw_data</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">empty</span><span class="p">(</span><span class="n">columns</span><span class="o">.</span><span class="n">dtype</span><span class="o">.</span><span class="n">itemsize</span> <span class="o">*</span> <span class="n">nrows</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="n">np</span><span class="o">.</span><span class="n">uint8</span><span class="p">)</span>
+        <span class="n">raw_data</span><span class="o">.</span><span class="n">fill</span><span class="p">(</span><span class="nb">ord</span><span class="p">(</span><span class="n">columns</span><span class="o">.</span><span class="n">_padding_byte</span><span class="p">))</span>
+        <span class="n">data</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">recarray</span><span class="p">(</span><span class="n">nrows</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="n">columns</span><span class="o">.</span><span class="n">dtype</span><span class="p">,</span> <span class="n">buf</span><span class="o">=</span><span class="n">raw_data</span><span class="p">)</span><span class="o">.</span><span class="n">view</span><span class="p">(</span><span class="n">cls</span><span class="p">)</span>
+
+        <span class="c1"># Make sure the data is a listener for changes to the columns</span>
+        <span class="n">columns</span><span class="o">.</span><span class="n">_add_listener</span><span class="p">(</span><span class="n">data</span><span class="p">)</span>
+
+        <span class="c1"># Previously this assignment was made from hdu.columns, but that&#39;s a</span>
+        <span class="c1"># bug since if a _TableBaseHDU has a FITS_rec in its .data attribute</span>
+        <span class="c1"># the _TableBaseHDU.columns property is actually returned from</span>
+        <span class="c1"># .data._coldefs, so this assignment was circular!  Don&#39;t make that</span>
+        <span class="c1"># mistake again.</span>
+        <span class="c1"># All of this is an artifact of the fragility of the FITS_rec class,</span>
+        <span class="c1"># and that it can&#39;t just be initialized by columns...</span>
+        <span class="n">data</span><span class="o">.</span><span class="n">_coldefs</span> <span class="o">=</span> <span class="n">columns</span>
+
+        <span class="c1"># If fill is True we don&#39;t copy anything from the column arrays.  We&#39;re</span>
+        <span class="c1"># just using them as a template, and returning a table filled with</span>
+        <span class="c1"># zeros/blanks</span>
+        <span class="k">if</span> <span class="n">fill</span><span class="p">:</span>
+            <span class="k">return</span> <span class="n">data</span>
+
+        <span class="c1"># Otherwise we have to fill the recarray with data from the input</span>
+        <span class="c1"># columns</span>
+        <span class="k">for</span> <span class="n">idx</span><span class="p">,</span> <span class="n">column</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="n">columns</span><span class="p">):</span>
+            <span class="c1"># For each column in the ColDef object, determine the number of</span>
+            <span class="c1"># rows in that column.  This will be either the number of rows in</span>
+            <span class="c1"># the ndarray associated with the column, or the number of rows</span>
+            <span class="c1"># given in the call to this function, which ever is smaller.  If</span>
+            <span class="c1"># the input FILL argument is true, the number of rows is set to</span>
+            <span class="c1"># zero so that no data is copied from the original input data.</span>
+            <span class="n">arr</span> <span class="o">=</span> <span class="n">column</span><span class="o">.</span><span class="n">array</span>
+
+            <span class="k">if</span> <span class="n">arr</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+                <span class="n">array_size</span> <span class="o">=</span> <span class="mi">0</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="n">array_size</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="n">arr</span><span class="p">)</span>
+
+            <span class="n">n</span> <span class="o">=</span> <span class="nb">min</span><span class="p">(</span><span class="n">array_size</span><span class="p">,</span> <span class="n">nrows</span><span class="p">)</span>
+
+            <span class="c1"># TODO: At least *some* of this logic is mostly redundant with the</span>
+            <span class="c1"># _convert_foo methods in this class; see if we can eliminate some</span>
+            <span class="c1"># of that duplication.</span>
+
+            <span class="k">if</span> <span class="ow">not</span> <span class="n">n</span><span class="p">:</span>
+                <span class="c1"># The input column had an empty array, so just use the fill</span>
+                <span class="c1"># value</span>
+                <span class="k">continue</span>
+
+            <span class="n">field</span> <span class="o">=</span> <span class="n">_get_recarray_field</span><span class="p">(</span><span class="n">data</span><span class="p">,</span> <span class="n">idx</span><span class="p">)</span>
+            <span class="n">name</span> <span class="o">=</span> <span class="n">column</span><span class="o">.</span><span class="n">name</span>
+            <span class="n">fitsformat</span> <span class="o">=</span> <span class="n">column</span><span class="o">.</span><span class="n">format</span>
+            <span class="n">recformat</span> <span class="o">=</span> <span class="n">fitsformat</span><span class="o">.</span><span class="n">recformat</span>
+
+            <span class="n">outarr</span> <span class="o">=</span> <span class="n">field</span><span class="p">[:</span><span class="n">n</span><span class="p">]</span>
+            <span class="n">inarr</span> <span class="o">=</span> <span class="n">arr</span><span class="p">[:</span><span class="n">n</span><span class="p">]</span>
+
+            <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">recformat</span><span class="p">,</span> <span class="n">_FormatX</span><span class="p">):</span>
+                <span class="c1"># Data is a bit array</span>
+                <span class="k">if</span> <span class="n">inarr</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span> <span class="o">==</span> <span class="n">recformat</span><span class="o">.</span><span class="n">repeat</span><span class="p">:</span>
+                    <span class="n">_wrapx</span><span class="p">(</span><span class="n">inarr</span><span class="p">,</span> <span class="n">outarr</span><span class="p">,</span> <span class="n">recformat</span><span class="o">.</span><span class="n">repeat</span><span class="p">)</span>
+                    <span class="k">continue</span>
+            <span class="k">elif</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">recformat</span><span class="p">,</span> <span class="n">_FormatP</span><span class="p">):</span>
+                <span class="n">data</span><span class="o">.</span><span class="n">_cache_field</span><span class="p">(</span><span class="n">name</span><span class="p">,</span> <span class="n">_makep</span><span class="p">(</span><span class="n">inarr</span><span class="p">,</span> <span class="n">field</span><span class="p">,</span> <span class="n">recformat</span><span class="p">,</span>
+                                               <span class="n">nrows</span><span class="o">=</span><span class="n">nrows</span><span class="p">))</span>
+                <span class="k">continue</span>
+            <span class="c1"># TODO: Find a better way of determining that the column is meant</span>
+            <span class="c1"># to be FITS L formatted</span>
+            <span class="k">elif</span> <span class="n">recformat</span><span class="p">[</span><span class="o">-</span><span class="mi">2</span><span class="p">:]</span> <span class="o">==</span> <span class="n">FITS2NUMPY</span><span class="p">[</span><span class="s1">&#39;L&#39;</span><span class="p">]</span> <span class="ow">and</span> <span class="n">inarr</span><span class="o">.</span><span class="n">dtype</span> <span class="o">==</span> <span class="nb">bool</span><span class="p">:</span>
+                <span class="c1"># column is boolean</span>
+                <span class="c1"># The raw data field should be filled with either &#39;T&#39; or &#39;F&#39;</span>
+                <span class="c1"># (not 0).  Use &#39;F&#39; as a default</span>
+                <span class="n">field</span><span class="p">[:]</span> <span class="o">=</span> <span class="nb">ord</span><span class="p">(</span><span class="s1">&#39;F&#39;</span><span class="p">)</span>
+                <span class="c1"># Also save the original boolean array in data._converted so</span>
+                <span class="c1"># that it doesn&#39;t have to be re-converted</span>
+                <span class="n">converted</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">zeros</span><span class="p">(</span><span class="n">field</span><span class="o">.</span><span class="n">shape</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="nb">bool</span><span class="p">)</span>
+                <span class="n">converted</span><span class="p">[:</span><span class="n">n</span><span class="p">]</span> <span class="o">=</span> <span class="n">inarr</span>
+                <span class="n">data</span><span class="o">.</span><span class="n">_cache_field</span><span class="p">(</span><span class="n">name</span><span class="p">,</span> <span class="n">converted</span><span class="p">)</span>
+                <span class="c1"># TODO: Maybe this step isn&#39;t necessary at all if _scale_back</span>
+                <span class="c1"># will handle it?</span>
+                <span class="n">inarr</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">where</span><span class="p">(</span><span class="n">inarr</span> <span class="o">==</span> <span class="n">np</span><span class="o">.</span><span class="n">False_</span><span class="p">,</span> <span class="nb">ord</span><span class="p">(</span><span class="s1">&#39;F&#39;</span><span class="p">),</span> <span class="nb">ord</span><span class="p">(</span><span class="s1">&#39;T&#39;</span><span class="p">))</span>
+            <span class="k">elif</span> <span class="p">(</span><span class="n">columns</span><span class="p">[</span><span class="n">idx</span><span class="p">]</span><span class="o">.</span><span class="n">_physical_values</span> <span class="ow">and</span>
+                    <span class="n">columns</span><span class="p">[</span><span class="n">idx</span><span class="p">]</span><span class="o">.</span><span class="n">_pseudo_unsigned_ints</span><span class="p">):</span>
+                <span class="c1"># Temporary hack...</span>
+                <span class="n">bzero</span> <span class="o">=</span> <span class="n">column</span><span class="o">.</span><span class="n">bzero</span>
+                <span class="n">converted</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">zeros</span><span class="p">(</span><span class="n">field</span><span class="o">.</span><span class="n">shape</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="n">inarr</span><span class="o">.</span><span class="n">dtype</span><span class="p">)</span>
+                <span class="n">converted</span><span class="p">[:</span><span class="n">n</span><span class="p">]</span> <span class="o">=</span> <span class="n">inarr</span>
+                <span class="n">data</span><span class="o">.</span><span class="n">_cache_field</span><span class="p">(</span><span class="n">name</span><span class="p">,</span> <span class="n">converted</span><span class="p">)</span>
+                <span class="k">if</span> <span class="n">n</span> <span class="o">&lt;</span> <span class="n">nrows</span><span class="p">:</span>
+                    <span class="c1"># Pre-scale rows below the input data</span>
+                    <span class="n">field</span><span class="p">[</span><span class="n">n</span><span class="p">:]</span> <span class="o">=</span> <span class="o">-</span><span class="n">bzero</span>
+
+                <span class="n">inarr</span> <span class="o">=</span> <span class="n">inarr</span> <span class="o">-</span> <span class="n">bzero</span>
+            <span class="k">elif</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">columns</span><span class="p">,</span> <span class="n">_AsciiColDefs</span><span class="p">):</span>
+                <span class="c1"># Regardless whether the format is character or numeric, if the</span>
+                <span class="c1"># input array contains characters then it&#39;s already in the raw</span>
+                <span class="c1"># format for ASCII tables</span>
+                <span class="k">if</span> <span class="n">fitsformat</span><span class="o">.</span><span class="n">_pseudo_logical</span><span class="p">:</span>
+                    <span class="c1"># Hack to support converting from 8-bit T/F characters</span>
+                    <span class="c1"># Normally the column array is a chararray of 1 character</span>
+                    <span class="c1"># strings, but we need to view it as a normal ndarray of</span>
+                    <span class="c1"># 8-bit ints to fill it with ASCII codes for &#39;T&#39; and &#39;F&#39;</span>
+                    <span class="n">outarr</span> <span class="o">=</span> <span class="n">field</span><span class="o">.</span><span class="n">view</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">uint8</span><span class="p">,</span> <span class="n">np</span><span class="o">.</span><span class="n">ndarray</span><span class="p">)[:</span><span class="n">n</span><span class="p">]</span>
+                <span class="k">elif</span> <span class="n">arr</span><span class="o">.</span><span class="n">dtype</span><span class="o">.</span><span class="n">kind</span> <span class="ow">not</span> <span class="ow">in</span> <span class="p">(</span><span class="s1">&#39;S&#39;</span><span class="p">,</span> <span class="s1">&#39;U&#39;</span><span class="p">):</span>
+                    <span class="c1"># Set up views of numeric columns with the appropriate</span>
+                    <span class="c1"># numeric dtype</span>
+                    <span class="c1"># Fill with the appropriate blanks for the column format</span>
+                    <span class="n">data</span><span class="o">.</span><span class="n">_cache_field</span><span class="p">(</span><span class="n">name</span><span class="p">,</span> <span class="n">np</span><span class="o">.</span><span class="n">zeros</span><span class="p">(</span><span class="n">nrows</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="n">arr</span><span class="o">.</span><span class="n">dtype</span><span class="p">))</span>
+                    <span class="n">outarr</span> <span class="o">=</span> <span class="n">data</span><span class="o">.</span><span class="n">_converted</span><span class="p">[</span><span class="n">name</span><span class="p">][:</span><span class="n">n</span><span class="p">]</span>
+
+                <span class="n">outarr</span><span class="p">[:]</span> <span class="o">=</span> <span class="n">inarr</span>
+                <span class="k">continue</span>
+
+            <span class="k">if</span> <span class="n">inarr</span><span class="o">.</span><span class="n">shape</span> <span class="o">!=</span> <span class="n">outarr</span><span class="o">.</span><span class="n">shape</span><span class="p">:</span>
+                <span class="k">if</span> <span class="p">(</span><span class="n">inarr</span><span class="o">.</span><span class="n">dtype</span><span class="o">.</span><span class="n">kind</span> <span class="o">==</span> <span class="n">outarr</span><span class="o">.</span><span class="n">dtype</span><span class="o">.</span><span class="n">kind</span> <span class="ow">and</span>
+                        <span class="n">inarr</span><span class="o">.</span><span class="n">dtype</span><span class="o">.</span><span class="n">kind</span> <span class="ow">in</span> <span class="p">(</span><span class="s1">&#39;U&#39;</span><span class="p">,</span> <span class="s1">&#39;S&#39;</span><span class="p">)</span> <span class="ow">and</span>
+                        <span class="n">inarr</span><span class="o">.</span><span class="n">dtype</span> <span class="o">!=</span> <span class="n">outarr</span><span class="o">.</span><span class="n">dtype</span><span class="p">):</span>
+
+                    <span class="n">inarr_rowsize</span> <span class="o">=</span> <span class="n">inarr</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">size</span>
+                    <span class="n">inarr</span> <span class="o">=</span> <span class="n">inarr</span><span class="o">.</span><span class="n">flatten</span><span class="p">()</span><span class="o">.</span><span class="n">view</span><span class="p">(</span><span class="n">outarr</span><span class="o">.</span><span class="n">dtype</span><span class="p">)</span>
+
+                <span class="c1"># This is a special case to handle input arrays with</span>
+                <span class="c1"># non-trivial TDIMn.</span>
+                <span class="c1"># By design each row of the outarray is 1-D, while each row of</span>
+                <span class="c1"># the input array may be n-D</span>
+                <span class="k">if</span> <span class="n">outarr</span><span class="o">.</span><span class="n">ndim</span> <span class="o">&gt;</span> <span class="mi">1</span><span class="p">:</span>
+                    <span class="c1"># The normal case where the first dimension is the rows</span>
+                    <span class="n">inarr_rowsize</span> <span class="o">=</span> <span class="n">inarr</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">size</span>
+                    <span class="n">inarr</span> <span class="o">=</span> <span class="n">inarr</span><span class="o">.</span><span class="n">reshape</span><span class="p">((</span><span class="n">n</span><span class="p">,</span> <span class="n">inarr_rowsize</span><span class="p">))</span>
+                    <span class="n">outarr</span><span class="p">[:,</span> <span class="p">:</span><span class="n">inarr_rowsize</span><span class="p">]</span> <span class="o">=</span> <span class="n">inarr</span>
+                <span class="k">else</span><span class="p">:</span>
+                    <span class="c1"># Special case for strings where the out array only has one</span>
+                    <span class="c1"># dimension (the second dimension is rolled up into the</span>
+                    <span class="c1"># strings</span>
+                    <span class="n">outarr</span><span class="p">[:</span><span class="n">n</span><span class="p">]</span> <span class="o">=</span> <span class="n">inarr</span><span class="o">.</span><span class="n">ravel</span><span class="p">()</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="n">outarr</span><span class="p">[:]</span> <span class="o">=</span> <span class="n">inarr</span>
+
+        <span class="c1"># Now replace the original column array references with the new</span>
+        <span class="c1"># fields</span>
+        <span class="c1"># This is required to prevent the issue reported in</span>
+        <span class="c1"># https://github.com/spacetelescope/PyFITS/issues/99</span>
+        <span class="k">for</span> <span class="n">idx</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">columns</span><span class="p">)):</span>
+            <span class="n">columns</span><span class="o">.</span><span class="n">_arrays</span><span class="p">[</span><span class="n">idx</span><span class="p">]</span> <span class="o">=</span> <span class="n">data</span><span class="o">.</span><span class="n">field</span><span class="p">(</span><span class="n">idx</span><span class="p">)</span>
+
+        <span class="k">return</span> <span class="n">data</span></div>
+
+    <span class="k">def</span> <span class="nf">__repr__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="c1"># Force use of the normal ndarray repr (rather than the new</span>
+        <span class="c1"># one added for recarray in Numpy 1.10) for backwards compat</span>
+        <span class="k">return</span> <span class="n">np</span><span class="o">.</span><span class="n">ndarray</span><span class="o">.</span><span class="n">__repr__</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">__getitem__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">key</span><span class="p">):</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_coldefs</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="k">return</span> <span class="nb">super</span><span class="p">(</span><span class="n">FITS_rec</span><span class="p">,</span> <span class="bp">self</span><span class="p">)</span><span class="o">.</span><span class="n">__getitem__</span><span class="p">(</span><span class="n">key</span><span class="p">)</span>
+
+        <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">key</span><span class="p">,</span> <span class="n">string_types</span><span class="p">):</span>
+            <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">field</span><span class="p">(</span><span class="n">key</span><span class="p">)</span>
+        <span class="k">elif</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">key</span><span class="p">,</span> <span class="p">(</span><span class="nb">slice</span><span class="p">,</span> <span class="n">np</span><span class="o">.</span><span class="n">ndarray</span><span class="p">,</span> <span class="nb">tuple</span><span class="p">,</span> <span class="nb">list</span><span class="p">)):</span>
+            <span class="c1"># Have to view as a recarray then back as a FITS_rec, otherwise the</span>
+            <span class="c1"># circular reference fix/hack in FITS_rec.field() won&#39;t preserve</span>
+            <span class="c1"># the slice</span>
+            <span class="n">subtype</span> <span class="o">=</span> <span class="nb">type</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span>
+            <span class="n">out</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">view</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">recarray</span><span class="p">)</span><span class="o">.</span><span class="n">__getitem__</span><span class="p">(</span><span class="n">key</span><span class="p">)</span><span class="o">.</span><span class="n">view</span><span class="p">(</span><span class="n">subtype</span><span class="p">)</span>
+            <span class="n">out</span><span class="o">.</span><span class="n">_coldefs</span> <span class="o">=</span> <span class="n">ColDefs</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_coldefs</span><span class="p">)</span>
+            <span class="n">arrays</span> <span class="o">=</span> <span class="p">[]</span>
+            <span class="n">out</span><span class="o">.</span><span class="n">_converted</span> <span class="o">=</span> <span class="p">{}</span>
+            <span class="k">for</span> <span class="n">idx</span><span class="p">,</span> <span class="n">name</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_coldefs</span><span class="o">.</span><span class="n">names</span><span class="p">):</span>
+                <span class="c1">#</span>
+                <span class="c1"># Store the new arrays for the _coldefs object</span>
+                <span class="c1">#</span>
+                <span class="n">arrays</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_coldefs</span><span class="o">.</span><span class="n">_arrays</span><span class="p">[</span><span class="n">idx</span><span class="p">][</span><span class="n">key</span><span class="p">])</span>
+
+                <span class="c1"># Ensure that the sliced FITS_rec will view the same scaled</span>
+                <span class="c1"># columns as the original; this is one of the few cases where</span>
+                <span class="c1"># it is not necessary to use _cache_field()</span>
+                <span class="k">if</span> <span class="n">name</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">_converted</span><span class="p">:</span>
+                    <span class="n">dummy</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_converted</span><span class="p">[</span><span class="n">name</span><span class="p">]</span>
+                    <span class="n">field</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">ndarray</span><span class="o">.</span><span class="n">__getitem__</span><span class="p">(</span><span class="n">dummy</span><span class="p">,</span> <span class="n">key</span><span class="p">)</span>
+                    <span class="n">out</span><span class="o">.</span><span class="n">_converted</span><span class="p">[</span><span class="n">name</span><span class="p">]</span> <span class="o">=</span> <span class="n">field</span>
+
+            <span class="n">out</span><span class="o">.</span><span class="n">_coldefs</span><span class="o">.</span><span class="n">_arrays</span> <span class="o">=</span> <span class="n">arrays</span>
+            <span class="k">return</span> <span class="n">out</span>
+
+        <span class="c1"># if not a slice, do this because Record has no __getstate__.</span>
+        <span class="c1"># also more efficient.</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">key</span><span class="p">,</span> <span class="nb">int</span><span class="p">)</span> <span class="ow">and</span> <span class="n">key</span> <span class="o">&gt;=</span> <span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+                <span class="k">raise</span> <span class="ne">IndexError</span><span class="p">(</span><span class="s2">&quot;Index out of bounds&quot;</span><span class="p">)</span>
+
+            <span class="n">newrecord</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_record_type</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">key</span><span class="p">)</span>
+            <span class="k">return</span> <span class="n">newrecord</span>
+
+    <span class="k">def</span> <span class="nf">__setitem__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">key</span><span class="p">,</span> <span class="n">value</span><span class="p">):</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_coldefs</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="k">return</span> <span class="nb">super</span><span class="p">(</span><span class="n">FITS_rec</span><span class="p">,</span> <span class="bp">self</span><span class="p">)</span><span class="o">.</span><span class="n">__setitem__</span><span class="p">(</span><span class="n">key</span><span class="p">,</span> <span class="n">value</span><span class="p">)</span>
+
+        <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">key</span><span class="p">,</span> <span class="n">string_types</span><span class="p">):</span>
+            <span class="bp">self</span><span class="p">[</span><span class="n">key</span><span class="p">][:]</span> <span class="o">=</span> <span class="n">value</span>
+            <span class="k">return</span>
+
+        <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">key</span><span class="p">,</span> <span class="nb">slice</span><span class="p">):</span>
+            <span class="n">end</span> <span class="o">=</span> <span class="nb">min</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="p">),</span> <span class="n">key</span><span class="o">.</span><span class="n">stop</span> <span class="ow">or</span> <span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="p">))</span>
+            <span class="n">end</span> <span class="o">=</span> <span class="nb">max</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="n">end</span><span class="p">)</span>
+            <span class="n">start</span> <span class="o">=</span> <span class="nb">max</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="n">key</span><span class="o">.</span><span class="n">start</span> <span class="ow">or</span> <span class="mi">0</span><span class="p">)</span>
+            <span class="n">end</span> <span class="o">=</span> <span class="nb">min</span><span class="p">(</span><span class="n">end</span><span class="p">,</span> <span class="n">start</span> <span class="o">+</span> <span class="nb">len</span><span class="p">(</span><span class="n">value</span><span class="p">))</span>
+
+            <span class="k">for</span> <span class="n">idx</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">start</span><span class="p">,</span> <span class="n">end</span><span class="p">):</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">__setitem__</span><span class="p">(</span><span class="n">idx</span><span class="p">,</span> <span class="n">value</span><span class="p">[</span><span class="n">idx</span> <span class="o">-</span> <span class="n">start</span><span class="p">])</span>
+            <span class="k">return</span>
+
+        <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">value</span><span class="p">,</span> <span class="n">FITS_record</span><span class="p">):</span>
+            <span class="k">for</span> <span class="n">idx</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_nfields</span><span class="p">):</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">field</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">names</span><span class="p">[</span><span class="n">idx</span><span class="p">])[</span><span class="n">key</span><span class="p">]</span> <span class="o">=</span> <span class="n">value</span><span class="o">.</span><span class="n">field</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">names</span><span class="p">[</span><span class="n">idx</span><span class="p">])</span>
+        <span class="k">elif</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">value</span><span class="p">,</span> <span class="p">(</span><span class="nb">tuple</span><span class="p">,</span> <span class="nb">list</span><span class="p">,</span> <span class="n">np</span><span class="o">.</span><span class="n">void</span><span class="p">)):</span>
+            <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_nfields</span> <span class="o">==</span> <span class="nb">len</span><span class="p">(</span><span class="n">value</span><span class="p">):</span>
+                <span class="k">for</span> <span class="n">idx</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_nfields</span><span class="p">):</span>
+                    <span class="bp">self</span><span class="o">.</span><span class="n">field</span><span class="p">(</span><span class="n">idx</span><span class="p">)[</span><span class="n">key</span><span class="p">]</span> <span class="o">=</span> <span class="n">value</span><span class="p">[</span><span class="n">idx</span><span class="p">]</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s1">&#39;Input tuple or list required to have </span><span class="si">{}</span><span class="s1"> &#39;</span>
+                                 <span class="s1">&#39;elements.&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_nfields</span><span class="p">))</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">TypeError</span><span class="p">(</span><span class="s1">&#39;Assignment requires a FITS_record, tuple, or &#39;</span>
+                            <span class="s1">&#39;list as input.&#39;</span><span class="p">)</span>
+
+    <span class="k">if</span> <span class="n">PY2</span><span class="p">:</span>
+        <span class="c1"># avoid falling back through to ndarray.__getslice__</span>
+        <span class="k">def</span> <span class="nf">__getslice__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">start</span><span class="p">,</span> <span class="n">end</span><span class="p">):</span>
+            <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">__getitem__</span><span class="p">(</span><span class="nb">slice</span><span class="p">(</span><span class="n">start</span><span class="p">,</span> <span class="n">end</span><span class="p">))</span>
+
+        <span class="k">def</span> <span class="nf">__setslice__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">start</span><span class="p">,</span> <span class="n">end</span><span class="p">,</span> <span class="n">value</span><span class="p">):</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">__setitem__</span><span class="p">(</span><span class="nb">slice</span><span class="p">(</span><span class="n">start</span><span class="p">,</span> <span class="n">end</span><span class="p">),</span> <span class="n">value</span><span class="p">)</span>
+
+<div class="viewcode-block" id="FITS_rec.copy"><a class="viewcode-back" href="../../../../io/fits/api/tables.html#astropy.io.fits.FITS_rec.copy">[docs]</a>    <span class="k">def</span> <span class="nf">copy</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">order</span><span class="o">=</span><span class="s1">&#39;C&#39;</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        The Numpy documentation lies; `numpy.ndarray.copy` is not equivalent to</span>
+<span class="sd">        `numpy.copy`.  Differences include that it re-views the copied array as</span>
+<span class="sd">        self&#39;s ndarray subclass, as though it were taking a slice; this means</span>
+<span class="sd">        ``__array_finalize__`` is called and the copy shares all the array</span>
+<span class="sd">        attributes (including ``._converted``!).  So we need to make a deep</span>
+<span class="sd">        copy of all those attributes so that the two arrays truly do not share</span>
+<span class="sd">        any data.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+
+        <span class="n">new</span> <span class="o">=</span> <span class="nb">super</span><span class="p">(</span><span class="n">FITS_rec</span><span class="p">,</span> <span class="bp">self</span><span class="p">)</span><span class="o">.</span><span class="n">copy</span><span class="p">(</span><span class="n">order</span><span class="o">=</span><span class="n">order</span><span class="p">)</span>
+
+        <span class="n">new</span><span class="o">.</span><span class="n">__dict__</span> <span class="o">=</span> <span class="n">copy</span><span class="o">.</span><span class="n">deepcopy</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">__dict__</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">new</span></div>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">columns</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        A user-visible accessor for the coldefs.</span>
+
+<span class="sd">        See https://aeon.stsci.edu/ssb/trac/pyfits/ticket/44</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_coldefs</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">_coldefs</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="c1"># This used to be a normal internal attribute, but it was changed to a</span>
+        <span class="c1"># property as a quick and transparent way to work around the reference</span>
+        <span class="c1"># leak bug fixed in https://github.com/astropy/astropy/pull/4539</span>
+        <span class="c1">#</span>
+        <span class="c1"># See the long comment in the Column.array property for more details</span>
+        <span class="c1"># on this.  But in short, FITS_rec now has a ._col_weakrefs attribute</span>
+        <span class="c1"># which is a WeakSet of weakrefs to each Column in _coldefs.</span>
+        <span class="c1">#</span>
+        <span class="c1"># So whenever ._coldefs is set we also add each Column in the ColDefs</span>
+        <span class="c1"># to the weakrefs set.  This is an easy way to find out if a Column has</span>
+        <span class="c1"># any references to it external to the FITS_rec (i.e. a user assigned a</span>
+        <span class="c1"># column to a variable).  If the column is still in _col_weakrefs then</span>
+        <span class="c1"># there are other references to it external to this FITS_rec.  We use</span>
+        <span class="c1"># that information in __del__ to save off copies of the array data</span>
+        <span class="c1"># for those columns to their Column.array property before our memory</span>
+        <span class="c1"># is freed.</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">__dict__</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;_coldefs&#39;</span><span class="p">)</span>
+
+    <span class="nd">@_coldefs</span><span class="o">.</span><span class="n">setter</span>
+    <span class="k">def</span> <span class="nf">_coldefs</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">cols</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">__dict__</span><span class="p">[</span><span class="s1">&#39;_coldefs&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">cols</span>
+        <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">cols</span><span class="p">,</span> <span class="n">ColDefs</span><span class="p">):</span>
+            <span class="k">for</span> <span class="n">col</span> <span class="ow">in</span> <span class="n">cols</span><span class="o">.</span><span class="n">columns</span><span class="p">:</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">_col_weakrefs</span><span class="o">.</span><span class="n">add</span><span class="p">(</span><span class="n">col</span><span class="p">)</span>
+
+    <span class="nd">@_coldefs</span><span class="o">.</span><span class="n">deleter</span>
+    <span class="k">def</span> <span class="nf">_coldefs</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">try</span><span class="p">:</span>
+            <span class="k">del</span> <span class="bp">self</span><span class="o">.</span><span class="n">__dict__</span><span class="p">[</span><span class="s1">&#39;_coldefs&#39;</span><span class="p">]</span>
+        <span class="k">except</span> <span class="ne">KeyError</span> <span class="k">as</span> <span class="n">exc</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">AttributeError</span><span class="p">(</span><span class="n">exc</span><span class="o">.</span><span class="n">args</span><span class="p">[</span><span class="mi">0</span><span class="p">])</span>
+
+    <span class="k">def</span> <span class="nf">__del__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">try</span><span class="p">:</span>
+            <span class="k">del</span> <span class="bp">self</span><span class="o">.</span><span class="n">_coldefs</span>
+
+            <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">dtype</span><span class="o">.</span><span class="n">fields</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+                <span class="k">for</span> <span class="n">col</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">_col_weakrefs</span><span class="p">:</span>
+                    <span class="k">if</span> <span class="n">col</span><span class="o">.</span><span class="n">array</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+                        <span class="n">col</span><span class="o">.</span><span class="n">array</span> <span class="o">=</span> <span class="n">col</span><span class="o">.</span><span class="n">array</span><span class="o">.</span><span class="n">copy</span><span class="p">()</span>
+
+        <span class="c1"># See issues #4690 and #4912</span>
+        <span class="k">except</span> <span class="p">(</span><span class="ne">AttributeError</span><span class="p">,</span> <span class="ne">TypeError</span><span class="p">):</span>  <span class="c1"># pragma: no cover</span>
+            <span class="k">pass</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">names</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;List of column names.&quot;&quot;&quot;</span>
+
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">dtype</span><span class="o">.</span><span class="n">fields</span><span class="p">:</span>
+            <span class="k">return</span> <span class="nb">list</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">dtype</span><span class="o">.</span><span class="n">names</span><span class="p">)</span>
+        <span class="k">elif</span> <span class="nb">getattr</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="s1">&#39;_coldefs&#39;</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_coldefs</span><span class="o">.</span><span class="n">names</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">return</span> <span class="kc">None</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">formats</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;List of column FITS formats.&quot;&quot;&quot;</span>
+
+        <span class="k">if</span> <span class="nb">getattr</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="s1">&#39;_coldefs&#39;</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_coldefs</span><span class="o">.</span><span class="n">formats</span>
+
+        <span class="k">return</span> <span class="kc">None</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">_raw_itemsize</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Returns the size of row items that would be written to the raw FITS</span>
+<span class="sd">        file, taking into account the possibility of unicode columns being</span>
+<span class="sd">        compactified.</span>
+
+<span class="sd">        Currently for internal use only.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+
+        <span class="k">if</span> <span class="n">_has_unicode_fields</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+            <span class="n">total_itemsize</span> <span class="o">=</span> <span class="mi">0</span>
+            <span class="k">for</span> <span class="n">field</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">dtype</span><span class="o">.</span><span class="n">fields</span><span class="o">.</span><span class="n">values</span><span class="p">():</span>
+                <span class="n">itemsize</span> <span class="o">=</span> <span class="n">field</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">itemsize</span>
+                <span class="k">if</span> <span class="n">field</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">kind</span> <span class="o">==</span> <span class="s1">&#39;U&#39;</span><span class="p">:</span>
+                    <span class="n">itemsize</span> <span class="o">=</span> <span class="n">itemsize</span> <span class="o">//</span> <span class="mi">4</span>
+                <span class="n">total_itemsize</span> <span class="o">+=</span> <span class="n">itemsize</span>
+            <span class="k">return</span> <span class="n">total_itemsize</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="c1"># Just return the normal itemsize</span>
+            <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">itemsize</span>
+
+<div class="viewcode-block" id="FITS_rec.field"><a class="viewcode-back" href="../../../../io/fits/api/tables.html#astropy.io.fits.FITS_rec.field">[docs]</a>    <span class="k">def</span> <span class="nf">field</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">key</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        A view of a `Column`&#39;s data as an array.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+
+        <span class="c1"># NOTE: The *column* index may not be the same as the field index in</span>
+        <span class="c1"># the recarray, if the column is a phantom column</span>
+        <span class="n">column</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">columns</span><span class="p">[</span><span class="n">key</span><span class="p">]</span>
+        <span class="n">name</span> <span class="o">=</span> <span class="n">column</span><span class="o">.</span><span class="n">name</span>
+        <span class="nb">format</span> <span class="o">=</span> <span class="n">column</span><span class="o">.</span><span class="n">format</span>
+
+        <span class="k">if</span> <span class="nb">format</span><span class="o">.</span><span class="n">dtype</span><span class="o">.</span><span class="n">itemsize</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
+            <span class="n">warnings</span><span class="o">.</span><span class="n">warn</span><span class="p">(</span>
+                <span class="s1">&#39;Field </span><span class="si">{!r}</span><span class="s1"> has a repeat count of 0 in its format code, &#39;</span>
+                <span class="s1">&#39;indicating an empty field.&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">key</span><span class="p">))</span>
+            <span class="k">return</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">([],</span> <span class="n">dtype</span><span class="o">=</span><span class="nb">format</span><span class="o">.</span><span class="n">dtype</span><span class="p">)</span>
+
+        <span class="c1"># If field&#39;s base is a FITS_rec, we can run into trouble because it</span>
+        <span class="c1"># contains a reference to the ._coldefs object of the original data;</span>
+        <span class="c1"># this can lead to a circular reference; see ticket #49</span>
+        <span class="n">base</span> <span class="o">=</span> <span class="bp">self</span>
+        <span class="k">while</span> <span class="p">(</span><span class="nb">isinstance</span><span class="p">(</span><span class="n">base</span><span class="p">,</span> <span class="n">FITS_rec</span><span class="p">)</span> <span class="ow">and</span>
+                <span class="nb">isinstance</span><span class="p">(</span><span class="n">base</span><span class="o">.</span><span class="n">base</span><span class="p">,</span> <span class="n">np</span><span class="o">.</span><span class="n">recarray</span><span class="p">)):</span>
+            <span class="n">base</span> <span class="o">=</span> <span class="n">base</span><span class="o">.</span><span class="n">base</span>
+        <span class="c1"># base could still be a FITS_rec in some cases, so take care to</span>
+        <span class="c1"># use rec.recarray.field to avoid a potential infinite</span>
+        <span class="c1"># recursion</span>
+        <span class="n">field</span> <span class="o">=</span> <span class="n">_get_recarray_field</span><span class="p">(</span><span class="n">base</span><span class="p">,</span> <span class="n">name</span><span class="p">)</span>
+
+        <span class="k">if</span> <span class="n">name</span> <span class="ow">not</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">_converted</span><span class="p">:</span>
+            <span class="n">recformat</span> <span class="o">=</span> <span class="nb">format</span><span class="o">.</span><span class="n">recformat</span>
+            <span class="c1"># TODO: If we&#39;re now passing the column to these subroutines, do we</span>
+            <span class="c1"># really need to pass them the recformat?</span>
+            <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">recformat</span><span class="p">,</span> <span class="n">_FormatP</span><span class="p">):</span>
+                <span class="c1"># for P format</span>
+                <span class="n">converted</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_convert_p</span><span class="p">(</span><span class="n">column</span><span class="p">,</span> <span class="n">field</span><span class="p">,</span> <span class="n">recformat</span><span class="p">)</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="c1"># Handle all other column data types which are fixed-width</span>
+                <span class="c1"># fields</span>
+                <span class="n">converted</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_convert_other</span><span class="p">(</span><span class="n">column</span><span class="p">,</span> <span class="n">field</span><span class="p">,</span> <span class="n">recformat</span><span class="p">)</span>
+
+            <span class="c1"># Note: Never assign values directly into the self._converted dict;</span>
+            <span class="c1"># always go through self._cache_field; this way self._converted is</span>
+            <span class="c1"># only used to store arrays that are not already direct views of</span>
+            <span class="c1"># our own data.</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_cache_field</span><span class="p">(</span><span class="n">name</span><span class="p">,</span> <span class="n">converted</span><span class="p">)</span>
+            <span class="k">return</span> <span class="n">converted</span>
+
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_converted</span><span class="p">[</span><span class="n">name</span><span class="p">]</span></div>
+
+    <span class="k">def</span> <span class="nf">_cache_field</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">name</span><span class="p">,</span> <span class="n">field</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Do not store fields in _converted if one of its bases is self,</span>
+<span class="sd">        or if it has a common base with self.</span>
+
+<span class="sd">        This results in a reference cycle that cannot be broken since</span>
+<span class="sd">        ndarrays do not participate in cyclic garbage collection.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+
+        <span class="n">base</span> <span class="o">=</span> <span class="n">field</span>
+        <span class="k">while</span> <span class="kc">True</span><span class="p">:</span>
+            <span class="n">self_base</span> <span class="o">=</span> <span class="bp">self</span>
+            <span class="k">while</span> <span class="kc">True</span><span class="p">:</span>
+                <span class="k">if</span> <span class="n">self_base</span> <span class="ow">is</span> <span class="n">base</span><span class="p">:</span>
+                    <span class="k">return</span>
+
+                <span class="k">if</span> <span class="nb">getattr</span><span class="p">(</span><span class="n">self_base</span><span class="p">,</span> <span class="s1">&#39;base&#39;</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+                    <span class="n">self_base</span> <span class="o">=</span> <span class="n">self_base</span><span class="o">.</span><span class="n">base</span>
+                <span class="k">else</span><span class="p">:</span>
+                    <span class="k">break</span>
+
+            <span class="k">if</span> <span class="nb">getattr</span><span class="p">(</span><span class="n">base</span><span class="p">,</span> <span class="s1">&#39;base&#39;</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+                <span class="n">base</span> <span class="o">=</span> <span class="n">base</span><span class="o">.</span><span class="n">base</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="k">break</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">_converted</span><span class="p">[</span><span class="n">name</span><span class="p">]</span> <span class="o">=</span> <span class="n">field</span>
+
+    <span class="k">def</span> <span class="nf">_update_column_attribute_changed</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">column</span><span class="p">,</span> <span class="n">idx</span><span class="p">,</span> <span class="n">attr</span><span class="p">,</span> <span class="n">old_value</span><span class="p">,</span>
+                                         <span class="n">new_value</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Update how the data is formatted depending on changes to column</span>
+<span class="sd">        attributes initiated by the user through the `Column` interface.</span>
+
+<span class="sd">        Dispatches column attribute change notifications to individual methods</span>
+<span class="sd">        for each attribute ``_update_column_&lt;attr&gt;``</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+
+        <span class="n">method_name</span> <span class="o">=</span> <span class="s1">&#39;_update_column_</span><span class="si">{0}</span><span class="s1">&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">attr</span><span class="p">)</span>
+        <span class="k">if</span> <span class="nb">hasattr</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">method_name</span><span class="p">):</span>
+            <span class="c1"># Right now this is so we can be lazy and not implement updaters</span>
+            <span class="c1"># for every attribute yet--some we may not need at all, TBD</span>
+            <span class="nb">getattr</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">method_name</span><span class="p">)(</span><span class="n">column</span><span class="p">,</span> <span class="n">idx</span><span class="p">,</span> <span class="n">old_value</span><span class="p">,</span> <span class="n">new_value</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">_update_column_name</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">column</span><span class="p">,</span> <span class="n">idx</span><span class="p">,</span> <span class="n">old_name</span><span class="p">,</span> <span class="n">name</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Update the dtype field names when a column name is changed.&quot;&quot;&quot;</span>
+
+        <span class="n">dtype</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">dtype</span>
+        <span class="c1"># Updating the names on the dtype should suffice</span>
+        <span class="n">dtype</span><span class="o">.</span><span class="n">names</span> <span class="o">=</span> <span class="n">dtype</span><span class="o">.</span><span class="n">names</span><span class="p">[:</span><span class="n">idx</span><span class="p">]</span> <span class="o">+</span> <span class="p">(</span><span class="n">name</span><span class="p">,)</span> <span class="o">+</span> <span class="n">dtype</span><span class="o">.</span><span class="n">names</span><span class="p">[</span><span class="n">idx</span> <span class="o">+</span> <span class="mi">1</span><span class="p">:]</span>
+
+    <span class="k">def</span> <span class="nf">_convert_x</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">field</span><span class="p">,</span> <span class="n">recformat</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Convert a raw table column to a bit array as specified by the</span>
+<span class="sd">        FITS X format.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+
+        <span class="n">dummy</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">zeros</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">shape</span> <span class="o">+</span> <span class="p">(</span><span class="n">recformat</span><span class="o">.</span><span class="n">repeat</span><span class="p">,),</span> <span class="n">dtype</span><span class="o">=</span><span class="n">np</span><span class="o">.</span><span class="n">bool_</span><span class="p">)</span>
+        <span class="n">_unwrapx</span><span class="p">(</span><span class="n">field</span><span class="p">,</span> <span class="n">dummy</span><span class="p">,</span> <span class="n">recformat</span><span class="o">.</span><span class="n">repeat</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">dummy</span>
+
+    <span class="k">def</span> <span class="nf">_convert_p</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">column</span><span class="p">,</span> <span class="n">field</span><span class="p">,</span> <span class="n">recformat</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Convert a raw table column of FITS P or Q format descriptors</span>
+<span class="sd">        to a VLA column with the array data returned from the heap.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+
+        <span class="n">dummy</span> <span class="o">=</span> <span class="n">_VLF</span><span class="p">([</span><span class="kc">None</span><span class="p">]</span> <span class="o">*</span> <span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="p">),</span> <span class="n">dtype</span><span class="o">=</span><span class="n">recformat</span><span class="o">.</span><span class="n">dtype</span><span class="p">)</span>
+        <span class="n">raw_data</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_get_raw_data</span><span class="p">()</span>
+
+        <span class="k">if</span> <span class="n">raw_data</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">IOError</span><span class="p">(</span>
+                <span class="s2">&quot;Could not find heap data for the </span><span class="si">{!r}</span><span class="s2"> variable-length &quot;</span>
+                <span class="s2">&quot;array column.&quot;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">column</span><span class="o">.</span><span class="n">name</span><span class="p">))</span>
+
+        <span class="k">for</span> <span class="n">idx</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="p">)):</span>
+            <span class="n">offset</span> <span class="o">=</span> <span class="n">field</span><span class="p">[</span><span class="n">idx</span><span class="p">,</span> <span class="mi">1</span><span class="p">]</span> <span class="o">+</span> <span class="bp">self</span><span class="o">.</span><span class="n">_heapoffset</span>
+            <span class="n">count</span> <span class="o">=</span> <span class="n">field</span><span class="p">[</span><span class="n">idx</span><span class="p">,</span> <span class="mi">0</span><span class="p">]</span>
+
+            <span class="k">if</span> <span class="n">recformat</span><span class="o">.</span><span class="n">dtype</span> <span class="o">==</span> <span class="s1">&#39;a&#39;</span><span class="p">:</span>
+                <span class="n">dt</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">dtype</span><span class="p">(</span><span class="n">recformat</span><span class="o">.</span><span class="n">dtype</span> <span class="o">+</span> <span class="nb">str</span><span class="p">(</span><span class="mi">1</span><span class="p">))</span>
+                <span class="n">arr_len</span> <span class="o">=</span> <span class="n">count</span> <span class="o">*</span> <span class="n">dt</span><span class="o">.</span><span class="n">itemsize</span>
+                <span class="n">da</span> <span class="o">=</span> <span class="n">raw_data</span><span class="p">[</span><span class="n">offset</span><span class="p">:</span><span class="n">offset</span> <span class="o">+</span> <span class="n">arr_len</span><span class="p">]</span><span class="o">.</span><span class="n">view</span><span class="p">(</span><span class="n">dt</span><span class="p">)</span>
+                <span class="n">da</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">char</span><span class="o">.</span><span class="n">array</span><span class="p">(</span><span class="n">da</span><span class="o">.</span><span class="n">view</span><span class="p">(</span><span class="n">dtype</span><span class="o">=</span><span class="n">dt</span><span class="p">),</span> <span class="n">itemsize</span><span class="o">=</span><span class="n">count</span><span class="p">)</span>
+                <span class="n">dummy</span><span class="p">[</span><span class="n">idx</span><span class="p">]</span> <span class="o">=</span> <span class="n">decode_ascii</span><span class="p">(</span><span class="n">da</span><span class="p">)</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="n">dt</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">dtype</span><span class="p">(</span><span class="n">recformat</span><span class="o">.</span><span class="n">dtype</span><span class="p">)</span>
+                <span class="n">arr_len</span> <span class="o">=</span> <span class="n">count</span> <span class="o">*</span> <span class="n">dt</span><span class="o">.</span><span class="n">itemsize</span>
+                <span class="n">dummy</span><span class="p">[</span><span class="n">idx</span><span class="p">]</span> <span class="o">=</span> <span class="n">raw_data</span><span class="p">[</span><span class="n">offset</span><span class="p">:</span><span class="n">offset</span> <span class="o">+</span> <span class="n">arr_len</span><span class="p">]</span><span class="o">.</span><span class="n">view</span><span class="p">(</span><span class="n">dt</span><span class="p">)</span>
+                <span class="n">dummy</span><span class="p">[</span><span class="n">idx</span><span class="p">]</span><span class="o">.</span><span class="n">dtype</span> <span class="o">=</span> <span class="n">dummy</span><span class="p">[</span><span class="n">idx</span><span class="p">]</span><span class="o">.</span><span class="n">dtype</span><span class="o">.</span><span class="n">newbyteorder</span><span class="p">(</span><span class="s1">&#39;&gt;&#39;</span><span class="p">)</span>
+                <span class="c1"># Each array in the field may now require additional</span>
+                <span class="c1"># scaling depending on the other scaling parameters</span>
+                <span class="c1"># TODO: The same scaling parameters apply to every</span>
+                <span class="c1"># array in the column so this is currently very slow; we</span>
+                <span class="c1"># really only need to check once whether any scaling will</span>
+                <span class="c1"># be necessary and skip this step if not</span>
+                <span class="c1"># TODO: Test that this works for X format; I don&#39;t think</span>
+                <span class="c1"># that it does--the recformat variable only applies to the P</span>
+                <span class="c1"># format not the X format</span>
+                <span class="n">dummy</span><span class="p">[</span><span class="n">idx</span><span class="p">]</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_convert_other</span><span class="p">(</span><span class="n">column</span><span class="p">,</span> <span class="n">dummy</span><span class="p">[</span><span class="n">idx</span><span class="p">],</span>
+                                                 <span class="n">recformat</span><span class="p">)</span>
+
+        <span class="k">return</span> <span class="n">dummy</span>
+
+    <span class="k">def</span> <span class="nf">_convert_ascii</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">column</span><span class="p">,</span> <span class="n">field</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Special handling for ASCII table columns to convert columns containing</span>
+<span class="sd">        numeric types to actual numeric arrays from the string representation.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+
+        <span class="nb">format</span> <span class="o">=</span> <span class="n">column</span><span class="o">.</span><span class="n">format</span>
+        <span class="n">recformat</span> <span class="o">=</span> <span class="n">ASCII2NUMPY</span><span class="p">[</span><span class="nb">format</span><span class="p">[</span><span class="mi">0</span><span class="p">]]</span>
+        <span class="c1"># if the string = TNULL, return ASCIITNULL</span>
+        <span class="n">nullval</span> <span class="o">=</span> <span class="nb">str</span><span class="p">(</span><span class="n">column</span><span class="o">.</span><span class="n">null</span><span class="p">)</span><span class="o">.</span><span class="n">strip</span><span class="p">()</span><span class="o">.</span><span class="n">encode</span><span class="p">(</span><span class="s1">&#39;ascii&#39;</span><span class="p">)</span>
+        <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">nullval</span><span class="p">)</span> <span class="o">&gt;</span> <span class="nb">format</span><span class="o">.</span><span class="n">width</span><span class="p">:</span>
+            <span class="n">nullval</span> <span class="o">=</span> <span class="n">nullval</span><span class="p">[:</span><span class="nb">format</span><span class="o">.</span><span class="n">width</span><span class="p">]</span>
+
+        <span class="c1"># Before using .replace make sure that any trailing bytes in each</span>
+        <span class="c1"># column are filled with spaces, and *not*, say, nulls; this causes</span>
+        <span class="c1"># functions like replace to potentially leave gibberish bytes in the</span>
+        <span class="c1"># array buffer.</span>
+        <span class="n">dummy</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">char</span><span class="o">.</span><span class="n">ljust</span><span class="p">(</span><span class="n">field</span><span class="p">,</span> <span class="nb">format</span><span class="o">.</span><span class="n">width</span><span class="p">)</span>
+        <span class="n">dummy</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">char</span><span class="o">.</span><span class="n">replace</span><span class="p">(</span><span class="n">dummy</span><span class="p">,</span> <span class="n">encode_ascii</span><span class="p">(</span><span class="s1">&#39;D&#39;</span><span class="p">),</span> <span class="n">encode_ascii</span><span class="p">(</span><span class="s1">&#39;E&#39;</span><span class="p">))</span>
+        <span class="n">null_fill</span> <span class="o">=</span> <span class="n">encode_ascii</span><span class="p">(</span><span class="nb">str</span><span class="p">(</span><span class="n">ASCIITNULL</span><span class="p">)</span><span class="o">.</span><span class="n">rjust</span><span class="p">(</span><span class="nb">format</span><span class="o">.</span><span class="n">width</span><span class="p">))</span>
+
+        <span class="c1"># Convert all fields equal to the TNULL value (nullval) to empty fields.</span>
+        <span class="c1"># TODO: These fields really should be conerted to NaN or something else undefined.</span>
+        <span class="c1"># Currently they are converted to empty fields, which are then set to zero.</span>
+        <span class="n">dummy</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">where</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">char</span><span class="o">.</span><span class="n">strip</span><span class="p">(</span><span class="n">dummy</span><span class="p">)</span> <span class="o">==</span> <span class="n">nullval</span><span class="p">,</span> <span class="n">null_fill</span><span class="p">,</span> <span class="n">dummy</span><span class="p">)</span>
+
+        <span class="c1"># always replace empty fields, see https://github.com/astropy/astropy/pull/5394</span>
+        <span class="k">if</span> <span class="n">nullval</span> <span class="o">!=</span> <span class="n">b</span><span class="s1">&#39;&#39;</span><span class="p">:</span>
+            <span class="n">dummy</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">where</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">char</span><span class="o">.</span><span class="n">strip</span><span class="p">(</span><span class="n">dummy</span><span class="p">)</span> <span class="o">==</span> <span class="n">b</span><span class="s1">&#39;&#39;</span><span class="p">,</span> <span class="n">null_fill</span><span class="p">,</span> <span class="n">dummy</span><span class="p">)</span>
+
+        <span class="k">try</span><span class="p">:</span>
+            <span class="n">dummy</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">(</span><span class="n">dummy</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="n">recformat</span><span class="p">)</span>
+        <span class="k">except</span> <span class="ne">ValueError</span> <span class="k">as</span> <span class="n">exc</span><span class="p">:</span>
+            <span class="n">indx</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">names</span><span class="o">.</span><span class="n">index</span><span class="p">(</span><span class="n">column</span><span class="o">.</span><span class="n">name</span><span class="p">)</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
+                <span class="s1">&#39;</span><span class="si">{}</span><span class="s1">; the header may be missing the necessary TNULL</span><span class="si">{}</span><span class="s1"> &#39;</span>
+                <span class="s1">&#39;keyword or the table contains invalid data&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span>
+                    <span class="n">exc</span><span class="p">,</span> <span class="n">indx</span> <span class="o">+</span> <span class="mi">1</span><span class="p">))</span>
+
+        <span class="k">return</span> <span class="n">dummy</span>
+
+    <span class="k">def</span> <span class="nf">_convert_other</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">column</span><span class="p">,</span> <span class="n">field</span><span class="p">,</span> <span class="n">recformat</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Perform conversions on any other fixed-width column data types.</span>
+
+<span class="sd">        This may not perform any conversion at all if it&#39;s not necessary, in</span>
+<span class="sd">        which case the original column array is returned.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+
+        <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">recformat</span><span class="p">,</span> <span class="n">_FormatX</span><span class="p">):</span>
+            <span class="c1"># special handling for the X format</span>
+            <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_convert_x</span><span class="p">(</span><span class="n">field</span><span class="p">,</span> <span class="n">recformat</span><span class="p">)</span>
+
+        <span class="p">(</span><span class="n">_str</span><span class="p">,</span> <span class="n">_bool</span><span class="p">,</span> <span class="n">_number</span><span class="p">,</span> <span class="n">_scale</span><span class="p">,</span> <span class="n">_zero</span><span class="p">,</span> <span class="n">bscale</span><span class="p">,</span> <span class="n">bzero</span><span class="p">,</span> <span class="n">dim</span><span class="p">)</span> <span class="o">=</span> \
+            <span class="bp">self</span><span class="o">.</span><span class="n">_get_scale_factors</span><span class="p">(</span><span class="n">column</span><span class="p">)</span>
+
+        <span class="n">indx</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">names</span><span class="o">.</span><span class="n">index</span><span class="p">(</span><span class="n">column</span><span class="o">.</span><span class="n">name</span><span class="p">)</span>
+
+        <span class="c1"># ASCII table, convert strings to numbers</span>
+        <span class="c1"># TODO:</span>
+        <span class="c1"># For now, check that these are ASCII columns by checking the coldefs</span>
+        <span class="c1"># type; in the future all columns (for binary tables, ASCII tables, or</span>
+        <span class="c1"># otherwise) should &quot;know&quot; what type they are already and how to handle</span>
+        <span class="c1"># converting their data from FITS format to native format and vice</span>
+        <span class="c1"># versa...</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">_str</span> <span class="ow">and</span> <span class="nb">isinstance</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_coldefs</span><span class="p">,</span> <span class="n">_AsciiColDefs</span><span class="p">):</span>
+            <span class="n">field</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_convert_ascii</span><span class="p">(</span><span class="n">column</span><span class="p">,</span> <span class="n">field</span><span class="p">)</span>
+
+        <span class="c1"># Test that the dimensions given in dim are sensible; otherwise</span>
+        <span class="c1"># display a warning and ignore them</span>
+        <span class="k">if</span> <span class="n">dim</span><span class="p">:</span>
+            <span class="c1"># See if the dimensions already match, if not, make sure the</span>
+            <span class="c1"># number items will fit in the specified dimensions</span>
+            <span class="k">if</span> <span class="n">field</span><span class="o">.</span><span class="n">ndim</span> <span class="o">&gt;</span> <span class="mi">1</span><span class="p">:</span>
+                <span class="n">actual_shape</span> <span class="o">=</span> <span class="n">field</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">1</span><span class="p">:]</span>
+                <span class="k">if</span> <span class="n">_str</span><span class="p">:</span>
+                    <span class="n">actual_shape</span> <span class="o">=</span> <span class="n">actual_shape</span> <span class="o">+</span> <span class="p">(</span><span class="n">field</span><span class="o">.</span><span class="n">itemsize</span><span class="p">,)</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="n">actual_shape</span> <span class="o">=</span> <span class="n">field</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+
+            <span class="k">if</span> <span class="n">dim</span> <span class="o">==</span> <span class="n">actual_shape</span><span class="p">:</span>
+                <span class="c1"># The array already has the correct dimensions, so we</span>
+                <span class="c1"># ignore dim and don&#39;t convert</span>
+                <span class="n">dim</span> <span class="o">=</span> <span class="kc">None</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="n">nitems</span> <span class="o">=</span> <span class="n">reduce</span><span class="p">(</span><span class="n">operator</span><span class="o">.</span><span class="n">mul</span><span class="p">,</span> <span class="n">dim</span><span class="p">)</span>
+                <span class="k">if</span> <span class="n">_str</span><span class="p">:</span>
+                    <span class="n">actual_nitems</span> <span class="o">=</span> <span class="n">field</span><span class="o">.</span><span class="n">itemsize</span>
+                <span class="k">elif</span> <span class="nb">len</span><span class="p">(</span><span class="n">field</span><span class="o">.</span><span class="n">shape</span><span class="p">)</span> <span class="o">==</span> <span class="mi">1</span><span class="p">:</span>  <span class="c1"># No repeat count in TFORMn, equivalent to 1</span>
+                    <span class="n">actual_nitems</span> <span class="o">=</span> <span class="mi">1</span>
+                <span class="k">else</span><span class="p">:</span>
+                    <span class="n">actual_nitems</span> <span class="o">=</span> <span class="n">field</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span>
+                <span class="k">if</span> <span class="n">nitems</span> <span class="o">&gt;</span> <span class="n">actual_nitems</span><span class="p">:</span>
+                    <span class="n">warnings</span><span class="o">.</span><span class="n">warn</span><span class="p">(</span>
+                        <span class="s1">&#39;TDIM</span><span class="si">{}</span><span class="s1"> value </span><span class="si">{:d}</span><span class="s1"> does not fit with the size of &#39;</span>
+                        <span class="s1">&#39;the array items (</span><span class="si">{:d}</span><span class="s1">).  TDIM</span><span class="si">{:d}</span><span class="s1"> will be ignored.&#39;</span>
+                        <span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">indx</span> <span class="o">+</span> <span class="mi">1</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">_coldefs</span><span class="p">[</span><span class="n">indx</span><span class="p">]</span><span class="o">.</span><span class="n">dims</span><span class="p">,</span>
+                                <span class="n">actual_nitems</span><span class="p">,</span> <span class="n">indx</span> <span class="o">+</span> <span class="mi">1</span><span class="p">))</span>
+                    <span class="n">dim</span> <span class="o">=</span> <span class="kc">None</span>
+
+        <span class="c1"># further conversion for both ASCII and binary tables</span>
+        <span class="c1"># For now we&#39;ve made columns responsible for *knowing* whether their</span>
+        <span class="c1"># data has been scaled, but we make the FITS_rec class responsible for</span>
+        <span class="c1"># actually doing the scaling</span>
+        <span class="c1"># TODO: This also needs to be fixed in the effort to make Columns</span>
+        <span class="c1"># responsible for scaling their arrays to/from FITS native values</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">column</span><span class="o">.</span><span class="n">ascii</span> <span class="ow">and</span> <span class="n">column</span><span class="o">.</span><span class="n">format</span><span class="o">.</span><span class="n">p_format</span><span class="p">:</span>
+            <span class="n">format_code</span> <span class="o">=</span> <span class="n">column</span><span class="o">.</span><span class="n">format</span><span class="o">.</span><span class="n">p_format</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="c1"># TODO: Rather than having this if/else it might be nice if the</span>
+            <span class="c1"># ColumnFormat class had an attribute guaranteed to give the format</span>
+            <span class="c1"># of actual values in a column regardless of whether the true</span>
+            <span class="c1"># format is something like P or Q</span>
+            <span class="n">format_code</span> <span class="o">=</span> <span class="n">column</span><span class="o">.</span><span class="n">format</span><span class="o">.</span><span class="n">format</span>
+
+        <span class="k">if</span> <span class="p">(</span><span class="n">_number</span> <span class="ow">and</span> <span class="p">(</span><span class="n">_scale</span> <span class="ow">or</span> <span class="n">_zero</span><span class="p">)</span> <span class="ow">and</span> <span class="ow">not</span> <span class="n">column</span><span class="o">.</span><span class="n">_physical_values</span><span class="p">):</span>
+            <span class="c1"># This is to handle pseudo unsigned ints in table columns</span>
+            <span class="c1"># TODO: For now this only really works correctly for binary tables</span>
+            <span class="c1"># Should it work for ASCII tables as well?</span>
+            <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_uint</span><span class="p">:</span>
+                <span class="k">if</span> <span class="n">bzero</span> <span class="o">==</span> <span class="mi">2</span><span class="o">**</span><span class="mi">15</span> <span class="ow">and</span> <span class="n">format_code</span> <span class="o">==</span> <span class="s1">&#39;I&#39;</span><span class="p">:</span>
+                    <span class="n">field</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">(</span><span class="n">field</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="n">np</span><span class="o">.</span><span class="n">uint16</span><span class="p">)</span>
+                <span class="k">elif</span> <span class="n">bzero</span> <span class="o">==</span> <span class="mi">2</span><span class="o">**</span><span class="mi">31</span> <span class="ow">and</span> <span class="n">format_code</span> <span class="o">==</span> <span class="s1">&#39;J&#39;</span><span class="p">:</span>
+                    <span class="n">field</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">(</span><span class="n">field</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="n">np</span><span class="o">.</span><span class="n">uint32</span><span class="p">)</span>
+                <span class="k">elif</span> <span class="n">bzero</span> <span class="o">==</span> <span class="mi">2</span><span class="o">**</span><span class="mi">63</span> <span class="ow">and</span> <span class="n">format_code</span> <span class="o">==</span> <span class="s1">&#39;K&#39;</span><span class="p">:</span>
+                    <span class="n">field</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">(</span><span class="n">field</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="n">np</span><span class="o">.</span><span class="n">uint64</span><span class="p">)</span>
+                    <span class="n">bzero64</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">uint64</span><span class="p">(</span><span class="mi">2</span> <span class="o">**</span> <span class="mi">63</span><span class="p">)</span>
+                <span class="k">else</span><span class="p">:</span>
+                    <span class="n">field</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">(</span><span class="n">field</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="n">np</span><span class="o">.</span><span class="n">float64</span><span class="p">)</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="n">field</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">(</span><span class="n">field</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="n">np</span><span class="o">.</span><span class="n">float64</span><span class="p">)</span>
+
+            <span class="k">if</span> <span class="n">_scale</span><span class="p">:</span>
+                <span class="n">np</span><span class="o">.</span><span class="n">multiply</span><span class="p">(</span><span class="n">field</span><span class="p">,</span> <span class="n">bscale</span><span class="p">,</span> <span class="n">field</span><span class="p">)</span>
+            <span class="k">if</span> <span class="n">_zero</span><span class="p">:</span>
+                <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_uint</span> <span class="ow">and</span> <span class="n">format_code</span> <span class="o">==</span> <span class="s1">&#39;K&#39;</span><span class="p">:</span>
+                    <span class="c1"># There is a chance of overflow, so be careful</span>
+                    <span class="n">test_overflow</span> <span class="o">=</span> <span class="n">field</span><span class="o">.</span><span class="n">copy</span><span class="p">()</span>
+                    <span class="k">try</span><span class="p">:</span>
+                        <span class="n">test_overflow</span> <span class="o">+=</span> <span class="n">bzero64</span>
+                    <span class="k">except</span> <span class="ne">OverflowError</span><span class="p">:</span>
+                        <span class="n">warnings</span><span class="o">.</span><span class="n">warn</span><span class="p">(</span>
+                            <span class="s2">&quot;Overflow detected while applying TZERO</span><span class="si">{0:d}</span><span class="s2">. &quot;</span>
+                            <span class="s2">&quot;Returning unscaled data.&quot;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">indx</span> <span class="o">+</span> <span class="mi">1</span><span class="p">))</span>
+                    <span class="k">else</span><span class="p">:</span>
+                        <span class="n">field</span> <span class="o">=</span> <span class="n">test_overflow</span>
+                <span class="k">else</span><span class="p">:</span>
+                    <span class="n">field</span> <span class="o">+=</span> <span class="n">bzero</span>
+        <span class="k">elif</span> <span class="n">_bool</span> <span class="ow">and</span> <span class="n">field</span><span class="o">.</span><span class="n">dtype</span> <span class="o">!=</span> <span class="nb">bool</span><span class="p">:</span>
+            <span class="n">field</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">equal</span><span class="p">(</span><span class="n">field</span><span class="p">,</span> <span class="nb">ord</span><span class="p">(</span><span class="s1">&#39;T&#39;</span><span class="p">))</span>
+        <span class="k">elif</span> <span class="n">_str</span><span class="p">:</span>
+            <span class="k">with</span> <span class="n">suppress</span><span class="p">(</span><span class="ne">UnicodeDecodeError</span><span class="p">):</span>
+                <span class="n">field</span> <span class="o">=</span> <span class="n">decode_ascii</span><span class="p">(</span><span class="n">field</span><span class="p">)</span>
+
+        <span class="k">if</span> <span class="n">dim</span><span class="p">:</span>
+            <span class="c1"># Apply the new field item dimensions</span>
+            <span class="n">nitems</span> <span class="o">=</span> <span class="n">reduce</span><span class="p">(</span><span class="n">operator</span><span class="o">.</span><span class="n">mul</span><span class="p">,</span> <span class="n">dim</span><span class="p">)</span>
+            <span class="k">if</span> <span class="n">field</span><span class="o">.</span><span class="n">ndim</span> <span class="o">&gt;</span> <span class="mi">1</span><span class="p">:</span>
+                <span class="n">field</span> <span class="o">=</span> <span class="n">field</span><span class="p">[:,</span> <span class="p">:</span><span class="n">nitems</span><span class="p">]</span>
+            <span class="k">if</span> <span class="n">_str</span><span class="p">:</span>
+                <span class="n">fmt</span> <span class="o">=</span> <span class="n">field</span><span class="o">.</span><span class="n">dtype</span><span class="o">.</span><span class="n">char</span>
+                <span class="n">dtype</span> <span class="o">=</span> <span class="p">(</span><span class="s1">&#39;|</span><span class="si">{}{}</span><span class="s1">&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">fmt</span><span class="p">,</span> <span class="n">dim</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">]),</span> <span class="n">dim</span><span class="p">[:</span><span class="o">-</span><span class="mi">1</span><span class="p">])</span>
+                <span class="n">field</span><span class="o">.</span><span class="n">dtype</span> <span class="o">=</span> <span class="n">dtype</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="n">field</span><span class="o">.</span><span class="n">shape</span> <span class="o">=</span> <span class="p">(</span><span class="n">field</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">],)</span> <span class="o">+</span> <span class="n">dim</span>
+
+        <span class="k">return</span> <span class="n">field</span>
+
+    <span class="k">def</span> <span class="nf">_get_heap_data</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Returns a pointer into the table&#39;s raw data to its heap (if present).</span>
+
+<span class="sd">        This is returned as a numpy byte array.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_heapsize</span><span class="p">:</span>
+            <span class="n">raw_data</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_get_raw_data</span><span class="p">()</span><span class="o">.</span><span class="n">view</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">ubyte</span><span class="p">)</span>
+            <span class="n">heap_end</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_heapoffset</span> <span class="o">+</span> <span class="bp">self</span><span class="o">.</span><span class="n">_heapsize</span>
+            <span class="k">return</span> <span class="n">raw_data</span><span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">_heapoffset</span><span class="p">:</span><span class="n">heap_end</span><span class="p">]</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">return</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">([],</span> <span class="n">dtype</span><span class="o">=</span><span class="n">np</span><span class="o">.</span><span class="n">ubyte</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">_get_raw_data</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Returns the base array of self that &quot;raw data array&quot; that is the</span>
+<span class="sd">        array in the format that it was first read from a file before it was</span>
+<span class="sd">        sliced or viewed as a different type in any way.</span>
+
+<span class="sd">        This is determined by walking through the bases until finding one that</span>
+<span class="sd">        has at least the same number of bytes as self, plus the heapsize.  This</span>
+<span class="sd">        may be the immediate .base but is not always.  This is used primarily</span>
+<span class="sd">        for variable-length array support which needs to be able to find the</span>
+<span class="sd">        heap (the raw data *may* be larger than nbytes + heapsize if it</span>
+<span class="sd">        contains a gap or padding).</span>
+
+<span class="sd">        May return ``None`` if no array resembling the &quot;raw data&quot; according to</span>
+<span class="sd">        the stated criteria can be found.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+
+        <span class="n">raw_data_bytes</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">nbytes</span> <span class="o">+</span> <span class="bp">self</span><span class="o">.</span><span class="n">_heapsize</span>
+        <span class="n">base</span> <span class="o">=</span> <span class="bp">self</span>
+        <span class="k">while</span> <span class="nb">hasattr</span><span class="p">(</span><span class="n">base</span><span class="p">,</span> <span class="s1">&#39;base&#39;</span><span class="p">)</span> <span class="ow">and</span> <span class="n">base</span><span class="o">.</span><span class="n">base</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">base</span> <span class="o">=</span> <span class="n">base</span><span class="o">.</span><span class="n">base</span>
+            <span class="k">if</span> <span class="nb">hasattr</span><span class="p">(</span><span class="n">base</span><span class="p">,</span> <span class="s1">&#39;nbytes&#39;</span><span class="p">)</span> <span class="ow">and</span> <span class="n">base</span><span class="o">.</span><span class="n">nbytes</span> <span class="o">&gt;=</span> <span class="n">raw_data_bytes</span><span class="p">:</span>
+                <span class="k">return</span> <span class="n">base</span>
+
+    <span class="k">def</span> <span class="nf">_get_scale_factors</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">column</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Get all the scaling flags and factors for one column.&quot;&quot;&quot;</span>
+
+        <span class="c1"># TODO: Maybe this should be a method/property on Column?  Or maybe</span>
+        <span class="c1"># it&#39;s not really needed at all...</span>
+        <span class="n">_str</span> <span class="o">=</span> <span class="n">column</span><span class="o">.</span><span class="n">format</span><span class="o">.</span><span class="n">format</span> <span class="o">==</span> <span class="s1">&#39;A&#39;</span>
+        <span class="n">_bool</span> <span class="o">=</span> <span class="n">column</span><span class="o">.</span><span class="n">format</span><span class="o">.</span><span class="n">format</span> <span class="o">==</span> <span class="s1">&#39;L&#39;</span>
+
+        <span class="n">_number</span> <span class="o">=</span> <span class="ow">not</span> <span class="p">(</span><span class="n">_bool</span> <span class="ow">or</span> <span class="n">_str</span><span class="p">)</span>
+        <span class="n">bscale</span> <span class="o">=</span> <span class="n">column</span><span class="o">.</span><span class="n">bscale</span>
+        <span class="n">bzero</span> <span class="o">=</span> <span class="n">column</span><span class="o">.</span><span class="n">bzero</span>
+
+        <span class="n">_scale</span> <span class="o">=</span> <span class="n">bscale</span> <span class="ow">not</span> <span class="ow">in</span> <span class="p">(</span><span class="s1">&#39;&#39;</span><span class="p">,</span> <span class="kc">None</span><span class="p">,</span> <span class="mi">1</span><span class="p">)</span>
+        <span class="n">_zero</span> <span class="o">=</span> <span class="n">bzero</span> <span class="ow">not</span> <span class="ow">in</span> <span class="p">(</span><span class="s1">&#39;&#39;</span><span class="p">,</span> <span class="kc">None</span><span class="p">,</span> <span class="mi">0</span><span class="p">)</span>
+
+        <span class="c1"># ensure bscale/bzero are numbers</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">_scale</span><span class="p">:</span>
+            <span class="n">bscale</span> <span class="o">=</span> <span class="mi">1</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">_zero</span><span class="p">:</span>
+            <span class="n">bzero</span> <span class="o">=</span> <span class="mi">0</span>
+
+        <span class="c1"># column._dims gives a tuple, rather than column.dim which returns the</span>
+        <span class="c1"># original string format code from the FITS header...</span>
+        <span class="n">dim</span> <span class="o">=</span> <span class="n">column</span><span class="o">.</span><span class="n">_dims</span>
+
+        <span class="k">return</span> <span class="p">(</span><span class="n">_str</span><span class="p">,</span> <span class="n">_bool</span><span class="p">,</span> <span class="n">_number</span><span class="p">,</span> <span class="n">_scale</span><span class="p">,</span> <span class="n">_zero</span><span class="p">,</span> <span class="n">bscale</span><span class="p">,</span> <span class="n">bzero</span><span class="p">,</span> <span class="n">dim</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">_scale_back</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">update_heap_pointers</span><span class="o">=</span><span class="kc">True</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Update the parent array, using the (latest) scaled array.</span>
+
+<span class="sd">        If ``update_heap_pointers`` is `False`, this will leave all the heap</span>
+<span class="sd">        pointers in P/Q columns as they are verbatim--it only makes sense to do</span>
+<span class="sd">        this if there is already data on the heap and it can be guaranteed that</span>
+<span class="sd">        that data has not been modified, and there is not new data to add to</span>
+<span class="sd">        the heap.  Currently this is only used as an optimization for</span>
+<span class="sd">        CompImageHDU that does its own handling of the heap.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+
+        <span class="c1"># Running total for the new heap size</span>
+        <span class="n">heapsize</span> <span class="o">=</span> <span class="mi">0</span>
+
+        <span class="k">for</span> <span class="n">indx</span><span class="p">,</span> <span class="n">name</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">dtype</span><span class="o">.</span><span class="n">names</span><span class="p">):</span>
+            <span class="n">column</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_coldefs</span><span class="p">[</span><span class="n">indx</span><span class="p">]</span>
+            <span class="n">recformat</span> <span class="o">=</span> <span class="n">column</span><span class="o">.</span><span class="n">format</span><span class="o">.</span><span class="n">recformat</span>
+            <span class="n">raw_field</span> <span class="o">=</span> <span class="n">_get_recarray_field</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">indx</span><span class="p">)</span>
+
+            <span class="c1"># add the location offset of the heap area for each</span>
+            <span class="c1"># variable length column</span>
+            <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">recformat</span><span class="p">,</span> <span class="n">_FormatP</span><span class="p">):</span>
+                <span class="c1"># Irritatingly, this can return a different dtype than just</span>
+                <span class="c1"># doing np.dtype(recformat.dtype); but this returns the results</span>
+                <span class="c1"># that we want.  For example if recformat.dtype is &#39;a&#39; we want</span>
+                <span class="c1"># an array of characters.</span>
+                <span class="n">dtype</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">([],</span> <span class="n">dtype</span><span class="o">=</span><span class="n">recformat</span><span class="o">.</span><span class="n">dtype</span><span class="p">)</span><span class="o">.</span><span class="n">dtype</span>
+
+                <span class="k">if</span> <span class="n">update_heap_pointers</span> <span class="ow">and</span> <span class="n">name</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">_converted</span><span class="p">:</span>
+                    <span class="c1"># The VLA has potentially been updated, so we need to</span>
+                    <span class="c1"># update the array descriptors</span>
+                    <span class="n">raw_field</span><span class="p">[:]</span> <span class="o">=</span> <span class="mi">0</span>  <span class="c1"># reset</span>
+                    <span class="n">npts</span> <span class="o">=</span> <span class="p">[</span><span class="nb">len</span><span class="p">(</span><span class="n">arr</span><span class="p">)</span> <span class="k">for</span> <span class="n">arr</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">_converted</span><span class="p">[</span><span class="n">name</span><span class="p">]]</span>
+
+                    <span class="n">raw_field</span><span class="p">[:</span><span class="nb">len</span><span class="p">(</span><span class="n">npts</span><span class="p">),</span> <span class="mi">0</span><span class="p">]</span> <span class="o">=</span> <span class="n">npts</span>
+                    <span class="n">raw_field</span><span class="p">[</span><span class="mi">1</span><span class="p">:,</span> <span class="mi">1</span><span class="p">]</span> <span class="o">=</span> <span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">add</span><span class="o">.</span><span class="n">accumulate</span><span class="p">(</span><span class="n">raw_field</span><span class="p">[:</span><span class="o">-</span><span class="mi">1</span><span class="p">,</span> <span class="mi">0</span><span class="p">])</span> <span class="o">*</span>
+                                        <span class="n">dtype</span><span class="o">.</span><span class="n">itemsize</span><span class="p">)</span>
+                    <span class="n">raw_field</span><span class="p">[:,</span> <span class="mi">1</span><span class="p">][:]</span> <span class="o">+=</span> <span class="n">heapsize</span>
+
+                <span class="n">heapsize</span> <span class="o">+=</span> <span class="n">raw_field</span><span class="p">[:,</span> <span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">sum</span><span class="p">()</span> <span class="o">*</span> <span class="n">dtype</span><span class="o">.</span><span class="n">itemsize</span>
+                <span class="c1"># Even if this VLA has not been read or updated, we need to</span>
+                <span class="c1"># include the size of its constituent arrays in the heap size</span>
+                <span class="c1"># total</span>
+
+            <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">recformat</span><span class="p">,</span> <span class="n">_FormatX</span><span class="p">)</span> <span class="ow">and</span> <span class="n">name</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">_converted</span><span class="p">:</span>
+                <span class="n">_wrapx</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_converted</span><span class="p">[</span><span class="n">name</span><span class="p">],</span> <span class="n">raw_field</span><span class="p">,</span> <span class="n">recformat</span><span class="o">.</span><span class="n">repeat</span><span class="p">)</span>
+                <span class="k">continue</span>
+
+            <span class="n">_str</span><span class="p">,</span> <span class="n">_bool</span><span class="p">,</span> <span class="n">_number</span><span class="p">,</span> <span class="n">_scale</span><span class="p">,</span> <span class="n">_zero</span><span class="p">,</span> <span class="n">bscale</span><span class="p">,</span> <span class="n">bzero</span><span class="p">,</span> <span class="n">_</span> <span class="o">=</span> \
+                <span class="bp">self</span><span class="o">.</span><span class="n">_get_scale_factors</span><span class="p">(</span><span class="n">column</span><span class="p">)</span>
+
+            <span class="n">field</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_converted</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">name</span><span class="p">,</span> <span class="n">raw_field</span><span class="p">)</span>
+
+            <span class="c1"># conversion for both ASCII and binary tables</span>
+            <span class="k">if</span> <span class="n">_number</span> <span class="ow">or</span> <span class="n">_str</span><span class="p">:</span>
+                <span class="k">if</span> <span class="n">_number</span> <span class="ow">and</span> <span class="p">(</span><span class="n">_scale</span> <span class="ow">or</span> <span class="n">_zero</span><span class="p">)</span> <span class="ow">and</span> <span class="n">column</span><span class="o">.</span><span class="n">_physical_values</span><span class="p">:</span>
+                    <span class="n">dummy</span> <span class="o">=</span> <span class="n">field</span><span class="o">.</span><span class="n">copy</span><span class="p">()</span>
+                    <span class="k">if</span> <span class="n">_zero</span><span class="p">:</span>
+                        <span class="n">dummy</span> <span class="o">-=</span> <span class="n">bzero</span>
+                    <span class="k">if</span> <span class="n">_scale</span><span class="p">:</span>
+                        <span class="n">dummy</span> <span class="o">/=</span> <span class="n">bscale</span>
+                    <span class="c1"># This will set the raw values in the recarray back to</span>
+                    <span class="c1"># their non-physical storage values, so the column should</span>
+                    <span class="c1"># be mark is not scaled</span>
+                    <span class="n">column</span><span class="o">.</span><span class="n">_physical_values</span> <span class="o">=</span> <span class="kc">False</span>
+                <span class="k">elif</span> <span class="n">_str</span> <span class="ow">or</span> <span class="nb">isinstance</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_coldefs</span><span class="p">,</span> <span class="n">_AsciiColDefs</span><span class="p">):</span>
+                    <span class="n">dummy</span> <span class="o">=</span> <span class="n">field</span>
+                <span class="k">else</span><span class="p">:</span>
+                    <span class="k">continue</span>
+
+                <span class="c1"># ASCII table, convert numbers to strings</span>
+                <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_coldefs</span><span class="p">,</span> <span class="n">_AsciiColDefs</span><span class="p">):</span>
+                    <span class="bp">self</span><span class="o">.</span><span class="n">_scale_back_ascii</span><span class="p">(</span><span class="n">indx</span><span class="p">,</span> <span class="n">dummy</span><span class="p">,</span> <span class="n">raw_field</span><span class="p">)</span>
+                <span class="c1"># binary table string column</span>
+                <span class="k">elif</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">raw_field</span><span class="p">,</span> <span class="n">chararray</span><span class="o">.</span><span class="n">chararray</span><span class="p">):</span>
+                    <span class="bp">self</span><span class="o">.</span><span class="n">_scale_back_strings</span><span class="p">(</span><span class="n">indx</span><span class="p">,</span> <span class="n">dummy</span><span class="p">,</span> <span class="n">raw_field</span><span class="p">)</span>
+                <span class="c1"># all other binary table columns</span>
+                <span class="k">else</span><span class="p">:</span>
+                    <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">raw_field</span><span class="p">)</span> <span class="ow">and</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">raw_field</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span>
+                                                     <span class="n">np</span><span class="o">.</span><span class="n">integer</span><span class="p">):</span>
+                        <span class="n">dummy</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">around</span><span class="p">(</span><span class="n">dummy</span><span class="p">)</span>
+
+                    <span class="k">if</span> <span class="n">raw_field</span><span class="o">.</span><span class="n">shape</span> <span class="o">==</span> <span class="n">dummy</span><span class="o">.</span><span class="n">shape</span><span class="p">:</span>
+                        <span class="n">raw_field</span><span class="p">[:]</span> <span class="o">=</span> <span class="n">dummy</span>
+                    <span class="k">else</span><span class="p">:</span>
+                        <span class="c1"># Reshaping the data is necessary in cases where the</span>
+                        <span class="c1"># TDIMn keyword was used to shape a column&#39;s entries</span>
+                        <span class="c1"># into arrays</span>
+                        <span class="n">raw_field</span><span class="p">[:]</span> <span class="o">=</span> <span class="n">dummy</span><span class="o">.</span><span class="n">ravel</span><span class="p">()</span><span class="o">.</span><span class="n">view</span><span class="p">(</span><span class="n">raw_field</span><span class="o">.</span><span class="n">dtype</span><span class="p">)</span>
+
+                <span class="k">del</span> <span class="n">dummy</span>
+
+            <span class="c1"># ASCII table does not have Boolean type</span>
+            <span class="k">elif</span> <span class="n">_bool</span> <span class="ow">and</span> <span class="n">name</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">_converted</span><span class="p">:</span>
+                <span class="n">choices</span> <span class="o">=</span> <span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">([</span><span class="nb">ord</span><span class="p">(</span><span class="s1">&#39;F&#39;</span><span class="p">)],</span> <span class="n">dtype</span><span class="o">=</span><span class="n">np</span><span class="o">.</span><span class="n">int8</span><span class="p">)[</span><span class="mi">0</span><span class="p">],</span>
+                           <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">([</span><span class="nb">ord</span><span class="p">(</span><span class="s1">&#39;T&#39;</span><span class="p">)],</span> <span class="n">dtype</span><span class="o">=</span><span class="n">np</span><span class="o">.</span><span class="n">int8</span><span class="p">)[</span><span class="mi">0</span><span class="p">])</span>
+                <span class="n">raw_field</span><span class="p">[:]</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">choose</span><span class="p">(</span><span class="n">field</span><span class="p">,</span> <span class="n">choices</span><span class="p">)</span>
+
+        <span class="c1"># Store the updated heapsize</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_heapsize</span> <span class="o">=</span> <span class="n">heapsize</span>
+
+    <span class="k">def</span> <span class="nf">_scale_back_strings</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">col_idx</span><span class="p">,</span> <span class="n">input_field</span><span class="p">,</span> <span class="n">output_field</span><span class="p">):</span>
+        <span class="c1"># There are a few possibilities this has to be able to handle properly</span>
+        <span class="c1"># The input_field, which comes from the _converted column is of dtype</span>
+        <span class="c1"># &#39;Sn&#39; (where n in string length) on Python 2--this is maintain the</span>
+        <span class="c1"># existing user expectation of not being returned Python 2-style</span>
+        <span class="c1"># unicode strings.  One Python 3 the array in _converted is of dtype</span>
+        <span class="c1"># &#39;Un&#39; so that elements read out of the array are normal Python 3 str</span>
+        <span class="c1"># objects (i.e. unicode strings)</span>
+        <span class="c1">#</span>
+        <span class="c1"># At the other end the *output_field* may also be of type &#39;S&#39; or of</span>
+        <span class="c1"># type &#39;U&#39;.  It will *usually* be of type &#39;S&#39; (regardless of Python</span>
+        <span class="c1"># version) because when reading an existing FITS table the raw data is</span>
+        <span class="c1"># just ASCII strings, and represented in Numpy as an S array.</span>
+        <span class="c1"># However, when a user creates a new table from scratch, they *might*</span>
+        <span class="c1"># pass in a column containing unicode strings (dtype &#39;U&#39;), especially</span>
+        <span class="c1"># on Python 3 where this will be the default.  Therefore the</span>
+        <span class="c1"># output_field of the raw array is actually a unicode array.  But we</span>
+        <span class="c1"># still want to make sure the data is encodable as ASCII.  Later when</span>
+        <span class="c1"># we write out the array we use, in the dtype &#39;U&#39; case, a different</span>
+        <span class="c1"># write routine that writes row by row and encodes any &#39;U&#39; columns to</span>
+        <span class="c1"># ASCII.</span>
+
+        <span class="c1"># If the output_field is non-ASCII we will worry about ASCII encoding</span>
+        <span class="c1"># later when writing; otherwise we can do it right here</span>
+        <span class="k">if</span> <span class="n">input_field</span><span class="o">.</span><span class="n">dtype</span><span class="o">.</span><span class="n">kind</span> <span class="o">==</span> <span class="s1">&#39;U&#39;</span> <span class="ow">and</span> <span class="n">output_field</span><span class="o">.</span><span class="n">dtype</span><span class="o">.</span><span class="n">kind</span> <span class="o">==</span> <span class="s1">&#39;S&#39;</span><span class="p">:</span>
+            <span class="k">try</span><span class="p">:</span>
+                <span class="n">_ascii_encode</span><span class="p">(</span><span class="n">input_field</span><span class="p">,</span> <span class="n">out</span><span class="o">=</span><span class="n">output_field</span><span class="p">)</span>
+            <span class="k">except</span> <span class="n">_UnicodeArrayEncodeError</span> <span class="k">as</span> <span class="n">exc</span><span class="p">:</span>
+                <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
+                    <span class="s2">&quot;Could not save column &#39;</span><span class="si">{0}</span><span class="s2">&#39;: Contains characters that &quot;</span>
+                    <span class="s2">&quot;cannot be encoded as ASCII as required by FITS, starting &quot;</span>
+                    <span class="s2">&quot;at the index </span><span class="si">{1!r}</span><span class="s2"> of the column, and the index </span><span class="si">{2}</span><span class="s2"> of &quot;</span>
+                    <span class="s2">&quot;the string at that location.&quot;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span>
+                        <span class="bp">self</span><span class="o">.</span><span class="n">_coldefs</span><span class="p">[</span><span class="n">col_idx</span><span class="p">]</span><span class="o">.</span><span class="n">name</span><span class="p">,</span>
+                        <span class="n">exc</span><span class="o">.</span><span class="n">index</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">exc</span><span class="o">.</span><span class="n">index</span><span class="p">)</span> <span class="o">==</span> <span class="mi">1</span> <span class="k">else</span> <span class="n">exc</span><span class="o">.</span><span class="n">index</span><span class="p">,</span>
+                        <span class="n">exc</span><span class="o">.</span><span class="n">start</span><span class="p">))</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="c1"># Otherwise go ahead and do a direct copy into--if both are type</span>
+            <span class="c1"># &#39;U&#39; we&#39;ll handle encoding later</span>
+            <span class="n">input_field</span> <span class="o">=</span> <span class="n">input_field</span><span class="o">.</span><span class="n">flatten</span><span class="p">()</span><span class="o">.</span><span class="n">view</span><span class="p">(</span><span class="n">output_field</span><span class="o">.</span><span class="n">dtype</span><span class="p">)</span>
+            <span class="n">output_field</span><span class="o">.</span><span class="n">flat</span><span class="p">[:]</span> <span class="o">=</span> <span class="n">input_field</span>
+
+        <span class="c1"># Ensure that blanks at the end of each string are</span>
+        <span class="c1"># converted to nulls instead of spaces, see Trac #15</span>
+        <span class="c1"># and #111</span>
+        <span class="n">_rstrip_inplace</span><span class="p">(</span><span class="n">output_field</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">_scale_back_ascii</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">col_idx</span><span class="p">,</span> <span class="n">input_field</span><span class="p">,</span> <span class="n">output_field</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Convert internal array values back to ASCII table representation.</span>
+
+<span class="sd">        The ``input_field`` is the internal representation of the values, and</span>
+<span class="sd">        the ``output_field`` is the character array representing the ASCII</span>
+<span class="sd">        output that will be written.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+
+        <span class="n">starts</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_coldefs</span><span class="o">.</span><span class="n">starts</span><span class="p">[:]</span>
+        <span class="n">spans</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_coldefs</span><span class="o">.</span><span class="n">spans</span>
+        <span class="nb">format</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_coldefs</span><span class="p">[</span><span class="n">col_idx</span><span class="p">]</span><span class="o">.</span><span class="n">format</span>
+
+        <span class="c1"># The the index of the &quot;end&quot; column of the record, beyond</span>
+        <span class="c1"># which we can&#39;t write</span>
+        <span class="n">end</span> <span class="o">=</span> <span class="nb">super</span><span class="p">(</span><span class="n">FITS_rec</span><span class="p">,</span> <span class="bp">self</span><span class="p">)</span><span class="o">.</span><span class="n">field</span><span class="p">(</span><span class="o">-</span><span class="mi">1</span><span class="p">)</span><span class="o">.</span><span class="n">itemsize</span>
+        <span class="n">starts</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">end</span> <span class="o">+</span> <span class="n">starts</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">])</span>
+
+        <span class="k">if</span> <span class="n">col_idx</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">:</span>
+            <span class="n">lead</span> <span class="o">=</span> <span class="n">starts</span><span class="p">[</span><span class="n">col_idx</span><span class="p">]</span> <span class="o">-</span> <span class="n">starts</span><span class="p">[</span><span class="n">col_idx</span> <span class="o">-</span> <span class="mi">1</span><span class="p">]</span> <span class="o">-</span> <span class="n">spans</span><span class="p">[</span><span class="n">col_idx</span> <span class="o">-</span> <span class="mi">1</span><span class="p">]</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">lead</span> <span class="o">=</span> <span class="mi">0</span>
+
+        <span class="k">if</span> <span class="n">lead</span> <span class="o">&lt;</span> <span class="mi">0</span><span class="p">:</span>
+            <span class="n">warnings</span><span class="o">.</span><span class="n">warn</span><span class="p">(</span><span class="s1">&#39;Column </span><span class="si">{!r}</span><span class="s1"> starting point overlaps the previous &#39;</span>
+                          <span class="s1">&#39;column.&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">col_idx</span> <span class="o">+</span> <span class="mi">1</span><span class="p">))</span>
+
+        <span class="n">trail</span> <span class="o">=</span> <span class="n">starts</span><span class="p">[</span><span class="n">col_idx</span> <span class="o">+</span> <span class="mi">1</span><span class="p">]</span> <span class="o">-</span> <span class="n">starts</span><span class="p">[</span><span class="n">col_idx</span><span class="p">]</span> <span class="o">-</span> <span class="n">spans</span><span class="p">[</span><span class="n">col_idx</span><span class="p">]</span>
+
+        <span class="k">if</span> <span class="n">trail</span> <span class="o">&lt;</span> <span class="mi">0</span><span class="p">:</span>
+            <span class="n">warnings</span><span class="o">.</span><span class="n">warn</span><span class="p">(</span><span class="s1">&#39;Column </span><span class="si">{!r}</span><span class="s1"> ending point overlaps the next &#39;</span>
+                          <span class="s1">&#39;column.&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">col_idx</span> <span class="o">+</span> <span class="mi">1</span><span class="p">))</span>
+
+        <span class="c1"># TODO: It would be nice if these string column formatting</span>
+        <span class="c1"># details were left to a specialized class, as is the case</span>
+        <span class="c1"># with FormatX and FormatP</span>
+        <span class="nb">print</span><span class="p">(</span><span class="nb">format</span><span class="p">)</span>
+        <span class="k">if</span> <span class="s1">&#39;A&#39;</span> <span class="ow">in</span> <span class="nb">format</span><span class="p">:</span>
+            <span class="n">_pc</span> <span class="o">=</span> <span class="s1">&#39;{:&#39;</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">_pc</span> <span class="o">=</span> <span class="s1">&#39;{:&gt;&#39;</span>
+
+        <span class="n">fmt</span> <span class="o">=</span> <span class="s1">&#39;&#39;</span><span class="o">.</span><span class="n">join</span><span class="p">([</span><span class="n">_pc</span><span class="p">,</span> <span class="nb">format</span><span class="p">[</span><span class="mi">1</span><span class="p">:],</span> <span class="n">ASCII2STR</span><span class="p">[</span><span class="nb">format</span><span class="p">[</span><span class="mi">0</span><span class="p">]],</span> <span class="s1">&#39;}&#39;</span><span class="p">,</span>
+                       <span class="p">(</span><span class="s1">&#39; &#39;</span> <span class="o">*</span> <span class="n">trail</span><span class="p">)])</span>
+
+        <span class="c1"># Even if the format precision is 0, we should output a decimal point</span>
+        <span class="c1"># as long as there is space to do so--not including a decimal point in</span>
+        <span class="c1"># a float value is discouraged by the FITS Standard</span>
+        <span class="n">trailing_decimal</span> <span class="o">=</span> <span class="p">(</span><span class="nb">format</span><span class="o">.</span><span class="n">precision</span> <span class="o">==</span> <span class="mi">0</span> <span class="ow">and</span>
+                            <span class="nb">format</span><span class="o">.</span><span class="n">format</span> <span class="ow">in</span> <span class="p">(</span><span class="s1">&#39;F&#39;</span><span class="p">,</span> <span class="s1">&#39;E&#39;</span><span class="p">,</span> <span class="s1">&#39;D&#39;</span><span class="p">))</span>
+
+        <span class="c1"># not using numarray.strings&#39;s num2char because the</span>
+        <span class="c1"># result is not allowed to expand (as C/Python does).</span>
+        <span class="k">for</span> <span class="n">jdx</span><span class="p">,</span> <span class="n">value</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="n">input_field</span><span class="p">):</span>
+            <span class="n">value</span> <span class="o">=</span> <span class="n">fmt</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">value</span><span class="p">)</span>
+            <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">value</span><span class="p">)</span> <span class="o">&gt;</span> <span class="n">starts</span><span class="p">[</span><span class="n">col_idx</span> <span class="o">+</span> <span class="mi">1</span><span class="p">]</span> <span class="o">-</span> <span class="n">starts</span><span class="p">[</span><span class="n">col_idx</span><span class="p">]:</span>
+                <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
+                    <span class="s2">&quot;Value </span><span class="si">{!r}</span><span class="s2"> does not fit into the output&#39;s itemsize of &quot;</span>
+                    <span class="s2">&quot;</span><span class="si">{}</span><span class="s2">.&quot;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">value</span><span class="p">,</span> <span class="n">spans</span><span class="p">[</span><span class="n">col_idx</span><span class="p">]))</span>
+
+            <span class="k">if</span> <span class="n">trailing_decimal</span> <span class="ow">and</span> <span class="n">value</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">==</span> <span class="s1">&#39; &#39;</span><span class="p">:</span>
+                <span class="c1"># We have some extra space in the field for the trailing</span>
+                <span class="c1"># decimal point</span>
+                <span class="n">value</span> <span class="o">=</span> <span class="n">value</span><span class="p">[</span><span class="mi">1</span><span class="p">:]</span> <span class="o">+</span> <span class="s1">&#39;.&#39;</span>
+
+            <span class="n">output_field</span><span class="p">[</span><span class="n">jdx</span><span class="p">]</span> <span class="o">=</span> <span class="n">value</span>
+
+        <span class="c1"># Replace exponent separator in floating point numbers</span>
+        <span class="k">if</span> <span class="s1">&#39;D&#39;</span> <span class="ow">in</span> <span class="nb">format</span><span class="p">:</span>
+            <span class="n">output_field</span><span class="o">.</span><span class="n">replace</span><span class="p">(</span><span class="n">encode_ascii</span><span class="p">(</span><span class="s1">&#39;E&#39;</span><span class="p">),</span> <span class="n">encode_ascii</span><span class="p">(</span><span class="s1">&#39;D&#39;</span><span class="p">))</span></div>
+
+
+<span class="k">def</span> <span class="nf">_get_recarray_field</span><span class="p">(</span><span class="n">array</span><span class="p">,</span> <span class="n">key</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Compatibility function for using the recarray base class&#39;s field method.</span>
+<span class="sd">    This incorporates the legacy functionality of returning string arrays as</span>
+<span class="sd">    Numeric-style chararray objects.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="c1"># Numpy &gt;= 1.10.dev recarray no longer returns chararrays for strings</span>
+    <span class="c1"># This is currently needed for backwards-compatibility and for</span>
+    <span class="c1"># automatic truncation of trailing whitespace</span>
+    <span class="n">field</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">recarray</span><span class="o">.</span><span class="n">field</span><span class="p">(</span><span class="n">array</span><span class="p">,</span> <span class="n">key</span><span class="p">)</span>
+    <span class="k">if</span> <span class="p">(</span><span class="n">field</span><span class="o">.</span><span class="n">dtype</span><span class="o">.</span><span class="n">char</span> <span class="ow">in</span> <span class="p">(</span><span class="s1">&#39;S&#39;</span><span class="p">,</span> <span class="s1">&#39;U&#39;</span><span class="p">)</span> <span class="ow">and</span>
+            <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">field</span><span class="p">,</span> <span class="n">chararray</span><span class="o">.</span><span class="n">chararray</span><span class="p">)):</span>
+        <span class="n">field</span> <span class="o">=</span> <span class="n">field</span><span class="o">.</span><span class="n">view</span><span class="p">(</span><span class="n">chararray</span><span class="o">.</span><span class="n">chararray</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">field</span>
+
+
+<span class="k">def</span> <span class="nf">_rstrip_inplace</span><span class="p">(</span><span class="n">array</span><span class="p">,</span> <span class="n">chars</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Performs an in-place rstrip operation on string arrays.</span>
+<span class="sd">    This is necessary since the built-in `np.char.rstrip` in Numpy does not</span>
+<span class="sd">    perform an in-place calculation.  This can be removed if ever</span>
+<span class="sd">    https://github.com/numpy/numpy/issues/6303 is implemented (however, for</span>
+<span class="sd">    the purposes of this module the only in-place vectorized string functions</span>
+<span class="sd">    we need are rstrip and encode).</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="k">for</span> <span class="n">item</span> <span class="ow">in</span> <span class="n">np</span><span class="o">.</span><span class="n">nditer</span><span class="p">(</span><span class="n">array</span><span class="p">,</span> <span class="n">flags</span><span class="o">=</span><span class="p">[</span><span class="s1">&#39;zerosize_ok&#39;</span><span class="p">],</span>
+                                 <span class="n">op_flags</span><span class="o">=</span><span class="p">[</span><span class="s1">&#39;readwrite&#39;</span><span class="p">]):</span>
+        <span class="n">item</span><span class="p">[</span><span class="o">...</span><span class="p">]</span> <span class="o">=</span> <span class="n">item</span><span class="o">.</span><span class="n">item</span><span class="p">()</span><span class="o">.</span><span class="n">rstrip</span><span class="p">(</span><span class="n">chars</span><span class="p">)</span>
+
+
+<span class="k">class</span> <span class="nc">_UnicodeArrayEncodeError</span><span class="p">(</span><span class="ne">UnicodeEncodeError</span><span class="p">):</span>
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">encoding</span><span class="p">,</span> <span class="n">object_</span><span class="p">,</span> <span class="n">start</span><span class="p">,</span> <span class="n">end</span><span class="p">,</span> <span class="n">reason</span><span class="p">,</span> <span class="n">index</span><span class="p">):</span>
+        <span class="nb">super</span><span class="p">(</span><span class="n">_UnicodeArrayEncodeError</span><span class="p">,</span> <span class="bp">self</span><span class="p">)</span><span class="o">.</span><span class="n">__init__</span><span class="p">(</span><span class="n">encoding</span><span class="p">,</span> <span class="n">object_</span><span class="p">,</span>
+                <span class="n">start</span><span class="p">,</span> <span class="n">end</span><span class="p">,</span> <span class="n">reason</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">index</span> <span class="o">=</span> <span class="n">index</span>
+
+
+<span class="k">def</span> <span class="nf">_ascii_encode</span><span class="p">(</span><span class="n">inarray</span><span class="p">,</span> <span class="n">out</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Takes a unicode array and fills the output string array with the ASCII</span>
+<span class="sd">    encodings (if possible) of the elements of the input array.  The two arrays</span>
+<span class="sd">    must be the same size (though not necessarily the same shape).</span>
+
+<span class="sd">    This is like an inplace version of `np.char.encode` though simpler since</span>
+<span class="sd">    it&#39;s only limited to ASCII, and hence the size of each character is</span>
+<span class="sd">    guaranteed to be 1 byte.</span>
+
+<span class="sd">    If any strings are non-ASCII an UnicodeArrayEncodeError is raised--this is</span>
+<span class="sd">    just a `UnicodeEncodeError` with an additional attribute for the index of</span>
+<span class="sd">    the item that couldn&#39;t be encoded.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="n">out_dtype</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">dtype</span><span class="p">((</span><span class="s1">&#39;S</span><span class="si">{0}</span><span class="s1">&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">inarray</span><span class="o">.</span><span class="n">dtype</span><span class="o">.</span><span class="n">itemsize</span> <span class="o">//</span> <span class="mi">4</span><span class="p">),</span>
+                         <span class="n">inarray</span><span class="o">.</span><span class="n">dtype</span><span class="o">.</span><span class="n">shape</span><span class="p">))</span>
+    <span class="k">if</span> <span class="n">out</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="n">out</span> <span class="o">=</span> <span class="n">out</span><span class="o">.</span><span class="n">view</span><span class="p">(</span><span class="n">out_dtype</span><span class="p">)</span>
+
+    <span class="n">op_dtypes</span> <span class="o">=</span> <span class="p">[</span><span class="n">inarray</span><span class="o">.</span><span class="n">dtype</span><span class="p">,</span> <span class="n">out_dtype</span><span class="p">]</span>
+    <span class="n">op_flags</span> <span class="o">=</span> <span class="p">[[</span><span class="s1">&#39;readonly&#39;</span><span class="p">],</span> <span class="p">[</span><span class="s1">&#39;writeonly&#39;</span><span class="p">,</span> <span class="s1">&#39;allocate&#39;</span><span class="p">]]</span>
+    <span class="n">it</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">nditer</span><span class="p">([</span><span class="n">inarray</span><span class="p">,</span> <span class="n">out</span><span class="p">],</span> <span class="n">op_dtypes</span><span class="o">=</span><span class="n">op_dtypes</span><span class="p">,</span>
+                   <span class="n">op_flags</span><span class="o">=</span><span class="n">op_flags</span><span class="p">,</span> <span class="n">flags</span><span class="o">=</span><span class="p">[</span><span class="s1">&#39;zerosize_ok&#39;</span><span class="p">])</span>
+
+    <span class="k">try</span><span class="p">:</span>
+        <span class="k">for</span> <span class="n">initem</span><span class="p">,</span> <span class="n">outitem</span> <span class="ow">in</span> <span class="n">it</span><span class="p">:</span>
+            <span class="n">outitem</span><span class="p">[</span><span class="o">...</span><span class="p">]</span> <span class="o">=</span> <span class="n">initem</span><span class="o">.</span><span class="n">item</span><span class="p">()</span><span class="o">.</span><span class="n">encode</span><span class="p">(</span><span class="s1">&#39;ascii&#39;</span><span class="p">)</span>
+    <span class="k">except</span> <span class="ne">UnicodeEncodeError</span> <span class="k">as</span> <span class="n">exc</span><span class="p">:</span>
+        <span class="n">index</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">unravel_index</span><span class="p">(</span><span class="n">it</span><span class="o">.</span><span class="n">iterindex</span><span class="p">,</span> <span class="n">inarray</span><span class="o">.</span><span class="n">shape</span><span class="p">)</span>
+        <span class="k">raise</span> <span class="n">_UnicodeArrayEncodeError</span><span class="p">(</span><span class="o">*</span><span class="p">(</span><span class="n">exc</span><span class="o">.</span><span class="n">args</span> <span class="o">+</span> <span class="p">(</span><span class="n">index</span><span class="p">,)))</span>
+
+    <span class="k">return</span> <span class="n">it</span><span class="o">.</span><span class="n">operands</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span>
+
+
+<span class="k">def</span> <span class="nf">_has_unicode_fields</span><span class="p">(</span><span class="n">array</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Returns True if any fields in a structured array have Unicode dtype.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="n">dtypes</span> <span class="o">=</span> <span class="p">(</span><span class="n">d</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="k">for</span> <span class="n">d</span> <span class="ow">in</span> <span class="n">array</span><span class="o">.</span><span class="n">dtype</span><span class="o">.</span><span class="n">fields</span><span class="o">.</span><span class="n">values</span><span class="p">())</span>
+    <span class="k">return</span> <span class="nb">any</span><span class="p">(</span><span class="n">d</span><span class="o">.</span><span class="n">kind</span> <span class="o">==</span> <span class="s1">&#39;U&#39;</span> <span class="k">for</span> <span class="n">d</span> <span class="ow">in</span> <span class="n">dtypes</span><span class="p">)</span>
+</pre></div>
+
+          </div>
+        </div>
+      </div>
+      <div class="sphinxsidebar" role="navigation" aria-label="main navigation">
+        <div class="sphinxsidebarwrapper"><h3>Page Contents</h3>
+
+
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+<footer class="footer">
+  <p class="pull-right"> &nbsp;
+    <a href="#">Back to Top</a></p>
+  <p>
+    &copy; Copyright 2011-2016, The Astropy Developers.<br/>
+    Created using <a href="http://sphinx.pocoo.org/">Sphinx</a> 1.5.6. &nbsp;
+    Last built 05 Jul 2017. <br/>
+  </p>
+</footer>
+  </body>
+</html>

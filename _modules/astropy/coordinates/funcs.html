@@ -1,0 +1,384 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <head>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    
+    <title>astropy.coordinates.funcs &#8212; Astropy v3.0.dev19489</title>
+    
+    <link rel="stylesheet" href="../../../_static/bootstrap-astropy.css" type="text/css" />
+    <link rel="stylesheet" href="../../../_static/pygments.css" type="text/css" />
+    <link rel="stylesheet" href="../../../_static/gallery.css" type="text/css" />
+    
+    <script type="text/javascript">
+      var DOCUMENTATION_OPTIONS = {
+        URL_ROOT:    '../../../',
+        VERSION:     '3.0.dev19489',
+        COLLAPSE_INDEX: false,
+        FILE_SUFFIX: '.html',
+        HAS_SOURCE:  true,
+        SOURCELINK_SUFFIX: '.txt'
+      };
+    </script>
+    <script type="text/javascript" src="../../../_static/jquery.js"></script>
+    <script type="text/javascript" src="../../../_static/underscore.js"></script>
+    <script type="text/javascript" src="../../../_static/doctools.js"></script>
+    <script type="text/javascript" src="../../../_static/sidebar.js"></script>
+    <link rel="shortcut icon" href="../../../_static/astropy_logo.ico"/>
+    <link rel="index" title="Index" href="../../../genindex.html" />
+    <link rel="search" title="Search" href="../../../search.html" />
+<link href='https://fonts.googleapis.com/css?family=Source+Sans+Pro:200,600' rel='stylesheet' type='text/css'/>
+<script type="text/javascript" src="../../../_static/copybutton.js"></script>
+
+
+  </head>
+  <body role="document">
+<div class="topbar">
+  <a class="brand" title="Documentation Home" href="../../../index.html"><span id="logotext1">astro</span><span id="logotext2">py</span><span id="logotext3">:docs</span></a>
+  <ul>
+    <li><a class="homelink" title="Astropy Homepage" href="http://www.astropy.org"></a></li>
+    <li><a title="General Index" href="../../../genindex.html">Index</a></li>
+    <li><a title="Module Index" href="../../../py-modindex.html">Modules</a></li>
+    <li>
+      
+      
+<form action="../../../search.html" method="get">
+  <input type="text" name="q" placeholder="Search" />
+  <input type="hidden" name="check_keywords" value="yes" />
+  <input type="hidden" name="area" value="default" />
+</form>
+      
+    </li>
+  </ul>
+</div>
+
+<div class="related">
+    <h3>Navigation</h3>
+    <ul>
+      <li>
+	<a href="../../../index.html">Astropy v3.0.dev19489</a>
+	 &#187;
+      </li>
+      <li><a href="../../index.html" >Module code</a> &#187;</li>
+      <li><a href="../../astropy.html" accesskey="U">astropy</a> &#187;</li>
+      
+       
+    </ul>
+</div>
+  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          <div class="body" role="main">
+            
+  <h1>Source code for astropy.coordinates.funcs</h1><div class="highlight"><pre>
+<span></span><span class="c1"># Licensed under a 3-clause BSD style license - see LICENSE.rst</span>
+
+<span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">This module contains convenience functions for coordinate-related functionality.</span>
+
+<span class="sd">This is generally just wrapping around the object-oriented coordinates</span>
+<span class="sd">framework, but it is useful for some users who are used to more functional</span>
+<span class="sd">interfaces.</span>
+<span class="sd">&quot;&quot;&quot;</span>
+
+<span class="kn">from</span> <span class="nn">__future__</span> <span class="k">import</span> <span class="p">(</span><span class="n">absolute_import</span><span class="p">,</span> <span class="n">division</span><span class="p">,</span> <span class="n">print_function</span><span class="p">,</span>
+                        <span class="n">unicode_literals</span><span class="p">)</span>
+
+<span class="kn">import</span> <span class="nn">numpy</span> <span class="k">as</span> <span class="nn">np</span>
+
+<span class="kn">from</span> <span class="nn">..</span> <span class="k">import</span> <span class="n">units</span> <span class="k">as</span> <span class="n">u</span>
+<span class="kn">from</span> <span class="nn">..constants</span> <span class="k">import</span> <span class="n">c</span>
+<span class="kn">from</span> <span class="nn">..</span> <span class="k">import</span> <span class="n">_erfa</span> <span class="k">as</span> <span class="n">erfa</span>
+<span class="kn">from</span> <span class="nn">..io</span> <span class="k">import</span> <span class="n">ascii</span>
+<span class="kn">from</span> <span class="nn">..utils</span> <span class="k">import</span> <span class="n">isiterable</span><span class="p">,</span> <span class="n">data</span>
+<span class="kn">from</span> <span class="nn">.sky_coordinate</span> <span class="k">import</span> <span class="n">SkyCoord</span>
+<span class="kn">from</span> <span class="nn">.builtin_frames</span> <span class="k">import</span> <span class="n">GCRS</span><span class="p">,</span> <span class="n">PrecessedGeocentric</span>
+<span class="kn">from</span> <span class="nn">.representation</span> <span class="k">import</span> <span class="n">SphericalRepresentation</span><span class="p">,</span> <span class="n">CartesianRepresentation</span>
+<span class="kn">from</span> <span class="nn">.builtin_frames.utils</span> <span class="k">import</span> <span class="n">get_jd12</span>
+
+<span class="n">__all__</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;cartesian_to_spherical&#39;</span><span class="p">,</span> <span class="s1">&#39;spherical_to_cartesian&#39;</span><span class="p">,</span> <span class="s1">&#39;get_sun&#39;</span><span class="p">,</span>
+           <span class="s1">&#39;concatenate&#39;</span><span class="p">,</span> <span class="s1">&#39;get_constellation&#39;</span><span class="p">]</span>
+
+
+<div class="viewcode-block" id="cartesian_to_spherical"><a class="viewcode-back" href="../../../api/astropy.coordinates.cartesian_to_spherical.html#astropy.coordinates.cartesian_to_spherical">[docs]</a><span class="k">def</span> <span class="nf">cartesian_to_spherical</span><span class="p">(</span><span class="n">x</span><span class="p">,</span> <span class="n">y</span><span class="p">,</span> <span class="n">z</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Converts 3D rectangular cartesian coordinates to spherical polar</span>
+<span class="sd">    coordinates.</span>
+
+<span class="sd">    Note that the resulting angles are latitude/longitude or</span>
+<span class="sd">    elevation/azimuthal form.  I.e., the origin is along the equator</span>
+<span class="sd">    rather than at the north pole.</span>
+
+<span class="sd">    .. note::</span>
+<span class="sd">        This function simply wraps functionality provided by the</span>
+<span class="sd">        `~astropy.coordinates.CartesianRepresentation` and</span>
+<span class="sd">        `~astropy.coordinates.SphericalRepresentation` classes.  In general,</span>
+<span class="sd">        for both performance and readability, we suggest using these classes</span>
+<span class="sd">        directly.  But for situations where a quick one-off conversion makes</span>
+<span class="sd">        sense, this function is provided.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    x : scalar, array-like, or `~astropy.units.Quantity`</span>
+<span class="sd">        The first cartesian coordinate.</span>
+<span class="sd">    y : scalar, array-like, or `~astropy.units.Quantity`</span>
+<span class="sd">        The second cartesian coordinate.</span>
+<span class="sd">    z : scalar, array-like, or `~astropy.units.Quantity`</span>
+<span class="sd">        The third cartesian coordinate.</span>
+
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+<span class="sd">    r : `~astropy.units.Quantity`</span>
+<span class="sd">        The radial coordinate (in the same units as the inputs).</span>
+<span class="sd">    lat : `~astropy.units.Quantity`</span>
+<span class="sd">        The latitude in radians</span>
+<span class="sd">    lon : `~astropy.units.Quantity`</span>
+<span class="sd">        The longitude in radians</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="nb">hasattr</span><span class="p">(</span><span class="n">x</span><span class="p">,</span> <span class="s1">&#39;unit&#39;</span><span class="p">):</span>
+        <span class="n">x</span> <span class="o">=</span> <span class="n">x</span> <span class="o">*</span> <span class="n">u</span><span class="o">.</span><span class="n">dimensionless_unscaled</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="nb">hasattr</span><span class="p">(</span><span class="n">y</span><span class="p">,</span> <span class="s1">&#39;unit&#39;</span><span class="p">):</span>
+        <span class="n">y</span> <span class="o">=</span> <span class="n">y</span> <span class="o">*</span> <span class="n">u</span><span class="o">.</span><span class="n">dimensionless_unscaled</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="nb">hasattr</span><span class="p">(</span><span class="n">z</span><span class="p">,</span> <span class="s1">&#39;unit&#39;</span><span class="p">):</span>
+        <span class="n">z</span> <span class="o">=</span> <span class="n">z</span> <span class="o">*</span> <span class="n">u</span><span class="o">.</span><span class="n">dimensionless_unscaled</span>
+
+    <span class="n">cart</span> <span class="o">=</span> <span class="n">CartesianRepresentation</span><span class="p">(</span><span class="n">x</span><span class="p">,</span> <span class="n">y</span><span class="p">,</span> <span class="n">z</span><span class="p">)</span>
+    <span class="n">sph</span> <span class="o">=</span> <span class="n">cart</span><span class="o">.</span><span class="n">represent_as</span><span class="p">(</span><span class="n">SphericalRepresentation</span><span class="p">)</span>
+
+    <span class="k">return</span> <span class="n">sph</span><span class="o">.</span><span class="n">distance</span><span class="p">,</span> <span class="n">sph</span><span class="o">.</span><span class="n">lat</span><span class="p">,</span> <span class="n">sph</span><span class="o">.</span><span class="n">lon</span></div>
+
+
+<div class="viewcode-block" id="spherical_to_cartesian"><a class="viewcode-back" href="../../../api/astropy.coordinates.spherical_to_cartesian.html#astropy.coordinates.spherical_to_cartesian">[docs]</a><span class="k">def</span> <span class="nf">spherical_to_cartesian</span><span class="p">(</span><span class="n">r</span><span class="p">,</span> <span class="n">lat</span><span class="p">,</span> <span class="n">lon</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Converts spherical polar coordinates to rectangular cartesian</span>
+<span class="sd">    coordinates.</span>
+
+<span class="sd">    Note that the input angles should be in latitude/longitude or</span>
+<span class="sd">    elevation/azimuthal form.  I.e., the origin is along the equator</span>
+<span class="sd">    rather than at the north pole.</span>
+
+<span class="sd">    .. note::</span>
+<span class="sd">        This is a low-level function used internally in</span>
+<span class="sd">        `astropy.coordinates`.  It is provided for users if they really</span>
+<span class="sd">        want to use it, but it is recommended that you use the</span>
+<span class="sd">        `astropy.coordinates` coordinate systems.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    r : scalar, array-like, or `~astropy.units.Quantity`</span>
+<span class="sd">        The radial coordinate (in the same units as the inputs).</span>
+<span class="sd">    lat : scalar, array-like, or `~astropy.units.Quantity`</span>
+<span class="sd">        The latitude (in radians if array or scalar)</span>
+<span class="sd">    lon : scalar, array-like, or `~astropy.units.Quantity`</span>
+<span class="sd">        The longitude (in radians if array or scalar)</span>
+
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+<span class="sd">    x : float or array</span>
+<span class="sd">        The first cartesian coordinate.</span>
+<span class="sd">    y : float or array</span>
+<span class="sd">        The second cartesian coordinate.</span>
+<span class="sd">    z : float or array</span>
+<span class="sd">        The third cartesian coordinate.</span>
+
+
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="nb">hasattr</span><span class="p">(</span><span class="n">r</span><span class="p">,</span> <span class="s1">&#39;unit&#39;</span><span class="p">):</span>
+        <span class="n">r</span> <span class="o">=</span> <span class="n">r</span> <span class="o">*</span> <span class="n">u</span><span class="o">.</span><span class="n">dimensionless_unscaled</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="nb">hasattr</span><span class="p">(</span><span class="n">lat</span><span class="p">,</span> <span class="s1">&#39;unit&#39;</span><span class="p">):</span>
+        <span class="n">lat</span> <span class="o">=</span> <span class="n">lat</span> <span class="o">*</span> <span class="n">u</span><span class="o">.</span><span class="n">radian</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="nb">hasattr</span><span class="p">(</span><span class="n">lon</span><span class="p">,</span> <span class="s1">&#39;unit&#39;</span><span class="p">):</span>
+        <span class="n">lon</span> <span class="o">=</span> <span class="n">lon</span> <span class="o">*</span> <span class="n">u</span><span class="o">.</span><span class="n">radian</span>
+
+    <span class="n">sph</span> <span class="o">=</span> <span class="n">SphericalRepresentation</span><span class="p">(</span><span class="n">distance</span><span class="o">=</span><span class="n">r</span><span class="p">,</span> <span class="n">lat</span><span class="o">=</span><span class="n">lat</span><span class="p">,</span> <span class="n">lon</span><span class="o">=</span><span class="n">lon</span><span class="p">)</span>
+    <span class="n">cart</span> <span class="o">=</span> <span class="n">sph</span><span class="o">.</span><span class="n">represent_as</span><span class="p">(</span><span class="n">CartesianRepresentation</span><span class="p">)</span>
+
+    <span class="k">return</span> <span class="n">cart</span><span class="o">.</span><span class="n">x</span><span class="p">,</span> <span class="n">cart</span><span class="o">.</span><span class="n">y</span><span class="p">,</span> <span class="n">cart</span><span class="o">.</span><span class="n">z</span></div>
+
+
+<div class="viewcode-block" id="get_sun"><a class="viewcode-back" href="../../../api/astropy.coordinates.get_sun.html#astropy.coordinates.get_sun">[docs]</a><span class="k">def</span> <span class="nf">get_sun</span><span class="p">(</span><span class="n">time</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Determines the location of the sun at a given time (or times, if the input</span>
+<span class="sd">    is an array `~astropy.time.Time` object), in geocentric coordinates.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    time : `~astropy.time.Time`</span>
+<span class="sd">        The time(s) at which to compute the location of the sun.</span>
+
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+<span class="sd">    newsc : `~astropy.coordinates.SkyCoord`</span>
+<span class="sd">        The location of the sun as a `~astropy.coordinates.SkyCoord` in the</span>
+<span class="sd">        `~astropy.coordinates.GCRS` frame.</span>
+
+
+<span class="sd">    Notes</span>
+<span class="sd">    -----</span>
+<span class="sd">    The algorithm for determining the sun/earth relative position is based</span>
+<span class="sd">    on the simplified version of VSOP2000 that is part of ERFA. Compared to</span>
+<span class="sd">    JPL&#39;s ephemeris, it should be good to about 4 km (in the Sun-Earth</span>
+<span class="sd">    vector) from 1900-2100 C.E., 8 km for the 1800-2200 span, and perhaps</span>
+<span class="sd">    250 km over the 1000-3000.</span>
+
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">earth_pv_helio</span><span class="p">,</span> <span class="n">earth_pv_bary</span> <span class="o">=</span> <span class="n">erfa</span><span class="o">.</span><span class="n">epv00</span><span class="p">(</span><span class="o">*</span><span class="n">get_jd12</span><span class="p">(</span><span class="n">time</span><span class="p">,</span> <span class="s1">&#39;tdb&#39;</span><span class="p">))</span>
+
+    <span class="c1"># We have to manually do aberration because we&#39;re outputting directly into</span>
+    <span class="c1"># GCRS</span>
+    <span class="n">earth_p</span> <span class="o">=</span> <span class="n">earth_pv_helio</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="p">:]</span>
+    <span class="n">earth_v</span> <span class="o">=</span> <span class="n">earth_pv_bary</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="p">:]</span>
+
+    <span class="c1"># convert barycentric velocity to units of c, but keep as array for passing in to erfa</span>
+    <span class="n">earth_v</span> <span class="o">/=</span> <span class="n">c</span><span class="o">.</span><span class="n">to_value</span><span class="p">(</span><span class="n">u</span><span class="o">.</span><span class="n">au</span><span class="o">/</span><span class="n">u</span><span class="o">.</span><span class="n">d</span><span class="p">)</span>
+
+    <span class="n">dsun</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">sqrt</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">sum</span><span class="p">(</span><span class="n">earth_p</span><span class="o">**</span><span class="mi">2</span><span class="p">,</span> <span class="n">axis</span><span class="o">=-</span><span class="mi">1</span><span class="p">))</span>
+    <span class="n">invlorentz</span> <span class="o">=</span> <span class="p">(</span><span class="mi">1</span><span class="o">-</span><span class="n">np</span><span class="o">.</span><span class="n">sum</span><span class="p">(</span><span class="n">earth_v</span><span class="o">**</span><span class="mi">2</span><span class="p">,</span> <span class="n">axis</span><span class="o">=-</span><span class="mi">1</span><span class="p">))</span><span class="o">**</span><span class="mf">0.5</span>
+    <span class="n">properdir</span> <span class="o">=</span> <span class="n">erfa</span><span class="o">.</span><span class="n">ab</span><span class="p">(</span><span class="n">earth_p</span><span class="o">/</span><span class="n">dsun</span><span class="o">.</span><span class="n">reshape</span><span class="p">(</span><span class="n">dsun</span><span class="o">.</span><span class="n">shape</span> <span class="o">+</span> <span class="p">(</span><span class="mi">1</span><span class="p">,)),</span>
+                        <span class="o">-</span><span class="n">earth_v</span><span class="p">,</span> <span class="n">dsun</span><span class="p">,</span> <span class="n">invlorentz</span><span class="p">)</span>
+
+    <span class="n">cartrep</span> <span class="o">=</span> <span class="n">CartesianRepresentation</span><span class="p">(</span><span class="n">x</span><span class="o">=-</span><span class="n">dsun</span><span class="o">*</span><span class="n">properdir</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="mi">0</span><span class="p">]</span> <span class="o">*</span> <span class="n">u</span><span class="o">.</span><span class="n">AU</span><span class="p">,</span>
+                                      <span class="n">y</span><span class="o">=-</span><span class="n">dsun</span><span class="o">*</span><span class="n">properdir</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="mi">1</span><span class="p">]</span> <span class="o">*</span> <span class="n">u</span><span class="o">.</span><span class="n">AU</span><span class="p">,</span>
+                                      <span class="n">z</span><span class="o">=-</span><span class="n">dsun</span><span class="o">*</span><span class="n">properdir</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="mi">2</span><span class="p">]</span> <span class="o">*</span> <span class="n">u</span><span class="o">.</span><span class="n">AU</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">SkyCoord</span><span class="p">(</span><span class="n">cartrep</span><span class="p">,</span> <span class="n">frame</span><span class="o">=</span><span class="n">GCRS</span><span class="p">(</span><span class="n">obstime</span><span class="o">=</span><span class="n">time</span><span class="p">))</span></div>
+
+
+<div class="viewcode-block" id="concatenate"><a class="viewcode-back" href="../../../api/astropy.coordinates.concatenate.html#astropy.coordinates.concatenate">[docs]</a><span class="k">def</span> <span class="nf">concatenate</span><span class="p">(</span><span class="n">coords</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Combine multiple coordinate objects into a single</span>
+<span class="sd">    `~astropy.coordinates.SkyCoord`.</span>
+
+<span class="sd">    &quot;Coordinate objects&quot; here mean frame objects with data,</span>
+<span class="sd">    `~astropy.coordinates.SkyCoord`, or representation objects.  Currently,</span>
+<span class="sd">    they must all be in the same frame, but in a future version this may be</span>
+<span class="sd">    relaxed to allow inhomogenous sequences of objects.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    coords : sequence of coordinate objects</span>
+<span class="sd">        The objects to concatenate</span>
+
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+<span class="sd">    cskycoord : SkyCoord</span>
+<span class="sd">        A single sky coordinate with its data set to the concatenation of all</span>
+<span class="sd">        the elements in ``coords``</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">if</span> <span class="nb">getattr</span><span class="p">(</span><span class="n">coords</span><span class="p">,</span> <span class="s1">&#39;isscalar&#39;</span><span class="p">,</span> <span class="kc">False</span><span class="p">)</span> <span class="ow">or</span> <span class="ow">not</span> <span class="n">isiterable</span><span class="p">(</span><span class="n">coords</span><span class="p">):</span>
+        <span class="k">raise</span> <span class="ne">TypeError</span><span class="p">(</span><span class="s1">&#39;The argument to concatenate must be iterable&#39;</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">SkyCoord</span><span class="p">(</span><span class="n">coords</span><span class="p">)</span></div>
+
+
+<span class="c1"># global dictionary that caches repeatedly-needed info for get_constellation</span>
+<span class="n">_constellation_data</span> <span class="o">=</span> <span class="p">{}</span>
+
+
+<div class="viewcode-block" id="get_constellation"><a class="viewcode-back" href="../../../api/astropy.coordinates.get_constellation.html#astropy.coordinates.get_constellation">[docs]</a><span class="k">def</span> <span class="nf">get_constellation</span><span class="p">(</span><span class="n">coord</span><span class="p">,</span> <span class="n">short_name</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="n">constellation_list</span><span class="o">=</span><span class="s1">&#39;iau&#39;</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Determines the constellation(s) a given coordinate object contains.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    coords : coordinate object</span>
+<span class="sd">        The object to determine the constellation of.</span>
+<span class="sd">    short_name : bool</span>
+<span class="sd">        If True, the returned names are the IAU-sanctioned abbreviated</span>
+<span class="sd">        names.  Otherwise, full names for the constellations are used.</span>
+<span class="sd">    constellation_list : str</span>
+<span class="sd">        The set of constellations to use.  Currently only ``&#39;iau&#39;`` is</span>
+<span class="sd">        supported, meaning the 88 &quot;modern&quot; constellations endorsed by the IAU.</span>
+
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+<span class="sd">    constellation : str or string array</span>
+<span class="sd">        If ``coords`` contains a scalar coordinate, returns the name of the</span>
+<span class="sd">        constellation.  If it is an array coordinate object, it returns an array</span>
+<span class="sd">        of names.</span>
+
+<span class="sd">    Notes</span>
+<span class="sd">    -----</span>
+<span class="sd">    To determine which constellation a point on the sky is in, this precesses</span>
+<span class="sd">    to B1875, and then uses the Delporte boundaries of the 88 modern</span>
+<span class="sd">    constellations, as tabulated by</span>
+<span class="sd">    `Roman 1987 &lt;http://cdsarc.u-strasbg.fr/viz-bin/Cat?VI/42&gt;`_.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">if</span> <span class="n">constellation_list</span> <span class="o">!=</span> <span class="s1">&#39;iau&#39;</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;only &#39;iau&#39; us currently supported for constellation_list&quot;</span><span class="p">)</span>
+
+    <span class="c1"># read the data files and cache them if they haven&#39;t been already</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="n">_constellation_data</span><span class="p">:</span>
+        <span class="n">cdata</span> <span class="o">=</span> <span class="n">data</span><span class="o">.</span><span class="n">get_pkg_data_contents</span><span class="p">(</span><span class="s1">&#39;data/constellation_data_roman87.dat&#39;</span><span class="p">)</span>
+        <span class="n">ctable</span> <span class="o">=</span> <span class="n">ascii</span><span class="o">.</span><span class="n">read</span><span class="p">(</span><span class="n">cdata</span><span class="p">,</span> <span class="n">names</span><span class="o">=</span><span class="p">[</span><span class="s1">&#39;ral&#39;</span><span class="p">,</span> <span class="s1">&#39;rau&#39;</span><span class="p">,</span> <span class="s1">&#39;decl&#39;</span><span class="p">,</span> <span class="s1">&#39;name&#39;</span><span class="p">])</span>
+        <span class="n">cnames</span> <span class="o">=</span> <span class="n">data</span><span class="o">.</span><span class="n">get_pkg_data_contents</span><span class="p">(</span><span class="s1">&#39;data/constellation_names.dat&#39;</span><span class="p">,</span> <span class="n">encoding</span><span class="o">=</span><span class="s1">&#39;UTF8&#39;</span><span class="p">)</span>
+        <span class="n">cnames_short_to_long</span> <span class="o">=</span> <span class="nb">dict</span><span class="p">([(</span><span class="n">l</span><span class="p">[:</span><span class="mi">3</span><span class="p">],</span> <span class="n">l</span><span class="p">[</span><span class="mi">4</span><span class="p">:])</span>
+                                     <span class="k">for</span> <span class="n">l</span> <span class="ow">in</span> <span class="n">cnames</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="s1">&#39;</span><span class="se">\n</span><span class="s1">&#39;</span><span class="p">)</span>
+                                     <span class="k">if</span> <span class="ow">not</span> <span class="n">l</span><span class="o">.</span><span class="n">startswith</span><span class="p">(</span><span class="s1">&#39;#&#39;</span><span class="p">)])</span>
+        <span class="n">cnames_long</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">([</span><span class="n">cnames_short_to_long</span><span class="p">[</span><span class="n">nm</span><span class="p">]</span> <span class="k">for</span> <span class="n">nm</span> <span class="ow">in</span> <span class="n">ctable</span><span class="p">[</span><span class="s1">&#39;name&#39;</span><span class="p">]])</span>
+
+        <span class="n">_constellation_data</span><span class="p">[</span><span class="s1">&#39;ctable&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">ctable</span>
+        <span class="n">_constellation_data</span><span class="p">[</span><span class="s1">&#39;cnames_long&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">cnames_long</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="n">ctable</span> <span class="o">=</span> <span class="n">_constellation_data</span><span class="p">[</span><span class="s1">&#39;ctable&#39;</span><span class="p">]</span>
+        <span class="n">cnames_long</span> <span class="o">=</span> <span class="n">_constellation_data</span><span class="p">[</span><span class="s1">&#39;cnames_long&#39;</span><span class="p">]</span>
+
+    <span class="n">isscalar</span> <span class="o">=</span> <span class="n">coord</span><span class="o">.</span><span class="n">isscalar</span>
+
+    <span class="c1"># if it is geocentric, we reproduce the frame but with the 1875 equinox,</span>
+    <span class="c1"># which is where the constellations are defined</span>
+    <span class="n">constel_coord</span> <span class="o">=</span> <span class="n">coord</span><span class="o">.</span><span class="n">transform_to</span><span class="p">(</span><span class="n">PrecessedGeocentric</span><span class="p">(</span><span class="n">equinox</span><span class="o">=</span><span class="s1">&#39;B1875&#39;</span><span class="p">))</span>
+    <span class="k">if</span> <span class="n">isscalar</span><span class="p">:</span>
+        <span class="n">rah</span> <span class="o">=</span> <span class="n">constel_coord</span><span class="o">.</span><span class="n">ra</span><span class="o">.</span><span class="n">ravel</span><span class="p">()</span><span class="o">.</span><span class="n">hour</span>
+        <span class="n">decd</span> <span class="o">=</span> <span class="n">constel_coord</span><span class="o">.</span><span class="n">dec</span><span class="o">.</span><span class="n">ravel</span><span class="p">()</span><span class="o">.</span><span class="n">deg</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="n">rah</span> <span class="o">=</span> <span class="n">constel_coord</span><span class="o">.</span><span class="n">ra</span><span class="o">.</span><span class="n">hour</span>
+        <span class="n">decd</span> <span class="o">=</span> <span class="n">constel_coord</span><span class="o">.</span><span class="n">dec</span><span class="o">.</span><span class="n">deg</span>
+
+    <span class="n">constellidx</span> <span class="o">=</span> <span class="o">-</span><span class="n">np</span><span class="o">.</span><span class="n">ones</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">rah</span><span class="p">),</span> <span class="n">dtype</span><span class="o">=</span><span class="nb">int</span><span class="p">)</span>
+
+    <span class="n">notided</span> <span class="o">=</span> <span class="n">constellidx</span> <span class="o">==</span> <span class="o">-</span><span class="mi">1</span>  <span class="c1"># should be all</span>
+    <span class="k">for</span> <span class="n">i</span><span class="p">,</span> <span class="n">row</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="n">ctable</span><span class="p">):</span>
+        <span class="n">msk</span> <span class="o">=</span> <span class="p">(</span><span class="n">row</span><span class="p">[</span><span class="s1">&#39;ral&#39;</span><span class="p">]</span> <span class="o">&lt;</span> <span class="n">rah</span><span class="p">)</span> <span class="o">&amp;</span> <span class="p">(</span><span class="n">rah</span> <span class="o">&lt;</span> <span class="n">row</span><span class="p">[</span><span class="s1">&#39;rau&#39;</span><span class="p">])</span> <span class="o">&amp;</span> <span class="p">(</span><span class="n">decd</span> <span class="o">&gt;</span> <span class="n">row</span><span class="p">[</span><span class="s1">&#39;decl&#39;</span><span class="p">])</span>
+        <span class="n">constellidx</span><span class="p">[</span><span class="n">notided</span> <span class="o">&amp;</span> <span class="n">msk</span><span class="p">]</span> <span class="o">=</span> <span class="n">i</span>
+        <span class="n">notided</span> <span class="o">=</span> <span class="n">constellidx</span> <span class="o">==</span> <span class="o">-</span><span class="mi">1</span>
+        <span class="k">if</span> <span class="n">np</span><span class="o">.</span><span class="n">sum</span><span class="p">(</span><span class="n">notided</span><span class="p">)</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
+            <span class="k">break</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s1">&#39;Could not find constellation for coordinates </span><span class="si">{0}</span><span class="s1">&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">constel_coord</span><span class="p">[</span><span class="n">notided</span><span class="p">]))</span>
+
+    <span class="k">if</span> <span class="n">short_name</span><span class="p">:</span>
+        <span class="n">names</span> <span class="o">=</span> <span class="n">ctable</span><span class="p">[</span><span class="s1">&#39;name&#39;</span><span class="p">][</span><span class="n">constellidx</span><span class="p">]</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="n">names</span> <span class="o">=</span> <span class="n">cnames_long</span><span class="p">[</span><span class="n">constellidx</span><span class="p">]</span>
+
+    <span class="k">if</span> <span class="n">isscalar</span><span class="p">:</span>
+        <span class="k">return</span> <span class="n">names</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="k">return</span> <span class="n">names</span></div>
+</pre></div>
+
+          </div>
+        </div>
+      </div>
+      <div class="sphinxsidebar" role="navigation" aria-label="main navigation">
+        <div class="sphinxsidebarwrapper"><h3>Page Contents</h3>
+
+
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+<footer class="footer">
+  <p class="pull-right"> &nbsp;
+    <a href="#">Back to Top</a></p>
+  <p>
+    &copy; Copyright 2011-2016, The Astropy Developers.<br/>
+    Created using <a href="http://sphinx.pocoo.org/">Sphinx</a> 1.5.6. &nbsp;
+    Last built 05 Jul 2017. <br/>
+  </p>
+</footer>
+  </body>
+</html>

@@ -1,0 +1,220 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <head>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    
+    <title>Convolving with un-normalized kernels &#8212; Astropy v3.0.dev19489</title>
+    
+    <link rel="stylesheet" href="../_static/bootstrap-astropy.css" type="text/css" />
+    <link rel="stylesheet" href="../_static/pygments.css" type="text/css" />
+    <link rel="stylesheet" href="../_static/gallery.css" type="text/css" />
+    
+    <script type="text/javascript">
+      var DOCUMENTATION_OPTIONS = {
+        URL_ROOT:    '../',
+        VERSION:     '3.0.dev19489',
+        COLLAPSE_INDEX: false,
+        FILE_SUFFIX: '.html',
+        HAS_SOURCE:  true,
+        SOURCELINK_SUFFIX: '.txt'
+      };
+    </script>
+    <script type="text/javascript" src="../_static/jquery.js"></script>
+    <script type="text/javascript" src="../_static/underscore.js"></script>
+    <script type="text/javascript" src="../_static/doctools.js"></script>
+    <script type="text/javascript" src="../_static/sidebar.js"></script>
+    <link rel="shortcut icon" href="../_static/astropy_logo.ico"/>
+    <link rel="index" title="Index" href="../genindex.html" />
+    <link rel="search" title="Search" href="../search.html" />
+    <link rel="next" title="convolve" href="../api/astropy.convolution.convolve.html" />
+    <link rel="prev" title="Convolution Kernels" href="kernels.html" />
+<link href='https://fonts.googleapis.com/css?family=Source+Sans+Pro:200,600' rel='stylesheet' type='text/css'/>
+<script type="text/javascript" src="../_static/copybutton.js"></script>
+
+
+  </head>
+  <body role="document">
+<div class="topbar">
+  <a class="brand" title="Documentation Home" href="../index.html"><span id="logotext1">astro</span><span id="logotext2">py</span><span id="logotext3">:docs</span></a>
+  <ul>
+    <li><a class="homelink" title="Astropy Homepage" href="http://www.astropy.org"></a></li>
+    <li><a title="General Index" href="../genindex.html">Index</a></li>
+    <li><a title="Module Index" href="../py-modindex.html">Modules</a></li>
+    <li>
+      
+      
+<form action="../search.html" method="get">
+  <input type="text" name="q" placeholder="Search" />
+  <input type="hidden" name="check_keywords" value="yes" />
+  <input type="hidden" name="area" value="default" />
+</form>
+      
+    </li>
+  </ul>
+</div>
+
+<div class="related">
+    <h3>Navigation</h3>
+    <ul>
+      <li class="right">
+	<a href="../api/astropy.convolution.convolve.html" title="convolve">
+	  next &raquo;
+	</a>
+      </li>
+      <li class="right">
+	<a href="kernels.html" title="Convolution Kernels">
+	  &laquo; previous
+	</a>
+	 |
+      </li>
+      <li>
+	<a href="../index.html">Astropy v3.0.dev19489</a>
+	 &#187;
+      </li>
+      <li><a href="index.html" accesskey="U">Convolution and filtering (<code class="docutils literal"><span class="pre">astropy.convolution</span></code>)</a> &#187;</li>
+      
+      <li>Convolving with un-normalized kernels</li> 
+    </ul>
+</div>
+  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          <div class="body" role="main">
+            
+  <div class="section" id="convolving-with-un-normalized-kernels">
+<h1>Convolving with un-normalized kernels<a class="headerlink" href="#convolving-with-un-normalized-kernels" title="Permalink to this headline">¶</a></h1>
+<p>There are some tasks, such as source finding, where you want to apply a filter
+with a kernel that is not normalized.</p>
+<p>For data that are well-behaved (contain no missing or infinite values), this is
+easy and can be done in one step:</p>
+<div class="highlight-default"><div class="highlight"><pre><span></span><span class="n">convolve</span><span class="p">(</span><span class="n">image</span><span class="p">,</span> <span class="n">kernel</span><span class="p">)</span>
+</pre></div>
+</div>
+<p>For example, we can try to run a commonly-used peak enhancing kernel:</p>
+<div class="highlight-python"><div class="highlight"><pre><span></span><span class="kn">import</span> <span class="nn">numpy</span> <span class="kn">as</span> <span class="nn">np</span>
+<span class="kn">import</span> <span class="nn">matplotlib.pyplot</span> <span class="kn">as</span> <span class="nn">plt</span>
+
+<span class="kn">from</span> <span class="nn">astropy.io</span> <span class="kn">import</span> <span class="n">fits</span>
+<span class="kn">from</span> <span class="nn">astropy.utils.data</span> <span class="kn">import</span> <span class="n">get_pkg_data_filename</span>
+<span class="kn">from</span> <span class="nn">astropy.convolution</span> <span class="kn">import</span> <span class="n">CustomKernel</span>
+<span class="kn">from</span> <span class="nn">scipy.signal</span> <span class="kn">import</span> <span class="n">convolve</span> <span class="k">as</span> <span class="n">scipy_convolve</span>
+<span class="kn">from</span> <span class="nn">astropy.convolution</span> <span class="kn">import</span> <span class="n">convolve</span><span class="p">,</span> <span class="n">convolve_fft</span>
+
+
+<span class="c1"># Load the data from data.astropy.org</span>
+<span class="n">filename</span> <span class="o">=</span> <span class="n">get_pkg_data_filename</span><span class="p">(</span><span class="s1">&#39;galactic_center/gc_msx_e.fits&#39;</span><span class="p">)</span>
+<span class="n">hdu</span> <span class="o">=</span> <span class="n">fits</span><span class="o">.</span><span class="n">open</span><span class="p">(</span><span class="n">filename</span><span class="p">)[</span><span class="mi">0</span><span class="p">]</span>
+
+<span class="c1"># Scale the file to have reasonable numbers</span>
+<span class="c1"># (this is mostly so that colorbars don&#39;t have too many digits)</span>
+<span class="c1"># Also, we crop it so you can see individual pixels</span>
+<span class="n">img</span> <span class="o">=</span> <span class="n">hdu</span><span class="o">.</span><span class="n">data</span><span class="p">[</span><span class="mi">50</span><span class="p">:</span><span class="mi">90</span><span class="p">,</span> <span class="mi">60</span><span class="p">:</span><span class="mi">100</span><span class="p">]</span> <span class="o">*</span> <span class="mf">1e5</span>
+
+<span class="n">kernel</span> <span class="o">=</span> <span class="n">CustomKernel</span><span class="p">([[</span><span class="o">-</span><span class="mi">1</span><span class="p">,</span><span class="o">-</span><span class="mi">1</span><span class="p">,</span><span class="o">-</span><span class="mi">1</span><span class="p">],</span> <span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">,</span> <span class="mi">8</span><span class="p">,</span> <span class="o">-</span><span class="mi">1</span><span class="p">],</span> <span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">,</span><span class="o">-</span><span class="mi">1</span><span class="p">,</span><span class="o">-</span><span class="mi">1</span><span class="p">]])</span>
+
+<span class="n">astropy_conv</span> <span class="o">=</span> <span class="n">convolve</span><span class="p">(</span><span class="n">img</span><span class="p">,</span> <span class="n">kernel</span><span class="p">,</span> <span class="n">normalize_kernel</span><span class="o">=</span><span class="bp">False</span><span class="p">,</span> <span class="n">nan_treatment</span><span class="o">=</span><span class="s1">&#39;fill&#39;</span><span class="p">)</span>
+<span class="c1">#astropy_conv_fft = convolve_fft(img, kernel, normalize_kernel=False, nan_treatment=&#39;fill&#39;)</span>
+
+<span class="n">plt</span><span class="o">.</span><span class="n">figure</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="n">figsize</span><span class="o">=</span><span class="p">(</span><span class="mi">12</span><span class="p">,</span> <span class="mi">12</span><span class="p">))</span><span class="o">.</span><span class="n">clf</span><span class="p">()</span>
+<span class="n">ax1</span> <span class="o">=</span> <span class="n">plt</span><span class="o">.</span><span class="n">subplot</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="mi">2</span><span class="p">,</span> <span class="mi">1</span><span class="p">)</span>
+<span class="n">im</span> <span class="o">=</span> <span class="n">ax1</span><span class="o">.</span><span class="n">imshow</span><span class="p">(</span><span class="n">img</span><span class="p">,</span> <span class="n">vmin</span><span class="o">=-</span><span class="mf">6.</span><span class="p">,</span> <span class="n">vmax</span><span class="o">=</span><span class="mf">5.e1</span><span class="p">,</span> <span class="n">origin</span><span class="o">=</span><span class="s1">&#39;lower&#39;</span><span class="p">,</span>
+                <span class="n">interpolation</span><span class="o">=</span><span class="s1">&#39;nearest&#39;</span><span class="p">,</span> <span class="n">cmap</span><span class="o">=</span><span class="s1">&#39;viridis&#39;</span><span class="p">)</span>
+
+<span class="n">ax2</span> <span class="o">=</span> <span class="n">plt</span><span class="o">.</span><span class="n">subplot</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="mi">2</span><span class="p">,</span> <span class="mi">2</span><span class="p">)</span>
+<span class="n">im</span> <span class="o">=</span> <span class="n">ax2</span><span class="o">.</span><span class="n">imshow</span><span class="p">(</span><span class="n">astropy_conv</span><span class="p">,</span> <span class="n">vmin</span><span class="o">=-</span><span class="mf">6.</span><span class="p">,</span> <span class="n">vmax</span><span class="o">=</span><span class="mf">5.e1</span><span class="p">,</span> <span class="n">origin</span><span class="o">=</span><span class="s1">&#39;lower&#39;</span><span class="p">,</span>
+                <span class="n">interpolation</span><span class="o">=</span><span class="s1">&#39;nearest&#39;</span><span class="p">,</span> <span class="n">cmap</span><span class="o">=</span><span class="s1">&#39;viridis&#39;</span><span class="p">)</span>
+</pre></div>
+</div>
+<p>(<a class="reference external" href="../convolution/non_normalized_kernels-1.png">png</a>, <a class="reference external" href="../convolution/non_normalized_kernels-1.svg">svg</a>, <a class="reference external" href="../convolution/non_normalized_kernels-1.pdf">pdf</a>)</p>
+<div class="figure align-center">
+<img alt="../_images/non_normalized_kernels-1.png" src="../_images/non_normalized_kernels-1.png" />
+</div>
+<p>If you have an image with missing values (NaNs), you have to replace them with
+real values first.  Often, the best way to do this is to replace the NaN values
+with interpolated values.  In the example below, we use a Gaussian kernel
+with a size similar to that of our peak-finding kernel to replace the bad data
+before applying the peak-finding kernel.</p>
+<div class="highlight-python"><div class="highlight"><pre><span></span><span class="kn">from</span> <span class="nn">astropy.convolution</span> <span class="kn">import</span> <span class="n">Gaussian2DKernel</span><span class="p">,</span> <span class="n">interpolate_replace_nans</span>
+
+<span class="c1"># Select a random set of pixels that were affected by some sort of artifact</span>
+<span class="c1"># and replaced with NaNs (e.g., cosmic-ray-affected pixels)</span>
+<span class="n">np</span><span class="o">.</span><span class="n">random</span><span class="o">.</span><span class="n">seed</span><span class="p">(</span><span class="mi">42</span><span class="p">)</span>
+<span class="n">yinds</span><span class="p">,</span> <span class="n">xinds</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">indices</span><span class="p">(</span><span class="n">img</span><span class="o">.</span><span class="n">shape</span><span class="p">)</span>
+<span class="n">img</span><span class="p">[</span><span class="n">np</span><span class="o">.</span><span class="n">random</span><span class="o">.</span><span class="n">choice</span><span class="p">(</span><span class="n">yinds</span><span class="o">.</span><span class="n">flat</span><span class="p">,</span> <span class="mi">50</span><span class="p">),</span> <span class="n">np</span><span class="o">.</span><span class="n">random</span><span class="o">.</span><span class="n">choice</span><span class="p">(</span><span class="n">xinds</span><span class="o">.</span><span class="n">flat</span><span class="p">,</span> <span class="mi">50</span><span class="p">)]</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">nan</span>
+
+<span class="c1"># We smooth with a Gaussian kernel with stddev=1</span>
+<span class="c1"># It is a 9x9 array</span>
+<span class="n">kernel</span> <span class="o">=</span> <span class="n">Gaussian2DKernel</span><span class="p">(</span><span class="n">stddev</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span>
+
+<span class="c1"># interpolate away the NaNs</span>
+<span class="n">reconstructed_image</span> <span class="o">=</span> <span class="n">interpolate_replace_nans</span><span class="p">(</span><span class="n">img</span><span class="p">,</span> <span class="n">kernel</span><span class="p">)</span>
+
+
+<span class="c1"># apply peak-finding</span>
+<span class="n">kernel</span> <span class="o">=</span> <span class="n">CustomKernel</span><span class="p">([[</span><span class="o">-</span><span class="mi">1</span><span class="p">,</span><span class="o">-</span><span class="mi">1</span><span class="p">,</span><span class="o">-</span><span class="mi">1</span><span class="p">],</span> <span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">,</span> <span class="mi">8</span><span class="p">,</span> <span class="o">-</span><span class="mi">1</span><span class="p">],</span> <span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">,</span><span class="o">-</span><span class="mi">1</span><span class="p">,</span><span class="o">-</span><span class="mi">1</span><span class="p">]])</span>
+
+<span class="c1"># Use the peak-finding kernel</span>
+<span class="c1"># We have to turn off kernel normalization and set nan_treatment to &quot;fill&quot;</span>
+<span class="c1"># here because `nan_treatment=&#39;interpolate&#39;` is incompatible with non-</span>
+<span class="c1"># normalized kernels</span>
+<span class="n">peaked_image</span> <span class="o">=</span> <span class="n">convolve</span><span class="p">(</span><span class="n">reconstructed_image</span><span class="p">,</span> <span class="n">kernel</span><span class="p">,</span>
+                        <span class="n">normalize_kernel</span><span class="o">=</span><span class="bp">False</span><span class="p">,</span>
+                        <span class="n">nan_treatment</span><span class="o">=</span><span class="s1">&#39;fill&#39;</span><span class="p">)</span>
+
+<span class="n">plt</span><span class="o">.</span><span class="n">figure</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="n">figsize</span><span class="o">=</span><span class="p">(</span><span class="mi">12</span><span class="p">,</span> <span class="mi">12</span><span class="p">))</span><span class="o">.</span><span class="n">clf</span><span class="p">()</span>
+<span class="n">ax1</span> <span class="o">=</span> <span class="n">plt</span><span class="o">.</span><span class="n">subplot</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="mi">3</span><span class="p">,</span> <span class="mi">1</span><span class="p">)</span>
+<span class="n">ax1</span><span class="o">.</span><span class="n">set_title</span><span class="p">(</span><span class="s2">&quot;Image with missing data&quot;</span><span class="p">)</span>
+<span class="n">im</span> <span class="o">=</span> <span class="n">ax1</span><span class="o">.</span><span class="n">imshow</span><span class="p">(</span><span class="n">img</span><span class="p">,</span> <span class="n">vmin</span><span class="o">=-</span><span class="mf">6.</span><span class="p">,</span> <span class="n">vmax</span><span class="o">=</span><span class="mf">5.e1</span><span class="p">,</span> <span class="n">origin</span><span class="o">=</span><span class="s1">&#39;lower&#39;</span><span class="p">,</span>
+                <span class="n">interpolation</span><span class="o">=</span><span class="s1">&#39;nearest&#39;</span><span class="p">,</span> <span class="n">cmap</span><span class="o">=</span><span class="s1">&#39;viridis&#39;</span><span class="p">)</span>
+
+<span class="n">ax2</span> <span class="o">=</span> <span class="n">plt</span><span class="o">.</span><span class="n">subplot</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="mi">3</span><span class="p">,</span> <span class="mi">2</span><span class="p">)</span>
+<span class="n">ax2</span><span class="o">.</span><span class="n">set_title</span><span class="p">(</span><span class="s2">&quot;Interpolated&quot;</span><span class="p">)</span>
+<span class="n">im</span> <span class="o">=</span> <span class="n">ax2</span><span class="o">.</span><span class="n">imshow</span><span class="p">(</span><span class="n">reconstructed_image</span><span class="p">,</span> <span class="n">vmin</span><span class="o">=-</span><span class="mf">6.</span><span class="p">,</span> <span class="n">vmax</span><span class="o">=</span><span class="mf">5.e1</span><span class="p">,</span> <span class="n">origin</span><span class="o">=</span><span class="s1">&#39;lower&#39;</span><span class="p">,</span>
+                <span class="n">interpolation</span><span class="o">=</span><span class="s1">&#39;nearest&#39;</span><span class="p">,</span> <span class="n">cmap</span><span class="o">=</span><span class="s1">&#39;viridis&#39;</span><span class="p">)</span>
+
+<span class="n">ax3</span> <span class="o">=</span> <span class="n">plt</span><span class="o">.</span><span class="n">subplot</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="mi">3</span><span class="p">,</span> <span class="mi">3</span><span class="p">)</span>
+<span class="n">ax3</span><span class="o">.</span><span class="n">set_title</span><span class="p">(</span><span class="s2">&quot;Peak-Finding&quot;</span><span class="p">)</span>
+<span class="n">im</span> <span class="o">=</span> <span class="n">ax3</span><span class="o">.</span><span class="n">imshow</span><span class="p">(</span><span class="n">peaked_image</span><span class="p">,</span> <span class="n">vmin</span><span class="o">=-</span><span class="mf">6.</span><span class="p">,</span> <span class="n">vmax</span><span class="o">=</span><span class="mf">5.e1</span><span class="p">,</span> <span class="n">origin</span><span class="o">=</span><span class="s1">&#39;lower&#39;</span><span class="p">,</span>
+                <span class="n">interpolation</span><span class="o">=</span><span class="s1">&#39;nearest&#39;</span><span class="p">,</span> <span class="n">cmap</span><span class="o">=</span><span class="s1">&#39;viridis&#39;</span><span class="p">)</span>
+</pre></div>
+</div>
+<p>(<a class="reference external" href="../convolution/non_normalized_kernels-2.png">png</a>, <a class="reference external" href="../convolution/non_normalized_kernels-2.svg">svg</a>, <a class="reference external" href="../convolution/non_normalized_kernels-2.pdf">pdf</a>)</p>
+<div class="figure align-center">
+<img alt="../_images/non_normalized_kernels-2.png" src="../_images/non_normalized_kernels-2.png" />
+</div>
+</div>
+
+
+          </div>
+        </div>
+      </div>
+      <div class="sphinxsidebar" role="navigation" aria-label="main navigation">
+        <div class="sphinxsidebarwrapper"><h3>Page Contents</h3>
+<ul>
+<li><a class="reference internal" href="#">Convolving with un-normalized kernels</a></li>
+</ul>
+
+
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+<footer class="footer">
+  <p class="pull-right">
+    <a href="http://github.com/astropy/astropy/tree/master/docs/convolution/non_normalized_kernels.rst">Edit This Page on Github</a> &nbsp;
+    <a href="../_sources/convolution/non_normalized_kernels.rst.txt"
+       rel="nofollow">Page Source</a> &nbsp;
+    <a href="#">Back to Top</a></p>
+  <p>
+    &copy; Copyright 2011-2016, The Astropy Developers.<br/>
+    Created using <a href="http://sphinx.pocoo.org/">Sphinx</a> 1.5.6. &nbsp;
+    Last built 05 Jul 2017. <br/>
+  </p>
+</footer>
+  </body>
+</html>

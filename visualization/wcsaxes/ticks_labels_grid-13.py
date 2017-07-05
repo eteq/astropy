@@ -1,0 +1,6 @@
+lon.set_ticks_visible(True)
+lon.set_ticklabel_visible(True)
+lat.set_ticks_visible(True)
+lat.set_ticklabel_visible(True)
+lon.set_axislabel('Galactic Longitude')
+lat.set_axislabel('Galactic Latitude')

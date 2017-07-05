@@ -1,0 +1,571 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <head>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    
+    <title>astropy.coordinates.matching &#8212; Astropy v3.0.dev19489</title>
+    
+    <link rel="stylesheet" href="../../../_static/bootstrap-astropy.css" type="text/css" />
+    <link rel="stylesheet" href="../../../_static/pygments.css" type="text/css" />
+    <link rel="stylesheet" href="../../../_static/gallery.css" type="text/css" />
+    
+    <script type="text/javascript">
+      var DOCUMENTATION_OPTIONS = {
+        URL_ROOT:    '../../../',
+        VERSION:     '3.0.dev19489',
+        COLLAPSE_INDEX: false,
+        FILE_SUFFIX: '.html',
+        HAS_SOURCE:  true,
+        SOURCELINK_SUFFIX: '.txt'
+      };
+    </script>
+    <script type="text/javascript" src="../../../_static/jquery.js"></script>
+    <script type="text/javascript" src="../../../_static/underscore.js"></script>
+    <script type="text/javascript" src="../../../_static/doctools.js"></script>
+    <script type="text/javascript" src="../../../_static/sidebar.js"></script>
+    <link rel="shortcut icon" href="../../../_static/astropy_logo.ico"/>
+    <link rel="index" title="Index" href="../../../genindex.html" />
+    <link rel="search" title="Search" href="../../../search.html" />
+<link href='https://fonts.googleapis.com/css?family=Source+Sans+Pro:200,600' rel='stylesheet' type='text/css'/>
+<script type="text/javascript" src="../../../_static/copybutton.js"></script>
+
+
+  </head>
+  <body role="document">
+<div class="topbar">
+  <a class="brand" title="Documentation Home" href="../../../index.html"><span id="logotext1">astro</span><span id="logotext2">py</span><span id="logotext3">:docs</span></a>
+  <ul>
+    <li><a class="homelink" title="Astropy Homepage" href="http://www.astropy.org"></a></li>
+    <li><a title="General Index" href="../../../genindex.html">Index</a></li>
+    <li><a title="Module Index" href="../../../py-modindex.html">Modules</a></li>
+    <li>
+      
+      
+<form action="../../../search.html" method="get">
+  <input type="text" name="q" placeholder="Search" />
+  <input type="hidden" name="check_keywords" value="yes" />
+  <input type="hidden" name="area" value="default" />
+</form>
+      
+    </li>
+  </ul>
+</div>
+
+<div class="related">
+    <h3>Navigation</h3>
+    <ul>
+      <li>
+	<a href="../../../index.html">Astropy v3.0.dev19489</a>
+	 &#187;
+      </li>
+      <li><a href="../../index.html" >Module code</a> &#187;</li>
+      <li><a href="../../astropy.html" accesskey="U">astropy</a> &#187;</li>
+      
+       
+    </ul>
+</div>
+  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          <div class="body" role="main">
+            
+  <h1>Source code for astropy.coordinates.matching</h1><div class="highlight"><pre>
+<span></span><span class="c1"># Licensed under a 3-clause BSD style license - see LICENSE.rst</span>
+
+<span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">This module contains functions for matching coordinate catalogs.</span>
+<span class="sd">&quot;&quot;&quot;</span>
+<span class="kn">from</span> <span class="nn">__future__</span> <span class="k">import</span> <span class="p">(</span><span class="n">absolute_import</span><span class="p">,</span> <span class="n">division</span><span class="p">,</span> <span class="n">print_function</span><span class="p">,</span>
+                        <span class="n">unicode_literals</span><span class="p">)</span>
+
+<span class="kn">import</span> <span class="nn">numpy</span> <span class="k">as</span> <span class="nn">np</span>
+
+<span class="kn">from</span> <span class="nn">..extern</span> <span class="k">import</span> <span class="n">six</span>
+<span class="kn">from</span> <span class="nn">.representation</span> <span class="k">import</span> <span class="n">UnitSphericalRepresentation</span>
+<span class="kn">from</span> <span class="nn">..</span> <span class="k">import</span> <span class="n">units</span> <span class="k">as</span> <span class="n">u</span>
+
+<span class="n">__all__</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;match_coordinates_3d&#39;</span><span class="p">,</span> <span class="s1">&#39;match_coordinates_sky&#39;</span><span class="p">,</span> <span class="s1">&#39;search_around_3d&#39;</span><span class="p">,</span>
+           <span class="s1">&#39;search_around_sky&#39;</span><span class="p">]</span>
+
+
+<div class="viewcode-block" id="match_coordinates_3d"><a class="viewcode-back" href="../../../api/astropy.coordinates.match_coordinates_3d.html#astropy.coordinates.match_coordinates_3d">[docs]</a><span class="k">def</span> <span class="nf">match_coordinates_3d</span><span class="p">(</span><span class="n">matchcoord</span><span class="p">,</span> <span class="n">catalogcoord</span><span class="p">,</span> <span class="n">nthneighbor</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span> <span class="n">storekdtree</span><span class="o">=</span><span class="s1">&#39;kdtree_3d&#39;</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Finds the nearest 3-dimensional matches of a coordinate or coordinates in</span>
+<span class="sd">    a set of catalog coordinates.</span>
+
+<span class="sd">    This finds the 3-dimensional closest neighbor, which is only different</span>
+<span class="sd">    from the on-sky distance if ``distance`` is set in either ``matchcoord``</span>
+<span class="sd">    or ``catalogcoord``.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    matchcoord : `~astropy.coordinates.BaseCoordinateFrame` or `~astropy.coordinates.SkyCoord`</span>
+<span class="sd">        The coordinate(s) to match to the catalog.</span>
+<span class="sd">    catalogcoord : `~astropy.coordinates.BaseCoordinateFrame` or `~astropy.coordinates.SkyCoord`</span>
+<span class="sd">        The base catalog in which to search for matches. Typically this will</span>
+<span class="sd">        be a coordinate object that is an array (i.e.,</span>
+<span class="sd">        ``catalogcoord.isscalar == False``)</span>
+<span class="sd">    nthneighbor : int, optional</span>
+<span class="sd">        Which closest neighbor to search for.  Typically ``1`` is desired here,</span>
+<span class="sd">        as that is correct for matching one set of coordinates to another.</span>
+<span class="sd">        The next likely use case is ``2``, for matching a coordinate catalog</span>
+<span class="sd">        against *itself* (``1`` is inappropriate because each point will find</span>
+<span class="sd">        itself as the closest match).</span>
+<span class="sd">    storekdtree : bool or str, optional</span>
+<span class="sd">        If a string, will store the KD-Tree used for the computation</span>
+<span class="sd">        in the ``catalogcoord``, as in ``catalogcoord.cache`` with the</span>
+<span class="sd">        provided name.  This dramatically speeds up subsequent calls with the</span>
+<span class="sd">        same catalog. If False, the KD-Tree is discarded after use.</span>
+
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+<span class="sd">    idx : integer array</span>
+<span class="sd">        Indices into ``catalogcoord`` to get the matched points for each</span>
+<span class="sd">        ``matchcoord``. Shape matches ``matchcoord``.</span>
+<span class="sd">    sep2d : `~astropy.coordinates.Angle`</span>
+<span class="sd">        The on-sky separation between the closest match for each ``matchcoord``</span>
+<span class="sd">        and the ``matchcoord``. Shape matches ``matchcoord``.</span>
+<span class="sd">    dist3d : `~astropy.units.Quantity`</span>
+<span class="sd">        The 3D distance between the closest match for each ``matchcoord`` and</span>
+<span class="sd">        the ``matchcoord``. Shape matches ``matchcoord``.</span>
+
+<span class="sd">    Notes</span>
+<span class="sd">    -----</span>
+<span class="sd">    This function requires `SciPy &lt;http://www.scipy.org&gt;`_ to be installed</span>
+<span class="sd">    or it will fail.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">if</span> <span class="n">catalogcoord</span><span class="o">.</span><span class="n">isscalar</span> <span class="ow">or</span> <span class="nb">len</span><span class="p">(</span><span class="n">catalogcoord</span><span class="p">)</span> <span class="o">&lt;</span> <span class="mi">1</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s1">&#39;The catalog for coordinate matching cannot be a &#39;</span>
+                         <span class="s1">&#39;scalar or length-0.&#39;</span><span class="p">)</span>
+
+    <span class="n">kdt</span> <span class="o">=</span> <span class="n">_get_cartesian_kdtree</span><span class="p">(</span><span class="n">catalogcoord</span><span class="p">,</span> <span class="n">storekdtree</span><span class="p">)</span>
+
+    <span class="c1"># make sure coordinate systems match</span>
+    <span class="n">matchcoord</span> <span class="o">=</span> <span class="n">matchcoord</span><span class="o">.</span><span class="n">transform_to</span><span class="p">(</span><span class="n">catalogcoord</span><span class="p">)</span>
+
+    <span class="c1"># make sure units match</span>
+    <span class="n">catunit</span> <span class="o">=</span> <span class="n">catalogcoord</span><span class="o">.</span><span class="n">cartesian</span><span class="o">.</span><span class="n">x</span><span class="o">.</span><span class="n">unit</span>
+    <span class="n">matchxyz</span> <span class="o">=</span> <span class="n">matchcoord</span><span class="o">.</span><span class="n">cartesian</span><span class="o">.</span><span class="n">xyz</span><span class="o">.</span><span class="n">to</span><span class="p">(</span><span class="n">catunit</span><span class="p">)</span>
+
+    <span class="n">matchflatxyz</span> <span class="o">=</span> <span class="n">matchxyz</span><span class="o">.</span><span class="n">reshape</span><span class="p">((</span><span class="mi">3</span><span class="p">,</span> <span class="n">np</span><span class="o">.</span><span class="n">prod</span><span class="p">(</span><span class="n">matchxyz</span><span class="o">.</span><span class="n">shape</span><span class="p">)</span> <span class="o">//</span> <span class="mi">3</span><span class="p">))</span>
+    <span class="n">dist</span><span class="p">,</span> <span class="n">idx</span> <span class="o">=</span> <span class="n">kdt</span><span class="o">.</span><span class="n">query</span><span class="p">(</span><span class="n">matchflatxyz</span><span class="o">.</span><span class="n">T</span><span class="p">,</span> <span class="n">nthneighbor</span><span class="p">)</span>
+
+    <span class="k">if</span> <span class="n">nthneighbor</span> <span class="o">&gt;</span> <span class="mi">1</span><span class="p">:</span>  <span class="c1"># query gives 1D arrays if k=1, 2D arrays otherwise</span>
+        <span class="n">dist</span> <span class="o">=</span> <span class="n">dist</span><span class="p">[:,</span> <span class="o">-</span><span class="mi">1</span><span class="p">]</span>
+        <span class="n">idx</span> <span class="o">=</span> <span class="n">idx</span><span class="p">[:,</span> <span class="o">-</span><span class="mi">1</span><span class="p">]</span>
+
+    <span class="n">sep2d</span> <span class="o">=</span> <span class="n">catalogcoord</span><span class="p">[</span><span class="n">idx</span><span class="p">]</span><span class="o">.</span><span class="n">separation</span><span class="p">(</span><span class="n">matchcoord</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">idx</span><span class="o">.</span><span class="n">reshape</span><span class="p">(</span><span class="n">matchxyz</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">1</span><span class="p">:]),</span> <span class="n">sep2d</span><span class="p">,</span> <span class="n">dist</span><span class="o">.</span><span class="n">reshape</span><span class="p">(</span><span class="n">matchxyz</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">1</span><span class="p">:])</span> <span class="o">*</span> <span class="n">catunit</span></div>
+
+
+<div class="viewcode-block" id="match_coordinates_sky"><a class="viewcode-back" href="../../../api/astropy.coordinates.match_coordinates_sky.html#astropy.coordinates.match_coordinates_sky">[docs]</a><span class="k">def</span> <span class="nf">match_coordinates_sky</span><span class="p">(</span><span class="n">matchcoord</span><span class="p">,</span> <span class="n">catalogcoord</span><span class="p">,</span> <span class="n">nthneighbor</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span> <span class="n">storekdtree</span><span class="o">=</span><span class="s1">&#39;kdtree_sky&#39;</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Finds the nearest on-sky matches of a coordinate or coordinates in</span>
+<span class="sd">    a set of catalog coordinates.</span>
+
+<span class="sd">    This finds the on-sky closest neighbor, which is only different from the</span>
+<span class="sd">    3-dimensional match if ``distance`` is set in either ``matchcoord``</span>
+<span class="sd">    or ``catalogcoord``.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    matchcoord : `~astropy.coordinates.BaseCoordinateFrame` or `~astropy.coordinates.SkyCoord`</span>
+<span class="sd">        The coordinate(s) to match to the catalog.</span>
+<span class="sd">    catalogcoord : `~astropy.coordinates.BaseCoordinateFrame` or `~astropy.coordinates.SkyCoord`</span>
+<span class="sd">        The base catalog in which to search for matches. Typically this will</span>
+<span class="sd">        be a coordinate object that is an array (i.e.,</span>
+<span class="sd">        ``catalogcoord.isscalar == False``)</span>
+<span class="sd">    nthneighbor : int, optional</span>
+<span class="sd">        Which closest neighbor to search for.  Typically ``1`` is desired here,</span>
+<span class="sd">        as that is correct for matching one set of coordinates to another.</span>
+<span class="sd">        The next likely use case is ``2``, for matching a coordinate catalog</span>
+<span class="sd">        against *itself* (``1`` is inappropriate because each point will find</span>
+<span class="sd">        itself as the closest match).</span>
+<span class="sd">    storekdtree : bool or str, optional</span>
+<span class="sd">        If a string, will store the KD-Tree used for the computation</span>
+<span class="sd">        in the ``catalogcoord`` in ``catalogcoord.cache`` with the</span>
+<span class="sd">        provided name.  This dramatically speeds up subsequent calls with the</span>
+<span class="sd">        same catalog. If False, the KD-Tree is discarded after use.</span>
+
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+<span class="sd">    idx : integer array</span>
+<span class="sd">        Indices into ``catalogcoord`` to get the matched points for each</span>
+<span class="sd">        ``matchcoord``. Shape matches ``matchcoord``.</span>
+<span class="sd">    sep2d : `~astropy.coordinates.Angle`</span>
+<span class="sd">        The on-sky separation between the closest match for each</span>
+<span class="sd">        ``matchcoord`` and the ``matchcoord``. Shape matches ``matchcoord``.</span>
+<span class="sd">    dist3d : `~astropy.units.Quantity`</span>
+<span class="sd">        The 3D distance between the closest match for each ``matchcoord`` and</span>
+<span class="sd">        the ``matchcoord``. Shape matches ``matchcoord``.  If either</span>
+<span class="sd">        ``matchcoord`` or ``catalogcoord`` don&#39;t have a distance, this is the 3D</span>
+<span class="sd">        distance on the unit sphere, rather than a true distance.</span>
+
+<span class="sd">    Notes</span>
+<span class="sd">    -----</span>
+<span class="sd">    This function requires `SciPy &lt;http://www.scipy.org&gt;`_ to be installed</span>
+<span class="sd">    or it will fail.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">if</span> <span class="n">catalogcoord</span><span class="o">.</span><span class="n">isscalar</span> <span class="ow">or</span> <span class="nb">len</span><span class="p">(</span><span class="n">catalogcoord</span><span class="p">)</span> <span class="o">&lt;</span> <span class="mi">1</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s1">&#39;The catalog for coordinate matching cannot be a &#39;</span>
+                         <span class="s1">&#39;scalar or length-0.&#39;</span><span class="p">)</span>
+
+    <span class="c1"># send to catalog frame</span>
+    <span class="n">newmatch</span> <span class="o">=</span> <span class="n">matchcoord</span><span class="o">.</span><span class="n">transform_to</span><span class="p">(</span><span class="n">catalogcoord</span><span class="p">)</span>
+
+    <span class="c1"># strip out distance info</span>
+    <span class="n">match_urepr</span> <span class="o">=</span> <span class="n">newmatch</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">represent_as</span><span class="p">(</span><span class="n">UnitSphericalRepresentation</span><span class="p">)</span>
+    <span class="n">newmatch_u</span> <span class="o">=</span> <span class="n">newmatch</span><span class="o">.</span><span class="n">realize_frame</span><span class="p">(</span><span class="n">match_urepr</span><span class="p">)</span>
+
+    <span class="n">cat_urepr</span> <span class="o">=</span> <span class="n">catalogcoord</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">represent_as</span><span class="p">(</span><span class="n">UnitSphericalRepresentation</span><span class="p">)</span>
+    <span class="n">newcat_u</span> <span class="o">=</span> <span class="n">catalogcoord</span><span class="o">.</span><span class="n">realize_frame</span><span class="p">(</span><span class="n">cat_urepr</span><span class="p">)</span>
+
+    <span class="c1"># Check for a stored KD-tree on the passed-in coordinate. Normally it will</span>
+    <span class="c1"># have a distinct name from the &quot;3D&quot; one, so it&#39;s safe to use even though</span>
+    <span class="c1"># it&#39;s based on UnitSphericalRepresentation.</span>
+    <span class="n">storekdtree</span> <span class="o">=</span> <span class="n">catalogcoord</span><span class="o">.</span><span class="n">cache</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">storekdtree</span><span class="p">,</span> <span class="n">storekdtree</span><span class="p">)</span>
+
+    <span class="n">idx</span><span class="p">,</span> <span class="n">sep2d</span><span class="p">,</span> <span class="n">sep3d</span> <span class="o">=</span> <span class="n">match_coordinates_3d</span><span class="p">(</span><span class="n">newmatch_u</span><span class="p">,</span> <span class="n">newcat_u</span><span class="p">,</span> <span class="n">nthneighbor</span><span class="p">,</span> <span class="n">storekdtree</span><span class="p">)</span>
+    <span class="c1"># sep3d is *wrong* above, because the distance information was removed,</span>
+    <span class="c1"># unless one of the catalogs doesn&#39;t have a real distance</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="p">(</span><span class="nb">isinstance</span><span class="p">(</span><span class="n">catalogcoord</span><span class="o">.</span><span class="n">data</span><span class="p">,</span> <span class="n">UnitSphericalRepresentation</span><span class="p">)</span> <span class="ow">or</span>
+            <span class="nb">isinstance</span><span class="p">(</span><span class="n">newmatch</span><span class="o">.</span><span class="n">data</span><span class="p">,</span> <span class="n">UnitSphericalRepresentation</span><span class="p">)):</span>
+        <span class="n">sep3d</span> <span class="o">=</span> <span class="n">catalogcoord</span><span class="p">[</span><span class="n">idx</span><span class="p">]</span><span class="o">.</span><span class="n">separation_3d</span><span class="p">(</span><span class="n">newmatch</span><span class="p">)</span>
+
+    <span class="c1"># update the kdtree on the actual passed-in coordinate</span>
+    <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">storekdtree</span><span class="p">,</span> <span class="n">six</span><span class="o">.</span><span class="n">string_types</span><span class="p">):</span>
+        <span class="n">catalogcoord</span><span class="o">.</span><span class="n">cache</span><span class="p">[</span><span class="n">storekdtree</span><span class="p">]</span> <span class="o">=</span> <span class="n">newcat_u</span><span class="o">.</span><span class="n">cache</span><span class="p">[</span><span class="n">storekdtree</span><span class="p">]</span>
+    <span class="k">elif</span> <span class="n">storekdtree</span> <span class="ow">is</span> <span class="kc">True</span><span class="p">:</span>
+        <span class="c1"># the old backwards-compatible name</span>
+        <span class="n">catalogcoord</span><span class="o">.</span><span class="n">cache</span><span class="p">[</span><span class="s1">&#39;kdtree&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">newcat_u</span><span class="o">.</span><span class="n">cache</span><span class="p">[</span><span class="s1">&#39;kdtree&#39;</span><span class="p">]</span>
+
+    <span class="k">return</span> <span class="n">idx</span><span class="p">,</span> <span class="n">sep2d</span><span class="p">,</span> <span class="n">sep3d</span></div>
+
+
+<div class="viewcode-block" id="search_around_3d"><a class="viewcode-back" href="../../../api/astropy.coordinates.search_around_3d.html#astropy.coordinates.search_around_3d">[docs]</a><span class="k">def</span> <span class="nf">search_around_3d</span><span class="p">(</span><span class="n">coords1</span><span class="p">,</span> <span class="n">coords2</span><span class="p">,</span> <span class="n">distlimit</span><span class="p">,</span> <span class="n">storekdtree</span><span class="o">=</span><span class="s1">&#39;kdtree_3d&#39;</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Searches for pairs of points that are at least as close as a specified</span>
+<span class="sd">    distance in 3D space.</span>
+
+<span class="sd">    This is intended for use on coordinate objects with arrays of coordinates,</span>
+<span class="sd">    not scalars.  For scalar coordinates, it is better to use the</span>
+<span class="sd">    ``separation_3d`` methods.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    coords1 : `~astropy.coordinates.BaseCoordinateFrame` or `~astropy.coordinates.SkyCoord`</span>
+<span class="sd">        The first set of coordinates, which will be searched for matches from</span>
+<span class="sd">        ``coords2`` within ``seplimit``.  Cannot be a scalar coordinate.</span>
+<span class="sd">    coords2 : `~astropy.coordinates.BaseCoordinateFrame` or `~astropy.coordinates.SkyCoord`</span>
+<span class="sd">        The second set of coordinates, which will be searched for matches from</span>
+<span class="sd">        ``coords1`` within ``seplimit``.  Cannot be a scalar coordinate.</span>
+<span class="sd">    distlimit : `~astropy.units.Quantity` with distance units</span>
+<span class="sd">        The physical radius to search within.</span>
+<span class="sd">    storekdtree : bool or str, optional</span>
+<span class="sd">        If a string, will store the KD-Tree used in the search with the name</span>
+<span class="sd">        ``storekdtree`` in ``coords2.cache``. This speeds up subsequent calls</span>
+<span class="sd">        to this function. If False, the KD-Trees are not saved.</span>
+
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+<span class="sd">    idx1 : integer array</span>
+<span class="sd">        Indices into ``coords1`` that matches to the corresponding element of</span>
+<span class="sd">        ``idx2``. Shape matches ``idx2``.</span>
+<span class="sd">    idx2 : integer array</span>
+<span class="sd">        Indices into ``coords2`` that matches to the corresponding element of</span>
+<span class="sd">        ``idx1``. Shape matches ``idx1``.</span>
+<span class="sd">    sep2d : `~astropy.coordinates.Angle`</span>
+<span class="sd">        The on-sky separation between the coordinates. Shape matches ``idx1``</span>
+<span class="sd">        and ``idx2``.</span>
+<span class="sd">    dist3d : `~astropy.units.Quantity`</span>
+<span class="sd">        The 3D distance between the coordinates. Shape matches ``idx1`` and</span>
+<span class="sd">        ``idx2``. The unit is that of ``coords1``.</span>
+
+<span class="sd">    Notes</span>
+<span class="sd">    -----</span>
+<span class="sd">    This function requires `SciPy &lt;http://www.scipy.org&gt;`_ (&gt;=0.12.0)</span>
+<span class="sd">    to be installed or it will fail.</span>
+
+<span class="sd">    If you are using this function to search in a catalog for matches around</span>
+<span class="sd">    specific points, the convention is for ``coords2`` to be the catalog, and</span>
+<span class="sd">    ``coords1`` are the points to search around.  While these operations are</span>
+<span class="sd">    mathematically the same if ``coords1`` and ``coords2`` are flipped, some of</span>
+<span class="sd">    the optimizations may work better if this convention is obeyed.</span>
+
+<span class="sd">    In the current implementation, the return values are always sorted in the</span>
+<span class="sd">    same order as the ``coords1`` (so ``idx1`` is in ascending order).  This is</span>
+<span class="sd">    considered an implementation detail, though, so it could change in a future</span>
+<span class="sd">    release.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="n">distlimit</span><span class="o">.</span><span class="n">isscalar</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s1">&#39;distlimit must be a scalar in search_around_3d&#39;</span><span class="p">)</span>
+
+    <span class="k">if</span> <span class="n">coords1</span><span class="o">.</span><span class="n">isscalar</span> <span class="ow">or</span> <span class="n">coords2</span><span class="o">.</span><span class="n">isscalar</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s1">&#39;One of the inputs to search_around_3d is a scalar. &#39;</span>
+                         <span class="s1">&#39;search_around_3d is intended for use with array &#39;</span>
+                         <span class="s1">&#39;coordinates, not scalars.  Instead, use &#39;</span>
+                         <span class="s1">&#39;``coord1.separation_3d(coord2) &lt; distlimit`` to find &#39;</span>
+                         <span class="s1">&#39;the coordinates near a scalar coordinate.&#39;</span><span class="p">)</span>
+
+    <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">coords1</span><span class="p">)</span> <span class="o">==</span> <span class="mi">0</span> <span class="ow">or</span> <span class="nb">len</span><span class="p">(</span><span class="n">coords2</span><span class="p">)</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
+        <span class="c1"># Empty array input: return empty match</span>
+        <span class="k">return</span> <span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">([],</span> <span class="n">dtype</span><span class="o">=</span><span class="n">np</span><span class="o">.</span><span class="n">int</span><span class="p">),</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">([],</span> <span class="n">dtype</span><span class="o">=</span><span class="n">np</span><span class="o">.</span><span class="n">int</span><span class="p">),</span>
+                <span class="n">u</span><span class="o">.</span><span class="n">Quantity</span><span class="p">([],</span> <span class="n">u</span><span class="o">.</span><span class="n">deg</span><span class="p">),</span>
+                <span class="n">u</span><span class="o">.</span><span class="n">Quantity</span><span class="p">([],</span> <span class="n">coords1</span><span class="o">.</span><span class="n">distance</span><span class="o">.</span><span class="n">unit</span><span class="p">))</span>
+
+    <span class="n">kdt2</span> <span class="o">=</span> <span class="n">_get_cartesian_kdtree</span><span class="p">(</span><span class="n">coords2</span><span class="p">,</span> <span class="n">storekdtree</span><span class="p">)</span>
+    <span class="n">cunit</span> <span class="o">=</span> <span class="n">coords2</span><span class="o">.</span><span class="n">cartesian</span><span class="o">.</span><span class="n">x</span><span class="o">.</span><span class="n">unit</span>
+
+    <span class="c1"># we convert coord1 to match coord2&#39;s frame.  We do it this way</span>
+    <span class="c1"># so that if the conversion does happen, the KD tree of coord2 at least gets</span>
+    <span class="c1"># saved. (by convention, coord2 is the &quot;catalog&quot; if that makes sense)</span>
+    <span class="n">coords1</span> <span class="o">=</span> <span class="n">coords1</span><span class="o">.</span><span class="n">transform_to</span><span class="p">(</span><span class="n">coords2</span><span class="p">)</span>
+
+    <span class="n">kdt1</span> <span class="o">=</span> <span class="n">_get_cartesian_kdtree</span><span class="p">(</span><span class="n">coords1</span><span class="p">,</span> <span class="n">storekdtree</span><span class="p">,</span> <span class="n">forceunit</span><span class="o">=</span><span class="n">cunit</span><span class="p">)</span>
+
+    <span class="c1"># this is the *cartesian* 3D distance that corresponds to the given angle</span>
+    <span class="n">d</span> <span class="o">=</span> <span class="n">distlimit</span><span class="o">.</span><span class="n">to_value</span><span class="p">(</span><span class="n">cunit</span><span class="p">)</span>
+
+    <span class="n">idxs1</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="n">idxs2</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="k">for</span> <span class="n">i</span><span class="p">,</span> <span class="n">matches</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="n">kdt1</span><span class="o">.</span><span class="n">query_ball_tree</span><span class="p">(</span><span class="n">kdt2</span><span class="p">,</span> <span class="n">d</span><span class="p">)):</span>
+        <span class="k">for</span> <span class="n">match</span> <span class="ow">in</span> <span class="n">matches</span><span class="p">:</span>
+            <span class="n">idxs1</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">i</span><span class="p">)</span>
+            <span class="n">idxs2</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">match</span><span class="p">)</span>
+    <span class="n">idxs1</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">(</span><span class="n">idxs1</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="n">np</span><span class="o">.</span><span class="n">int</span><span class="p">)</span>
+    <span class="n">idxs2</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">(</span><span class="n">idxs2</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="n">np</span><span class="o">.</span><span class="n">int</span><span class="p">)</span>
+
+    <span class="k">if</span> <span class="n">idxs1</span><span class="o">.</span><span class="n">size</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
+        <span class="n">d2ds</span> <span class="o">=</span> <span class="n">u</span><span class="o">.</span><span class="n">Quantity</span><span class="p">([],</span> <span class="n">u</span><span class="o">.</span><span class="n">deg</span><span class="p">)</span>
+        <span class="n">d3ds</span> <span class="o">=</span> <span class="n">u</span><span class="o">.</span><span class="n">Quantity</span><span class="p">([],</span> <span class="n">coords1</span><span class="o">.</span><span class="n">distance</span><span class="o">.</span><span class="n">unit</span><span class="p">)</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="n">d2ds</span> <span class="o">=</span> <span class="n">coords1</span><span class="p">[</span><span class="n">idxs1</span><span class="p">]</span><span class="o">.</span><span class="n">separation</span><span class="p">(</span><span class="n">coords2</span><span class="p">[</span><span class="n">idxs2</span><span class="p">])</span>
+        <span class="n">d3ds</span> <span class="o">=</span> <span class="n">coords1</span><span class="p">[</span><span class="n">idxs1</span><span class="p">]</span><span class="o">.</span><span class="n">separation_3d</span><span class="p">(</span><span class="n">coords2</span><span class="p">[</span><span class="n">idxs2</span><span class="p">])</span>
+
+    <span class="k">return</span> <span class="n">idxs1</span><span class="p">,</span> <span class="n">idxs2</span><span class="p">,</span> <span class="n">d2ds</span><span class="p">,</span> <span class="n">d3ds</span></div>
+
+
+<div class="viewcode-block" id="search_around_sky"><a class="viewcode-back" href="../../../api/astropy.coordinates.search_around_sky.html#astropy.coordinates.search_around_sky">[docs]</a><span class="k">def</span> <span class="nf">search_around_sky</span><span class="p">(</span><span class="n">coords1</span><span class="p">,</span> <span class="n">coords2</span><span class="p">,</span> <span class="n">seplimit</span><span class="p">,</span> <span class="n">storekdtree</span><span class="o">=</span><span class="s1">&#39;kdtree_sky&#39;</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Searches for pairs of points that have an angular separation at least as</span>
+<span class="sd">    close as a specified angle.</span>
+
+<span class="sd">    This is intended for use on coordinate objects with arrays of coordinates,</span>
+<span class="sd">    not scalars.  For scalar coordinates, it is better to use the ``separation``</span>
+<span class="sd">    methods.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    coords1 : `~astropy.coordinates.BaseCoordinateFrame` or `~astropy.coordinates.SkyCoord`</span>
+<span class="sd">        The first set of coordinates, which will be searched for matches from</span>
+<span class="sd">        ``coords2`` within ``seplimit``. Cannot be a scalar coordinate.</span>
+<span class="sd">    coords2 : `~astropy.coordinates.BaseCoordinateFrame` or `~astropy.coordinates.SkyCoord`</span>
+<span class="sd">        The second set of coordinates, which will be searched for matches from</span>
+<span class="sd">        ``coords1`` within ``seplimit``. Cannot be a scalar coordinate.</span>
+<span class="sd">    seplimit : `~astropy.units.Quantity` with angle units</span>
+<span class="sd">        The on-sky separation to search within.</span>
+<span class="sd">    storekdtree : bool or str, optional</span>
+<span class="sd">        If a string, will store the KD-Tree used in the search with the name</span>
+<span class="sd">        ``storekdtree`` in ``coords2.cache``. This speeds up subsequent calls</span>
+<span class="sd">        to this function. If False, the KD-Trees are not saved.</span>
+
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+<span class="sd">    idx1 : integer array</span>
+<span class="sd">        Indices into ``coords1`` that matches to the corresponding element of</span>
+<span class="sd">        ``idx2``. Shape matches ``idx2``.</span>
+<span class="sd">    idx2 : integer array</span>
+<span class="sd">        Indices into ``coords2`` that matches to the corresponding element of</span>
+<span class="sd">        ``idx1``. Shape matches ``idx1``.</span>
+<span class="sd">    sep2d : `~astropy.coordinates.Angle`</span>
+<span class="sd">        The on-sky separation between the coordinates. Shape matches ``idx1``</span>
+<span class="sd">        and ``idx2``.</span>
+<span class="sd">    dist3d : `~astropy.units.Quantity`</span>
+<span class="sd">        The 3D distance between the coordinates. Shape matches ``idx1``</span>
+<span class="sd">        and ``idx2``; the unit is that of ``coords1``.</span>
+<span class="sd">        If either ``coords1`` or ``coords2`` don&#39;t have a distance,</span>
+<span class="sd">        this is the 3D distance on the unit sphere, rather than a</span>
+<span class="sd">        physical distance.</span>
+
+<span class="sd">    Notes</span>
+<span class="sd">    -----</span>
+<span class="sd">    This function requires `SciPy &lt;http://www.scipy.org&gt;`_ (&gt;=0.12.0)</span>
+<span class="sd">    to be installed or it will fail.</span>
+
+<span class="sd">    In the current implementation, the return values are always sorted in the</span>
+<span class="sd">    same order as the ``coords1`` (so ``idx1`` is in ascending order).  This is</span>
+<span class="sd">    considered an implementation detail, though, so it could change in a future</span>
+<span class="sd">    release.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="kn">from</span> <span class="nn">.</span> <span class="k">import</span> <span class="n">Angle</span>
+
+    <span class="k">if</span> <span class="ow">not</span> <span class="n">seplimit</span><span class="o">.</span><span class="n">isscalar</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s1">&#39;seplimit must be a scalar in search_around_sky&#39;</span><span class="p">)</span>
+
+    <span class="k">if</span> <span class="n">coords1</span><span class="o">.</span><span class="n">isscalar</span> <span class="ow">or</span> <span class="n">coords2</span><span class="o">.</span><span class="n">isscalar</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s1">&#39;One of the inputs to search_around_sky is a scalar. &#39;</span>
+                         <span class="s1">&#39;search_around_sky is intended for use with array &#39;</span>
+                         <span class="s1">&#39;coordinates, not scalars.  Instead, use &#39;</span>
+                         <span class="s1">&#39;``coord1.separation(coord2) &lt; seplimit`` to find the &#39;</span>
+                         <span class="s1">&#39;coordinates near a scalar coordinate.&#39;</span><span class="p">)</span>
+
+    <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">coords1</span><span class="p">)</span> <span class="o">==</span> <span class="mi">0</span> <span class="ow">or</span> <span class="nb">len</span><span class="p">(</span><span class="n">coords2</span><span class="p">)</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
+        <span class="c1"># Empty array input: return empty match</span>
+        <span class="k">if</span> <span class="n">coords2</span><span class="o">.</span><span class="n">distance</span><span class="o">.</span><span class="n">unit</span> <span class="o">==</span> <span class="n">u</span><span class="o">.</span><span class="n">dimensionless_unscaled</span><span class="p">:</span>
+            <span class="n">distunit</span> <span class="o">=</span> <span class="n">u</span><span class="o">.</span><span class="n">dimensionless_unscaled</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">distunit</span> <span class="o">=</span> <span class="n">coords1</span><span class="o">.</span><span class="n">distance</span><span class="o">.</span><span class="n">unit</span>
+        <span class="k">return</span> <span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">([],</span> <span class="n">dtype</span><span class="o">=</span><span class="n">np</span><span class="o">.</span><span class="n">int</span><span class="p">),</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">([],</span> <span class="n">dtype</span><span class="o">=</span><span class="n">np</span><span class="o">.</span><span class="n">int</span><span class="p">),</span>
+                <span class="n">u</span><span class="o">.</span><span class="n">Quantity</span><span class="p">([],</span> <span class="n">u</span><span class="o">.</span><span class="n">deg</span><span class="p">),</span>
+                <span class="n">u</span><span class="o">.</span><span class="n">Quantity</span><span class="p">([],</span> <span class="n">distunit</span><span class="p">))</span>
+
+    <span class="c1"># we convert coord1 to match coord2&#39;s frame.  We do it this way</span>
+    <span class="c1"># so that if the conversion does happen, the KD tree of coord2 at least gets</span>
+    <span class="c1"># saved. (by convention, coord2 is the &quot;catalog&quot; if that makes sense)</span>
+    <span class="n">coords1</span> <span class="o">=</span> <span class="n">coords1</span><span class="o">.</span><span class="n">transform_to</span><span class="p">(</span><span class="n">coords2</span><span class="p">)</span>
+
+    <span class="c1"># strip out distance info</span>
+    <span class="n">urepr1</span> <span class="o">=</span> <span class="n">coords1</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">represent_as</span><span class="p">(</span><span class="n">UnitSphericalRepresentation</span><span class="p">)</span>
+    <span class="n">ucoords1</span> <span class="o">=</span> <span class="n">coords1</span><span class="o">.</span><span class="n">realize_frame</span><span class="p">(</span><span class="n">urepr1</span><span class="p">)</span>
+
+    <span class="n">kdt1</span> <span class="o">=</span> <span class="n">_get_cartesian_kdtree</span><span class="p">(</span><span class="n">ucoords1</span><span class="p">,</span> <span class="n">storekdtree</span><span class="p">)</span>
+
+    <span class="k">if</span> <span class="n">storekdtree</span> <span class="ow">and</span> <span class="n">coords2</span><span class="o">.</span><span class="n">cache</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">storekdtree</span><span class="p">):</span>
+        <span class="c1"># just use the stored KD-Tree</span>
+        <span class="n">kdt2</span> <span class="o">=</span> <span class="n">coords2</span><span class="o">.</span><span class="n">cache</span><span class="p">[</span><span class="n">storekdtree</span><span class="p">]</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="c1"># strip out distance info</span>
+        <span class="n">urepr2</span> <span class="o">=</span> <span class="n">coords2</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">represent_as</span><span class="p">(</span><span class="n">UnitSphericalRepresentation</span><span class="p">)</span>
+        <span class="n">ucoords2</span> <span class="o">=</span> <span class="n">coords2</span><span class="o">.</span><span class="n">realize_frame</span><span class="p">(</span><span class="n">urepr2</span><span class="p">)</span>
+
+        <span class="n">kdt2</span> <span class="o">=</span> <span class="n">_get_cartesian_kdtree</span><span class="p">(</span><span class="n">ucoords2</span><span class="p">,</span> <span class="n">storekdtree</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">storekdtree</span><span class="p">:</span>
+            <span class="c1"># save the KD-Tree in coords2, *not* ucoords2</span>
+            <span class="n">coords2</span><span class="o">.</span><span class="n">cache</span><span class="p">[</span><span class="s1">&#39;kdtree&#39;</span> <span class="k">if</span> <span class="n">storekdtree</span> <span class="ow">is</span> <span class="kc">True</span> <span class="k">else</span> <span class="n">storekdtree</span><span class="p">]</span> <span class="o">=</span> <span class="n">kdt2</span>
+
+    <span class="c1"># this is the *cartesian* 3D distance that corresponds to the given angle</span>
+    <span class="n">r</span> <span class="o">=</span> <span class="p">(</span><span class="mi">2</span> <span class="o">*</span> <span class="n">np</span><span class="o">.</span><span class="n">sin</span><span class="p">(</span><span class="n">Angle</span><span class="p">(</span><span class="n">seplimit</span><span class="p">)</span> <span class="o">/</span> <span class="mf">2.0</span><span class="p">))</span><span class="o">.</span><span class="n">value</span>
+
+    <span class="n">idxs1</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="n">idxs2</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="k">for</span> <span class="n">i</span><span class="p">,</span> <span class="n">matches</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="n">kdt1</span><span class="o">.</span><span class="n">query_ball_tree</span><span class="p">(</span><span class="n">kdt2</span><span class="p">,</span> <span class="n">r</span><span class="p">)):</span>
+        <span class="k">for</span> <span class="n">match</span> <span class="ow">in</span> <span class="n">matches</span><span class="p">:</span>
+            <span class="n">idxs1</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">i</span><span class="p">)</span>
+            <span class="n">idxs2</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">match</span><span class="p">)</span>
+    <span class="n">idxs1</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">(</span><span class="n">idxs1</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="n">np</span><span class="o">.</span><span class="n">int</span><span class="p">)</span>
+    <span class="n">idxs2</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">(</span><span class="n">idxs2</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="n">np</span><span class="o">.</span><span class="n">int</span><span class="p">)</span>
+
+    <span class="k">if</span> <span class="n">idxs1</span><span class="o">.</span><span class="n">size</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
+        <span class="k">if</span> <span class="n">coords2</span><span class="o">.</span><span class="n">distance</span><span class="o">.</span><span class="n">unit</span> <span class="o">==</span> <span class="n">u</span><span class="o">.</span><span class="n">dimensionless_unscaled</span><span class="p">:</span>
+            <span class="n">distunit</span> <span class="o">=</span> <span class="n">u</span><span class="o">.</span><span class="n">dimensionless_unscaled</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">distunit</span> <span class="o">=</span> <span class="n">coords1</span><span class="o">.</span><span class="n">distance</span><span class="o">.</span><span class="n">unit</span>
+        <span class="n">d2ds</span> <span class="o">=</span> <span class="n">u</span><span class="o">.</span><span class="n">Quantity</span><span class="p">([],</span> <span class="n">u</span><span class="o">.</span><span class="n">deg</span><span class="p">)</span>
+        <span class="n">d3ds</span> <span class="o">=</span> <span class="n">u</span><span class="o">.</span><span class="n">Quantity</span><span class="p">([],</span> <span class="n">distunit</span><span class="p">)</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="n">d2ds</span> <span class="o">=</span> <span class="n">coords1</span><span class="p">[</span><span class="n">idxs1</span><span class="p">]</span><span class="o">.</span><span class="n">separation</span><span class="p">(</span><span class="n">coords2</span><span class="p">[</span><span class="n">idxs2</span><span class="p">])</span>
+        <span class="k">try</span><span class="p">:</span>
+            <span class="n">d3ds</span> <span class="o">=</span> <span class="n">coords1</span><span class="p">[</span><span class="n">idxs1</span><span class="p">]</span><span class="o">.</span><span class="n">separation_3d</span><span class="p">(</span><span class="n">coords2</span><span class="p">[</span><span class="n">idxs2</span><span class="p">])</span>
+        <span class="k">except</span> <span class="ne">ValueError</span><span class="p">:</span>
+            <span class="c1"># they don&#39;t have distances, so we just fall back on the cartesian</span>
+            <span class="c1"># distance, computed from d2ds</span>
+            <span class="n">d3ds</span> <span class="o">=</span> <span class="mi">2</span> <span class="o">*</span> <span class="n">np</span><span class="o">.</span><span class="n">sin</span><span class="p">(</span><span class="n">d2ds</span> <span class="o">/</span> <span class="mf">2.0</span><span class="p">)</span>
+
+    <span class="k">return</span> <span class="n">idxs1</span><span class="p">,</span> <span class="n">idxs2</span><span class="p">,</span> <span class="n">d2ds</span><span class="p">,</span> <span class="n">d3ds</span></div>
+
+
+<span class="k">def</span> <span class="nf">_get_cartesian_kdtree</span><span class="p">(</span><span class="n">coord</span><span class="p">,</span> <span class="n">attrname_or_kdt</span><span class="o">=</span><span class="s1">&#39;kdtree&#39;</span><span class="p">,</span> <span class="n">forceunit</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    This is a utility function to retrieve (and build/cache, if necessary)</span>
+<span class="sd">    a 3D cartesian KD-Tree from various sorts of astropy coordinate objects.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    coord : `~astropy.coordinates.BaseCoordinateFrame` or `~astropy.coordinates.SkyCoord`</span>
+<span class="sd">        The coordinates to build the KD-Tree for.</span>
+<span class="sd">    attrname_or_kdt : bool or str or KDTree</span>
+<span class="sd">        If a string, will store the KD-Tree used for the computation in the</span>
+<span class="sd">        ``coord``, in ``coord.cache`` with the provided name. If given as a</span>
+<span class="sd">        KD-Tree, it will just be used directly.</span>
+<span class="sd">    forceunit : unit or None</span>
+<span class="sd">        If a unit, the cartesian coordinates will convert to that unit before</span>
+<span class="sd">        being put in the KD-Tree.  If None, whatever unit it&#39;s already in</span>
+<span class="sd">        will be used</span>
+
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+<span class="sd">    kdt : `~scipy.spatial.cKDTree` or `~scipy.spatial.KDTree`</span>
+<span class="sd">        The KD-Tree representing the 3D cartesian representation of the input</span>
+<span class="sd">        coordinates.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="kn">from</span> <span class="nn">warnings</span> <span class="k">import</span> <span class="n">warn</span>
+
+    <span class="c1"># without scipy this will immediately fail</span>
+    <span class="kn">from</span> <span class="nn">scipy</span> <span class="k">import</span> <span class="n">spatial</span>
+    <span class="k">try</span><span class="p">:</span>
+        <span class="n">KDTree</span> <span class="o">=</span> <span class="n">spatial</span><span class="o">.</span><span class="n">cKDTree</span>
+    <span class="k">except</span> <span class="ne">Exception</span><span class="p">:</span>
+        <span class="n">warn</span><span class="p">(</span><span class="s1">&#39;C-based KD tree not found, falling back on (much slower) &#39;</span>
+             <span class="s1">&#39;python implementation&#39;</span><span class="p">)</span>
+        <span class="n">KDTree</span> <span class="o">=</span> <span class="n">spatial</span><span class="o">.</span><span class="n">KDTree</span>
+
+    <span class="k">if</span> <span class="n">attrname_or_kdt</span> <span class="ow">is</span> <span class="kc">True</span><span class="p">:</span>  <span class="c1"># backwards compatibility for pre v0.4</span>
+        <span class="n">attrname_or_kdt</span> <span class="o">=</span> <span class="s1">&#39;kdtree&#39;</span>
+
+    <span class="c1"># figure out where any cached KDTree might be</span>
+    <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">attrname_or_kdt</span><span class="p">,</span> <span class="n">six</span><span class="o">.</span><span class="n">string_types</span><span class="p">):</span>
+        <span class="n">kdt</span> <span class="o">=</span> <span class="n">coord</span><span class="o">.</span><span class="n">cache</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">attrname_or_kdt</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">kdt</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="ow">and</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">kdt</span><span class="p">,</span> <span class="n">KDTree</span><span class="p">):</span>
+            <span class="k">raise</span> <span class="ne">TypeError</span><span class="p">(</span><span class="s1">&#39;The `attrname_or_kdt` &quot;</span><span class="si">{0}</span><span class="s1">&quot; is not a scipy KD tree!&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">attrname_or_kdt</span><span class="p">))</span>
+    <span class="k">elif</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">attrname_or_kdt</span><span class="p">,</span> <span class="n">KDTree</span><span class="p">):</span>
+        <span class="n">kdt</span> <span class="o">=</span> <span class="n">attrname_or_kdt</span>
+        <span class="n">attrname_or_kdt</span> <span class="o">=</span> <span class="kc">None</span>
+    <span class="k">elif</span> <span class="ow">not</span> <span class="n">attrname_or_kdt</span><span class="p">:</span>
+        <span class="n">kdt</span> <span class="o">=</span> <span class="kc">None</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="ne">TypeError</span><span class="p">(</span><span class="s1">&#39;Invalid `attrname_or_kdt` argument for KD-Tree:&#39;</span> <span class="o">+</span>
+                         <span class="nb">str</span><span class="p">(</span><span class="n">attrname_or_kdt</span><span class="p">))</span>
+
+    <span class="k">if</span> <span class="n">kdt</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="c1"># need to build the cartesian KD-tree for the catalog</span>
+        <span class="k">if</span> <span class="n">forceunit</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">cartxyz</span> <span class="o">=</span> <span class="n">coord</span><span class="o">.</span><span class="n">cartesian</span><span class="o">.</span><span class="n">xyz</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">cartxyz</span> <span class="o">=</span> <span class="n">coord</span><span class="o">.</span><span class="n">cartesian</span><span class="o">.</span><span class="n">xyz</span><span class="o">.</span><span class="n">to</span><span class="p">(</span><span class="n">forceunit</span><span class="p">)</span>
+        <span class="n">flatxyz</span> <span class="o">=</span> <span class="n">cartxyz</span><span class="o">.</span><span class="n">reshape</span><span class="p">((</span><span class="mi">3</span><span class="p">,</span> <span class="n">np</span><span class="o">.</span><span class="n">prod</span><span class="p">(</span><span class="n">cartxyz</span><span class="o">.</span><span class="n">shape</span><span class="p">)</span> <span class="o">//</span> <span class="mi">3</span><span class="p">))</span>
+        <span class="n">kdt</span> <span class="o">=</span> <span class="n">KDTree</span><span class="p">(</span><span class="n">flatxyz</span><span class="o">.</span><span class="n">value</span><span class="o">.</span><span class="n">T</span><span class="p">)</span>
+
+    <span class="k">if</span> <span class="n">attrname_or_kdt</span><span class="p">:</span>
+        <span class="c1"># cache the kdtree in `coord`</span>
+        <span class="n">coord</span><span class="o">.</span><span class="n">cache</span><span class="p">[</span><span class="n">attrname_or_kdt</span><span class="p">]</span> <span class="o">=</span> <span class="n">kdt</span>
+
+    <span class="k">return</span> <span class="n">kdt</span>
+</pre></div>
+
+          </div>
+        </div>
+      </div>
+      <div class="sphinxsidebar" role="navigation" aria-label="main navigation">
+        <div class="sphinxsidebarwrapper"><h3>Page Contents</h3>
+
+
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+<footer class="footer">
+  <p class="pull-right"> &nbsp;
+    <a href="#">Back to Top</a></p>
+  <p>
+    &copy; Copyright 2011-2016, The Astropy Developers.<br/>
+    Created using <a href="http://sphinx.pocoo.org/">Sphinx</a> 1.5.6. &nbsp;
+    Last built 05 Jul 2017. <br/>
+  </p>
+</footer>
+  </body>
+</html>

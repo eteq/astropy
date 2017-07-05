@@ -1,0 +1,335 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <head>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    
+    <title>astropy.visualization.mpl_normalize &#8212; Astropy v3.0.dev19489</title>
+    
+    <link rel="stylesheet" href="../../../_static/bootstrap-astropy.css" type="text/css" />
+    <link rel="stylesheet" href="../../../_static/pygments.css" type="text/css" />
+    <link rel="stylesheet" href="../../../_static/gallery.css" type="text/css" />
+    
+    <script type="text/javascript">
+      var DOCUMENTATION_OPTIONS = {
+        URL_ROOT:    '../../../',
+        VERSION:     '3.0.dev19489',
+        COLLAPSE_INDEX: false,
+        FILE_SUFFIX: '.html',
+        HAS_SOURCE:  true,
+        SOURCELINK_SUFFIX: '.txt'
+      };
+    </script>
+    <script type="text/javascript" src="../../../_static/jquery.js"></script>
+    <script type="text/javascript" src="../../../_static/underscore.js"></script>
+    <script type="text/javascript" src="../../../_static/doctools.js"></script>
+    <script type="text/javascript" src="../../../_static/sidebar.js"></script>
+    <link rel="shortcut icon" href="../../../_static/astropy_logo.ico"/>
+    <link rel="index" title="Index" href="../../../genindex.html" />
+    <link rel="search" title="Search" href="../../../search.html" />
+<link href='https://fonts.googleapis.com/css?family=Source+Sans+Pro:200,600' rel='stylesheet' type='text/css'/>
+<script type="text/javascript" src="../../../_static/copybutton.js"></script>
+
+
+  </head>
+  <body role="document">
+<div class="topbar">
+  <a class="brand" title="Documentation Home" href="../../../index.html"><span id="logotext1">astro</span><span id="logotext2">py</span><span id="logotext3">:docs</span></a>
+  <ul>
+    <li><a class="homelink" title="Astropy Homepage" href="http://www.astropy.org"></a></li>
+    <li><a title="General Index" href="../../../genindex.html">Index</a></li>
+    <li><a title="Module Index" href="../../../py-modindex.html">Modules</a></li>
+    <li>
+      
+      
+<form action="../../../search.html" method="get">
+  <input type="text" name="q" placeholder="Search" />
+  <input type="hidden" name="check_keywords" value="yes" />
+  <input type="hidden" name="area" value="default" />
+</form>
+      
+    </li>
+  </ul>
+</div>
+
+<div class="related">
+    <h3>Navigation</h3>
+    <ul>
+      <li>
+	<a href="../../../index.html">Astropy v3.0.dev19489</a>
+	 &#187;
+      </li>
+      <li><a href="../../index.html" >Module code</a> &#187;</li>
+      <li><a href="../../astropy.html" accesskey="U">astropy</a> &#187;</li>
+      
+       
+    </ul>
+</div>
+  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          <div class="body" role="main">
+            
+  <h1>Source code for astropy.visualization.mpl_normalize</h1><div class="highlight"><pre>
+<span></span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">Normalization class for Matplotlib that can be used to produce</span>
+<span class="sd">colorbars.</span>
+<span class="sd">&quot;&quot;&quot;</span>
+
+<span class="kn">from</span> <span class="nn">__future__</span> <span class="k">import</span> <span class="n">division</span><span class="p">,</span> <span class="n">print_function</span>
+
+<span class="kn">import</span> <span class="nn">numpy</span> <span class="k">as</span> <span class="nn">np</span>
+<span class="kn">from</span> <span class="nn">numpy</span> <span class="k">import</span> <span class="n">ma</span>
+
+<span class="kn">from</span> <span class="nn">.interval</span> <span class="k">import</span> <span class="p">(</span><span class="n">PercentileInterval</span><span class="p">,</span> <span class="n">AsymmetricPercentileInterval</span><span class="p">,</span>
+                       <span class="n">ManualInterval</span><span class="p">,</span> <span class="n">MinMaxInterval</span><span class="p">,</span> <span class="n">BaseInterval</span><span class="p">)</span>
+<span class="kn">from</span> <span class="nn">.stretch</span> <span class="k">import</span> <span class="p">(</span><span class="n">LinearStretch</span><span class="p">,</span> <span class="n">SqrtStretch</span><span class="p">,</span> <span class="n">PowerStretch</span><span class="p">,</span> <span class="n">LogStretch</span><span class="p">,</span>
+                      <span class="n">AsinhStretch</span><span class="p">,</span> <span class="n">BaseStretch</span><span class="p">)</span>
+
+<span class="k">try</span><span class="p">:</span>
+    <span class="kn">import</span> <span class="nn">matplotlib</span>  <span class="c1"># pylint: disable=W0611</span>
+    <span class="kn">from</span> <span class="nn">matplotlib.colors</span> <span class="k">import</span> <span class="n">Normalize</span>
+
+    <span class="c1"># On older versions of matplotlib Normalize is an old-style class</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">Normalize</span><span class="p">,</span> <span class="nb">type</span><span class="p">):</span>
+        <span class="k">class</span> <span class="nc">Normalize</span><span class="p">(</span><span class="n">Normalize</span><span class="p">,</span> <span class="nb">object</span><span class="p">):</span>
+            <span class="k">pass</span>
+<span class="k">except</span> <span class="ne">ImportError</span><span class="p">:</span>
+    <span class="k">class</span> <span class="nc">Normalize</span><span class="p">(</span><span class="nb">object</span><span class="p">):</span>
+        <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+            <span class="k">raise</span> <span class="ne">ImportError</span><span class="p">(</span><span class="s1">&#39;matplotlib is required in order to use this &#39;</span>
+                              <span class="s1">&#39;class.&#39;</span><span class="p">)</span>
+
+
+<span class="n">__all__</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;ImageNormalize&#39;</span><span class="p">,</span> <span class="s1">&#39;simple_norm&#39;</span><span class="p">]</span>
+
+<span class="n">__doctest_requires__</span> <span class="o">=</span> <span class="p">{</span><span class="s1">&#39;*&#39;</span><span class="p">:</span> <span class="p">[</span><span class="s1">&#39;matplotlib&#39;</span><span class="p">]}</span>
+
+
+<div class="viewcode-block" id="ImageNormalize"><a class="viewcode-back" href="../../../api/astropy.visualization.mpl_normalize.ImageNormalize.html#astropy.visualization.ImageNormalize">[docs]</a><span class="k">class</span> <span class="nc">ImageNormalize</span><span class="p">(</span><span class="n">Normalize</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Normalization class to be used with Matplotlib.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    data : `~numpy.ndarray`, optional</span>
+<span class="sd">        The image array.  This input is used only if ``interval`` is</span>
+<span class="sd">        also input.  ``data`` and ``interval`` are used to compute the</span>
+<span class="sd">        vmin and/or vmax values only if ``vmin`` or ``vmax`` are not</span>
+<span class="sd">        input.</span>
+<span class="sd">    interval : `~astropy.visualization.BaseInterval` subclass instance, optional</span>
+<span class="sd">        The interval object to apply to the input ``data`` to determine</span>
+<span class="sd">        the ``vmin`` and ``vmax`` values.  This input is used only if</span>
+<span class="sd">        ``data`` is also input.  ``data`` and ``interval`` are used to</span>
+<span class="sd">        compute the vmin and/or vmax values only if ``vmin`` or ``vmax``</span>
+<span class="sd">        are not input.</span>
+<span class="sd">    vmin, vmax : float</span>
+<span class="sd">        The minimum and maximum levels to show for the data.  The</span>
+<span class="sd">        ``vmin`` and ``vmax`` inputs override any calculated values from</span>
+<span class="sd">        the ``interval`` and ``data`` inputs.</span>
+<span class="sd">    stretch : `~astropy.visualization.BaseStretch` subclass instance, optional</span>
+<span class="sd">        The stretch object to apply to the data.  The default is</span>
+<span class="sd">        `~astropy.visualization.LinearStretch`.</span>
+<span class="sd">    clip : bool, optional</span>
+<span class="sd">        If `True` (default), data values outside the [0:1] range are</span>
+<span class="sd">        clipped to the [0:1] range.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">data</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">interval</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">vmin</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">vmax</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+                 <span class="n">stretch</span><span class="o">=</span><span class="n">LinearStretch</span><span class="p">(),</span> <span class="n">clip</span><span class="o">=</span><span class="kc">False</span><span class="p">):</span>
+        <span class="c1"># this super call checks for matplotlib</span>
+        <span class="nb">super</span><span class="p">(</span><span class="n">ImageNormalize</span><span class="p">,</span> <span class="bp">self</span><span class="p">)</span><span class="o">.</span><span class="n">__init__</span><span class="p">(</span><span class="n">vmin</span><span class="o">=</span><span class="n">vmin</span><span class="p">,</span> <span class="n">vmax</span><span class="o">=</span><span class="n">vmax</span><span class="p">,</span> <span class="n">clip</span><span class="o">=</span><span class="n">clip</span><span class="p">)</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">vmin</span> <span class="o">=</span> <span class="n">vmin</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">vmax</span> <span class="o">=</span> <span class="n">vmax</span>
+        <span class="k">if</span> <span class="n">data</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="ow">and</span> <span class="n">interval</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">_vmin</span><span class="p">,</span> <span class="n">_vmax</span> <span class="o">=</span> <span class="n">interval</span><span class="o">.</span><span class="n">get_limits</span><span class="p">(</span><span class="n">data</span><span class="p">)</span>
+            <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">vmin</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">vmin</span> <span class="o">=</span> <span class="n">_vmin</span>
+            <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">vmax</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">vmax</span> <span class="o">=</span> <span class="n">_vmax</span>
+
+        <span class="k">if</span> <span class="n">stretch</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="ow">and</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">stretch</span><span class="p">,</span> <span class="n">BaseStretch</span><span class="p">):</span>
+            <span class="k">raise</span> <span class="ne">TypeError</span><span class="p">(</span><span class="s1">&#39;stretch must be an instance of a BaseStretch &#39;</span>
+                            <span class="s1">&#39;subclass&#39;</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">stretch</span> <span class="o">=</span> <span class="n">stretch</span>
+
+        <span class="k">if</span> <span class="n">interval</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="ow">and</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">interval</span><span class="p">,</span> <span class="n">BaseInterval</span><span class="p">):</span>
+            <span class="k">raise</span> <span class="ne">TypeError</span><span class="p">(</span><span class="s1">&#39;interval must be an instance of a BaseInterval &#39;</span>
+                            <span class="s1">&#39;subclass&#39;</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">interval</span> <span class="o">=</span> <span class="n">interval</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">inverse_stretch</span> <span class="o">=</span> <span class="n">stretch</span><span class="o">.</span><span class="n">inverse</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">clip</span> <span class="o">=</span> <span class="n">clip</span>
+
+<div class="viewcode-block" id="ImageNormalize.__call__"><a class="viewcode-back" href="../../../api/astropy.visualization.mpl_normalize.ImageNormalize.html#astropy.visualization.ImageNormalize.__call__">[docs]</a>    <span class="k">def</span> <span class="nf">__call__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">values</span><span class="p">,</span> <span class="n">clip</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+        <span class="k">if</span> <span class="n">clip</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">clip</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">clip</span>
+
+        <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">values</span><span class="p">,</span> <span class="n">ma</span><span class="o">.</span><span class="n">MaskedArray</span><span class="p">):</span>
+            <span class="k">if</span> <span class="n">clip</span><span class="p">:</span>
+                <span class="n">mask</span> <span class="o">=</span> <span class="kc">False</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="n">mask</span> <span class="o">=</span> <span class="n">values</span><span class="o">.</span><span class="n">mask</span>
+            <span class="n">values</span> <span class="o">=</span> <span class="n">values</span><span class="o">.</span><span class="n">filled</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">vmax</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">mask</span> <span class="o">=</span> <span class="kc">False</span>
+
+        <span class="c1"># Make sure scalars get broadcast to 1-d</span>
+        <span class="k">if</span> <span class="n">np</span><span class="o">.</span><span class="n">isscalar</span><span class="p">(</span><span class="n">values</span><span class="p">):</span>
+            <span class="n">values</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">([</span><span class="n">values</span><span class="p">],</span> <span class="n">dtype</span><span class="o">=</span><span class="nb">float</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="c1"># copy because of in-place operations after</span>
+            <span class="n">values</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">(</span><span class="n">values</span><span class="p">,</span> <span class="n">copy</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="nb">float</span><span class="p">)</span>
+
+        <span class="c1"># Set default values for vmin and vmax if not specified</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">autoscale_None</span><span class="p">(</span><span class="n">values</span><span class="p">)</span>
+
+        <span class="c1"># Normalize based on vmin and vmax</span>
+        <span class="n">np</span><span class="o">.</span><span class="n">subtract</span><span class="p">(</span><span class="n">values</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">vmin</span><span class="p">,</span> <span class="n">out</span><span class="o">=</span><span class="n">values</span><span class="p">)</span>
+        <span class="n">np</span><span class="o">.</span><span class="n">true_divide</span><span class="p">(</span><span class="n">values</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">vmax</span> <span class="o">-</span> <span class="bp">self</span><span class="o">.</span><span class="n">vmin</span><span class="p">,</span> <span class="n">out</span><span class="o">=</span><span class="n">values</span><span class="p">)</span>
+
+        <span class="c1"># Clip to the 0 to 1 range</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">clip</span><span class="p">:</span>
+            <span class="n">values</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">clip</span><span class="p">(</span><span class="n">values</span><span class="p">,</span> <span class="mf">0.</span><span class="p">,</span> <span class="mf">1.</span><span class="p">,</span> <span class="n">out</span><span class="o">=</span><span class="n">values</span><span class="p">)</span>
+
+        <span class="c1"># Stretch values</span>
+        <span class="n">values</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">stretch</span><span class="p">(</span><span class="n">values</span><span class="p">,</span> <span class="n">out</span><span class="o">=</span><span class="n">values</span><span class="p">,</span> <span class="n">clip</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
+
+        <span class="c1"># Convert to masked array for matplotlib</span>
+        <span class="k">return</span> <span class="n">ma</span><span class="o">.</span><span class="n">array</span><span class="p">(</span><span class="n">values</span><span class="p">,</span> <span class="n">mask</span><span class="o">=</span><span class="n">mask</span><span class="p">)</span></div>
+
+<div class="viewcode-block" id="ImageNormalize.inverse"><a class="viewcode-back" href="../../../api/astropy.visualization.mpl_normalize.ImageNormalize.html#astropy.visualization.ImageNormalize.inverse">[docs]</a>    <span class="k">def</span> <span class="nf">inverse</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">values</span><span class="p">):</span>
+        <span class="c1"># Find unstretched values in range 0 to 1</span>
+        <span class="n">values_norm</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">inverse_stretch</span><span class="p">(</span><span class="n">values</span><span class="p">,</span> <span class="n">clip</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
+
+        <span class="c1"># Scale to original range</span>
+        <span class="k">return</span> <span class="n">values_norm</span> <span class="o">*</span> <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">vmax</span> <span class="o">-</span> <span class="bp">self</span><span class="o">.</span><span class="n">vmin</span><span class="p">)</span> <span class="o">+</span> <span class="bp">self</span><span class="o">.</span><span class="n">vmin</span></div></div>
+
+
+<div class="viewcode-block" id="simple_norm"><a class="viewcode-back" href="../../../api/astropy.visualization.simple_norm.html#astropy.visualization.simple_norm">[docs]</a><span class="k">def</span> <span class="nf">simple_norm</span><span class="p">(</span><span class="n">data</span><span class="p">,</span> <span class="n">stretch</span><span class="o">=</span><span class="s1">&#39;linear&#39;</span><span class="p">,</span> <span class="n">power</span><span class="o">=</span><span class="mf">1.0</span><span class="p">,</span> <span class="n">asinh_a</span><span class="o">=</span><span class="mf">0.1</span><span class="p">,</span> <span class="n">min_cut</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+                <span class="n">max_cut</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">min_percent</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">max_percent</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+                <span class="n">percent</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">clip</span><span class="o">=</span><span class="kc">True</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Return a Normalization class that can be used for displaying images</span>
+<span class="sd">    with Matplotlib.</span>
+
+<span class="sd">    This function enables only a subset of image stretching functions</span>
+<span class="sd">    available in `~astropy.visualization.mpl_normalize.ImageNormalize`.</span>
+
+<span class="sd">    This function is used by the</span>
+<span class="sd">    ``astropy.visualization.scripts.fits2bitmap`` script.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    data : `~numpy.ndarray`</span>
+<span class="sd">        The image array.</span>
+
+<span class="sd">    stretch : {&#39;linear&#39;, &#39;sqrt&#39;, &#39;power&#39;, log&#39;, &#39;asinh&#39;}, optional</span>
+<span class="sd">        The stretch function to apply to the image.  The default is</span>
+<span class="sd">        &#39;linear&#39;.</span>
+
+<span class="sd">    power : float, optional</span>
+<span class="sd">        The power index for ``stretch=&#39;power&#39;``.  The default is 1.0.</span>
+
+<span class="sd">    asinh_a : float, optional</span>
+<span class="sd">        For ``stretch=&#39;asinh&#39;``, the value where the asinh curve</span>
+<span class="sd">        transitions from linear to logarithmic behavior, expressed as a</span>
+<span class="sd">        fraction of the normalized image.  Must be in the range between</span>
+<span class="sd">        0 and 1.  The default is 0.1.</span>
+
+<span class="sd">    min_cut : float, optional</span>
+<span class="sd">        The pixel value of the minimum cut level.  Data values less than</span>
+<span class="sd">        ``min_cut`` will set to ``min_cut`` before stretching the image.</span>
+<span class="sd">        The default is the image minimum.  ``min_cut`` overrides</span>
+<span class="sd">        ``min_percent``.</span>
+
+<span class="sd">    max_cut : float, optional</span>
+<span class="sd">        The pixel value of the maximum cut level.  Data values greater</span>
+<span class="sd">        than ``min_cut`` will set to ``min_cut`` before stretching the</span>
+<span class="sd">        image.  The default is the image maximum.  ``max_cut`` overrides</span>
+<span class="sd">        ``max_percent``.</span>
+
+<span class="sd">    min_percent : float, optional</span>
+<span class="sd">        The percentile value used to determine the pixel value of</span>
+<span class="sd">        minimum cut level.  The default is 0.0.  ``min_percent``</span>
+<span class="sd">        overrides ``percent``.</span>
+
+<span class="sd">    max_percent : float, optional</span>
+<span class="sd">        The percentile value used to determine the pixel value of</span>
+<span class="sd">        maximum cut level.  The default is 100.0.  ``max_percent``</span>
+<span class="sd">        overrides ``percent``.</span>
+
+<span class="sd">    percent : float, optional</span>
+<span class="sd">        The percentage of the image values used to determine the pixel</span>
+<span class="sd">        values of the minimum and maximum cut levels.  The lower cut</span>
+<span class="sd">        level will set at the ``(100 - percent) / 2`` percentile, while</span>
+<span class="sd">        the upper cut level will be set at the ``(100 + percent) / 2``</span>
+<span class="sd">        percentile.  The default is 100.0.  ``percent`` is ignored if</span>
+<span class="sd">        either ``min_percent`` or ``max_percent`` is input.</span>
+
+<span class="sd">    clip : bool, optional</span>
+<span class="sd">        If `True` (default), data values outside the [0:1] range are</span>
+<span class="sd">        clipped to the [0:1] range.</span>
+
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+<span class="sd">    result : `ImageNormalize` instance</span>
+<span class="sd">        An `ImageNormalize` instance that can be used for displaying</span>
+<span class="sd">        images with Matplotlib.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="k">if</span> <span class="n">percent</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="n">interval</span> <span class="o">=</span> <span class="n">PercentileInterval</span><span class="p">(</span><span class="n">percent</span><span class="p">)</span>
+    <span class="k">elif</span> <span class="n">min_percent</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="ow">or</span> <span class="n">max_percent</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="n">interval</span> <span class="o">=</span> <span class="n">AsymmetricPercentileInterval</span><span class="p">(</span><span class="n">min_percent</span> <span class="ow">or</span> <span class="mf">0.</span><span class="p">,</span>
+                                                <span class="n">max_percent</span> <span class="ow">or</span> <span class="mf">100.</span><span class="p">)</span>
+    <span class="k">elif</span> <span class="n">min_cut</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="ow">or</span> <span class="n">max_cut</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="n">interval</span> <span class="o">=</span> <span class="n">ManualInterval</span><span class="p">(</span><span class="n">min_cut</span><span class="p">,</span> <span class="n">max_cut</span><span class="p">)</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="n">interval</span> <span class="o">=</span> <span class="n">MinMaxInterval</span><span class="p">()</span>
+
+    <span class="k">if</span> <span class="n">stretch</span> <span class="o">==</span> <span class="s1">&#39;linear&#39;</span><span class="p">:</span>
+        <span class="n">stretch</span> <span class="o">=</span> <span class="n">LinearStretch</span><span class="p">()</span>
+    <span class="k">elif</span> <span class="n">stretch</span> <span class="o">==</span> <span class="s1">&#39;sqrt&#39;</span><span class="p">:</span>
+        <span class="n">stretch</span> <span class="o">=</span> <span class="n">SqrtStretch</span><span class="p">()</span>
+    <span class="k">elif</span> <span class="n">stretch</span> <span class="o">==</span> <span class="s1">&#39;power&#39;</span><span class="p">:</span>
+        <span class="n">stretch</span> <span class="o">=</span> <span class="n">PowerStretch</span><span class="p">(</span><span class="n">power</span><span class="p">)</span>
+    <span class="k">elif</span> <span class="n">stretch</span> <span class="o">==</span> <span class="s1">&#39;log&#39;</span><span class="p">:</span>
+        <span class="n">stretch</span> <span class="o">=</span> <span class="n">LogStretch</span><span class="p">()</span>
+    <span class="k">elif</span> <span class="n">stretch</span> <span class="o">==</span> <span class="s1">&#39;asinh&#39;</span><span class="p">:</span>
+        <span class="n">stretch</span> <span class="o">=</span> <span class="n">AsinhStretch</span><span class="p">(</span><span class="n">asinh_a</span><span class="p">)</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s1">&#39;Unknown stretch: </span><span class="si">{0}</span><span class="s1">.&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">stretch</span><span class="p">))</span>
+
+    <span class="n">vmin</span><span class="p">,</span> <span class="n">vmax</span> <span class="o">=</span> <span class="n">interval</span><span class="o">.</span><span class="n">get_limits</span><span class="p">(</span><span class="n">data</span><span class="p">)</span>
+
+    <span class="k">return</span> <span class="n">ImageNormalize</span><span class="p">(</span><span class="n">vmin</span><span class="o">=</span><span class="n">vmin</span><span class="p">,</span> <span class="n">vmax</span><span class="o">=</span><span class="n">vmax</span><span class="p">,</span> <span class="n">stretch</span><span class="o">=</span><span class="n">stretch</span><span class="p">,</span> <span class="n">clip</span><span class="o">=</span><span class="n">clip</span><span class="p">)</span></div>
+</pre></div>
+
+          </div>
+        </div>
+      </div>
+      <div class="sphinxsidebar" role="navigation" aria-label="main navigation">
+        <div class="sphinxsidebarwrapper"><h3>Page Contents</h3>
+
+
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+<footer class="footer">
+  <p class="pull-right"> &nbsp;
+    <a href="#">Back to Top</a></p>
+  <p>
+    &copy; Copyright 2011-2016, The Astropy Developers.<br/>
+    Created using <a href="http://sphinx.pocoo.org/">Sphinx</a> 1.5.6. &nbsp;
+    Last built 05 Jul 2017. <br/>
+  </p>
+</footer>
+  </body>
+</html>

@@ -1,0 +1,6 @@
+lon.set_ticks_visible(False)
+lon.set_ticklabel_visible(False)
+lat.set_ticks_visible(False)
+lat.set_ticklabel_visible(False)
+lon.set_axislabel('')
+lat.set_axislabel('')

@@ -1,0 +1,745 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <head>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    
+    <title>astropy.stats.biweight &#8212; Astropy v3.0.dev19489</title>
+    
+    <link rel="stylesheet" href="../../../_static/bootstrap-astropy.css" type="text/css" />
+    <link rel="stylesheet" href="../../../_static/pygments.css" type="text/css" />
+    <link rel="stylesheet" href="../../../_static/gallery.css" type="text/css" />
+    
+    <script type="text/javascript">
+      var DOCUMENTATION_OPTIONS = {
+        URL_ROOT:    '../../../',
+        VERSION:     '3.0.dev19489',
+        COLLAPSE_INDEX: false,
+        FILE_SUFFIX: '.html',
+        HAS_SOURCE:  true,
+        SOURCELINK_SUFFIX: '.txt'
+      };
+    </script>
+    <script type="text/javascript" src="../../../_static/jquery.js"></script>
+    <script type="text/javascript" src="../../../_static/underscore.js"></script>
+    <script type="text/javascript" src="../../../_static/doctools.js"></script>
+    <script type="text/javascript" src="../../../_static/sidebar.js"></script>
+    <link rel="shortcut icon" href="../../../_static/astropy_logo.ico"/>
+    <link rel="index" title="Index" href="../../../genindex.html" />
+    <link rel="search" title="Search" href="../../../search.html" />
+<link href='https://fonts.googleapis.com/css?family=Source+Sans+Pro:200,600' rel='stylesheet' type='text/css'/>
+<script type="text/javascript" src="../../../_static/copybutton.js"></script>
+
+
+  </head>
+  <body role="document">
+<div class="topbar">
+  <a class="brand" title="Documentation Home" href="../../../index.html"><span id="logotext1">astro</span><span id="logotext2">py</span><span id="logotext3">:docs</span></a>
+  <ul>
+    <li><a class="homelink" title="Astropy Homepage" href="http://www.astropy.org"></a></li>
+    <li><a title="General Index" href="../../../genindex.html">Index</a></li>
+    <li><a title="Module Index" href="../../../py-modindex.html">Modules</a></li>
+    <li>
+      
+      
+<form action="../../../search.html" method="get">
+  <input type="text" name="q" placeholder="Search" />
+  <input type="hidden" name="check_keywords" value="yes" />
+  <input type="hidden" name="area" value="default" />
+</form>
+      
+    </li>
+  </ul>
+</div>
+
+<div class="related">
+    <h3>Navigation</h3>
+    <ul>
+      <li>
+	<a href="../../../index.html">Astropy v3.0.dev19489</a>
+	 &#187;
+      </li>
+      <li><a href="../../index.html" >Module code</a> &#187;</li>
+      <li><a href="../../astropy.html" accesskey="U">astropy</a> &#187;</li>
+      
+       
+    </ul>
+</div>
+  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          <div class="body" role="main">
+            
+  <h1>Source code for astropy.stats.biweight</h1><div class="highlight"><pre>
+<span></span><span class="c1"># Licensed under a 3-clause BSD style license - see LICENSE.rst</span>
+<span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">This module contains functions for computing robust statistics using</span>
+<span class="sd">Tukey&#39;s biweight function.</span>
+<span class="sd">&quot;&quot;&quot;</span>
+
+<span class="kn">from</span> <span class="nn">__future__</span> <span class="k">import</span> <span class="p">(</span><span class="n">absolute_import</span><span class="p">,</span> <span class="n">division</span><span class="p">,</span> <span class="n">print_function</span><span class="p">,</span>
+                        <span class="n">unicode_literals</span><span class="p">)</span>
+
+<span class="kn">import</span> <span class="nn">numpy</span> <span class="k">as</span> <span class="nn">np</span>
+
+<span class="kn">from</span> <span class="nn">.funcs</span> <span class="k">import</span> <span class="n">median_absolute_deviation</span>
+<span class="kn">from</span> <span class="nn">..utils.decorators</span> <span class="k">import</span> <span class="n">deprecated_renamed_argument</span>
+
+
+<span class="n">__all__</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;biweight_location&#39;</span><span class="p">,</span> <span class="s1">&#39;biweight_scale&#39;</span><span class="p">,</span> <span class="s1">&#39;biweight_midvariance&#39;</span><span class="p">,</span>
+           <span class="s1">&#39;biweight_midcovariance&#39;</span><span class="p">,</span> <span class="s1">&#39;biweight_midcorrelation&#39;</span><span class="p">]</span>
+
+
+<span class="nd">@deprecated_renamed_argument</span><span class="p">(</span><span class="s1">&#39;a&#39;</span><span class="p">,</span> <span class="s1">&#39;data&#39;</span><span class="p">,</span> <span class="s1">&#39;2.0&#39;</span><span class="p">)</span>
+<div class="viewcode-block" id="biweight_location"><a class="viewcode-back" href="../../../api/astropy.stats.biweight_location.html#astropy.stats.biweight.biweight_location">[docs]</a><span class="k">def</span> <span class="nf">biweight_location</span><span class="p">(</span><span class="n">data</span><span class="p">,</span> <span class="n">c</span><span class="o">=</span><span class="mf">6.0</span><span class="p">,</span> <span class="n">M</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">axis</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+    <span class="sd">r&quot;&quot;&quot;</span>
+<span class="sd">    Compute the biweight location.</span>
+
+<span class="sd">    The biweight location is a robust statistic for determining the</span>
+<span class="sd">    central location of a distribution.  It is given by:</span>
+
+<span class="sd">    .. math::</span>
+
+<span class="sd">        \zeta_{biloc}= M + \frac{\Sigma_{|u_i|&lt;1} \ (x_i - M) (1 - u_i^2)^2}</span>
+<span class="sd">            {\Sigma_{|u_i|&lt;1} \ (1 - u_i^2)^2}</span>
+
+<span class="sd">    where :math:`x` is the input data, :math:`M` is the sample median</span>
+<span class="sd">    (or the input initial location guess) and :math:`u_i` is given by:</span>
+
+<span class="sd">    .. math::</span>
+
+<span class="sd">        u_{i} = \frac{(x_i - M)}{c * MAD}</span>
+
+<span class="sd">    where :math:`c` is the tuning constant and :math:`MAD` is the</span>
+<span class="sd">    `median absolute deviation</span>
+<span class="sd">    &lt;https://en.wikipedia.org/wiki/Median_absolute_deviation&gt;`_.  The</span>
+<span class="sd">    biweight location tuning constant ``c`` is typically 6.0 (the</span>
+<span class="sd">    default).</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    data : array-like</span>
+<span class="sd">        Input array or object that can be converted to an array.</span>
+<span class="sd">    c : float, optional</span>
+<span class="sd">        Tuning constant for the biweight estimator (default = 6.0).</span>
+<span class="sd">    M : float or array-like, optional</span>
+<span class="sd">        Initial guess for the location.  If ``M`` is a scalar value,</span>
+<span class="sd">        then its value will be used for the entire array (or along each</span>
+<span class="sd">        ``axis``, if specified).  If ``M`` is an array, then its must be</span>
+<span class="sd">        an array containing the initial location estimate along each</span>
+<span class="sd">        ``axis`` of the input array.  If `None` (default), then the</span>
+<span class="sd">        median of the input array will be used (or along each ``axis``,</span>
+<span class="sd">        if specified).</span>
+<span class="sd">    axis : int, optional</span>
+<span class="sd">        The axis along which the biweight locations are computed.  If</span>
+<span class="sd">        `None` (default), then the biweight location of the flattened</span>
+<span class="sd">        input array will be computed.</span>
+
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+<span class="sd">    biweight_location : float or `~numpy.ndarray`</span>
+<span class="sd">        The biweight location of the input data.  If ``axis`` is `None`</span>
+<span class="sd">        then a scalar will be returned, otherwise a `~numpy.ndarray`</span>
+<span class="sd">        will be returned.</span>
+
+<span class="sd">    See Also</span>
+<span class="sd">    --------</span>
+<span class="sd">    biweight_scale, biweight_midvariance, biweight_midcovariance</span>
+
+<span class="sd">    References</span>
+<span class="sd">    ----------</span>
+<span class="sd">    .. [1] Beers, Flynn, and Gebhardt (1990; AJ 100, 32) (http://adsabs.harvard.edu/abs/1990AJ....100...32B)</span>
+
+<span class="sd">    .. [2] http://www.itl.nist.gov/div898/software/dataplot/refman2/auxillar/biwloc.htm</span>
+
+<span class="sd">    Examples</span>
+<span class="sd">    --------</span>
+<span class="sd">    Generate random variates from a Gaussian distribution and return the</span>
+<span class="sd">    biweight location of the distribution:</span>
+
+<span class="sd">    &gt;&gt;&gt; import numpy as np</span>
+<span class="sd">    &gt;&gt;&gt; from astropy.stats import biweight_location</span>
+<span class="sd">    &gt;&gt;&gt; rand = np.random.RandomState(12345)</span>
+<span class="sd">    &gt;&gt;&gt; biloc = biweight_location(rand.randn(1000))</span>
+<span class="sd">    &gt;&gt;&gt; print(biloc)    # doctest: +FLOAT_CMP</span>
+<span class="sd">    -0.0175741540445</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="n">data</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">asanyarray</span><span class="p">(</span><span class="n">data</span><span class="p">)</span>
+
+    <span class="k">if</span> <span class="n">M</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="n">M</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">median</span><span class="p">(</span><span class="n">data</span><span class="p">,</span> <span class="n">axis</span><span class="o">=</span><span class="n">axis</span><span class="p">)</span>
+    <span class="k">if</span> <span class="n">axis</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="n">M</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">expand_dims</span><span class="p">(</span><span class="n">M</span><span class="p">,</span> <span class="n">axis</span><span class="o">=</span><span class="n">axis</span><span class="p">)</span>
+
+    <span class="c1"># set up the differences</span>
+    <span class="n">d</span> <span class="o">=</span> <span class="n">data</span> <span class="o">-</span> <span class="n">M</span>
+
+    <span class="c1"># set up the weighting</span>
+    <span class="n">mad</span> <span class="o">=</span> <span class="n">median_absolute_deviation</span><span class="p">(</span><span class="n">data</span><span class="p">,</span> <span class="n">axis</span><span class="o">=</span><span class="n">axis</span><span class="p">)</span>
+    <span class="k">if</span> <span class="n">axis</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="n">mad</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">expand_dims</span><span class="p">(</span><span class="n">mad</span><span class="p">,</span> <span class="n">axis</span><span class="o">=</span><span class="n">axis</span><span class="p">)</span>
+    <span class="n">u</span> <span class="o">=</span> <span class="n">d</span> <span class="o">/</span> <span class="p">(</span><span class="n">c</span> <span class="o">*</span> <span class="n">mad</span><span class="p">)</span>
+
+    <span class="c1"># now remove the outlier points</span>
+    <span class="n">mask</span> <span class="o">=</span> <span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">abs</span><span class="p">(</span><span class="n">u</span><span class="p">)</span> <span class="o">&gt;=</span> <span class="mi">1</span><span class="p">)</span>
+    <span class="n">u</span> <span class="o">=</span> <span class="p">(</span><span class="mi">1</span> <span class="o">-</span> <span class="n">u</span> <span class="o">**</span> <span class="mi">2</span><span class="p">)</span> <span class="o">**</span> <span class="mi">2</span>
+    <span class="n">u</span><span class="p">[</span><span class="n">mask</span><span class="p">]</span> <span class="o">=</span> <span class="mi">0</span>
+
+    <span class="k">return</span> <span class="n">M</span><span class="o">.</span><span class="n">squeeze</span><span class="p">()</span> <span class="o">+</span> <span class="p">(</span><span class="n">d</span> <span class="o">*</span> <span class="n">u</span><span class="p">)</span><span class="o">.</span><span class="n">sum</span><span class="p">(</span><span class="n">axis</span><span class="o">=</span><span class="n">axis</span><span class="p">)</span> <span class="o">/</span> <span class="n">u</span><span class="o">.</span><span class="n">sum</span><span class="p">(</span><span class="n">axis</span><span class="o">=</span><span class="n">axis</span><span class="p">)</span></div>
+
+
+<div class="viewcode-block" id="biweight_scale"><a class="viewcode-back" href="../../../api/astropy.stats.biweight_scale.html#astropy.stats.biweight.biweight_scale">[docs]</a><span class="k">def</span> <span class="nf">biweight_scale</span><span class="p">(</span><span class="n">data</span><span class="p">,</span> <span class="n">c</span><span class="o">=</span><span class="mf">9.0</span><span class="p">,</span> <span class="n">M</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">axis</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">modify_sample_size</span><span class="o">=</span><span class="kc">False</span><span class="p">):</span>
+    <span class="sd">r&quot;&quot;&quot;</span>
+<span class="sd">    Compute the biweight scale.</span>
+
+<span class="sd">    The biweight scale is a robust statistic for determining the</span>
+<span class="sd">    standard deviation of a distribution.  It is the square root of the</span>
+<span class="sd">    `biweight midvariance</span>
+<span class="sd">    &lt;https://en.wikipedia.org/wiki/Robust_measures_of_scale#The_biweight_midvariance&gt;`_.</span>
+<span class="sd">    It is given by:</span>
+
+<span class="sd">    .. math::</span>
+
+<span class="sd">        \zeta_{biscl} = \sqrt{n} \ \frac{\sqrt{\Sigma_{|u_i| &lt; 1} \</span>
+<span class="sd">            (x_i - M)^2 (1 - u_i^2)^4}} {|(\Sigma_{|u_i| &lt; 1} \</span>
+<span class="sd">            (1 - u_i^2) (1 - 5u_i^2))|}</span>
+
+<span class="sd">    where :math:`x` is the input data, :math:`M` is the sample median</span>
+<span class="sd">    (or the input location) and :math:`u_i` is given by:</span>
+
+<span class="sd">    .. math::</span>
+
+<span class="sd">        u_{i} = \frac{(x_i - M)}{c * MAD}</span>
+
+<span class="sd">    where :math:`c` is the tuning constant and :math:`MAD` is the</span>
+<span class="sd">    `median absolute deviation</span>
+<span class="sd">    &lt;https://en.wikipedia.org/wiki/Median_absolute_deviation&gt;`_.  The</span>
+<span class="sd">    biweight midvariance tuning constant ``c`` is typically 9.0 (the</span>
+<span class="sd">    default).</span>
+
+<span class="sd">    For the standard definition of biweight scale, :math:`n` is the</span>
+<span class="sd">    total number of points in the array (or along the input ``axis``, if</span>
+<span class="sd">    specified).  That definition is used if ``modify_sample_size`` is</span>
+<span class="sd">    `False`, which is the default.</span>
+
+<span class="sd">    However, if ``modify_sample_size = True``, then :math:`n` is the</span>
+<span class="sd">    number of points for which :math:`|u_i| &lt; 1` (i.e. the total number</span>
+<span class="sd">    of non-rejected values), i.e.</span>
+
+<span class="sd">    .. math::</span>
+
+<span class="sd">        n = \Sigma_{|u_i| &lt; 1} \ 1</span>
+
+<span class="sd">    which results in a value closer to the true standard deviation for</span>
+<span class="sd">    small sample sizes or for a large number of rejected values.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    data : array-like</span>
+<span class="sd">        Input array or object that can be converted to an array.</span>
+<span class="sd">    c : float, optional</span>
+<span class="sd">        Tuning constant for the biweight estimator (default = 9.0).</span>
+<span class="sd">    M : float or array-like, optional</span>
+<span class="sd">        The location estimate.  If ``M`` is a scalar value, then its</span>
+<span class="sd">        value will be used for the entire array (or along each ``axis``,</span>
+<span class="sd">        if specified).  If ``M`` is an array, then its must be an array</span>
+<span class="sd">        containing the location estimate along each ``axis`` of the</span>
+<span class="sd">        input array.  If `None` (default), then the median of the input</span>
+<span class="sd">        array will be used (or along each ``axis``, if specified).</span>
+<span class="sd">    axis : int, optional</span>
+<span class="sd">        The axis along which the biweight scales are computed.  If</span>
+<span class="sd">        `None` (default), then the biweight scale of the flattened input</span>
+<span class="sd">        array will be computed.</span>
+<span class="sd">    modify_sample_size : bool, optional</span>
+<span class="sd">        If `False` (default), then the sample size used is the total</span>
+<span class="sd">        number of elements in the array (or along the input ``axis``, if</span>
+<span class="sd">        specified), which follows the standard definition of biweight</span>
+<span class="sd">        scale.  If `True`, then the sample size is reduced to correct</span>
+<span class="sd">        for any rejected values (i.e. the sample size used includes only</span>
+<span class="sd">        the non-rejected values), which results in a value closer to the</span>
+<span class="sd">        true standard deviation for small sample sizes or for a large</span>
+<span class="sd">        number of rejected values.</span>
+
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+<span class="sd">    biweight_scale : float or `~numpy.ndarray`</span>
+<span class="sd">        The biweight scale of the input data.  If ``axis`` is `None`</span>
+<span class="sd">        then a scalar will be returned, otherwise a `~numpy.ndarray`</span>
+<span class="sd">        will be returned.</span>
+
+<span class="sd">    See Also</span>
+<span class="sd">    --------</span>
+<span class="sd">    biweight_midvariance, biweight_midcovariance, biweight_location, astropy.stats.mad_std, astropy.stats.median_absolute_deviation</span>
+
+<span class="sd">    References</span>
+<span class="sd">    ----------</span>
+<span class="sd">    .. [1] Beers, Flynn, and Gebhardt (1990; AJ 100, 32) (http://adsabs.harvard.edu/abs/1990AJ....100...32B)</span>
+
+<span class="sd">    .. [2] http://www.itl.nist.gov/div898/software/dataplot/refman2/auxillar/biwscale.htm</span>
+
+<span class="sd">    Examples</span>
+<span class="sd">    --------</span>
+<span class="sd">    Generate random variates from a Gaussian distribution and return the</span>
+<span class="sd">    biweight scale of the distribution:</span>
+
+<span class="sd">    &gt;&gt;&gt; import numpy as np</span>
+<span class="sd">    &gt;&gt;&gt; from astropy.stats import biweight_scale</span>
+<span class="sd">    &gt;&gt;&gt; rand = np.random.RandomState(12345)</span>
+<span class="sd">    &gt;&gt;&gt; biscl = biweight_scale(rand.randn(1000))</span>
+<span class="sd">    &gt;&gt;&gt; print(biscl)    # doctest: +FLOAT_CMP</span>
+<span class="sd">    0.986726249291</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="k">return</span> <span class="n">np</span><span class="o">.</span><span class="n">sqrt</span><span class="p">(</span>
+        <span class="n">biweight_midvariance</span><span class="p">(</span><span class="n">data</span><span class="p">,</span> <span class="n">c</span><span class="o">=</span><span class="n">c</span><span class="p">,</span> <span class="n">M</span><span class="o">=</span><span class="n">M</span><span class="p">,</span> <span class="n">axis</span><span class="o">=</span><span class="n">axis</span><span class="p">,</span>
+                             <span class="n">modify_sample_size</span><span class="o">=</span><span class="n">modify_sample_size</span><span class="p">))</span></div>
+
+
+<span class="nd">@deprecated_renamed_argument</span><span class="p">(</span><span class="s1">&#39;a&#39;</span><span class="p">,</span> <span class="s1">&#39;data&#39;</span><span class="p">,</span> <span class="s1">&#39;2.0&#39;</span><span class="p">)</span>
+<div class="viewcode-block" id="biweight_midvariance"><a class="viewcode-back" href="../../../api/astropy.stats.biweight_midvariance.html#astropy.stats.biweight.biweight_midvariance">[docs]</a><span class="k">def</span> <span class="nf">biweight_midvariance</span><span class="p">(</span><span class="n">data</span><span class="p">,</span> <span class="n">c</span><span class="o">=</span><span class="mf">9.0</span><span class="p">,</span> <span class="n">M</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">axis</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+                         <span class="n">modify_sample_size</span><span class="o">=</span><span class="kc">False</span><span class="p">):</span>
+    <span class="sd">r&quot;&quot;&quot;</span>
+<span class="sd">    Compute the biweight midvariance.</span>
+
+<span class="sd">    The biweight midvariance is a robust statistic for determining the</span>
+<span class="sd">    variance of a distribution.  Its square root is a robust estimator</span>
+<span class="sd">    of scale (i.e. standard deviation).  It is given by:</span>
+
+<span class="sd">    .. math::</span>
+
+<span class="sd">        \zeta_{bivar} = n \ \frac{\Sigma_{|u_i| &lt; 1} \</span>
+<span class="sd">            (x_i - M)^2 (1 - u_i^2)^4} {(\Sigma_{|u_i| &lt; 1} \</span>
+<span class="sd">            (1 - u_i^2) (1 - 5u_i^2))^2}</span>
+
+<span class="sd">    where :math:`x` is the input data, :math:`M` is the sample median</span>
+<span class="sd">    (or the input location) and :math:`u_i` is given by:</span>
+
+<span class="sd">    .. math::</span>
+
+<span class="sd">        u_{i} = \frac{(x_i - M)}{c * MAD}</span>
+
+<span class="sd">    where :math:`c` is the tuning constant and :math:`MAD` is the</span>
+<span class="sd">    `median absolute deviation</span>
+<span class="sd">    &lt;https://en.wikipedia.org/wiki/Median_absolute_deviation&gt;`_.  The</span>
+<span class="sd">    biweight midvariance tuning constant ``c`` is typically 9.0 (the</span>
+<span class="sd">    default).</span>
+
+<span class="sd">    For the standard definition of `biweight midvariance</span>
+<span class="sd">    &lt;https://en.wikipedia.org/wiki/Robust_measures_of_scale#The_biweight_midvariance&gt;`_,</span>
+<span class="sd">    :math:`n` is the total number of points in the array (or along the</span>
+<span class="sd">    input ``axis``, if specified).  That definition is used if</span>
+<span class="sd">    ``modify_sample_size`` is `False`, which is the default.</span>
+
+<span class="sd">    However, if ``modify_sample_size = True``, then :math:`n` is the</span>
+<span class="sd">    number of points for which :math:`|u_i| &lt; 1` (i.e. the total number</span>
+<span class="sd">    of non-rejected values), i.e.</span>
+
+<span class="sd">    .. math::</span>
+
+<span class="sd">        n = \Sigma_{|u_i| &lt; 1} \ 1</span>
+
+<span class="sd">    which results in a value closer to the true variance for small</span>
+<span class="sd">    sample sizes or for a large number of rejected values.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    dat : array-like</span>
+<span class="sd">        Input array or object that can be converted to an array.</span>
+<span class="sd">    c : float, optional</span>
+<span class="sd">        Tuning constant for the biweight estimator (default = 9.0).</span>
+<span class="sd">    M : float or array-like, optional</span>
+<span class="sd">        The location estimate.  If ``M`` is a scalar value, then its</span>
+<span class="sd">        value will be used for the entire array (or along each ``axis``,</span>
+<span class="sd">        if specified).  If ``M`` is an array, then its must be an array</span>
+<span class="sd">        containing the location estimate along each ``axis`` of the</span>
+<span class="sd">        input array.  If `None` (default), then the median of the input</span>
+<span class="sd">        array will be used (or along each ``axis``, if specified).</span>
+<span class="sd">    axis : int, optional</span>
+<span class="sd">        The axis along which the biweight midvariances are computed.  If</span>
+<span class="sd">        `None` (default), then the biweight midvariance of the flattened</span>
+<span class="sd">        input array will be computed.</span>
+<span class="sd">    modify_sample_size : bool, optional</span>
+<span class="sd">        If `False` (default), then the sample size used is the total</span>
+<span class="sd">        number of elements in the array (or along the input ``axis``, if</span>
+<span class="sd">        specified), which follows the standard definition of biweight</span>
+<span class="sd">        midvariance.  If `True`, then the sample size is reduced to</span>
+<span class="sd">        correct for any rejected values (i.e. the sample size used</span>
+<span class="sd">        includes only the non-rejected values), which results in a value</span>
+<span class="sd">        closer to the true variance for small sample sizes or for a</span>
+<span class="sd">        large number of rejected values.</span>
+
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+<span class="sd">    biweight_midvariance : float or `~numpy.ndarray`</span>
+<span class="sd">        The biweight midvariance of the input data.  If ``axis`` is</span>
+<span class="sd">        `None` then a scalar will be returned, otherwise a</span>
+<span class="sd">        `~numpy.ndarray` will be returned.</span>
+
+<span class="sd">    See Also</span>
+<span class="sd">    --------</span>
+<span class="sd">    biweight_midcovariance, biweight_midcorrelation, astropy.stats.mad_std, astropy.stats.median_absolute_deviation</span>
+
+<span class="sd">    References</span>
+<span class="sd">    ----------</span>
+<span class="sd">    .. [1] https://en.wikipedia.org/wiki/Robust_measures_of_scale#The_biweight_midvariance</span>
+
+<span class="sd">    .. [2] Beers, Flynn, and Gebhardt (1990; AJ 100, 32) (http://adsabs.harvard.edu/abs/1990AJ....100...32B)</span>
+
+<span class="sd">    Examples</span>
+<span class="sd">    --------</span>
+<span class="sd">    Generate random variates from a Gaussian distribution and return the</span>
+<span class="sd">    biweight midvariance of the distribution:</span>
+
+<span class="sd">    &gt;&gt;&gt; import numpy as np</span>
+<span class="sd">    &gt;&gt;&gt; from astropy.stats import biweight_midvariance</span>
+<span class="sd">    &gt;&gt;&gt; rand = np.random.RandomState(12345)</span>
+<span class="sd">    &gt;&gt;&gt; bivar = biweight_midvariance(rand.randn(1000))</span>
+<span class="sd">    &gt;&gt;&gt; print(bivar)    # doctest: +FLOAT_CMP</span>
+<span class="sd">    0.97362869104</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="n">data</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">asanyarray</span><span class="p">(</span><span class="n">data</span><span class="p">)</span>
+
+    <span class="k">if</span> <span class="n">M</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="n">M</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">median</span><span class="p">(</span><span class="n">data</span><span class="p">,</span> <span class="n">axis</span><span class="o">=</span><span class="n">axis</span><span class="p">)</span>
+    <span class="k">if</span> <span class="n">axis</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="n">M</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">expand_dims</span><span class="p">(</span><span class="n">M</span><span class="p">,</span> <span class="n">axis</span><span class="o">=</span><span class="n">axis</span><span class="p">)</span>
+
+    <span class="c1"># set up the differences</span>
+    <span class="n">d</span> <span class="o">=</span> <span class="n">data</span> <span class="o">-</span> <span class="n">M</span>
+
+    <span class="c1"># set up the weighting</span>
+    <span class="n">mad</span> <span class="o">=</span> <span class="n">median_absolute_deviation</span><span class="p">(</span><span class="n">data</span><span class="p">,</span> <span class="n">axis</span><span class="o">=</span><span class="n">axis</span><span class="p">)</span>
+    <span class="k">if</span> <span class="n">axis</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="n">mad</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">expand_dims</span><span class="p">(</span><span class="n">mad</span><span class="p">,</span> <span class="n">axis</span><span class="o">=</span><span class="n">axis</span><span class="p">)</span>
+    <span class="n">u</span> <span class="o">=</span> <span class="n">d</span> <span class="o">/</span> <span class="p">(</span><span class="n">c</span> <span class="o">*</span> <span class="n">mad</span><span class="p">)</span>
+
+    <span class="c1"># now remove the outlier points</span>
+    <span class="n">mask</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">abs</span><span class="p">(</span><span class="n">u</span><span class="p">)</span> <span class="o">&lt;</span> <span class="mi">1</span>
+    <span class="n">u</span> <span class="o">=</span> <span class="n">u</span> <span class="o">**</span> <span class="mi">2</span>
+
+    <span class="k">if</span> <span class="n">modify_sample_size</span><span class="p">:</span>
+        <span class="n">n</span> <span class="o">=</span> <span class="n">mask</span><span class="o">.</span><span class="n">sum</span><span class="p">(</span><span class="n">axis</span><span class="o">=</span><span class="n">axis</span><span class="p">)</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="k">if</span> <span class="n">axis</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">n</span> <span class="o">=</span> <span class="n">data</span><span class="o">.</span><span class="n">size</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">n</span> <span class="o">=</span> <span class="n">data</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="n">axis</span><span class="p">]</span>
+
+    <span class="n">f1</span> <span class="o">=</span> <span class="n">d</span> <span class="o">*</span> <span class="n">d</span> <span class="o">*</span> <span class="p">(</span><span class="mf">1.</span> <span class="o">-</span> <span class="n">u</span><span class="p">)</span><span class="o">**</span><span class="mi">4</span>
+    <span class="n">f1</span><span class="p">[</span><span class="o">~</span><span class="n">mask</span><span class="p">]</span> <span class="o">=</span> <span class="mf">0.</span>
+    <span class="n">f1</span> <span class="o">=</span> <span class="n">f1</span><span class="o">.</span><span class="n">sum</span><span class="p">(</span><span class="n">axis</span><span class="o">=</span><span class="n">axis</span><span class="p">)</span>
+    <span class="n">f2</span> <span class="o">=</span> <span class="p">(</span><span class="mf">1.</span> <span class="o">-</span> <span class="n">u</span><span class="p">)</span> <span class="o">*</span> <span class="p">(</span><span class="mf">1.</span> <span class="o">-</span> <span class="mf">5.</span><span class="o">*</span><span class="n">u</span><span class="p">)</span>
+    <span class="n">f2</span><span class="p">[</span><span class="o">~</span><span class="n">mask</span><span class="p">]</span> <span class="o">=</span> <span class="mf">0.</span>
+    <span class="n">f2</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">abs</span><span class="p">(</span><span class="n">f2</span><span class="o">.</span><span class="n">sum</span><span class="p">(</span><span class="n">axis</span><span class="o">=</span><span class="n">axis</span><span class="p">))</span><span class="o">**</span><span class="mi">2</span>
+
+    <span class="k">return</span> <span class="n">n</span> <span class="o">*</span> <span class="n">f1</span> <span class="o">/</span> <span class="n">f2</span></div>
+
+
+<span class="nd">@deprecated_renamed_argument</span><span class="p">(</span><span class="s1">&#39;a&#39;</span><span class="p">,</span> <span class="s1">&#39;data&#39;</span><span class="p">,</span> <span class="s1">&#39;2.0&#39;</span><span class="p">)</span>
+<div class="viewcode-block" id="biweight_midcovariance"><a class="viewcode-back" href="../../../api/astropy.stats.biweight_midcovariance.html#astropy.stats.biweight.biweight_midcovariance">[docs]</a><span class="k">def</span> <span class="nf">biweight_midcovariance</span><span class="p">(</span><span class="n">data</span><span class="p">,</span> <span class="n">c</span><span class="o">=</span><span class="mf">9.0</span><span class="p">,</span> <span class="n">M</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">modify_sample_size</span><span class="o">=</span><span class="kc">False</span><span class="p">):</span>
+    <span class="sd">r&quot;&quot;&quot;</span>
+<span class="sd">    Compute the biweight midcovariance between pairs of multiple</span>
+<span class="sd">    variables.</span>
+
+<span class="sd">    The biweight midcovariance is a robust and resistant estimator of</span>
+<span class="sd">    the covariance between two variables.</span>
+
+<span class="sd">    This function computes the biweight midcovariance between all pairs</span>
+<span class="sd">    of the input variables (rows) in the input data.  The output array</span>
+<span class="sd">    will have a shape of (N_variables, N_variables).  The diagonal</span>
+<span class="sd">    elements will be the biweight midvariances of each input variable</span>
+<span class="sd">    (see :func:`biweight_midvariance`).  The off-diagonal elements will</span>
+<span class="sd">    be the biweight midcovariances between each pair of input variables.</span>
+
+<span class="sd">    For example, if the input array ``data`` contains three variables</span>
+<span class="sd">    (rows) ``x``, ``y``, and ``z``, the output `~numpy.ndarray`</span>
+<span class="sd">    midcovariance matrix will be:</span>
+
+<span class="sd">    .. math::</span>
+
+<span class="sd">         \begin{pmatrix}</span>
+<span class="sd">         \zeta_{xx}  &amp; \zeta_{xy}  &amp; \zeta_{xz} \\</span>
+<span class="sd">         \zeta_{yx}  &amp; \zeta_{yy}  &amp; \zeta_{yz} \\</span>
+<span class="sd">         \zeta_{zx}  &amp; \zeta_{zy}  &amp; \zeta_{zz}</span>
+<span class="sd">         \end{pmatrix}</span>
+
+<span class="sd">    where :math:`\zeta_{xx}`, :math:`\zeta_{yy}`, and :math:`\zeta_{zz}`</span>
+<span class="sd">    are the biweight midvariances of each variable.  The biweight</span>
+<span class="sd">    midcovariance between :math:`x` and :math:`y` is :math:`\zeta_{xy}`</span>
+<span class="sd">    (:math:`= \zeta_{yx}`).  The biweight midcovariance between</span>
+<span class="sd">    :math:`x` and :math:`z` is :math:`\zeta_{xz}` (:math:`=</span>
+<span class="sd">    \zeta_{zx}`).  The biweight midcovariance between :math:`y` and</span>
+<span class="sd">    :math:`z` is :math:`\zeta_{yz}` (:math:`= \zeta_{zy}`).</span>
+
+<span class="sd">    The biweight midcovariance between two variables :math:`x` and</span>
+<span class="sd">    :math:`y` is given by:</span>
+
+<span class="sd">    .. math::</span>
+
+<span class="sd">        \zeta_{xy} = n \ \frac{\Sigma_{|u_i| &lt; 1, \ |v_i| &lt; 1} \</span>
+<span class="sd">            (x_i - M_x) (1 - u_i^2)^2 (y_i - M_y) (1 - v_i^2)^2}</span>
+<span class="sd">            {(\Sigma_{|u_i| &lt; 1} \ (1 - u_i^2) (1 - 5u_i^2))</span>
+<span class="sd">            (\Sigma_{|v_i| &lt; 1} \ (1 - v_i^2) (1 - 5v_i^2))}</span>
+
+<span class="sd">    where :math:`M_x` and :math:`M_y` are the medians (or the input</span>
+<span class="sd">    locations) of the two variables and :math:`u_i` and :math:`v_i` are</span>
+<span class="sd">    given by:</span>
+
+<span class="sd">    .. math::</span>
+
+<span class="sd">        u_{i} = \frac{(x_i - M_x)}{c * MAD_x}</span>
+
+<span class="sd">        v_{i} = \frac{(y_i - M_y)}{c * MAD_y}</span>
+
+<span class="sd">    where :math:`c` is the biweight tuning constant and :math:`MAD_x`</span>
+<span class="sd">    and :math:`MAD_y` are the `median absolute deviation</span>
+<span class="sd">    &lt;https://en.wikipedia.org/wiki/Median_absolute_deviation&gt;`_ of the</span>
+<span class="sd">    :math:`x` and :math:`y` variables.  The biweight midvariance tuning</span>
+<span class="sd">    constant ``c`` is typically 9.0 (the default).</span>
+
+<span class="sd">    For the standard definition of biweight midcovariance :math:`n` is</span>
+<span class="sd">    the total number of observations of each variable.  That definition</span>
+<span class="sd">    is used if ``modify_sample_size`` is `False`, which is the default.</span>
+
+<span class="sd">    However, if ``modify_sample_size = True``, then :math:`n` is the</span>
+<span class="sd">    number of observations for which :math:`|u_i| &lt; 1` and :math:`|v_i|</span>
+<span class="sd">    &lt; 1`, i.e.</span>
+
+<span class="sd">    .. math::</span>
+
+<span class="sd">        n = \Sigma_{|u_i| &lt; 1, \ |v_i| &lt; 1} \ 1</span>
+
+<span class="sd">    which results in a value closer to the true variance for small</span>
+<span class="sd">    sample sizes or for a large number of rejected values.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    data : 2D or 1D array-like</span>
+<span class="sd">        Input data either as a 2D or 1D array.  For a 2D array, it</span>
+<span class="sd">        should have a shape (N_variables, N_observations).  A 1D array</span>
+<span class="sd">        may be input for observations of a single variable, in which</span>
+<span class="sd">        case the biweight midvariance will be calculated (no</span>
+<span class="sd">        covariance).  Each row of ``data`` represents a variable, and</span>
+<span class="sd">        each column a single observation of all those variables (same as</span>
+<span class="sd">        the `numpy.cov` convention).</span>
+
+<span class="sd">    c : float, optional</span>
+<span class="sd">        Tuning constant for the biweight estimator (default = 9.0).</span>
+
+<span class="sd">    M : float or 1D array-like, optional</span>
+<span class="sd">        The location estimate of each variable, either as a scalar or</span>
+<span class="sd">        array.  If ``M`` is an array, then its must be a 1D array</span>
+<span class="sd">        containing the location estimate of each row (i.e. ``a.ndim``</span>
+<span class="sd">        elements).  If ``M`` is a scalar value, then its value will be</span>
+<span class="sd">        used for each variable (row).  If `None` (default), then the</span>
+<span class="sd">        median of each variable (row) will be used.</span>
+
+<span class="sd">    modify_sample_size : bool, optional</span>
+<span class="sd">        If `False` (default), then the sample size used is the total</span>
+<span class="sd">        number of observations of each variable, which follows the</span>
+<span class="sd">        standard definition of biweight midcovariance.  If `True`, then</span>
+<span class="sd">        the sample size is reduced to correct for any rejected values</span>
+<span class="sd">        (see formula above), which results in a value closer to the true</span>
+<span class="sd">        covariance for small sample sizes or for a large number of</span>
+<span class="sd">        rejected values.</span>
+
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+<span class="sd">    biweight_midcovariance : `~numpy.ndarray`</span>
+<span class="sd">        A 2D array representing the biweight midcovariances between each</span>
+<span class="sd">        pair of the variables (rows) in the input array.  The output</span>
+<span class="sd">        array will have a shape of (N_variables, N_variables).  The</span>
+<span class="sd">        diagonal elements will be the biweight midvariances of each</span>
+<span class="sd">        input variable.  The off-diagonal elements will be the biweight</span>
+<span class="sd">        midcovariances between each pair of input variables.</span>
+
+<span class="sd">    See Also</span>
+<span class="sd">    --------</span>
+<span class="sd">    biweight_midvariance, biweight_midcorrelation, biweight_scale, biweight_location</span>
+
+<span class="sd">    References</span>
+<span class="sd">    ----------</span>
+<span class="sd">    .. [1] http://www.itl.nist.gov/div898/software/dataplot/refman2/auxillar/biwmidc.htm</span>
+
+<span class="sd">    Examples</span>
+<span class="sd">    --------</span>
+<span class="sd">    Compute the biweight midcovariance between two random variables:</span>
+
+<span class="sd">    &gt;&gt;&gt; import numpy as np</span>
+<span class="sd">    &gt;&gt;&gt; from astropy.stats import biweight_midcovariance</span>
+<span class="sd">    &gt;&gt;&gt; # Generate two random variables x and y</span>
+<span class="sd">    &gt;&gt;&gt; rng = np.random.RandomState(1)</span>
+<span class="sd">    &gt;&gt;&gt; x = rng.normal(0, 1, 200)</span>
+<span class="sd">    &gt;&gt;&gt; y = rng.normal(0, 3, 200)</span>
+<span class="sd">    &gt;&gt;&gt; # Introduce an obvious outlier</span>
+<span class="sd">    &gt;&gt;&gt; x[0] = 30.0</span>
+<span class="sd">    &gt;&gt;&gt; # Calculate the biweight midcovariances between x and y</span>
+<span class="sd">    &gt;&gt;&gt; bicov = biweight_midcovariance([x, y])</span>
+<span class="sd">    &gt;&gt;&gt; print(bicov)    # doctest: +FLOAT_CMP</span>
+<span class="sd">    [[ 0.82483155 -0.18961219]</span>
+<span class="sd">     [-0.18961219 9.80265764]]</span>
+<span class="sd">    &gt;&gt;&gt; # Print standard deviation estimates</span>
+<span class="sd">    &gt;&gt;&gt; print(np.sqrt(bicov.diagonal()))    # doctest: +FLOAT_CMP</span>
+<span class="sd">    [ 0.90820237  3.13091961]</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="n">data</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">asanyarray</span><span class="p">(</span><span class="n">data</span><span class="p">)</span>
+
+    <span class="c1"># ensure data is 2D</span>
+    <span class="k">if</span> <span class="n">data</span><span class="o">.</span><span class="n">ndim</span> <span class="o">==</span> <span class="mi">1</span><span class="p">:</span>
+        <span class="n">data</span> <span class="o">=</span> <span class="n">data</span><span class="p">[</span><span class="n">np</span><span class="o">.</span><span class="n">newaxis</span><span class="p">,</span> <span class="p">:]</span>
+    <span class="k">if</span> <span class="n">data</span><span class="o">.</span><span class="n">ndim</span> <span class="o">!=</span> <span class="mi">2</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s1">&#39;The input array must be 2D or 1D.&#39;</span><span class="p">)</span>
+
+    <span class="c1"># estimate location if not given</span>
+    <span class="k">if</span> <span class="n">M</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="n">M</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">median</span><span class="p">(</span><span class="n">data</span><span class="p">,</span> <span class="n">axis</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span>
+    <span class="n">M</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">asanyarray</span><span class="p">(</span><span class="n">M</span><span class="p">)</span>
+    <span class="k">if</span> <span class="n">M</span><span class="o">.</span><span class="n">ndim</span> <span class="o">&gt;</span> <span class="mi">1</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s1">&#39;M must be a scalar or 1D array.&#39;</span><span class="p">)</span>
+
+    <span class="c1"># set up the differences</span>
+    <span class="n">d</span> <span class="o">=</span> <span class="p">(</span><span class="n">data</span><span class="o">.</span><span class="n">T</span> <span class="o">-</span> <span class="n">M</span><span class="p">)</span><span class="o">.</span><span class="n">T</span>
+
+    <span class="c1"># set up the weighting</span>
+    <span class="n">mad</span> <span class="o">=</span> <span class="n">median_absolute_deviation</span><span class="p">(</span><span class="n">data</span><span class="p">,</span> <span class="n">axis</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span>
+    <span class="n">u</span> <span class="o">=</span> <span class="p">(</span><span class="n">d</span><span class="o">.</span><span class="n">T</span> <span class="o">/</span> <span class="p">(</span><span class="n">c</span> <span class="o">*</span> <span class="n">mad</span><span class="p">))</span><span class="o">.</span><span class="n">T</span>
+
+    <span class="c1"># now remove the outlier points</span>
+    <span class="n">mask</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">abs</span><span class="p">(</span><span class="n">u</span><span class="p">)</span> <span class="o">&lt;</span> <span class="mi">1</span>
+    <span class="n">u</span> <span class="o">=</span> <span class="n">u</span> <span class="o">**</span> <span class="mi">2</span>
+
+    <span class="k">if</span> <span class="n">modify_sample_size</span><span class="p">:</span>
+        <span class="n">maskf</span> <span class="o">=</span> <span class="n">mask</span><span class="o">.</span><span class="n">astype</span><span class="p">(</span><span class="nb">float</span><span class="p">)</span>
+        <span class="n">n</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">inner</span><span class="p">(</span><span class="n">maskf</span><span class="p">,</span> <span class="n">maskf</span><span class="p">)</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="n">n</span> <span class="o">=</span> <span class="n">data</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">size</span>
+
+    <span class="n">usub1</span> <span class="o">=</span> <span class="p">(</span><span class="mf">1.</span> <span class="o">-</span> <span class="n">u</span><span class="p">)</span>
+    <span class="n">usub5</span> <span class="o">=</span> <span class="p">(</span><span class="mf">1.</span> <span class="o">-</span> <span class="mf">5.</span> <span class="o">*</span> <span class="n">u</span><span class="p">)</span>
+    <span class="n">usub1</span><span class="p">[</span><span class="o">~</span><span class="n">mask</span><span class="p">]</span> <span class="o">=</span> <span class="mf">0.</span>
+
+    <span class="n">numerator</span> <span class="o">=</span> <span class="n">d</span> <span class="o">*</span> <span class="n">usub1</span> <span class="o">**</span> <span class="mi">2</span>
+    <span class="n">denominator</span> <span class="o">=</span> <span class="p">(</span><span class="n">usub1</span> <span class="o">*</span> <span class="n">usub5</span><span class="p">)</span><span class="o">.</span><span class="n">sum</span><span class="p">(</span><span class="n">axis</span><span class="o">=</span><span class="mi">1</span><span class="p">)[:,</span> <span class="n">np</span><span class="o">.</span><span class="n">newaxis</span><span class="p">]</span>
+    <span class="n">numerator_matrix</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">dot</span><span class="p">(</span><span class="n">numerator</span><span class="p">,</span> <span class="n">numerator</span><span class="o">.</span><span class="n">T</span><span class="p">)</span>
+    <span class="n">denominator_matrix</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">dot</span><span class="p">(</span><span class="n">denominator</span><span class="p">,</span> <span class="n">denominator</span><span class="o">.</span><span class="n">T</span><span class="p">)</span>
+
+    <span class="k">return</span> <span class="n">n</span> <span class="o">*</span> <span class="p">(</span><span class="n">numerator_matrix</span> <span class="o">/</span> <span class="n">denominator_matrix</span><span class="p">)</span></div>
+
+
+<div class="viewcode-block" id="biweight_midcorrelation"><a class="viewcode-back" href="../../../api/astropy.stats.biweight_midcorrelation.html#astropy.stats.biweight.biweight_midcorrelation">[docs]</a><span class="k">def</span> <span class="nf">biweight_midcorrelation</span><span class="p">(</span><span class="n">x</span><span class="p">,</span> <span class="n">y</span><span class="p">,</span> <span class="n">c</span><span class="o">=</span><span class="mf">9.0</span><span class="p">,</span> <span class="n">M</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">modify_sample_size</span><span class="o">=</span><span class="kc">False</span><span class="p">):</span>
+    <span class="sd">r&quot;&quot;&quot;</span>
+<span class="sd">    Compute the biweight midcorrelation between two variables.</span>
+
+<span class="sd">    The `biweight midcorrelation</span>
+<span class="sd">    &lt;https://en.wikipedia.org/wiki/Biweight_midcorrelation&gt;`_ is a</span>
+<span class="sd">    measure of similarity between samples.  It is given by:</span>
+
+<span class="sd">    .. math::</span>
+
+<span class="sd">        r_{bicorr} = \frac{\zeta_{xy}}{\sqrt{\zeta_{xx} \ \zeta_{yy}}}</span>
+
+<span class="sd">    where :math:`\zeta_{xx}` is the biweight midvariance of :math:`x`,</span>
+<span class="sd">    :math:`\zeta_{yy}` is the biweight midvariance of :math:`y`, and</span>
+<span class="sd">    :math:`\zeta_{xy}` is the biweight midcovariance of :math:`x` and</span>
+<span class="sd">    :math:`y`.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    x, y : 1D array-like</span>
+<span class="sd">        Input arrays for the two variables.  ``x`` and ``y`` must be 1D</span>
+<span class="sd">        arrays and have the same number of elements.</span>
+<span class="sd">    c : float, optional</span>
+<span class="sd">        Tuning constant for the biweight estimator (default = 9.0).  See</span>
+<span class="sd">        `biweight_midcovariance` for more details.</span>
+<span class="sd">    M : float or array-like, optional</span>
+<span class="sd">        The location estimate.  If ``M`` is a scalar value, then its</span>
+<span class="sd">        value will be used for the entire array (or along each ``axis``,</span>
+<span class="sd">        if specified).  If ``M`` is an array, then its must be an array</span>
+<span class="sd">        containing the location estimate along each ``axis`` of the</span>
+<span class="sd">        input array.  If `None` (default), then the median of the input</span>
+<span class="sd">        array will be used (or along each ``axis``, if specified).  See</span>
+<span class="sd">        `biweight_midcovariance` for more details.</span>
+<span class="sd">    modify_sample_size : bool, optional</span>
+<span class="sd">        If `False` (default), then the sample size used is the total</span>
+<span class="sd">        number of elements in the array (or along the input ``axis``, if</span>
+<span class="sd">        specified), which follows the standard definition of biweight</span>
+<span class="sd">        midcovariance.  If `True`, then the sample size is reduced to</span>
+<span class="sd">        correct for any rejected values (i.e. the sample size used</span>
+<span class="sd">        includes only the non-rejected values), which results in a value</span>
+<span class="sd">        closer to the true midcovariance for small sample sizes or for a</span>
+<span class="sd">        large number of rejected values.  See `biweight_midcovariance`</span>
+<span class="sd">        for more details.</span>
+
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+<span class="sd">    biweight_midcorrelation : float</span>
+<span class="sd">        The biweight midcorrelation between ``x`` and ``y``.</span>
+
+<span class="sd">    See Also</span>
+<span class="sd">    --------</span>
+<span class="sd">    biweight_scale, biweight_midvariance, biweight_midcovariance, biweight_location</span>
+
+<span class="sd">    References</span>
+<span class="sd">    ----------</span>
+<span class="sd">    .. [1] https://en.wikipedia.org/wiki/Biweight_midcorrelation</span>
+
+<span class="sd">    Examples</span>
+<span class="sd">    --------</span>
+<span class="sd">    Calculate the biweight midcorrelation between two variables:</span>
+
+<span class="sd">    &gt;&gt;&gt; import numpy as np</span>
+<span class="sd">    &gt;&gt;&gt; from astropy.stats import biweight_midcorrelation</span>
+<span class="sd">    &gt;&gt;&gt; rng = np.random.RandomState(12345)</span>
+<span class="sd">    &gt;&gt;&gt; x = rng.normal(0, 1, 200)</span>
+<span class="sd">    &gt;&gt;&gt; y = rng.normal(0, 3, 200)</span>
+<span class="sd">    &gt;&gt;&gt; # Introduce an obvious outlier</span>
+<span class="sd">    &gt;&gt;&gt; x[0] = 30.0</span>
+<span class="sd">    &gt;&gt;&gt; bicorr = biweight_midcorrelation(x, y)</span>
+<span class="sd">    &gt;&gt;&gt; print(bicorr)    # doctest: +FLOAT_CMP</span>
+<span class="sd">    -0.0495780713907</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="n">x</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">asanyarray</span><span class="p">(</span><span class="n">x</span><span class="p">)</span>
+    <span class="n">y</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">asanyarray</span><span class="p">(</span><span class="n">y</span><span class="p">)</span>
+    <span class="k">if</span> <span class="n">x</span><span class="o">.</span><span class="n">ndim</span> <span class="o">!=</span> <span class="mi">1</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s1">&#39;x must be a 1D array.&#39;</span><span class="p">)</span>
+    <span class="k">if</span> <span class="n">y</span><span class="o">.</span><span class="n">ndim</span> <span class="o">!=</span> <span class="mi">1</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s1">&#39;y must be a 1D array.&#39;</span><span class="p">)</span>
+    <span class="k">if</span> <span class="n">x</span><span class="o">.</span><span class="n">shape</span> <span class="o">!=</span> <span class="n">y</span><span class="o">.</span><span class="n">shape</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s1">&#39;x and y must have the same shape.&#39;</span><span class="p">)</span>
+
+    <span class="n">bicorr</span> <span class="o">=</span> <span class="n">biweight_midcovariance</span><span class="p">([</span><span class="n">x</span><span class="p">,</span> <span class="n">y</span><span class="p">],</span> <span class="n">c</span><span class="o">=</span><span class="n">c</span><span class="p">,</span> <span class="n">M</span><span class="o">=</span><span class="n">M</span><span class="p">,</span>
+                                    <span class="n">modify_sample_size</span><span class="o">=</span><span class="n">modify_sample_size</span><span class="p">)</span>
+
+    <span class="k">return</span> <span class="n">bicorr</span><span class="p">[</span><span class="mi">0</span><span class="p">,</span> <span class="mi">1</span><span class="p">]</span> <span class="o">/</span> <span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">sqrt</span><span class="p">(</span><span class="n">bicorr</span><span class="p">[</span><span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">]</span> <span class="o">*</span> <span class="n">bicorr</span><span class="p">[</span><span class="mi">1</span><span class="p">,</span> <span class="mi">1</span><span class="p">]))</span></div>
+</pre></div>
+
+          </div>
+        </div>
+      </div>
+      <div class="sphinxsidebar" role="navigation" aria-label="main navigation">
+        <div class="sphinxsidebarwrapper"><h3>Page Contents</h3>
+
+
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+<footer class="footer">
+  <p class="pull-right"> &nbsp;
+    <a href="#">Back to Top</a></p>
+  <p>
+    &copy; Copyright 2011-2016, The Astropy Developers.<br/>
+    Created using <a href="http://sphinx.pocoo.org/">Sphinx</a> 1.5.6. &nbsp;
+    Last built 05 Jul 2017. <br/>
+  </p>
+</footer>
+  </body>
+</html>

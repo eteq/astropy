@@ -1,0 +1,770 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <head>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    
+    <title>astropy.coordinates.angles &#8212; Astropy v3.0.dev19489</title>
+    
+    <link rel="stylesheet" href="../../../_static/bootstrap-astropy.css" type="text/css" />
+    <link rel="stylesheet" href="../../../_static/pygments.css" type="text/css" />
+    <link rel="stylesheet" href="../../../_static/gallery.css" type="text/css" />
+    
+    <script type="text/javascript">
+      var DOCUMENTATION_OPTIONS = {
+        URL_ROOT:    '../../../',
+        VERSION:     '3.0.dev19489',
+        COLLAPSE_INDEX: false,
+        FILE_SUFFIX: '.html',
+        HAS_SOURCE:  true,
+        SOURCELINK_SUFFIX: '.txt'
+      };
+    </script>
+    <script type="text/javascript" src="../../../_static/jquery.js"></script>
+    <script type="text/javascript" src="../../../_static/underscore.js"></script>
+    <script type="text/javascript" src="../../../_static/doctools.js"></script>
+    <script type="text/javascript" src="../../../_static/sidebar.js"></script>
+    <link rel="shortcut icon" href="../../../_static/astropy_logo.ico"/>
+    <link rel="index" title="Index" href="../../../genindex.html" />
+    <link rel="search" title="Search" href="../../../search.html" />
+<link href='https://fonts.googleapis.com/css?family=Source+Sans+Pro:200,600' rel='stylesheet' type='text/css'/>
+<script type="text/javascript" src="../../../_static/copybutton.js"></script>
+
+
+  </head>
+  <body role="document">
+<div class="topbar">
+  <a class="brand" title="Documentation Home" href="../../../index.html"><span id="logotext1">astro</span><span id="logotext2">py</span><span id="logotext3">:docs</span></a>
+  <ul>
+    <li><a class="homelink" title="Astropy Homepage" href="http://www.astropy.org"></a></li>
+    <li><a title="General Index" href="../../../genindex.html">Index</a></li>
+    <li><a title="Module Index" href="../../../py-modindex.html">Modules</a></li>
+    <li>
+      
+      
+<form action="../../../search.html" method="get">
+  <input type="text" name="q" placeholder="Search" />
+  <input type="hidden" name="check_keywords" value="yes" />
+  <input type="hidden" name="area" value="default" />
+</form>
+      
+    </li>
+  </ul>
+</div>
+
+<div class="related">
+    <h3>Navigation</h3>
+    <ul>
+      <li>
+	<a href="../../../index.html">Astropy v3.0.dev19489</a>
+	 &#187;
+      </li>
+      <li><a href="../../index.html" >Module code</a> &#187;</li>
+      <li><a href="../../astropy.html" accesskey="U">astropy</a> &#187;</li>
+      
+       
+    </ul>
+</div>
+  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          <div class="body" role="main">
+            
+  <h1>Source code for astropy.coordinates.angles</h1><div class="highlight"><pre>
+<span></span><span class="c1"># -*- coding: utf-8 -*-</span>
+<span class="c1"># Licensed under a 3-clause BSD style license - see LICENSE.rst</span>
+
+<span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">This module contains the fundamental classes used for representing</span>
+<span class="sd">coordinates in astropy.</span>
+<span class="sd">&quot;&quot;&quot;</span>
+<span class="kn">from</span> <span class="nn">__future__</span> <span class="k">import</span> <span class="p">(</span><span class="n">absolute_import</span><span class="p">,</span> <span class="n">division</span><span class="p">,</span> <span class="n">print_function</span><span class="p">,</span>
+                        <span class="n">unicode_literals</span><span class="p">)</span>
+
+<span class="kn">import</span> <span class="nn">math</span>
+<span class="kn">from</span> <span class="nn">collections</span> <span class="k">import</span> <span class="n">namedtuple</span>
+
+<span class="kn">import</span> <span class="nn">numpy</span> <span class="k">as</span> <span class="nn">np</span>
+
+<span class="kn">from</span> <span class="nn">..extern</span> <span class="k">import</span> <span class="n">six</span>
+<span class="kn">from</span> <span class="nn">.</span> <span class="k">import</span> <span class="n">angle_utilities</span> <span class="k">as</span> <span class="n">util</span>
+<span class="kn">from</span> <span class="nn">..</span> <span class="k">import</span> <span class="n">units</span> <span class="k">as</span> <span class="n">u</span>
+<span class="kn">from</span> <span class="nn">..utils</span> <span class="k">import</span> <span class="n">isiterable</span>
+
+<span class="n">__all__</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;Angle&#39;</span><span class="p">,</span> <span class="s1">&#39;Latitude&#39;</span><span class="p">,</span> <span class="s1">&#39;Longitude&#39;</span><span class="p">]</span>
+
+
+<span class="n">TWOPI</span> <span class="o">=</span> <span class="n">math</span><span class="o">.</span><span class="n">pi</span> <span class="o">*</span> <span class="mf">2.0</span>  <span class="c1"># no need to calculate this all the time</span>
+
+<span class="c1"># these are used by the `hms` and `dms` attributes</span>
+<span class="n">hms_tuple</span> <span class="o">=</span> <span class="n">namedtuple</span><span class="p">(</span><span class="s1">&#39;hms_tuple&#39;</span><span class="p">,</span> <span class="p">(</span><span class="s1">&#39;h&#39;</span><span class="p">,</span> <span class="s1">&#39;m&#39;</span><span class="p">,</span> <span class="s1">&#39;s&#39;</span><span class="p">))</span>
+<span class="n">dms_tuple</span> <span class="o">=</span> <span class="n">namedtuple</span><span class="p">(</span><span class="s1">&#39;dms_tuple&#39;</span><span class="p">,</span> <span class="p">(</span><span class="s1">&#39;d&#39;</span><span class="p">,</span> <span class="s1">&#39;m&#39;</span><span class="p">,</span> <span class="s1">&#39;s&#39;</span><span class="p">))</span>
+<span class="n">signed_dms_tuple</span> <span class="o">=</span> <span class="n">namedtuple</span><span class="p">(</span><span class="s1">&#39;signed_dms_tuple&#39;</span><span class="p">,</span> <span class="p">(</span><span class="s1">&#39;sign&#39;</span><span class="p">,</span> <span class="s1">&#39;d&#39;</span><span class="p">,</span> <span class="s1">&#39;m&#39;</span><span class="p">,</span> <span class="s1">&#39;s&#39;</span><span class="p">))</span>
+
+
+<div class="viewcode-block" id="Angle"><a class="viewcode-back" href="../../../api/astropy.coordinates.Angle.html#astropy.coordinates.Angle">[docs]</a><span class="k">class</span> <span class="nc">Angle</span><span class="p">(</span><span class="n">u</span><span class="o">.</span><span class="n">SpecificTypeQuantity</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    One or more angular value(s) with units equivalent to radians or degrees.</span>
+
+<span class="sd">    An angle can be specified either as an array, scalar, tuple (see</span>
+<span class="sd">    below), string, `~astropy.units.Quantity` or another</span>
+<span class="sd">    :class:`~astropy.coordinates.Angle`.</span>
+
+<span class="sd">    The input parser is flexible and supports a variety of formats::</span>
+
+<span class="sd">      Angle(&#39;10.2345d&#39;)</span>
+<span class="sd">      Angle([&#39;10.2345d&#39;, &#39;-20d&#39;])</span>
+<span class="sd">      Angle(&#39;1:2:30.43 degrees&#39;)</span>
+<span class="sd">      Angle(&#39;1 2 0 hours&#39;)</span>
+<span class="sd">      Angle(np.arange(1, 8), unit=u.deg)</span>
+<span class="sd">      Angle(u&#39;1°2′3″&#39;)</span>
+<span class="sd">      Angle(&#39;1d2m3.4s&#39;)</span>
+<span class="sd">      Angle(&#39;-1h2m3s&#39;)</span>
+<span class="sd">      Angle(&#39;-1h2.5m&#39;)</span>
+<span class="sd">      Angle(&#39;-1:2.5&#39;, unit=u.deg)</span>
+<span class="sd">      Angle((10, 11, 12), unit=&#39;hourangle&#39;)  # (h, m, s)</span>
+<span class="sd">      Angle((-1, 2, 3), unit=u.deg)  # (d, m, s)</span>
+<span class="sd">      Angle(10.2345 * u.deg)</span>
+<span class="sd">      Angle(Angle(10.2345 * u.deg))</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    angle : `~numpy.array`, scalar, `~astropy.units.Quantity`, :class:`~astropy.coordinates.Angle`</span>
+<span class="sd">        The angle value. If a tuple, will be interpreted as ``(h, m,</span>
+<span class="sd">        s)`` or ``(d, m, s)`` depending on ``unit``. If a string, it</span>
+<span class="sd">        will be interpreted following the rules described above.</span>
+
+<span class="sd">        If ``angle`` is a sequence or array of strings, the resulting</span>
+<span class="sd">        values will be in the given ``unit``, or if `None` is provided,</span>
+<span class="sd">        the unit will be taken from the first given value.</span>
+
+<span class="sd">    unit : `~astropy.units.UnitBase`, str, optional</span>
+<span class="sd">        The unit of the value specified for the angle.  This may be</span>
+<span class="sd">        any string that `~astropy.units.Unit` understands, but it is</span>
+<span class="sd">        better to give an actual unit object.  Must be an angular</span>
+<span class="sd">        unit.</span>
+
+<span class="sd">    dtype : `~numpy.dtype`, optional</span>
+<span class="sd">        See `~astropy.units.Quantity`.</span>
+
+<span class="sd">    copy : bool, optional</span>
+<span class="sd">        See `~astropy.units.Quantity`.</span>
+
+<span class="sd">    Raises</span>
+<span class="sd">    ------</span>
+<span class="sd">    `~astropy.units.UnitsError`</span>
+<span class="sd">        If a unit is not provided or it is not an angular unit.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">_equivalent_unit</span> <span class="o">=</span> <span class="n">u</span><span class="o">.</span><span class="n">radian</span>
+    <span class="n">_include_easy_conversion_members</span> <span class="o">=</span> <span class="kc">True</span>
+
+    <span class="k">def</span> <span class="nf">__new__</span><span class="p">(</span><span class="n">cls</span><span class="p">,</span> <span class="n">angle</span><span class="p">,</span> <span class="n">unit</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">copy</span><span class="o">=</span><span class="kc">True</span><span class="p">):</span>
+
+        <span class="k">if</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">angle</span><span class="p">,</span> <span class="n">u</span><span class="o">.</span><span class="n">Quantity</span><span class="p">):</span>
+            <span class="k">if</span> <span class="n">unit</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+                <span class="n">unit</span> <span class="o">=</span> <span class="n">cls</span><span class="o">.</span><span class="n">_convert_unit_to_angle_unit</span><span class="p">(</span><span class="n">u</span><span class="o">.</span><span class="n">Unit</span><span class="p">(</span><span class="n">unit</span><span class="p">))</span>
+
+            <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">angle</span><span class="p">,</span> <span class="nb">tuple</span><span class="p">):</span>
+                <span class="n">angle</span> <span class="o">=</span> <span class="n">cls</span><span class="o">.</span><span class="n">_tuple_to_float</span><span class="p">(</span><span class="n">angle</span><span class="p">,</span> <span class="n">unit</span><span class="p">)</span>
+
+            <span class="k">elif</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">angle</span><span class="p">,</span> <span class="n">six</span><span class="o">.</span><span class="n">string_types</span><span class="p">):</span>
+                <span class="n">angle</span><span class="p">,</span> <span class="n">angle_unit</span> <span class="o">=</span> <span class="n">util</span><span class="o">.</span><span class="n">parse_angle</span><span class="p">(</span><span class="n">angle</span><span class="p">,</span> <span class="n">unit</span><span class="p">)</span>
+                <span class="k">if</span> <span class="n">angle_unit</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+                    <span class="n">angle_unit</span> <span class="o">=</span> <span class="n">unit</span>
+
+                <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">angle</span><span class="p">,</span> <span class="nb">tuple</span><span class="p">):</span>
+                    <span class="n">angle</span> <span class="o">=</span> <span class="n">cls</span><span class="o">.</span><span class="n">_tuple_to_float</span><span class="p">(</span><span class="n">angle</span><span class="p">,</span> <span class="n">angle_unit</span><span class="p">)</span>
+
+                <span class="k">if</span> <span class="n">angle_unit</span> <span class="ow">is</span> <span class="ow">not</span> <span class="n">unit</span><span class="p">:</span>
+                    <span class="c1"># Possible conversion to `unit` will be done below.</span>
+                    <span class="n">angle</span> <span class="o">=</span> <span class="n">u</span><span class="o">.</span><span class="n">Quantity</span><span class="p">(</span><span class="n">angle</span><span class="p">,</span> <span class="n">angle_unit</span><span class="p">,</span> <span class="n">copy</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
+
+            <span class="k">elif</span> <span class="p">(</span><span class="n">isiterable</span><span class="p">(</span><span class="n">angle</span><span class="p">)</span> <span class="ow">and</span>
+                  <span class="ow">not</span> <span class="p">(</span><span class="nb">isinstance</span><span class="p">(</span><span class="n">angle</span><span class="p">,</span> <span class="n">np</span><span class="o">.</span><span class="n">ndarray</span><span class="p">)</span> <span class="ow">and</span>
+                       <span class="n">angle</span><span class="o">.</span><span class="n">dtype</span><span class="o">.</span><span class="n">kind</span> <span class="ow">not</span> <span class="ow">in</span> <span class="s1">&#39;SUVO&#39;</span><span class="p">)):</span>
+                <span class="n">angle</span> <span class="o">=</span> <span class="p">[</span><span class="n">Angle</span><span class="p">(</span><span class="n">x</span><span class="p">,</span> <span class="n">unit</span><span class="p">,</span> <span class="n">copy</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span> <span class="k">for</span> <span class="n">x</span> <span class="ow">in</span> <span class="n">angle</span><span class="p">]</span>
+
+        <span class="k">return</span> <span class="nb">super</span><span class="p">(</span><span class="n">Angle</span><span class="p">,</span> <span class="n">cls</span><span class="p">)</span><span class="o">.</span><span class="n">__new__</span><span class="p">(</span><span class="n">cls</span><span class="p">,</span> <span class="n">angle</span><span class="p">,</span> <span class="n">unit</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="n">dtype</span><span class="p">,</span>
+                                         <span class="n">copy</span><span class="o">=</span><span class="n">copy</span><span class="p">)</span>
+
+    <span class="nd">@staticmethod</span>
+    <span class="k">def</span> <span class="nf">_tuple_to_float</span><span class="p">(</span><span class="n">angle</span><span class="p">,</span> <span class="n">unit</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Converts an angle represented as a 3-tuple or 2-tuple into a floating</span>
+<span class="sd">        point number in the given unit.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="c1"># TODO: Numpy array of tuples?</span>
+        <span class="k">if</span> <span class="n">unit</span> <span class="o">==</span> <span class="n">u</span><span class="o">.</span><span class="n">hourangle</span><span class="p">:</span>
+            <span class="k">return</span> <span class="n">util</span><span class="o">.</span><span class="n">hms_to_hours</span><span class="p">(</span><span class="o">*</span><span class="n">angle</span><span class="p">)</span>
+        <span class="k">elif</span> <span class="n">unit</span> <span class="o">==</span> <span class="n">u</span><span class="o">.</span><span class="n">degree</span><span class="p">:</span>
+            <span class="k">return</span> <span class="n">util</span><span class="o">.</span><span class="n">dms_to_degrees</span><span class="p">(</span><span class="o">*</span><span class="n">angle</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="n">u</span><span class="o">.</span><span class="n">UnitsError</span><span class="p">(</span><span class="s2">&quot;Can not parse &#39;</span><span class="si">{0}</span><span class="s2">&#39; as unit &#39;</span><span class="si">{1}</span><span class="s2">&#39;&quot;</span>
+                               <span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">angle</span><span class="p">,</span> <span class="n">unit</span><span class="p">))</span>
+
+    <span class="nd">@staticmethod</span>
+    <span class="k">def</span> <span class="nf">_convert_unit_to_angle_unit</span><span class="p">(</span><span class="n">unit</span><span class="p">):</span>
+        <span class="k">return</span> <span class="n">u</span><span class="o">.</span><span class="n">hourangle</span> <span class="k">if</span> <span class="n">unit</span> <span class="ow">is</span> <span class="n">u</span><span class="o">.</span><span class="n">hour</span> <span class="k">else</span> <span class="n">unit</span>
+
+    <span class="k">def</span> <span class="nf">_set_unit</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">unit</span><span class="p">):</span>
+        <span class="nb">super</span><span class="p">(</span><span class="n">Angle</span><span class="p">,</span> <span class="bp">self</span><span class="p">)</span><span class="o">.</span><span class="n">_set_unit</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_convert_unit_to_angle_unit</span><span class="p">(</span><span class="n">unit</span><span class="p">))</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">hour</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        The angle&#39;s value in hours (read-only property).</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">hourangle</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">hms</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        The angle&#39;s value in hours, as a named tuple with ``(h, m, s)``</span>
+<span class="sd">        members.  (This is a read-only property.)</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="n">hms_tuple</span><span class="p">(</span><span class="o">*</span><span class="n">util</span><span class="o">.</span><span class="n">hours_to_hms</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">hourangle</span><span class="p">))</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">dms</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        The angle&#39;s value in degrees, as a named tuple with ``(d, m, s)``</span>
+<span class="sd">        members.  (This is a read-only property.)</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="n">dms_tuple</span><span class="p">(</span><span class="o">*</span><span class="n">util</span><span class="o">.</span><span class="n">degrees_to_dms</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">degree</span><span class="p">))</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">signed_dms</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        The angle&#39;s value in degrees, as a named tuple with ``(sign, d, m, s)``</span>
+<span class="sd">        members.  The ``d``, ``m``, ``s`` are thus always positive, and the sign of</span>
+<span class="sd">        the angle is given by ``sign``. (This is a read-only property.)</span>
+
+<span class="sd">        This is primarily intended for use with `dms` to generate string</span>
+<span class="sd">        representations of coordinates that are correct for negative angles.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="n">signed_dms_tuple</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">sign</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">degree</span><span class="p">),</span>
+                                <span class="o">*</span><span class="n">util</span><span class="o">.</span><span class="n">degrees_to_dms</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">abs</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">degree</span><span class="p">)))</span>
+
+<div class="viewcode-block" id="Angle.to_string"><a class="viewcode-back" href="../../../api/astropy.coordinates.Angle.html#astropy.coordinates.Angle.to_string">[docs]</a>    <span class="k">def</span> <span class="nf">to_string</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">unit</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">decimal</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="n">sep</span><span class="o">=</span><span class="s1">&#39;fromunit&#39;</span><span class="p">,</span>
+                  <span class="n">precision</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">alwayssign</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="n">pad</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span>
+                  <span class="n">fields</span><span class="o">=</span><span class="mi">3</span><span class="p">,</span> <span class="nb">format</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot; A string representation of the angle.</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        unit : `~astropy.units.UnitBase`, optional</span>
+<span class="sd">            Specifies the unit.  Must be an angular unit.  If not</span>
+<span class="sd">            provided, the unit used to initialize the angle will be</span>
+<span class="sd">            used.</span>
+
+<span class="sd">        decimal : bool, optional</span>
+<span class="sd">            If `True`, a decimal representation will be used, otherwise</span>
+<span class="sd">            the returned string will be in sexagesimal form.</span>
+
+<span class="sd">        sep : str, optional</span>
+<span class="sd">            The separator between numbers in a sexagesimal</span>
+<span class="sd">            representation.  E.g., if it is &#39;:&#39;, the result is</span>
+<span class="sd">            ``&#39;12:41:11.1241&#39;``. Also accepts 2 or 3 separators. E.g.,</span>
+<span class="sd">            ``sep=&#39;hms&#39;`` would give the result ``&#39;12h41m11.1241s&#39;``, or</span>
+<span class="sd">            sep=&#39;-:&#39; would yield ``&#39;11-21:17.124&#39;``.  Alternatively, the</span>
+<span class="sd">            special string &#39;fromunit&#39; means &#39;dms&#39; if the unit is</span>
+<span class="sd">            degrees, or &#39;hms&#39; if the unit is hours.</span>
+
+<span class="sd">        precision : int, optional</span>
+<span class="sd">            The level of decimal precision.  If ``decimal`` is `True`,</span>
+<span class="sd">            this is the raw precision, otherwise it gives the</span>
+<span class="sd">            precision of the last place of the sexagesimal</span>
+<span class="sd">            representation (seconds).  If `None`, or not provided, the</span>
+<span class="sd">            number of decimal places is determined by the value, and</span>
+<span class="sd">            will be between 0-8 decimal places as required.</span>
+
+<span class="sd">        alwayssign : bool, optional</span>
+<span class="sd">            If `True`, include the sign no matter what.  If `False`,</span>
+<span class="sd">            only include the sign if it is negative.</span>
+
+<span class="sd">        pad : bool, optional</span>
+<span class="sd">            If `True`, include leading zeros when needed to ensure a</span>
+<span class="sd">            fixed number of characters for sexagesimal representation.</span>
+
+<span class="sd">        fields : int, optional</span>
+<span class="sd">            Specifies the number of fields to display when outputting</span>
+<span class="sd">            sexagesimal notation.  For example:</span>
+
+<span class="sd">                - fields == 1: ``&#39;5d&#39;``</span>
+<span class="sd">                - fields == 2: ``&#39;5d45m&#39;``</span>
+<span class="sd">                - fields == 3: ``&#39;5d45m32.5s&#39;``</span>
+
+<span class="sd">            By default, all fields are displayed.</span>
+
+<span class="sd">        format : str, optional</span>
+<span class="sd">            The format of the result.  If not provided, an unadorned</span>
+<span class="sd">            string is returned.  Supported values are:</span>
+
+<span class="sd">            - &#39;latex&#39;: Return a LaTeX-formatted string</span>
+
+<span class="sd">            - &#39;unicode&#39;: Return a string containing non-ASCII unicode</span>
+<span class="sd">              characters, such as the degree symbol</span>
+
+<span class="sd">        Returns</span>
+<span class="sd">        -------</span>
+<span class="sd">        strrepr : str or array</span>
+<span class="sd">            A string representation of the angle. If the angle is an array, this</span>
+<span class="sd">            will be an array with a unicode dtype.</span>
+
+
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="n">unit</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">unit</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">unit</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">unit</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_convert_unit_to_angle_unit</span><span class="p">(</span><span class="n">u</span><span class="o">.</span><span class="n">Unit</span><span class="p">(</span><span class="n">unit</span><span class="p">))</span>
+
+        <span class="n">separators</span> <span class="o">=</span> <span class="p">{</span>
+            <span class="kc">None</span><span class="p">:</span> <span class="p">{</span>
+                <span class="n">u</span><span class="o">.</span><span class="n">degree</span><span class="p">:</span> <span class="s1">&#39;dms&#39;</span><span class="p">,</span>
+                <span class="n">u</span><span class="o">.</span><span class="n">hourangle</span><span class="p">:</span> <span class="s1">&#39;hms&#39;</span><span class="p">},</span>
+            <span class="s1">&#39;latex&#39;</span><span class="p">:</span> <span class="p">{</span>
+                <span class="n">u</span><span class="o">.</span><span class="n">degree</span><span class="p">:</span> <span class="p">[</span><span class="s1">r&#39;^\circ&#39;</span><span class="p">,</span> <span class="s1">r&#39;</span><span class="si">{}</span><span class="s1">^\prime&#39;</span><span class="p">,</span> <span class="s1">r&#39;</span><span class="si">{}</span><span class="s1">^{\prime\prime}&#39;</span><span class="p">],</span>
+                <span class="n">u</span><span class="o">.</span><span class="n">hourangle</span><span class="p">:</span> <span class="p">[</span><span class="s1">r&#39;^\mathrm</span><span class="si">{h}</span><span class="s1">&#39;</span><span class="p">,</span> <span class="s1">r&#39;^\mathrm</span><span class="si">{m}</span><span class="s1">&#39;</span><span class="p">,</span> <span class="s1">r&#39;^\mathrm</span><span class="si">{s}</span><span class="s1">&#39;</span><span class="p">]},</span>
+            <span class="s1">&#39;unicode&#39;</span><span class="p">:</span> <span class="p">{</span>
+                <span class="n">u</span><span class="o">.</span><span class="n">degree</span><span class="p">:</span> <span class="s1">&#39;°′″&#39;</span><span class="p">,</span>
+                <span class="n">u</span><span class="o">.</span><span class="n">hourangle</span><span class="p">:</span> <span class="s1">&#39;ʰᵐˢ&#39;</span><span class="p">}</span>
+            <span class="p">}</span>
+
+        <span class="k">if</span> <span class="n">sep</span> <span class="o">==</span> <span class="s1">&#39;fromunit&#39;</span><span class="p">:</span>
+            <span class="k">if</span> <span class="nb">format</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">separators</span><span class="p">:</span>
+                <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;Unknown format &#39;</span><span class="si">{0}</span><span class="s2">&#39;&quot;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="nb">format</span><span class="p">))</span>
+            <span class="n">seps</span> <span class="o">=</span> <span class="n">separators</span><span class="p">[</span><span class="nb">format</span><span class="p">]</span>
+            <span class="k">if</span> <span class="n">unit</span> <span class="ow">in</span> <span class="n">seps</span><span class="p">:</span>
+                <span class="n">sep</span> <span class="o">=</span> <span class="n">seps</span><span class="p">[</span><span class="n">unit</span><span class="p">]</span>
+
+        <span class="c1"># Create an iterator so we can format each element of what</span>
+        <span class="c1"># might be an array.</span>
+        <span class="k">if</span> <span class="n">unit</span> <span class="ow">is</span> <span class="n">u</span><span class="o">.</span><span class="n">degree</span><span class="p">:</span>
+            <span class="k">if</span> <span class="n">decimal</span><span class="p">:</span>
+                <span class="n">values</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">degree</span>
+                <span class="k">if</span> <span class="n">precision</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+                    <span class="n">func</span> <span class="o">=</span> <span class="p">(</span><span class="s2">&quot;{0:0.&quot;</span> <span class="o">+</span> <span class="nb">str</span><span class="p">(</span><span class="n">precision</span><span class="p">)</span> <span class="o">+</span> <span class="s2">&quot;f}&quot;</span><span class="p">)</span><span class="o">.</span><span class="n">format</span>
+                <span class="k">else</span><span class="p">:</span>
+                    <span class="n">func</span> <span class="o">=</span> <span class="s1">&#39;</span><span class="si">{0:g}</span><span class="s1">&#39;</span><span class="o">.</span><span class="n">format</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="k">if</span> <span class="n">sep</span> <span class="o">==</span> <span class="s1">&#39;fromunit&#39;</span><span class="p">:</span>
+                    <span class="n">sep</span> <span class="o">=</span> <span class="s1">&#39;dms&#39;</span>
+                <span class="n">values</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">degree</span>
+                <span class="n">func</span> <span class="o">=</span> <span class="k">lambda</span> <span class="n">x</span><span class="p">:</span> <span class="n">util</span><span class="o">.</span><span class="n">degrees_to_string</span><span class="p">(</span>
+                    <span class="n">x</span><span class="p">,</span> <span class="n">precision</span><span class="o">=</span><span class="n">precision</span><span class="p">,</span> <span class="n">sep</span><span class="o">=</span><span class="n">sep</span><span class="p">,</span> <span class="n">pad</span><span class="o">=</span><span class="n">pad</span><span class="p">,</span>
+                    <span class="n">fields</span><span class="o">=</span><span class="n">fields</span><span class="p">)</span>
+
+        <span class="k">elif</span> <span class="n">unit</span> <span class="ow">is</span> <span class="n">u</span><span class="o">.</span><span class="n">hourangle</span><span class="p">:</span>
+            <span class="k">if</span> <span class="n">decimal</span><span class="p">:</span>
+                <span class="n">values</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">hour</span>
+                <span class="k">if</span> <span class="n">precision</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+                    <span class="n">func</span> <span class="o">=</span> <span class="p">(</span><span class="s2">&quot;{0:0.&quot;</span> <span class="o">+</span> <span class="nb">str</span><span class="p">(</span><span class="n">precision</span><span class="p">)</span> <span class="o">+</span> <span class="s2">&quot;f}&quot;</span><span class="p">)</span><span class="o">.</span><span class="n">format</span>
+                <span class="k">else</span><span class="p">:</span>
+                    <span class="n">func</span> <span class="o">=</span> <span class="s1">&#39;</span><span class="si">{0:g}</span><span class="s1">&#39;</span><span class="o">.</span><span class="n">format</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="k">if</span> <span class="n">sep</span> <span class="o">==</span> <span class="s1">&#39;fromunit&#39;</span><span class="p">:</span>
+                    <span class="n">sep</span> <span class="o">=</span> <span class="s1">&#39;hms&#39;</span>
+                <span class="n">values</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">hour</span>
+                <span class="n">func</span> <span class="o">=</span> <span class="k">lambda</span> <span class="n">x</span><span class="p">:</span> <span class="n">util</span><span class="o">.</span><span class="n">hours_to_string</span><span class="p">(</span>
+                    <span class="n">x</span><span class="p">,</span> <span class="n">precision</span><span class="o">=</span><span class="n">precision</span><span class="p">,</span> <span class="n">sep</span><span class="o">=</span><span class="n">sep</span><span class="p">,</span> <span class="n">pad</span><span class="o">=</span><span class="n">pad</span><span class="p">,</span>
+                    <span class="n">fields</span><span class="o">=</span><span class="n">fields</span><span class="p">)</span>
+
+        <span class="k">elif</span> <span class="n">unit</span><span class="o">.</span><span class="n">is_equivalent</span><span class="p">(</span><span class="n">u</span><span class="o">.</span><span class="n">radian</span><span class="p">):</span>
+            <span class="k">if</span> <span class="n">decimal</span><span class="p">:</span>
+                <span class="n">values</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">to_value</span><span class="p">(</span><span class="n">unit</span><span class="p">)</span>
+                <span class="k">if</span> <span class="n">precision</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+                    <span class="n">func</span> <span class="o">=</span> <span class="p">(</span><span class="s2">&quot;{0:1.&quot;</span> <span class="o">+</span> <span class="nb">str</span><span class="p">(</span><span class="n">precision</span><span class="p">)</span> <span class="o">+</span> <span class="s2">&quot;f}&quot;</span><span class="p">)</span><span class="o">.</span><span class="n">format</span>
+                <span class="k">else</span><span class="p">:</span>
+                    <span class="n">func</span> <span class="o">=</span> <span class="s2">&quot;</span><span class="si">{0:g}</span><span class="s2">&quot;</span><span class="o">.</span><span class="n">format</span>
+            <span class="k">elif</span> <span class="n">sep</span> <span class="o">==</span> <span class="s1">&#39;fromunit&#39;</span><span class="p">:</span>
+                <span class="n">values</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">to_value</span><span class="p">(</span><span class="n">unit</span><span class="p">)</span>
+                <span class="n">unit_string</span> <span class="o">=</span> <span class="n">unit</span><span class="o">.</span><span class="n">to_string</span><span class="p">(</span><span class="nb">format</span><span class="o">=</span><span class="nb">format</span><span class="p">)</span>
+                <span class="k">if</span> <span class="nb">format</span> <span class="o">==</span> <span class="s1">&#39;latex&#39;</span><span class="p">:</span>
+                    <span class="n">unit_string</span> <span class="o">=</span> <span class="n">unit_string</span><span class="p">[</span><span class="mi">1</span><span class="p">:</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span>
+
+                <span class="k">if</span> <span class="n">precision</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+                    <span class="k">def</span> <span class="nf">plain_unit_format</span><span class="p">(</span><span class="n">val</span><span class="p">):</span>
+                        <span class="k">return</span> <span class="p">(</span><span class="s2">&quot;{0:0.&quot;</span> <span class="o">+</span> <span class="nb">str</span><span class="p">(</span><span class="n">precision</span><span class="p">)</span> <span class="o">+</span> <span class="s2">&quot;f}</span><span class="si">{1}</span><span class="s2">&quot;</span><span class="p">)</span><span class="o">.</span><span class="n">format</span><span class="p">(</span>
+                            <span class="n">val</span><span class="p">,</span> <span class="n">unit_string</span><span class="p">)</span>
+                    <span class="n">func</span> <span class="o">=</span> <span class="n">plain_unit_format</span>
+                <span class="k">else</span><span class="p">:</span>
+                    <span class="k">def</span> <span class="nf">plain_unit_format</span><span class="p">(</span><span class="n">val</span><span class="p">):</span>
+                        <span class="k">return</span> <span class="s2">&quot;</span><span class="si">{0:g}{1}</span><span class="s2">&quot;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">val</span><span class="p">,</span> <span class="n">unit_string</span><span class="p">)</span>
+                    <span class="n">func</span> <span class="o">=</span> <span class="n">plain_unit_format</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
+                    <span class="s2">&quot;&#39;</span><span class="si">{0}</span><span class="s2">&#39; can not be represented in sexagesimal &quot;</span>
+                    <span class="s2">&quot;notation&quot;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span>
+                        <span class="n">unit</span><span class="o">.</span><span class="n">name</span><span class="p">))</span>
+
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="n">u</span><span class="o">.</span><span class="n">UnitsError</span><span class="p">(</span>
+                <span class="s2">&quot;The unit value provided is not an angular unit.&quot;</span><span class="p">)</span>
+
+        <span class="k">def</span> <span class="nf">do_format</span><span class="p">(</span><span class="n">val</span><span class="p">):</span>
+            <span class="n">s</span> <span class="o">=</span> <span class="n">func</span><span class="p">(</span><span class="nb">float</span><span class="p">(</span><span class="n">val</span><span class="p">))</span>
+            <span class="k">if</span> <span class="n">alwayssign</span> <span class="ow">and</span> <span class="ow">not</span> <span class="n">s</span><span class="o">.</span><span class="n">startswith</span><span class="p">(</span><span class="s1">&#39;-&#39;</span><span class="p">):</span>
+                <span class="n">s</span> <span class="o">=</span> <span class="s1">&#39;+&#39;</span> <span class="o">+</span> <span class="n">s</span>
+            <span class="k">if</span> <span class="nb">format</span> <span class="o">==</span> <span class="s1">&#39;latex&#39;</span><span class="p">:</span>
+                <span class="n">s</span> <span class="o">=</span> <span class="s1">&#39;$</span><span class="si">{0}</span><span class="s1">$&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">s</span><span class="p">)</span>
+            <span class="k">return</span> <span class="n">s</span>
+
+        <span class="n">format_ufunc</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">vectorize</span><span class="p">(</span><span class="n">do_format</span><span class="p">,</span> <span class="n">otypes</span><span class="o">=</span><span class="p">[</span><span class="s1">&#39;U&#39;</span><span class="p">])</span>
+        <span class="n">result</span> <span class="o">=</span> <span class="n">format_ufunc</span><span class="p">(</span><span class="n">values</span><span class="p">)</span>
+
+        <span class="k">if</span> <span class="n">result</span><span class="o">.</span><span class="n">ndim</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
+            <span class="n">result</span> <span class="o">=</span> <span class="n">result</span><span class="p">[()]</span>
+        <span class="k">return</span> <span class="n">result</span></div>
+
+<div class="viewcode-block" id="Angle.wrap_at"><a class="viewcode-back" href="../../../api/astropy.coordinates.Angle.html#astropy.coordinates.Angle.wrap_at">[docs]</a>    <span class="k">def</span> <span class="nf">wrap_at</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">wrap_angle</span><span class="p">,</span> <span class="n">inplace</span><span class="o">=</span><span class="kc">False</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Wrap the `Angle` object at the given ``wrap_angle``.</span>
+
+<span class="sd">        This method forces all the angle values to be within a contiguous</span>
+<span class="sd">        360 degree range so that ``wrap_angle - 360d &lt;= angle &lt;</span>
+<span class="sd">        wrap_angle``. By default a new Angle object is returned, but if the</span>
+<span class="sd">        ``inplace`` argument is `True` then the `Angle` object is wrapped in</span>
+<span class="sd">        place and nothing is returned.</span>
+
+<span class="sd">        For instance::</span>
+
+<span class="sd">          &gt;&gt;&gt; from astropy.coordinates import Angle</span>
+<span class="sd">          &gt;&gt;&gt; import astropy.units as u</span>
+<span class="sd">          &gt;&gt;&gt; a = Angle([-20.0, 150.0, 350.0] * u.deg)</span>
+
+<span class="sd">          &gt;&gt;&gt; a.wrap_at(360 * u.deg).degree  # Wrap into range 0 to 360 degrees</span>
+<span class="sd">          array([ 340.,  150.,  350.])</span>
+
+<span class="sd">          &gt;&gt;&gt; a.wrap_at(&#39;180d&#39;, inplace=True)  # Wrap into range -180 to 180 degrees</span>
+<span class="sd">          &gt;&gt;&gt; a.degree</span>
+<span class="sd">          array([ -20.,  150.,  -10.])</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        wrap_angle : str, `Angle`, angular `~astropy.units.Quantity`</span>
+<span class="sd">            Specifies a single value for the wrap angle.  This can be any</span>
+<span class="sd">            object that can initialize an `Angle` object, e.g. ``&#39;180d&#39;``,</span>
+<span class="sd">            ``180 * u.deg``, or ``Angle(180, unit=u.deg)``.</span>
+
+<span class="sd">        inplace : bool</span>
+<span class="sd">            If `True` then wrap the object in place instead of returning</span>
+<span class="sd">            a new `Angle`</span>
+
+<span class="sd">        Returns</span>
+<span class="sd">        -------</span>
+<span class="sd">        out : Angle or `None`</span>
+<span class="sd">            If ``inplace is False`` (default), return new `Angle` object</span>
+<span class="sd">            with angles wrapped accordingly.  Otherwise wrap in place and</span>
+<span class="sd">            return `None`.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">wrap_angle</span> <span class="o">=</span> <span class="n">Angle</span><span class="p">(</span><span class="n">wrap_angle</span><span class="p">)</span>  <span class="c1"># Convert to an Angle</span>
+        <span class="n">wrapped</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">mod</span><span class="p">(</span><span class="bp">self</span> <span class="o">-</span> <span class="n">wrap_angle</span><span class="p">,</span> <span class="mf">360.0</span> <span class="o">*</span> <span class="n">u</span><span class="o">.</span><span class="n">deg</span><span class="p">)</span> <span class="o">-</span> <span class="p">(</span><span class="mf">360.0</span> <span class="o">*</span> <span class="n">u</span><span class="o">.</span><span class="n">deg</span> <span class="o">-</span> <span class="n">wrap_angle</span><span class="p">)</span>
+
+        <span class="k">if</span> <span class="n">inplace</span><span class="p">:</span>
+            <span class="bp">self</span><span class="p">[()]</span> <span class="o">=</span> <span class="n">wrapped</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">return</span> <span class="n">wrapped</span></div>
+
+<div class="viewcode-block" id="Angle.is_within_bounds"><a class="viewcode-back" href="../../../api/astropy.coordinates.Angle.html#astropy.coordinates.Angle.is_within_bounds">[docs]</a>    <span class="k">def</span> <span class="nf">is_within_bounds</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">lower</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">upper</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Check if all angle(s) satisfy ``lower &lt;= angle &lt; upper``</span>
+
+<span class="sd">        If ``lower`` is not specified (or `None`) then no lower bounds check is</span>
+<span class="sd">        performed.  Likewise ``upper`` can be left unspecified.  For example::</span>
+
+<span class="sd">          &gt;&gt;&gt; from astropy.coordinates import Angle</span>
+<span class="sd">          &gt;&gt;&gt; import astropy.units as u</span>
+<span class="sd">          &gt;&gt;&gt; a = Angle([-20, 150, 350] * u.deg)</span>
+<span class="sd">          &gt;&gt;&gt; a.is_within_bounds(&#39;0d&#39;, &#39;360d&#39;)</span>
+<span class="sd">          False</span>
+<span class="sd">          &gt;&gt;&gt; a.is_within_bounds(None, &#39;360d&#39;)</span>
+<span class="sd">          True</span>
+<span class="sd">          &gt;&gt;&gt; a.is_within_bounds(-30 * u.deg, None)</span>
+<span class="sd">          True</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        lower : str, `Angle`, angular `~astropy.units.Quantity`, `None`</span>
+<span class="sd">            Specifies lower bound for checking.  This can be any object</span>
+<span class="sd">            that can initialize an `Angle` object, e.g. ``&#39;180d&#39;``,</span>
+<span class="sd">            ``180 * u.deg``, or ``Angle(180, unit=u.deg)``.</span>
+<span class="sd">        upper : str, `Angle`, angular `~astropy.units.Quantity`, `None`</span>
+<span class="sd">            Specifies upper bound for checking.  This can be any object</span>
+<span class="sd">            that can initialize an `Angle` object, e.g. ``&#39;180d&#39;``,</span>
+<span class="sd">            ``180 * u.deg``, or ``Angle(180, unit=u.deg)``.</span>
+
+<span class="sd">        Returns</span>
+<span class="sd">        -------</span>
+<span class="sd">        is_within_bounds : bool</span>
+<span class="sd">            `True` if all angles satisfy ``lower &lt;= angle &lt; upper``</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">ok</span> <span class="o">=</span> <span class="kc">True</span>
+        <span class="k">if</span> <span class="n">lower</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">ok</span> <span class="o">&amp;=</span> <span class="n">np</span><span class="o">.</span><span class="n">all</span><span class="p">(</span><span class="n">Angle</span><span class="p">(</span><span class="n">lower</span><span class="p">)</span> <span class="o">&lt;=</span> <span class="bp">self</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">ok</span> <span class="ow">and</span> <span class="n">upper</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">ok</span> <span class="o">&amp;=</span> <span class="n">np</span><span class="o">.</span><span class="n">all</span><span class="p">(</span><span class="bp">self</span> <span class="o">&lt;</span> <span class="n">Angle</span><span class="p">(</span><span class="n">upper</span><span class="p">))</span>
+        <span class="k">return</span> <span class="nb">bool</span><span class="p">(</span><span class="n">ok</span><span class="p">)</span></div>
+
+    <span class="k">def</span> <span class="nf">__str__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="nb">str</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">to_string</span><span class="p">())</span>
+
+    <span class="k">def</span> <span class="nf">_repr_latex_</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">isscalar</span><span class="p">:</span>
+            <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">to_string</span><span class="p">(</span><span class="nb">format</span><span class="o">=</span><span class="s1">&#39;latex&#39;</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="c1"># Need to do a magic incantation to convert to str.  Regular str</span>
+            <span class="c1"># or array2string causes all backslashes to get doubled.</span>
+            <span class="k">return</span> <span class="n">np</span><span class="o">.</span><span class="n">array2string</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">to_string</span><span class="p">(</span><span class="nb">format</span><span class="o">=</span><span class="s1">&#39;latex&#39;</span><span class="p">),</span>
+                                   <span class="n">formatter</span><span class="o">=</span><span class="p">{</span><span class="s1">&#39;str_kind&#39;</span><span class="p">:</span> <span class="k">lambda</span> <span class="n">x</span><span class="p">:</span> <span class="n">x</span><span class="p">})</span></div>
+
+
+<span class="k">def</span> <span class="nf">_no_angle_subclass</span><span class="p">(</span><span class="n">obj</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;Return any Angle subclass objects as an Angle objects.</span>
+
+<span class="sd">    This is used to ensure that Latitute and Longitude change to Angle</span>
+<span class="sd">    objects when they are used in calculations (such as lon/2.)</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">obj</span><span class="p">,</span> <span class="nb">tuple</span><span class="p">):</span>
+        <span class="k">return</span> <span class="nb">tuple</span><span class="p">(</span><span class="n">_no_angle_subclass</span><span class="p">(</span><span class="n">_obj</span><span class="p">)</span> <span class="k">for</span> <span class="n">_obj</span> <span class="ow">in</span> <span class="n">obj</span><span class="p">)</span>
+
+    <span class="k">return</span> <span class="n">obj</span><span class="o">.</span><span class="n">view</span><span class="p">(</span><span class="n">Angle</span><span class="p">)</span> <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">obj</span><span class="p">,</span> <span class="n">Angle</span><span class="p">)</span> <span class="k">else</span> <span class="n">obj</span>
+
+
+<div class="viewcode-block" id="Latitude"><a class="viewcode-back" href="../../../api/astropy.coordinates.Latitude.html#astropy.coordinates.Latitude">[docs]</a><span class="k">class</span> <span class="nc">Latitude</span><span class="p">(</span><span class="n">Angle</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Latitude-like angle(s) which must be in the range -90 to +90 deg.</span>
+
+<span class="sd">    A Latitude object is distinguished from a pure</span>
+<span class="sd">    :class:`~astropy.coordinates.Angle` by virtue of being constrained</span>
+<span class="sd">    so that::</span>
+
+<span class="sd">      -90.0 * u.deg &lt;= angle(s) &lt;= +90.0 * u.deg</span>
+
+<span class="sd">    Any attempt to set a value outside that range will result in a</span>
+<span class="sd">    `ValueError`.</span>
+
+<span class="sd">    The input angle(s) can be specified either as an array, list,</span>
+<span class="sd">    scalar, tuple (see below), string,</span>
+<span class="sd">    :class:`~astropy.units.Quantity` or another</span>
+<span class="sd">    :class:`~astropy.coordinates.Angle`.</span>
+
+<span class="sd">    The input parser is flexible and supports all of the input formats</span>
+<span class="sd">    supported by :class:`~astropy.coordinates.Angle`.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    angle : array, list, scalar, `~astropy.units.Quantity`, `Angle`. The</span>
+<span class="sd">        angle value(s). If a tuple, will be interpreted as ``(h, m, s)`` or</span>
+<span class="sd">        ``(d, m, s)`` depending on ``unit``. If a string, it will be</span>
+<span class="sd">        interpreted following the rules described for</span>
+<span class="sd">        :class:`~astropy.coordinates.Angle`.</span>
+
+<span class="sd">        If ``angle`` is a sequence or array of strings, the resulting</span>
+<span class="sd">        values will be in the given ``unit``, or if `None` is provided,</span>
+<span class="sd">        the unit will be taken from the first given value.</span>
+
+<span class="sd">    unit : :class:`~astropy.units.UnitBase`, str, optional</span>
+<span class="sd">        The unit of the value specified for the angle.  This may be</span>
+<span class="sd">        any string that `~astropy.units.Unit` understands, but it is</span>
+<span class="sd">        better to give an actual unit object.  Must be an angular</span>
+<span class="sd">        unit.</span>
+
+<span class="sd">    Raises</span>
+<span class="sd">    ------</span>
+<span class="sd">    `~astropy.units.UnitsError`</span>
+<span class="sd">        If a unit is not provided or it is not an angular unit.</span>
+<span class="sd">    `TypeError`</span>
+<span class="sd">        If the angle parameter is an instance of :class:`~astropy.coordinates.Longitude`.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">def</span> <span class="nf">__new__</span><span class="p">(</span><span class="n">cls</span><span class="p">,</span> <span class="n">angle</span><span class="p">,</span> <span class="n">unit</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+        <span class="c1"># Forbid creating a Lat from a Long.</span>
+        <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">angle</span><span class="p">,</span> <span class="n">Longitude</span><span class="p">):</span>
+            <span class="k">raise</span> <span class="ne">TypeError</span><span class="p">(</span><span class="s2">&quot;A Latitude angle cannot be created from a Longitude angle&quot;</span><span class="p">)</span>
+        <span class="bp">self</span> <span class="o">=</span> <span class="nb">super</span><span class="p">(</span><span class="n">Latitude</span><span class="p">,</span> <span class="n">cls</span><span class="p">)</span><span class="o">.</span><span class="n">__new__</span><span class="p">(</span><span class="n">cls</span><span class="p">,</span> <span class="n">angle</span><span class="p">,</span> <span class="n">unit</span><span class="o">=</span><span class="n">unit</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_validate_angles</span><span class="p">()</span>
+        <span class="k">return</span> <span class="bp">self</span>
+
+    <span class="k">def</span> <span class="nf">_validate_angles</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">angles</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Check that angles are between -90 and 90 degrees.</span>
+<span class="sd">        If not given, the check is done on the object itself&quot;&quot;&quot;</span>
+        <span class="c1"># Convert the lower and upper bounds to the &quot;native&quot; unit of</span>
+        <span class="c1"># this angle.  This limits multiplication to two values,</span>
+        <span class="c1"># rather than the N values in `self.value`.  Also, the</span>
+        <span class="c1"># comparison is performed on raw arrays, rather than Quantity</span>
+        <span class="c1"># objects, for speed.</span>
+        <span class="k">if</span> <span class="n">angles</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">angles</span> <span class="o">=</span> <span class="bp">self</span>
+        <span class="n">lower</span> <span class="o">=</span> <span class="n">u</span><span class="o">.</span><span class="n">degree</span><span class="o">.</span><span class="n">to</span><span class="p">(</span><span class="n">angles</span><span class="o">.</span><span class="n">unit</span><span class="p">,</span> <span class="o">-</span><span class="mf">90.0</span><span class="p">)</span>
+        <span class="n">upper</span> <span class="o">=</span> <span class="n">u</span><span class="o">.</span><span class="n">degree</span><span class="o">.</span><span class="n">to</span><span class="p">(</span><span class="n">angles</span><span class="o">.</span><span class="n">unit</span><span class="p">,</span> <span class="mf">90.0</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">np</span><span class="o">.</span><span class="n">any</span><span class="p">(</span><span class="n">angles</span><span class="o">.</span><span class="n">value</span> <span class="o">&lt;</span> <span class="n">lower</span><span class="p">)</span> <span class="ow">or</span> <span class="n">np</span><span class="o">.</span><span class="n">any</span><span class="p">(</span><span class="n">angles</span><span class="o">.</span><span class="n">value</span> <span class="o">&gt;</span> <span class="n">upper</span><span class="p">):</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s1">&#39;Latitude angle(s) must be within -90 deg &lt;= angle &lt;= 90 deg, &#39;</span>
+                             <span class="s1">&#39;got </span><span class="si">{0}</span><span class="s1">&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">angles</span><span class="o">.</span><span class="n">to</span><span class="p">(</span><span class="n">u</span><span class="o">.</span><span class="n">degree</span><span class="p">)))</span>
+
+    <span class="k">def</span> <span class="nf">__setitem__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">item</span><span class="p">,</span> <span class="n">value</span><span class="p">):</span>
+        <span class="c1"># Forbid assigning a Long to a Lat.</span>
+        <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">value</span><span class="p">,</span> <span class="n">Longitude</span><span class="p">):</span>
+            <span class="k">raise</span> <span class="ne">TypeError</span><span class="p">(</span><span class="s2">&quot;A Longitude angle cannot be assigned to a Latitude angle&quot;</span><span class="p">)</span>
+        <span class="c1"># first check bounds</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_validate_angles</span><span class="p">(</span><span class="n">value</span><span class="p">)</span>
+        <span class="nb">super</span><span class="p">(</span><span class="n">Latitude</span><span class="p">,</span> <span class="bp">self</span><span class="p">)</span><span class="o">.</span><span class="n">__setitem__</span><span class="p">(</span><span class="n">item</span><span class="p">,</span> <span class="n">value</span><span class="p">)</span>
+
+    <span class="c1"># Any calculation should drop to Angle</span>
+    <span class="k">def</span> <span class="nf">__array_wrap__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">obj</span><span class="p">,</span> <span class="n">context</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+        <span class="n">obj</span> <span class="o">=</span> <span class="nb">super</span><span class="p">(</span><span class="n">Angle</span><span class="p">,</span> <span class="bp">self</span><span class="p">)</span><span class="o">.</span><span class="n">__array_wrap__</span><span class="p">(</span><span class="n">obj</span><span class="p">,</span> <span class="n">context</span><span class="o">=</span><span class="n">context</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">_no_angle_subclass</span><span class="p">(</span><span class="n">obj</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">__array_ufunc__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+        <span class="n">results</span> <span class="o">=</span> <span class="nb">super</span><span class="p">(</span><span class="n">Latitude</span><span class="p">,</span> <span class="bp">self</span><span class="p">)</span><span class="o">.</span><span class="n">__array_ufunc__</span><span class="p">(</span><span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">_no_angle_subclass</span><span class="p">(</span><span class="n">results</span><span class="p">)</span></div>
+
+
+<span class="k">class</span> <span class="nc">LongitudeInfo</span><span class="p">(</span><span class="n">u</span><span class="o">.</span><span class="n">QuantityInfo</span><span class="p">):</span>
+    <span class="n">_represent_as_dict_attrs</span> <span class="o">=</span> <span class="n">u</span><span class="o">.</span><span class="n">QuantityInfo</span><span class="o">.</span><span class="n">_represent_as_dict_attrs</span> <span class="o">+</span> <span class="p">(</span><span class="s1">&#39;wrap_angle&#39;</span><span class="p">,)</span>
+
+
+<div class="viewcode-block" id="Longitude"><a class="viewcode-back" href="../../../api/astropy.coordinates.Longitude.html#astropy.coordinates.Longitude">[docs]</a><span class="k">class</span> <span class="nc">Longitude</span><span class="p">(</span><span class="n">Angle</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Longitude-like angle(s) which are wrapped within a contiguous 360 degree range.</span>
+
+<span class="sd">    A ``Longitude`` object is distinguished from a pure</span>
+<span class="sd">    :class:`~astropy.coordinates.Angle` by virtue of a ``wrap_angle``</span>
+<span class="sd">    property.  The ``wrap_angle`` specifies that all angle values</span>
+<span class="sd">    represented by the object will be in the range::</span>
+
+<span class="sd">      wrap_angle - 360 * u.deg &lt;= angle(s) &lt; wrap_angle</span>
+
+<span class="sd">    The default ``wrap_angle`` is 360 deg.  Setting ``wrap_angle=180 *</span>
+<span class="sd">    u.deg`` would instead result in values between -180 and +180 deg.</span>
+<span class="sd">    Setting the ``wrap_angle`` attribute of an existing ``Longitude``</span>
+<span class="sd">    object will result in re-wrapping the angle values in-place.</span>
+
+<span class="sd">    The input angle(s) can be specified either as an array, list,</span>
+<span class="sd">    scalar, tuple, string, :class:`~astropy.units.Quantity`</span>
+<span class="sd">    or another :class:`~astropy.coordinates.Angle`.</span>
+
+<span class="sd">    The input parser is flexible and supports all of the input formats</span>
+<span class="sd">    supported by :class:`~astropy.coordinates.Angle`.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    angle : array, list, scalar, `~astropy.units.Quantity`,</span>
+<span class="sd">        :class:`~astropy.coordinates.Angle` The angle value(s). If a tuple,</span>
+<span class="sd">        will be interpreted as ``(h, m s)`` or ``(d, m, s)`` depending</span>
+<span class="sd">        on ``unit``. If a string, it will be interpreted following the</span>
+<span class="sd">        rules described for :class:`~astropy.coordinates.Angle`.</span>
+
+<span class="sd">        If ``angle`` is a sequence or array of strings, the resulting</span>
+<span class="sd">        values will be in the given ``unit``, or if `None` is provided,</span>
+<span class="sd">        the unit will be taken from the first given value.</span>
+
+<span class="sd">    unit : :class:`~astropy.units.UnitBase`, str, optional</span>
+<span class="sd">        The unit of the value specified for the angle.  This may be</span>
+<span class="sd">        any string that `~astropy.units.Unit` understands, but it is</span>
+<span class="sd">        better to give an actual unit object.  Must be an angular</span>
+<span class="sd">        unit.</span>
+
+<span class="sd">    wrap_angle : :class:`~astropy.coordinates.Angle` or equivalent, or None</span>
+<span class="sd">        Angle at which to wrap back to ``wrap_angle - 360 deg``.</span>
+<span class="sd">        If ``None`` (default), it will be taken to be 360 deg unless ``angle``</span>
+<span class="sd">        has a ``wrap_angle`` attribute already (i.e., is a ``Longitude``),</span>
+<span class="sd">        in which case it will be taken from there.</span>
+
+<span class="sd">    Raises</span>
+<span class="sd">    ------</span>
+<span class="sd">    `~astropy.units.UnitsError`</span>
+<span class="sd">        If a unit is not provided or it is not an angular unit.</span>
+<span class="sd">    `TypeError`</span>
+<span class="sd">        If the angle parameter is an instance of :class:`~astropy.coordinates.Latitude`.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="n">_wrap_angle</span> <span class="o">=</span> <span class="kc">None</span>
+    <span class="n">_default_wrap_angle</span> <span class="o">=</span> <span class="n">Angle</span><span class="p">(</span><span class="mi">360</span> <span class="o">*</span> <span class="n">u</span><span class="o">.</span><span class="n">deg</span><span class="p">)</span>
+    <span class="n">info</span> <span class="o">=</span> <span class="n">LongitudeInfo</span><span class="p">()</span>
+
+    <span class="k">def</span> <span class="nf">__new__</span><span class="p">(</span><span class="n">cls</span><span class="p">,</span> <span class="n">angle</span><span class="p">,</span> <span class="n">unit</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">wrap_angle</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+        <span class="c1"># Forbid creating a Long from a Lat.</span>
+        <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">angle</span><span class="p">,</span> <span class="n">Latitude</span><span class="p">):</span>
+            <span class="k">raise</span> <span class="ne">TypeError</span><span class="p">(</span><span class="s2">&quot;A Longitude angle cannot be created from &quot;</span>
+                            <span class="s2">&quot;a Latitude angle.&quot;</span><span class="p">)</span>
+        <span class="bp">self</span> <span class="o">=</span> <span class="nb">super</span><span class="p">(</span><span class="n">Longitude</span><span class="p">,</span> <span class="n">cls</span><span class="p">)</span><span class="o">.</span><span class="n">__new__</span><span class="p">(</span><span class="n">cls</span><span class="p">,</span> <span class="n">angle</span><span class="p">,</span> <span class="n">unit</span><span class="o">=</span><span class="n">unit</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">wrap_angle</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">wrap_angle</span> <span class="o">=</span> <span class="nb">getattr</span><span class="p">(</span><span class="n">angle</span><span class="p">,</span> <span class="s1">&#39;wrap_angle&#39;</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">_default_wrap_angle</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">wrap_angle</span> <span class="o">=</span> <span class="n">wrap_angle</span>
+        <span class="k">return</span> <span class="bp">self</span>
+
+    <span class="k">def</span> <span class="nf">__setitem__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">item</span><span class="p">,</span> <span class="n">value</span><span class="p">):</span>
+        <span class="c1"># Forbid assigning a Lat to a Long.</span>
+        <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">value</span><span class="p">,</span> <span class="n">Latitude</span><span class="p">):</span>
+            <span class="k">raise</span> <span class="ne">TypeError</span><span class="p">(</span><span class="s2">&quot;A Latitude angle cannot be assigned to a Longitude angle&quot;</span><span class="p">)</span>
+        <span class="nb">super</span><span class="p">(</span><span class="n">Longitude</span><span class="p">,</span> <span class="bp">self</span><span class="p">)</span><span class="o">.</span><span class="n">__setitem__</span><span class="p">(</span><span class="n">item</span><span class="p">,</span> <span class="n">value</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_wrap_internal</span><span class="p">()</span>
+
+    <span class="k">def</span> <span class="nf">_wrap_internal</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Wrap the internal values in the Longitude object. Using the</span>
+<span class="sd">        :meth:`~astropy.coordinates.Angle.wrap_at` method causes</span>
+<span class="sd">        recursion.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="c1"># Convert the wrap angle and 360 degrees to the native unit of</span>
+        <span class="c1"># this Angle, then do all the math on raw Numpy arrays rather</span>
+        <span class="c1"># than Quantity objects for speed.</span>
+        <span class="n">a360</span> <span class="o">=</span> <span class="n">u</span><span class="o">.</span><span class="n">degree</span><span class="o">.</span><span class="n">to</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">unit</span><span class="p">,</span> <span class="mf">360.0</span><span class="p">)</span>
+        <span class="n">wrap_angle</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">wrap_angle</span><span class="o">.</span><span class="n">to_value</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">unit</span><span class="p">)</span>
+        <span class="n">wrap_angle_floor</span> <span class="o">=</span> <span class="n">wrap_angle</span> <span class="o">-</span> <span class="n">a360</span>
+        <span class="n">self_angle</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">value</span>
+        <span class="c1"># Do the wrapping, but only if any angles need to be wrapped</span>
+        <span class="k">if</span> <span class="n">np</span><span class="o">.</span><span class="n">any</span><span class="p">(</span><span class="n">self_angle</span> <span class="o">&lt;</span> <span class="n">wrap_angle_floor</span><span class="p">)</span> <span class="ow">or</span> <span class="n">np</span><span class="o">.</span><span class="n">any</span><span class="p">(</span><span class="n">self_angle</span> <span class="o">&gt;=</span> <span class="n">wrap_angle</span><span class="p">):</span>
+            <span class="n">wrapped</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">mod</span><span class="p">(</span><span class="n">self_angle</span> <span class="o">-</span> <span class="n">wrap_angle</span><span class="p">,</span> <span class="n">a360</span><span class="p">)</span> <span class="o">+</span> <span class="n">wrap_angle_floor</span>
+            <span class="n">value</span> <span class="o">=</span> <span class="n">u</span><span class="o">.</span><span class="n">Quantity</span><span class="p">(</span><span class="n">wrapped</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">unit</span><span class="p">)</span>
+            <span class="nb">super</span><span class="p">(</span><span class="n">Longitude</span><span class="p">,</span> <span class="bp">self</span><span class="p">)</span><span class="o">.</span><span class="n">__setitem__</span><span class="p">((),</span> <span class="n">value</span><span class="p">)</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">wrap_angle</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_wrap_angle</span>
+
+    <span class="nd">@wrap_angle</span><span class="o">.</span><span class="n">setter</span>
+    <span class="k">def</span> <span class="nf">wrap_angle</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">value</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_wrap_angle</span> <span class="o">=</span> <span class="n">Angle</span><span class="p">(</span><span class="n">value</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_wrap_internal</span><span class="p">()</span>
+
+    <span class="k">def</span> <span class="nf">__array_finalize__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">obj</span><span class="p">):</span>
+        <span class="nb">super</span><span class="p">(</span><span class="n">Longitude</span><span class="p">,</span> <span class="bp">self</span><span class="p">)</span><span class="o">.</span><span class="n">__array_finalize__</span><span class="p">(</span><span class="n">obj</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_wrap_angle</span> <span class="o">=</span> <span class="nb">getattr</span><span class="p">(</span><span class="n">obj</span><span class="p">,</span> <span class="s1">&#39;_wrap_angle&#39;</span><span class="p">,</span>
+                                   <span class="bp">self</span><span class="o">.</span><span class="n">_default_wrap_angle</span><span class="p">)</span>
+
+    <span class="c1"># Any calculation should drop to Angle</span>
+    <span class="k">def</span> <span class="nf">__array_wrap__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">obj</span><span class="p">,</span> <span class="n">context</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+        <span class="n">obj</span> <span class="o">=</span> <span class="nb">super</span><span class="p">(</span><span class="n">Angle</span><span class="p">,</span> <span class="bp">self</span><span class="p">)</span><span class="o">.</span><span class="n">__array_wrap__</span><span class="p">(</span><span class="n">obj</span><span class="p">,</span> <span class="n">context</span><span class="o">=</span><span class="n">context</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">_no_angle_subclass</span><span class="p">(</span><span class="n">obj</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">__array_ufunc__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+        <span class="n">results</span> <span class="o">=</span> <span class="nb">super</span><span class="p">(</span><span class="n">Longitude</span><span class="p">,</span> <span class="bp">self</span><span class="p">)</span><span class="o">.</span><span class="n">__array_ufunc__</span><span class="p">(</span><span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">_no_angle_subclass</span><span class="p">(</span><span class="n">results</span><span class="p">)</span></div>
+</pre></div>
+
+          </div>
+        </div>
+      </div>
+      <div class="sphinxsidebar" role="navigation" aria-label="main navigation">
+        <div class="sphinxsidebarwrapper"><h3>Page Contents</h3>
+
+
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+<footer class="footer">
+  <p class="pull-right"> &nbsp;
+    <a href="#">Back to Top</a></p>
+  <p>
+    &copy; Copyright 2011-2016, The Astropy Developers.<br/>
+    Created using <a href="http://sphinx.pocoo.org/">Sphinx</a> 1.5.6. &nbsp;
+    Last built 05 Jul 2017. <br/>
+  </p>
+</footer>
+  </body>
+</html>

@@ -1,0 +1,459 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <head>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    
+    <title>astropy.stats.lombscargle.core &#8212; Astropy v3.0.dev19489</title>
+    
+    <link rel="stylesheet" href="../../../../_static/bootstrap-astropy.css" type="text/css" />
+    <link rel="stylesheet" href="../../../../_static/pygments.css" type="text/css" />
+    <link rel="stylesheet" href="../../../../_static/gallery.css" type="text/css" />
+    
+    <script type="text/javascript">
+      var DOCUMENTATION_OPTIONS = {
+        URL_ROOT:    '../../../../',
+        VERSION:     '3.0.dev19489',
+        COLLAPSE_INDEX: false,
+        FILE_SUFFIX: '.html',
+        HAS_SOURCE:  true,
+        SOURCELINK_SUFFIX: '.txt'
+      };
+    </script>
+    <script type="text/javascript" src="../../../../_static/jquery.js"></script>
+    <script type="text/javascript" src="../../../../_static/underscore.js"></script>
+    <script type="text/javascript" src="../../../../_static/doctools.js"></script>
+    <script type="text/javascript" src="../../../../_static/sidebar.js"></script>
+    <link rel="shortcut icon" href="../../../../_static/astropy_logo.ico"/>
+    <link rel="index" title="Index" href="../../../../genindex.html" />
+    <link rel="search" title="Search" href="../../../../search.html" />
+<link href='https://fonts.googleapis.com/css?family=Source+Sans+Pro:200,600' rel='stylesheet' type='text/css'/>
+<script type="text/javascript" src="../../../../_static/copybutton.js"></script>
+
+
+  </head>
+  <body role="document">
+<div class="topbar">
+  <a class="brand" title="Documentation Home" href="../../../../index.html"><span id="logotext1">astro</span><span id="logotext2">py</span><span id="logotext3">:docs</span></a>
+  <ul>
+    <li><a class="homelink" title="Astropy Homepage" href="http://www.astropy.org"></a></li>
+    <li><a title="General Index" href="../../../../genindex.html">Index</a></li>
+    <li><a title="Module Index" href="../../../../py-modindex.html">Modules</a></li>
+    <li>
+      
+      
+<form action="../../../../search.html" method="get">
+  <input type="text" name="q" placeholder="Search" />
+  <input type="hidden" name="check_keywords" value="yes" />
+  <input type="hidden" name="area" value="default" />
+</form>
+      
+    </li>
+  </ul>
+</div>
+
+<div class="related">
+    <h3>Navigation</h3>
+    <ul>
+      <li>
+	<a href="../../../../index.html">Astropy v3.0.dev19489</a>
+	 &#187;
+      </li>
+      <li><a href="../../../index.html" >Module code</a> &#187;</li>
+      <li><a href="../../../astropy.html" accesskey="U">astropy</a> &#187;</li>
+      
+       
+    </ul>
+</div>
+  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          <div class="body" role="main">
+            
+  <h1>Source code for astropy.stats.lombscargle.core</h1><div class="highlight"><pre>
+<span></span><span class="sd">&quot;&quot;&quot;Main Lomb-Scargle Implementation&quot;&quot;&quot;</span>
+<span class="kn">from</span> <span class="nn">__future__</span> <span class="k">import</span> <span class="n">print_function</span><span class="p">,</span> <span class="n">division</span>
+
+<span class="kn">import</span> <span class="nn">numpy</span> <span class="k">as</span> <span class="nn">np</span>
+
+<span class="kn">from</span> <span class="nn">.implementations</span> <span class="k">import</span> <span class="n">lombscargle</span><span class="p">,</span> <span class="n">available_methods</span>
+<span class="kn">from</span> <span class="nn">.implementations.mle</span> <span class="k">import</span> <span class="n">periodic_fit</span>
+<span class="kn">from</span> <span class="nn">...</span> <span class="k">import</span> <span class="n">units</span>
+<span class="kn">from</span> <span class="nn">...utils.compat.numpy</span> <span class="k">import</span> <span class="n">broadcast_arrays</span>
+<span class="kn">from</span> <span class="nn">...extern.six.moves</span> <span class="k">import</span> <span class="nb">map</span>
+
+
+<span class="k">def</span> <span class="nf">has_units</span><span class="p">(</span><span class="n">obj</span><span class="p">):</span>
+    <span class="k">return</span> <span class="nb">hasattr</span><span class="p">(</span><span class="n">obj</span><span class="p">,</span> <span class="s1">&#39;unit&#39;</span><span class="p">)</span>
+
+
+<span class="k">def</span> <span class="nf">get_unit</span><span class="p">(</span><span class="n">obj</span><span class="p">):</span>
+    <span class="k">return</span> <span class="nb">getattr</span><span class="p">(</span><span class="n">obj</span><span class="p">,</span> <span class="s1">&#39;unit&#39;</span><span class="p">,</span> <span class="mi">1</span><span class="p">)</span>
+
+
+<span class="k">def</span> <span class="nf">strip_units</span><span class="p">(</span><span class="o">*</span><span class="n">arrs</span><span class="p">):</span>
+    <span class="n">strip</span> <span class="o">=</span> <span class="k">lambda</span> <span class="n">a</span><span class="p">:</span> <span class="kc">None</span> <span class="k">if</span> <span class="n">a</span> <span class="ow">is</span> <span class="kc">None</span> <span class="k">else</span> <span class="n">np</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span><span class="n">a</span><span class="p">)</span>
+    <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">arrs</span><span class="p">)</span> <span class="o">==</span> <span class="mi">1</span><span class="p">:</span>
+        <span class="k">return</span> <span class="n">strip</span><span class="p">(</span><span class="n">arrs</span><span class="p">[</span><span class="mi">0</span><span class="p">])</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="k">return</span> <span class="nb">map</span><span class="p">(</span><span class="n">strip</span><span class="p">,</span> <span class="n">arrs</span><span class="p">)</span>
+
+
+<div class="viewcode-block" id="LombScargle"><a class="viewcode-back" href="../../../../api/astropy.stats.LombScargle.html#astropy.stats.LombScargle">[docs]</a><span class="k">class</span> <span class="nc">LombScargle</span><span class="p">(</span><span class="nb">object</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;Compute the Lomb-Scargle Periodogram</span>
+
+<span class="sd">    This implementations here are based on code presented in [1]_ and [2]_;</span>
+<span class="sd">    if you use this functionality in an academic application, citation of</span>
+<span class="sd">    those works would be appreciated.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    t : array_like or Quantity</span>
+<span class="sd">        sequence of observation times</span>
+<span class="sd">    y : array_like or Quantity</span>
+<span class="sd">        sequence of observations associated with times t</span>
+<span class="sd">    dy : float, array_like or Quantity (optional)</span>
+<span class="sd">        error or sequence of observational errors associated with times t</span>
+<span class="sd">    fit_mean : bool (optional, default=True)</span>
+<span class="sd">        if True, include a constant offset as part of the model at each</span>
+<span class="sd">        frequency. This can lead to more accurate results, especially in the</span>
+<span class="sd">        case of incomplete phase coverage.</span>
+<span class="sd">    center_data : bool (optional, default=True)</span>
+<span class="sd">        if True, pre-center the data by subtracting the weighted mean</span>
+<span class="sd">        of the input data. This is especially important if fit_mean = False</span>
+<span class="sd">    nterms : int (optional, default=1)</span>
+<span class="sd">        number of terms to use in the Fourier fit</span>
+
+<span class="sd">    Examples</span>
+<span class="sd">    --------</span>
+<span class="sd">    Generate noisy periodic data:</span>
+
+<span class="sd">    &gt;&gt;&gt; rand = np.random.RandomState(42)</span>
+<span class="sd">    &gt;&gt;&gt; t = 100 * rand.rand(100)</span>
+<span class="sd">    &gt;&gt;&gt; y = np.sin(2 * np.pi * t) + rand.randn(100)</span>
+
+<span class="sd">    Compute the Lomb-Scargle periodogram on an automatically-determined</span>
+<span class="sd">    frequency grid &amp; find the frequency of max power:</span>
+
+<span class="sd">    &gt;&gt;&gt; frequency, power = LombScargle(t, y).autopower()</span>
+<span class="sd">    &gt;&gt;&gt; frequency[np.argmax(power)]</span>
+<span class="sd">    1.0016662310392956</span>
+
+<span class="sd">    Compute the Lomb-Scargle periodogram at a user-specified frequency grid:</span>
+
+<span class="sd">    &gt;&gt;&gt; freq = np.arange(0.8, 1.3, 0.1)</span>
+<span class="sd">    &gt;&gt;&gt; LombScargle(t, y).power(freq)</span>
+<span class="sd">    array([ 0.0204304 ,  0.01393845,  0.35552682,  0.01358029,  0.03083737])</span>
+
+<span class="sd">    If the inputs are astropy Quantities with units, the units will be</span>
+<span class="sd">    validated and the outputs will also be Quantities with appropriate units:</span>
+
+<span class="sd">    &gt;&gt;&gt; from astropy import units as u</span>
+<span class="sd">    &gt;&gt;&gt; t = t * u.s</span>
+<span class="sd">    &gt;&gt;&gt; y = y * u.mag</span>
+<span class="sd">    &gt;&gt;&gt; frequency, power = LombScargle(t, y).autopower()</span>
+<span class="sd">    &gt;&gt;&gt; frequency.unit</span>
+<span class="sd">    Unit(&quot;1 / s&quot;)</span>
+<span class="sd">    &gt;&gt;&gt; power.unit</span>
+<span class="sd">    Unit(dimensionless)</span>
+
+<span class="sd">    Note here that the Lomb-Scargle power is always a unitless quantity,</span>
+<span class="sd">    because it is related to the :math:`\\chi^2` of the best-fit periodic</span>
+<span class="sd">    model at each frequency.</span>
+
+<span class="sd">    References</span>
+<span class="sd">    ----------</span>
+<span class="sd">    .. [1] Vanderplas, J., Connolly, A. Ivezic, Z. &amp; Gray, A. *Introduction to</span>
+<span class="sd">        astroML: Machine learning for astrophysics*. Proceedings of the</span>
+<span class="sd">        Conference on Intelligent Data Understanding (2012)</span>
+<span class="sd">    .. [2] VanderPlas, J. &amp; Ivezic, Z. *Periodograms for Multiband Astronomical</span>
+<span class="sd">        Time Series*. ApJ 812.1:18 (2015)</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">available_methods</span> <span class="o">=</span> <span class="n">available_methods</span><span class="p">()</span>
+
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">t</span><span class="p">,</span> <span class="n">y</span><span class="p">,</span> <span class="n">dy</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+                 <span class="n">fit_mean</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">center_data</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">nterms</span><span class="o">=</span><span class="mi">1</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">t</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">y</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">dy</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_validate_inputs</span><span class="p">(</span><span class="n">t</span><span class="p">,</span> <span class="n">y</span><span class="p">,</span> <span class="n">dy</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">fit_mean</span> <span class="o">=</span> <span class="n">fit_mean</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">center_data</span> <span class="o">=</span> <span class="n">center_data</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">nterms</span> <span class="o">=</span> <span class="n">nterms</span>
+
+    <span class="k">def</span> <span class="nf">_validate_inputs</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">t</span><span class="p">,</span> <span class="n">y</span><span class="p">,</span> <span class="n">dy</span><span class="p">):</span>
+        <span class="c1"># Validate shapes of inputs</span>
+        <span class="k">if</span> <span class="n">dy</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">t</span><span class="p">,</span> <span class="n">y</span> <span class="o">=</span> <span class="n">broadcast_arrays</span><span class="p">(</span><span class="n">t</span><span class="p">,</span> <span class="n">y</span><span class="p">,</span> <span class="n">subok</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">t</span><span class="p">,</span> <span class="n">y</span><span class="p">,</span> <span class="n">dy</span> <span class="o">=</span> <span class="n">broadcast_arrays</span><span class="p">(</span><span class="n">t</span><span class="p">,</span> <span class="n">y</span><span class="p">,</span> <span class="n">dy</span><span class="p">,</span> <span class="n">subok</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">t</span><span class="o">.</span><span class="n">ndim</span> <span class="o">!=</span> <span class="mi">1</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;Inputs (t, y, dy) must be 1-dimensional&quot;</span><span class="p">)</span>
+
+        <span class="c1"># validate units of inputs if any is a Quantity</span>
+        <span class="k">if</span> <span class="nb">any</span><span class="p">(</span><span class="n">has_units</span><span class="p">(</span><span class="n">arr</span><span class="p">)</span> <span class="k">for</span> <span class="n">arr</span> <span class="ow">in</span> <span class="p">(</span><span class="n">t</span><span class="p">,</span> <span class="n">y</span><span class="p">,</span> <span class="n">dy</span><span class="p">)):</span>
+            <span class="n">t</span><span class="p">,</span> <span class="n">y</span> <span class="o">=</span> <span class="nb">map</span><span class="p">(</span><span class="n">units</span><span class="o">.</span><span class="n">Quantity</span><span class="p">,</span> <span class="p">(</span><span class="n">t</span><span class="p">,</span> <span class="n">y</span><span class="p">))</span>
+            <span class="k">if</span> <span class="n">dy</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+                <span class="n">dy</span> <span class="o">=</span> <span class="n">units</span><span class="o">.</span><span class="n">Quantity</span><span class="p">(</span><span class="n">dy</span><span class="p">)</span>
+                <span class="k">try</span><span class="p">:</span>
+                    <span class="n">dy</span> <span class="o">=</span> <span class="n">units</span><span class="o">.</span><span class="n">Quantity</span><span class="p">(</span><span class="n">dy</span><span class="p">,</span> <span class="n">unit</span><span class="o">=</span><span class="n">y</span><span class="o">.</span><span class="n">unit</span><span class="p">)</span>
+                <span class="k">except</span> <span class="n">units</span><span class="o">.</span><span class="n">UnitConversionError</span><span class="p">:</span>
+                    <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;Units of dy not equivalent &quot;</span>
+                                     <span class="s2">&quot;to units of y&quot;</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">t</span><span class="p">,</span> <span class="n">y</span><span class="p">,</span> <span class="n">dy</span>
+
+    <span class="k">def</span> <span class="nf">_validate_frequency</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">frequency</span><span class="p">):</span>
+        <span class="n">frequency</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">asanyarray</span><span class="p">(</span><span class="n">frequency</span><span class="p">)</span>
+
+        <span class="k">if</span> <span class="n">has_units</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">t</span><span class="p">):</span>
+            <span class="n">frequency</span> <span class="o">=</span> <span class="n">units</span><span class="o">.</span><span class="n">Quantity</span><span class="p">(</span><span class="n">frequency</span><span class="p">)</span>
+            <span class="k">try</span><span class="p">:</span>
+                <span class="n">frequency</span> <span class="o">=</span> <span class="n">units</span><span class="o">.</span><span class="n">Quantity</span><span class="p">(</span><span class="n">frequency</span><span class="p">,</span> <span class="n">unit</span><span class="o">=</span><span class="mf">1.</span><span class="o">/</span><span class="bp">self</span><span class="o">.</span><span class="n">t</span><span class="o">.</span><span class="n">unit</span><span class="p">)</span>
+            <span class="k">except</span> <span class="n">units</span><span class="o">.</span><span class="n">UnitConversionError</span><span class="p">:</span>
+                <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;Units of frequency not equivalent to &quot;</span>
+                                 <span class="s2">&quot;units of 1/t&quot;</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">if</span> <span class="n">has_units</span><span class="p">(</span><span class="n">frequency</span><span class="p">):</span>
+                <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;frequency have units while 1/t doesn&#39;t.&quot;</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">frequency</span>
+
+    <span class="k">def</span> <span class="nf">_validate_t</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">t</span><span class="p">):</span>
+        <span class="n">t</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">asanyarray</span><span class="p">(</span><span class="n">t</span><span class="p">)</span>
+
+        <span class="k">if</span> <span class="n">has_units</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">t</span><span class="p">):</span>
+            <span class="n">t</span> <span class="o">=</span> <span class="n">units</span><span class="o">.</span><span class="n">Quantity</span><span class="p">(</span><span class="n">t</span><span class="p">)</span>
+            <span class="k">try</span><span class="p">:</span>
+                <span class="n">t</span> <span class="o">=</span> <span class="n">units</span><span class="o">.</span><span class="n">Quantity</span><span class="p">(</span><span class="n">t</span><span class="p">,</span> <span class="n">unit</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">t</span><span class="o">.</span><span class="n">unit</span><span class="p">)</span>
+            <span class="k">except</span> <span class="n">units</span><span class="o">.</span><span class="n">UnitConversionError</span><span class="p">:</span>
+                <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;Units of t not equivalent to &quot;</span>
+                                 <span class="s2">&quot;units of input self.t&quot;</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">t</span>
+
+    <span class="k">def</span> <span class="nf">_power_unit</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">norm</span><span class="p">):</span>
+        <span class="k">if</span> <span class="n">has_units</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">y</span><span class="p">):</span>
+            <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">dy</span> <span class="ow">is</span> <span class="kc">None</span> <span class="ow">and</span> <span class="n">norm</span> <span class="o">==</span> <span class="s1">&#39;psd&#39;</span><span class="p">:</span>
+                <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">y</span><span class="o">.</span><span class="n">unit</span> <span class="o">**</span> <span class="mi">2</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="k">return</span> <span class="n">units</span><span class="o">.</span><span class="n">dimensionless_unscaled</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">return</span> <span class="mi">1</span>
+
+<div class="viewcode-block" id="LombScargle.autofrequency"><a class="viewcode-back" href="../../../../api/astropy.stats.LombScargle.html#astropy.stats.LombScargle.autofrequency">[docs]</a>    <span class="k">def</span> <span class="nf">autofrequency</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">samples_per_peak</span><span class="o">=</span><span class="mi">5</span><span class="p">,</span> <span class="n">nyquist_factor</span><span class="o">=</span><span class="mi">5</span><span class="p">,</span>
+                      <span class="n">minimum_frequency</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">maximum_frequency</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Determine a suitable frequency grid for data.</span>
+
+<span class="sd">        Note that this assumes the peak width is driven by the observational</span>
+<span class="sd">        baseline, which is generally a good assumption when the baseline is</span>
+<span class="sd">        much larger than the oscillation period.</span>
+<span class="sd">        If you are searching for periods longer than the baseline of your</span>
+<span class="sd">        observations, this may not perform well.</span>
+
+<span class="sd">        Even with a large baseline, be aware that the maximum frequency</span>
+<span class="sd">        returned is based on the concept of &quot;average Nyquist frequency&quot;, which</span>
+<span class="sd">        may not be useful for irregularly-sampled data. The maximum frequency</span>
+<span class="sd">        can be adjusted via the nyquist_factor argument, or through the</span>
+<span class="sd">        maximum_frequency argument.</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        samples_per_peak : float (optional, default=5)</span>
+<span class="sd">            The approximate number of desired samples across the typical peak</span>
+<span class="sd">        nyquist_factor : float (optional, default=5)</span>
+<span class="sd">            The multiple of the average nyquist frequency used to choose the</span>
+<span class="sd">            maximum frequency if maximum_frequency is not provided.</span>
+<span class="sd">        minimum_frequency : float (optional)</span>
+<span class="sd">            If specified, then use this minimum frequency rather than one</span>
+<span class="sd">            chosen based on the size of the baseline.</span>
+<span class="sd">        maximum_frequency : float (optional)</span>
+<span class="sd">            If specified, then use this maximum frequency rather than one</span>
+<span class="sd">            chosen based on the average nyquist frequency.</span>
+
+<span class="sd">        Returns</span>
+<span class="sd">        -------</span>
+<span class="sd">        frequency : ndarray or Quantity</span>
+<span class="sd">            The heuristically-determined optimal frequency bin</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">baseline</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">t</span><span class="o">.</span><span class="n">max</span><span class="p">()</span> <span class="o">-</span> <span class="bp">self</span><span class="o">.</span><span class="n">t</span><span class="o">.</span><span class="n">min</span><span class="p">()</span>
+        <span class="n">n_samples</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">t</span><span class="o">.</span><span class="n">size</span>
+
+        <span class="n">df</span> <span class="o">=</span> <span class="mf">1.0</span> <span class="o">/</span> <span class="n">baseline</span> <span class="o">/</span> <span class="n">samples_per_peak</span>
+
+        <span class="k">if</span> <span class="n">minimum_frequency</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">minimum_frequency</span> <span class="o">=</span> <span class="mf">0.5</span> <span class="o">*</span> <span class="n">df</span>
+
+        <span class="k">if</span> <span class="n">maximum_frequency</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">avg_nyquist</span> <span class="o">=</span> <span class="mf">0.5</span> <span class="o">*</span> <span class="n">n_samples</span> <span class="o">/</span> <span class="n">baseline</span>
+            <span class="n">maximum_frequency</span> <span class="o">=</span> <span class="n">nyquist_factor</span> <span class="o">*</span> <span class="n">avg_nyquist</span>
+
+        <span class="n">Nf</span> <span class="o">=</span> <span class="mi">1</span> <span class="o">+</span> <span class="nb">int</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">round</span><span class="p">((</span><span class="n">maximum_frequency</span> <span class="o">-</span> <span class="n">minimum_frequency</span><span class="p">)</span> <span class="o">/</span> <span class="n">df</span><span class="p">))</span>
+
+        <span class="k">return</span> <span class="n">minimum_frequency</span> <span class="o">+</span> <span class="n">df</span> <span class="o">*</span> <span class="n">np</span><span class="o">.</span><span class="n">arange</span><span class="p">(</span><span class="n">Nf</span><span class="p">)</span></div>
+
+<div class="viewcode-block" id="LombScargle.autopower"><a class="viewcode-back" href="../../../../api/astropy.stats.LombScargle.html#astropy.stats.LombScargle.autopower">[docs]</a>    <span class="k">def</span> <span class="nf">autopower</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">method</span><span class="o">=</span><span class="s1">&#39;auto&#39;</span><span class="p">,</span> <span class="n">method_kwds</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+                  <span class="n">normalization</span><span class="o">=</span><span class="s1">&#39;standard&#39;</span><span class="p">,</span> <span class="n">samples_per_peak</span><span class="o">=</span><span class="mi">5</span><span class="p">,</span>
+                  <span class="n">nyquist_factor</span><span class="o">=</span><span class="mi">5</span><span class="p">,</span> <span class="n">minimum_frequency</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+                  <span class="n">maximum_frequency</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Compute Lomb-Scargle power at automatically-determined frequencies</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        method : string (optional)</span>
+<span class="sd">            specify the lomb scargle implementation to use. Options are:</span>
+
+<span class="sd">            - &#39;auto&#39;: choose the best method based on the input</span>
+<span class="sd">            - &#39;fast&#39;: use the O[N log N] fast method. Note that this requires</span>
+<span class="sd">              evenly-spaced frequencies: by default this will be checked unless</span>
+<span class="sd">              ``assume_regular_frequency`` is set to True.</span>
+<span class="sd">            - &#39;slow&#39;: use the O[N^2] pure-python implementation</span>
+<span class="sd">            - &#39;cython&#39;: use the O[N^2] cython implementation. This is slightly</span>
+<span class="sd">              faster than method=&#39;slow&#39;, but much more memory efficient.</span>
+<span class="sd">            - &#39;chi2&#39;: use the O[N^2] chi2/linear-fitting implementation</span>
+<span class="sd">            - &#39;fastchi2&#39;: use the O[N log N] chi2 implementation. Note that this</span>
+<span class="sd">              requires evenly-spaced frequencies: by default this will be checked</span>
+<span class="sd">              unless ``assume_regular_frequency`` is set to True.</span>
+<span class="sd">            - &#39;scipy&#39;: use ``scipy.signal.lombscargle``, which is an O[N^2]</span>
+<span class="sd">              implementation written in C. Note that this does not support</span>
+<span class="sd">              heteroskedastic errors.</span>
+
+<span class="sd">        method_kwds : dict (optional)</span>
+<span class="sd">            additional keywords to pass to the lomb-scargle method</span>
+<span class="sd">        normalization : string (optional, default=&#39;standard&#39;)</span>
+<span class="sd">            Normalization to use for the periodogram.</span>
+<span class="sd">            Options are &#39;standard&#39;, &#39;model&#39;, or &#39;psd&#39;.</span>
+<span class="sd">        samples_per_peak : float (optional, default=5)</span>
+<span class="sd">            The approximate number of desired samples across the typical peak</span>
+<span class="sd">        nyquist_factor : float (optional, default=5)</span>
+<span class="sd">            The multiple of the average nyquist frequency used to choose the</span>
+<span class="sd">            maximum frequency if maximum_frequency is not provided.</span>
+<span class="sd">        minimum_frequency : float (optional)</span>
+<span class="sd">            If specified, then use this minimum frequency rather than one</span>
+<span class="sd">            chosen based on the size of the baseline.</span>
+<span class="sd">        maximum_frequency : float (optional)</span>
+<span class="sd">            If specified, then use this maximum frequency rather than one</span>
+<span class="sd">            chosen based on the average nyquist frequency.</span>
+
+<span class="sd">        Returns</span>
+<span class="sd">        -------</span>
+<span class="sd">        frequency, power : ndarrays</span>
+<span class="sd">            The frequency and Lomb-Scargle power</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">frequency</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">autofrequency</span><span class="p">(</span><span class="n">samples_per_peak</span><span class="o">=</span><span class="n">samples_per_peak</span><span class="p">,</span>
+                                       <span class="n">nyquist_factor</span><span class="o">=</span><span class="n">nyquist_factor</span><span class="p">,</span>
+                                       <span class="n">minimum_frequency</span><span class="o">=</span><span class="n">minimum_frequency</span><span class="p">,</span>
+                                       <span class="n">maximum_frequency</span><span class="o">=</span><span class="n">maximum_frequency</span><span class="p">)</span>
+        <span class="n">power</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">power</span><span class="p">(</span><span class="n">frequency</span><span class="p">,</span>
+                           <span class="n">normalization</span><span class="o">=</span><span class="n">normalization</span><span class="p">,</span>
+                           <span class="n">method</span><span class="o">=</span><span class="n">method</span><span class="p">,</span> <span class="n">method_kwds</span><span class="o">=</span><span class="n">method_kwds</span><span class="p">,</span>
+                           <span class="n">assume_regular_frequency</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">frequency</span><span class="p">,</span> <span class="n">power</span></div>
+
+<div class="viewcode-block" id="LombScargle.power"><a class="viewcode-back" href="../../../../api/astropy.stats.LombScargle.html#astropy.stats.LombScargle.power">[docs]</a>    <span class="k">def</span> <span class="nf">power</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">frequency</span><span class="p">,</span> <span class="n">normalization</span><span class="o">=</span><span class="s1">&#39;standard&#39;</span><span class="p">,</span> <span class="n">method</span><span class="o">=</span><span class="s1">&#39;auto&#39;</span><span class="p">,</span>
+              <span class="n">assume_regular_frequency</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="n">method_kwds</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Compute the Lomb-Scargle power at the given frequencies</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        frequency : array_like or Quantity</span>
+<span class="sd">            frequencies (not angular frequencies) at which to evaluate the</span>
+<span class="sd">            periodogram. Note that in order to use method=&#39;fast&#39;, frequencies</span>
+<span class="sd">            must be regularly-spaced.</span>
+<span class="sd">        method : string (optional)</span>
+<span class="sd">            specify the lomb scargle implementation to use. Options are:</span>
+
+<span class="sd">            - &#39;auto&#39;: choose the best method based on the input</span>
+<span class="sd">            - &#39;fast&#39;: use the O[N log N] fast method. Note that this requires</span>
+<span class="sd">              evenly-spaced frequencies: by default this will be checked unless</span>
+<span class="sd">              ``assume_regular_frequency`` is set to True.</span>
+<span class="sd">            - &#39;slow&#39;: use the O[N^2] pure-python implementation</span>
+<span class="sd">            - &#39;cython&#39;: use the O[N^2] cython implementation. This is slightly</span>
+<span class="sd">              faster than method=&#39;slow&#39;, but much more memory efficient.</span>
+<span class="sd">            - &#39;chi2&#39;: use the O[N^2] chi2/linear-fitting implementation</span>
+<span class="sd">            - &#39;fastchi2&#39;: use the O[N log N] chi2 implementation. Note that this</span>
+<span class="sd">              requires evenly-spaced frequencies: by default this will be checked</span>
+<span class="sd">              unless ``assume_regular_frequency`` is set to True.</span>
+<span class="sd">            - &#39;scipy&#39;: use ``scipy.signal.lombscargle``, which is an O[N^2]</span>
+<span class="sd">              implementation written in C. Note that this does not support</span>
+<span class="sd">              heteroskedastic errors.</span>
+
+<span class="sd">        assume_regular_frequency : bool (optional)</span>
+<span class="sd">            if True, assume that the input frequency is of the form</span>
+<span class="sd">            freq = f0 + df * np.arange(N). Only referenced if method is &#39;auto&#39;</span>
+<span class="sd">            or &#39;fast&#39;.</span>
+<span class="sd">        normalization : string (optional, default=&#39;standard&#39;)</span>
+<span class="sd">            Normalization to use for the periodogram.</span>
+<span class="sd">            Options are &#39;standard&#39;, &#39;model&#39;, &#39;log&#39;, or &#39;psd&#39;.</span>
+<span class="sd">        fit_mean : bool (optional, default=True)</span>
+<span class="sd">            if True, include a constant offset as part of the model at each</span>
+<span class="sd">            frequency. This can lead to more accurate results, especially in</span>
+<span class="sd">            the case of incomplete phase coverage.</span>
+<span class="sd">        center_data : bool (optional, default=True)</span>
+<span class="sd">            if True, pre-center the data by subtracting the weighted mean of</span>
+<span class="sd">            the input data. This is especially important if fit_mean = False</span>
+<span class="sd">        method_kwds : dict (optional)</span>
+<span class="sd">            additional keywords to pass to the lomb-scargle method</span>
+
+<span class="sd">        Returns</span>
+<span class="sd">        -------</span>
+<span class="sd">        power : ndarray</span>
+<span class="sd">            The Lomb-Scargle power at the specified frequency</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">frequency</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_validate_frequency</span><span class="p">(</span><span class="n">frequency</span><span class="p">)</span>
+        <span class="n">power</span> <span class="o">=</span> <span class="n">lombscargle</span><span class="p">(</span><span class="o">*</span><span class="n">strip_units</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">t</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">y</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">dy</span><span class="p">),</span>
+                            <span class="n">frequency</span><span class="o">=</span><span class="n">strip_units</span><span class="p">(</span><span class="n">frequency</span><span class="p">),</span>
+                            <span class="n">center_data</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">center_data</span><span class="p">,</span>
+                            <span class="n">fit_mean</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">fit_mean</span><span class="p">,</span>
+                            <span class="n">nterms</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">nterms</span><span class="p">,</span>
+                            <span class="n">normalization</span><span class="o">=</span><span class="n">normalization</span><span class="p">,</span>
+                            <span class="n">method</span><span class="o">=</span><span class="n">method</span><span class="p">,</span> <span class="n">method_kwds</span><span class="o">=</span><span class="n">method_kwds</span><span class="p">,</span>
+                            <span class="n">assume_regular_frequency</span><span class="o">=</span><span class="n">assume_regular_frequency</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">power</span> <span class="o">*</span> <span class="bp">self</span><span class="o">.</span><span class="n">_power_unit</span><span class="p">(</span><span class="n">normalization</span><span class="p">)</span></div>
+
+<div class="viewcode-block" id="LombScargle.model"><a class="viewcode-back" href="../../../../api/astropy.stats.LombScargle.html#astropy.stats.LombScargle.model">[docs]</a>    <span class="k">def</span> <span class="nf">model</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">t</span><span class="p">,</span> <span class="n">frequency</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Compute the Lomb-Scargle model at the given frequency</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        t : array_like or Quantity, length n_samples</span>
+<span class="sd">            times at which to compute the model</span>
+<span class="sd">        frequency : float</span>
+<span class="sd">            the frequency for the model</span>
+
+<span class="sd">        Returns</span>
+<span class="sd">        -------</span>
+<span class="sd">        y : np.ndarray, length n_samples</span>
+<span class="sd">            The model fit corresponding to the input times</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">frequency</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_validate_frequency</span><span class="p">(</span><span class="n">frequency</span><span class="p">)</span>
+        <span class="n">t</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_validate_t</span><span class="p">(</span><span class="n">t</span><span class="p">)</span>
+        <span class="n">y_fit</span> <span class="o">=</span> <span class="n">periodic_fit</span><span class="p">(</span><span class="o">*</span><span class="n">strip_units</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">t</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">y</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">dy</span><span class="p">),</span>
+                             <span class="n">frequency</span><span class="o">=</span><span class="n">strip_units</span><span class="p">(</span><span class="n">frequency</span><span class="p">),</span>
+                             <span class="n">t_fit</span><span class="o">=</span><span class="n">strip_units</span><span class="p">(</span><span class="n">t</span><span class="p">),</span>
+                             <span class="n">center_data</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">center_data</span><span class="p">,</span>
+                             <span class="n">fit_mean</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">fit_mean</span><span class="p">,</span>
+                             <span class="n">nterms</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">nterms</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">y_fit</span> <span class="o">*</span> <span class="n">get_unit</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">y</span><span class="p">)</span></div></div>
+</pre></div>
+
+          </div>
+        </div>
+      </div>
+      <div class="sphinxsidebar" role="navigation" aria-label="main navigation">
+        <div class="sphinxsidebarwrapper"><h3>Page Contents</h3>
+
+
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+<footer class="footer">
+  <p class="pull-right"> &nbsp;
+    <a href="#">Back to Top</a></p>
+  <p>
+    &copy; Copyright 2011-2016, The Astropy Developers.<br/>
+    Created using <a href="http://sphinx.pocoo.org/">Sphinx</a> 1.5.6. &nbsp;
+    Last built 05 Jul 2017. <br/>
+  </p>
+</footer>
+  </body>
+</html>

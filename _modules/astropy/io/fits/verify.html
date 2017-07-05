@@ -1,0 +1,276 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <head>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    
+    <title>astropy.io.fits.verify &#8212; Astropy v3.0.dev19489</title>
+    
+    <link rel="stylesheet" href="../../../../_static/bootstrap-astropy.css" type="text/css" />
+    <link rel="stylesheet" href="../../../../_static/pygments.css" type="text/css" />
+    <link rel="stylesheet" href="../../../../_static/gallery.css" type="text/css" />
+    
+    <script type="text/javascript">
+      var DOCUMENTATION_OPTIONS = {
+        URL_ROOT:    '../../../../',
+        VERSION:     '3.0.dev19489',
+        COLLAPSE_INDEX: false,
+        FILE_SUFFIX: '.html',
+        HAS_SOURCE:  true,
+        SOURCELINK_SUFFIX: '.txt'
+      };
+    </script>
+    <script type="text/javascript" src="../../../../_static/jquery.js"></script>
+    <script type="text/javascript" src="../../../../_static/underscore.js"></script>
+    <script type="text/javascript" src="../../../../_static/doctools.js"></script>
+    <script type="text/javascript" src="../../../../_static/sidebar.js"></script>
+    <link rel="shortcut icon" href="../../../../_static/astropy_logo.ico"/>
+    <link rel="index" title="Index" href="../../../../genindex.html" />
+    <link rel="search" title="Search" href="../../../../search.html" />
+<link href='https://fonts.googleapis.com/css?family=Source+Sans+Pro:200,600' rel='stylesheet' type='text/css'/>
+<script type="text/javascript" src="../../../../_static/copybutton.js"></script>
+
+
+  </head>
+  <body role="document">
+<div class="topbar">
+  <a class="brand" title="Documentation Home" href="../../../../index.html"><span id="logotext1">astro</span><span id="logotext2">py</span><span id="logotext3">:docs</span></a>
+  <ul>
+    <li><a class="homelink" title="Astropy Homepage" href="http://www.astropy.org"></a></li>
+    <li><a title="General Index" href="../../../../genindex.html">Index</a></li>
+    <li><a title="Module Index" href="../../../../py-modindex.html">Modules</a></li>
+    <li>
+      
+      
+<form action="../../../../search.html" method="get">
+  <input type="text" name="q" placeholder="Search" />
+  <input type="hidden" name="check_keywords" value="yes" />
+  <input type="hidden" name="area" value="default" />
+</form>
+      
+    </li>
+  </ul>
+</div>
+
+<div class="related">
+    <h3>Navigation</h3>
+    <ul>
+      <li>
+	<a href="../../../../index.html">Astropy v3.0.dev19489</a>
+	 &#187;
+      </li>
+      <li><a href="../../../index.html" >Module code</a> &#187;</li>
+      <li><a href="../../../astropy.html" accesskey="U">astropy</a> &#187;</li>
+      
+       
+    </ul>
+</div>
+  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          <div class="body" role="main">
+            
+  <h1>Source code for astropy.io.fits.verify</h1><div class="highlight"><pre>
+<span></span><span class="c1"># Licensed under a 3-clause BSD style license - see PYFITS.rst</span>
+<span class="kn">from</span> <span class="nn">__future__</span> <span class="k">import</span> <span class="n">unicode_literals</span>
+
+<span class="kn">import</span> <span class="nn">operator</span>
+<span class="kn">import</span> <span class="nn">warnings</span>
+
+<span class="kn">from</span> <span class="nn">...extern.six</span> <span class="k">import</span> <span class="nb">next</span>
+<span class="kn">from</span> <span class="nn">...utils</span> <span class="k">import</span> <span class="n">indent</span>
+<span class="kn">from</span> <span class="nn">...utils.exceptions</span> <span class="k">import</span> <span class="n">AstropyUserWarning</span>
+
+
+<span class="k">class</span> <span class="nc">VerifyError</span><span class="p">(</span><span class="ne">Exception</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Verify exception class.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+
+<span class="k">class</span> <span class="nc">VerifyWarning</span><span class="p">(</span><span class="n">AstropyUserWarning</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Verify warning class.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+
+<span class="n">VERIFY_OPTIONS</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;ignore&#39;</span><span class="p">,</span> <span class="s1">&#39;warn&#39;</span><span class="p">,</span> <span class="s1">&#39;exception&#39;</span><span class="p">,</span> <span class="s1">&#39;fix&#39;</span><span class="p">,</span> <span class="s1">&#39;silentfix&#39;</span><span class="p">,</span>
+                  <span class="s1">&#39;fix+ignore&#39;</span><span class="p">,</span> <span class="s1">&#39;fix+warn&#39;</span><span class="p">,</span> <span class="s1">&#39;fix+exception&#39;</span><span class="p">,</span>
+                  <span class="s1">&#39;silentfix+ignore&#39;</span><span class="p">,</span> <span class="s1">&#39;silentfix+warn&#39;</span><span class="p">,</span> <span class="s1">&#39;silentfix+exception&#39;</span><span class="p">]</span>
+
+
+<span class="k">class</span> <span class="nc">_Verify</span><span class="p">(</span><span class="nb">object</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Shared methods for verification.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="k">def</span> <span class="nf">run_option</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">option</span><span class="o">=</span><span class="s1">&#39;warn&#39;</span><span class="p">,</span> <span class="n">err_text</span><span class="o">=</span><span class="s1">&#39;&#39;</span><span class="p">,</span> <span class="n">fix_text</span><span class="o">=</span><span class="s1">&#39;Fixed.&#39;</span><span class="p">,</span>
+                   <span class="n">fix</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">fixable</span><span class="o">=</span><span class="kc">True</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Execute the verification with selected option.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+
+        <span class="n">text</span> <span class="o">=</span> <span class="n">err_text</span>
+
+        <span class="k">if</span> <span class="n">option</span> <span class="ow">in</span> <span class="p">[</span><span class="s1">&#39;warn&#39;</span><span class="p">,</span> <span class="s1">&#39;exception&#39;</span><span class="p">]:</span>
+            <span class="n">fixable</span> <span class="o">=</span> <span class="kc">False</span>
+        <span class="c1"># fix the value</span>
+        <span class="k">elif</span> <span class="ow">not</span> <span class="n">fixable</span><span class="p">:</span>
+            <span class="n">text</span> <span class="o">=</span> <span class="s1">&#39;Unfixable error: </span><span class="si">{}</span><span class="s1">&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">text</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">if</span> <span class="n">fix</span><span class="p">:</span>
+                <span class="n">fix</span><span class="p">()</span>
+            <span class="n">text</span> <span class="o">+=</span> <span class="s1">&#39;  &#39;</span> <span class="o">+</span> <span class="n">fix_text</span>
+
+        <span class="k">return</span> <span class="p">(</span><span class="n">fixable</span><span class="p">,</span> <span class="n">text</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">verify</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">option</span><span class="o">=</span><span class="s1">&#39;warn&#39;</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Verify all values in the instance.</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        option : str</span>
+<span class="sd">            Output verification option.  Must be one of ``&quot;fix&quot;``,</span>
+<span class="sd">            ``&quot;silentfix&quot;``, ``&quot;ignore&quot;``, ``&quot;warn&quot;``, or</span>
+<span class="sd">            ``&quot;exception&quot;``.  May also be any combination of ``&quot;fix&quot;`` or</span>
+<span class="sd">            ``&quot;silentfix&quot;`` with ``&quot;+ignore&quot;``, ``+warn``, or ``+exception&quot;</span>
+<span class="sd">            (e.g. ``&quot;fix+warn&quot;``).  See :ref:`verify` for more info.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+
+        <span class="n">opt</span> <span class="o">=</span> <span class="n">option</span><span class="o">.</span><span class="n">lower</span><span class="p">()</span>
+        <span class="k">if</span> <span class="n">opt</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">VERIFY_OPTIONS</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s1">&#39;Option </span><span class="si">{!r}</span><span class="s1"> not recognized.&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">option</span><span class="p">))</span>
+
+        <span class="k">if</span> <span class="n">opt</span> <span class="o">==</span> <span class="s1">&#39;ignore&#39;</span><span class="p">:</span>
+            <span class="k">return</span>
+
+        <span class="n">errs</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_verify</span><span class="p">(</span><span class="n">opt</span><span class="p">)</span>
+
+        <span class="c1"># Break the verify option into separate options related to reporting of</span>
+        <span class="c1"># errors, and fixing of fixable errors</span>
+        <span class="k">if</span> <span class="s1">&#39;+&#39;</span> <span class="ow">in</span> <span class="n">opt</span><span class="p">:</span>
+            <span class="n">fix_opt</span><span class="p">,</span> <span class="n">report_opt</span> <span class="o">=</span> <span class="n">opt</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="s1">&#39;+&#39;</span><span class="p">)</span>
+        <span class="k">elif</span> <span class="n">opt</span> <span class="ow">in</span> <span class="p">[</span><span class="s1">&#39;fix&#39;</span><span class="p">,</span> <span class="s1">&#39;silentfix&#39;</span><span class="p">]:</span>
+            <span class="c1"># The original default behavior for &#39;fix&#39; and &#39;silentfix&#39; was to</span>
+            <span class="c1"># raise an exception for unfixable errors</span>
+            <span class="n">fix_opt</span><span class="p">,</span> <span class="n">report_opt</span> <span class="o">=</span> <span class="n">opt</span><span class="p">,</span> <span class="s1">&#39;exception&#39;</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">fix_opt</span><span class="p">,</span> <span class="n">report_opt</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span> <span class="n">opt</span>
+
+        <span class="k">if</span> <span class="n">fix_opt</span> <span class="o">==</span> <span class="s1">&#39;silentfix&#39;</span> <span class="ow">and</span> <span class="n">report_opt</span> <span class="o">==</span> <span class="s1">&#39;ignore&#39;</span><span class="p">:</span>
+            <span class="c1"># Fixable errors were fixed, but don&#39;t report anything</span>
+            <span class="k">return</span>
+
+        <span class="k">if</span> <span class="n">fix_opt</span> <span class="o">==</span> <span class="s1">&#39;silentfix&#39;</span><span class="p">:</span>
+            <span class="c1"># Don&#39;t print out fixable issues; the first element of each verify</span>
+            <span class="c1"># item is a boolean indicating whether or not the issue was fixable</span>
+            <span class="n">line_filter</span> <span class="o">=</span> <span class="k">lambda</span> <span class="n">x</span><span class="p">:</span> <span class="ow">not</span> <span class="n">x</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+        <span class="k">elif</span> <span class="n">fix_opt</span> <span class="o">==</span> <span class="s1">&#39;fix&#39;</span> <span class="ow">and</span> <span class="n">report_opt</span> <span class="o">==</span> <span class="s1">&#39;ignore&#39;</span><span class="p">:</span>
+            <span class="c1"># Don&#39;t print *unfixable* issues, but do print fixed issues; this</span>
+            <span class="c1"># is probably not very useful but the option exists for</span>
+            <span class="c1"># completeness</span>
+            <span class="n">line_filter</span> <span class="o">=</span> <span class="n">operator</span><span class="o">.</span><span class="n">itemgetter</span><span class="p">(</span><span class="mi">0</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">line_filter</span> <span class="o">=</span> <span class="kc">None</span>
+
+        <span class="n">unfixable</span> <span class="o">=</span> <span class="kc">False</span>
+        <span class="n">messages</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="k">for</span> <span class="n">fixable</span><span class="p">,</span> <span class="n">message</span> <span class="ow">in</span> <span class="n">errs</span><span class="o">.</span><span class="n">iter_lines</span><span class="p">(</span><span class="nb">filter</span><span class="o">=</span><span class="n">line_filter</span><span class="p">):</span>
+            <span class="k">if</span> <span class="n">fixable</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+                <span class="n">unfixable</span> <span class="o">=</span> <span class="ow">not</span> <span class="n">fixable</span>
+            <span class="n">messages</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">message</span><span class="p">)</span>
+
+        <span class="k">if</span> <span class="n">messages</span><span class="p">:</span>
+            <span class="n">messages</span><span class="o">.</span><span class="n">insert</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="s1">&#39;Verification reported errors:&#39;</span><span class="p">)</span>
+            <span class="n">messages</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="s1">&#39;Note: astropy.io.fits uses zero-based indexing.</span><span class="se">\n</span><span class="s1">&#39;</span><span class="p">)</span>
+
+            <span class="k">if</span> <span class="n">fix_opt</span> <span class="o">==</span> <span class="s1">&#39;silentfix&#39;</span> <span class="ow">and</span> <span class="ow">not</span> <span class="n">unfixable</span><span class="p">:</span>
+                <span class="k">return</span>
+            <span class="k">elif</span> <span class="n">report_opt</span> <span class="o">==</span> <span class="s1">&#39;warn&#39;</span> <span class="ow">or</span> <span class="p">(</span><span class="n">fix_opt</span> <span class="o">==</span> <span class="s1">&#39;fix&#39;</span> <span class="ow">and</span> <span class="ow">not</span> <span class="n">unfixable</span><span class="p">):</span>
+                <span class="k">for</span> <span class="n">line</span> <span class="ow">in</span> <span class="n">messages</span><span class="p">:</span>
+                    <span class="n">warnings</span><span class="o">.</span><span class="n">warn</span><span class="p">(</span><span class="n">line</span><span class="p">,</span> <span class="n">VerifyWarning</span><span class="p">)</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="k">raise</span> <span class="n">VerifyError</span><span class="p">(</span><span class="s1">&#39;</span><span class="se">\n</span><span class="s1">&#39;</span> <span class="o">+</span> <span class="s1">&#39;</span><span class="se">\n</span><span class="s1">&#39;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">messages</span><span class="p">))</span>
+
+
+<span class="k">class</span> <span class="nc">_ErrList</span><span class="p">(</span><span class="nb">list</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Verification errors list class.  It has a nested list structure</span>
+<span class="sd">    constructed by error messages generated by verifications at</span>
+<span class="sd">    different class levels.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="k">def</span> <span class="nf">__new__</span><span class="p">(</span><span class="n">cls</span><span class="p">,</span> <span class="n">val</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">unit</span><span class="o">=</span><span class="s1">&#39;Element&#39;</span><span class="p">):</span>
+        <span class="k">return</span> <span class="nb">super</span><span class="p">(</span><span class="n">cls</span><span class="p">,</span> <span class="n">cls</span><span class="p">)</span><span class="o">.</span><span class="n">__new__</span><span class="p">(</span><span class="n">cls</span><span class="p">,</span> <span class="n">val</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">val</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">unit</span><span class="o">=</span><span class="s1">&#39;Element&#39;</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">unit</span> <span class="o">=</span> <span class="n">unit</span>
+
+    <span class="k">def</span> <span class="nf">__str__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="s1">&#39;</span><span class="se">\n</span><span class="s1">&#39;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">item</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span> <span class="k">for</span> <span class="n">item</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">iter_lines</span><span class="p">())</span>
+
+    <span class="k">def</span> <span class="nf">iter_lines</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="nb">filter</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">shift</span><span class="o">=</span><span class="mi">0</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Iterate the nested structure as a list of strings with appropriate</span>
+<span class="sd">        indentations for each level of structure.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+
+        <span class="n">element</span> <span class="o">=</span> <span class="mi">0</span>
+        <span class="c1"># go through the list twice, first time print out all top level</span>
+        <span class="c1"># messages</span>
+        <span class="k">for</span> <span class="n">item</span> <span class="ow">in</span> <span class="bp">self</span><span class="p">:</span>
+            <span class="k">if</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">item</span><span class="p">,</span> <span class="n">_ErrList</span><span class="p">):</span>
+                <span class="k">if</span> <span class="nb">filter</span> <span class="ow">is</span> <span class="kc">None</span> <span class="ow">or</span> <span class="nb">filter</span><span class="p">(</span><span class="n">item</span><span class="p">):</span>
+                    <span class="k">yield</span> <span class="n">item</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="n">indent</span><span class="p">(</span><span class="n">item</span><span class="p">[</span><span class="mi">1</span><span class="p">],</span> <span class="n">shift</span><span class="o">=</span><span class="n">shift</span><span class="p">)</span>
+
+        <span class="c1"># second time go through the next level items, each of the next level</span>
+        <span class="c1"># must present, even it has nothing.</span>
+        <span class="k">for</span> <span class="n">item</span> <span class="ow">in</span> <span class="bp">self</span><span class="p">:</span>
+            <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">item</span><span class="p">,</span> <span class="n">_ErrList</span><span class="p">):</span>
+                <span class="n">next_lines</span> <span class="o">=</span> <span class="n">item</span><span class="o">.</span><span class="n">iter_lines</span><span class="p">(</span><span class="nb">filter</span><span class="o">=</span><span class="nb">filter</span><span class="p">,</span> <span class="n">shift</span><span class="o">=</span><span class="n">shift</span> <span class="o">+</span> <span class="mi">1</span><span class="p">)</span>
+                <span class="k">try</span><span class="p">:</span>
+                    <span class="n">first_line</span> <span class="o">=</span> <span class="nb">next</span><span class="p">(</span><span class="n">next_lines</span><span class="p">)</span>
+                <span class="k">except</span> <span class="ne">StopIteration</span><span class="p">:</span>
+                    <span class="n">first_line</span> <span class="o">=</span> <span class="kc">None</span>
+
+                <span class="k">if</span> <span class="n">first_line</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+                    <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">unit</span><span class="p">:</span>
+                        <span class="c1"># This line is sort of a header for the next level in</span>
+                        <span class="c1"># the hierarchy</span>
+                        <span class="k">yield</span> <span class="kc">None</span><span class="p">,</span> <span class="n">indent</span><span class="p">(</span><span class="s1">&#39;</span><span class="si">{}</span><span class="s1"> </span><span class="si">{}</span><span class="s1">:&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">unit</span><span class="p">,</span> <span class="n">element</span><span class="p">),</span>
+                                           <span class="n">shift</span><span class="o">=</span><span class="n">shift</span><span class="p">)</span>
+                    <span class="k">yield</span> <span class="n">first_line</span>
+
+                <span class="k">for</span> <span class="n">line</span> <span class="ow">in</span> <span class="n">next_lines</span><span class="p">:</span>
+                    <span class="k">yield</span> <span class="n">line</span>
+
+                <span class="n">element</span> <span class="o">+=</span> <span class="mi">1</span>
+</pre></div>
+
+          </div>
+        </div>
+      </div>
+      <div class="sphinxsidebar" role="navigation" aria-label="main navigation">
+        <div class="sphinxsidebarwrapper"><h3>Page Contents</h3>
+
+
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+<footer class="footer">
+  <p class="pull-right"> &nbsp;
+    <a href="#">Back to Top</a></p>
+  <p>
+    &copy; Copyright 2011-2016, The Astropy Developers.<br/>
+    Created using <a href="http://sphinx.pocoo.org/">Sphinx</a> 1.5.6. &nbsp;
+    Last built 05 Jul 2017. <br/>
+  </p>
+</footer>
+  </body>
+</html>

@@ -1,0 +1,318 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <head>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    
+    <title>astropy.io.votable.util &#8212; Astropy v3.0.dev19489</title>
+    
+    <link rel="stylesheet" href="../../../../_static/bootstrap-astropy.css" type="text/css" />
+    <link rel="stylesheet" href="../../../../_static/pygments.css" type="text/css" />
+    <link rel="stylesheet" href="../../../../_static/gallery.css" type="text/css" />
+    
+    <script type="text/javascript">
+      var DOCUMENTATION_OPTIONS = {
+        URL_ROOT:    '../../../../',
+        VERSION:     '3.0.dev19489',
+        COLLAPSE_INDEX: false,
+        FILE_SUFFIX: '.html',
+        HAS_SOURCE:  true,
+        SOURCELINK_SUFFIX: '.txt'
+      };
+    </script>
+    <script type="text/javascript" src="../../../../_static/jquery.js"></script>
+    <script type="text/javascript" src="../../../../_static/underscore.js"></script>
+    <script type="text/javascript" src="../../../../_static/doctools.js"></script>
+    <script type="text/javascript" src="../../../../_static/sidebar.js"></script>
+    <link rel="shortcut icon" href="../../../../_static/astropy_logo.ico"/>
+    <link rel="index" title="Index" href="../../../../genindex.html" />
+    <link rel="search" title="Search" href="../../../../search.html" />
+<link href='https://fonts.googleapis.com/css?family=Source+Sans+Pro:200,600' rel='stylesheet' type='text/css'/>
+<script type="text/javascript" src="../../../../_static/copybutton.js"></script>
+
+
+  </head>
+  <body role="document">
+<div class="topbar">
+  <a class="brand" title="Documentation Home" href="../../../../index.html"><span id="logotext1">astro</span><span id="logotext2">py</span><span id="logotext3">:docs</span></a>
+  <ul>
+    <li><a class="homelink" title="Astropy Homepage" href="http://www.astropy.org"></a></li>
+    <li><a title="General Index" href="../../../../genindex.html">Index</a></li>
+    <li><a title="Module Index" href="../../../../py-modindex.html">Modules</a></li>
+    <li>
+      
+      
+<form action="../../../../search.html" method="get">
+  <input type="text" name="q" placeholder="Search" />
+  <input type="hidden" name="check_keywords" value="yes" />
+  <input type="hidden" name="area" value="default" />
+</form>
+      
+    </li>
+  </ul>
+</div>
+
+<div class="related">
+    <h3>Navigation</h3>
+    <ul>
+      <li>
+	<a href="../../../../index.html">Astropy v3.0.dev19489</a>
+	 &#187;
+      </li>
+      <li><a href="../../../index.html" >Module code</a> &#187;</li>
+      <li><a href="../../../astropy.html" >astropy</a> &#187;</li>
+      <li><a href="../votable.html" accesskey="U">astropy.io.votable</a> &#187;</li>
+      
+       
+    </ul>
+</div>
+  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          <div class="body" role="main">
+            
+  <h1>Source code for astropy.io.votable.util</h1><div class="highlight"><pre>
+<span></span><span class="c1"># Licensed under a 3-clause BSD style license - see LICENSE.rst</span>
+<span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">Various utilities and cookbook-like things.</span>
+<span class="sd">&quot;&quot;&quot;</span>
+
+<span class="kn">from</span> <span class="nn">__future__</span> <span class="k">import</span> <span class="n">absolute_import</span><span class="p">,</span> <span class="n">division</span><span class="p">,</span> <span class="n">print_function</span><span class="p">,</span> <span class="n">unicode_literals</span>
+<span class="kn">from</span> <span class="nn">...extern</span> <span class="k">import</span> <span class="n">six</span>
+
+<span class="c1"># STDLIB</span>
+<span class="kn">import</span> <span class="nn">codecs</span>
+<span class="kn">import</span> <span class="nn">contextlib</span>
+<span class="kn">import</span> <span class="nn">io</span>
+<span class="kn">import</span> <span class="nn">re</span>
+<span class="kn">import</span> <span class="nn">gzip</span>
+
+<span class="kn">from</span> <span class="nn">distutils</span> <span class="k">import</span> <span class="n">version</span>
+
+
+<span class="n">__all__</span> <span class="o">=</span> <span class="p">[</span>
+    <span class="s1">&#39;convert_to_writable_filelike&#39;</span><span class="p">,</span>
+    <span class="s1">&#39;stc_reference_frames&#39;</span><span class="p">,</span>
+    <span class="s1">&#39;coerce_range_list_param&#39;</span><span class="p">,</span>
+    <span class="p">]</span>
+
+
+<span class="nd">@contextlib</span><span class="o">.</span><span class="n">contextmanager</span>
+<div class="viewcode-block" id="convert_to_writable_filelike"><a class="viewcode-back" href="../../../../api/astropy.io.votable.util.convert_to_writable_filelike.html#astropy.io.votable.util.convert_to_writable_filelike">[docs]</a><span class="k">def</span> <span class="nf">convert_to_writable_filelike</span><span class="p">(</span><span class="n">fd</span><span class="p">,</span> <span class="n">compressed</span><span class="o">=</span><span class="kc">False</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Returns a writable file-like object suitable for streaming output.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    fd : file path string or writable file-like object</span>
+<span class="sd">        May be:</span>
+
+<span class="sd">            - a file path, in which case it is opened, and the file</span>
+<span class="sd">              object is returned.</span>
+
+<span class="sd">            - an object with a :meth:``write`` method, in which case that</span>
+<span class="sd">              object is returned.</span>
+
+<span class="sd">    compressed : bool, optional</span>
+<span class="sd">        If `True`, create a gzip-compressed file.  (Default is `False`).</span>
+
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+<span class="sd">    fd : writable file-like object</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">fd</span><span class="p">,</span> <span class="n">six</span><span class="o">.</span><span class="n">string_types</span><span class="p">):</span>
+        <span class="k">if</span> <span class="n">fd</span><span class="o">.</span><span class="n">endswith</span><span class="p">(</span><span class="s1">&#39;.gz&#39;</span><span class="p">)</span> <span class="ow">or</span> <span class="n">compressed</span><span class="p">:</span>
+            <span class="k">with</span> <span class="n">gzip</span><span class="o">.</span><span class="n">GzipFile</span><span class="p">(</span><span class="n">fd</span><span class="p">,</span> <span class="s1">&#39;wb&#39;</span><span class="p">)</span> <span class="k">as</span> <span class="n">real_fd</span><span class="p">:</span>
+                <span class="n">encoded_fd</span> <span class="o">=</span> <span class="n">io</span><span class="o">.</span><span class="n">TextIOWrapper</span><span class="p">(</span><span class="n">real_fd</span><span class="p">,</span> <span class="n">encoding</span><span class="o">=</span><span class="s1">&#39;utf8&#39;</span><span class="p">)</span>
+                <span class="k">yield</span> <span class="n">encoded_fd</span>
+                <span class="n">encoded_fd</span><span class="o">.</span><span class="n">flush</span><span class="p">()</span>
+                <span class="n">real_fd</span><span class="o">.</span><span class="n">flush</span><span class="p">()</span>
+                <span class="k">return</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">with</span> <span class="n">io</span><span class="o">.</span><span class="n">open</span><span class="p">(</span><span class="n">fd</span><span class="p">,</span> <span class="s1">&#39;wt&#39;</span><span class="p">,</span> <span class="n">encoding</span><span class="o">=</span><span class="s1">&#39;utf8&#39;</span><span class="p">)</span> <span class="k">as</span> <span class="n">real_fd</span><span class="p">:</span>
+                <span class="k">yield</span> <span class="n">real_fd</span>
+                <span class="k">return</span>
+    <span class="k">elif</span> <span class="nb">hasattr</span><span class="p">(</span><span class="n">fd</span><span class="p">,</span> <span class="s1">&#39;write&#39;</span><span class="p">):</span>
+        <span class="k">assert</span> <span class="n">six</span><span class="o">.</span><span class="n">callable</span><span class="p">(</span><span class="n">fd</span><span class="o">.</span><span class="n">write</span><span class="p">)</span>
+
+        <span class="k">if</span> <span class="n">compressed</span><span class="p">:</span>
+            <span class="n">fd</span> <span class="o">=</span> <span class="n">gzip</span><span class="o">.</span><span class="n">GzipFile</span><span class="p">(</span><span class="n">fileobj</span><span class="o">=</span><span class="n">fd</span><span class="p">)</span>
+
+        <span class="c1"># If we can&#39;t write Unicode strings, use a codecs.StreamWriter</span>
+        <span class="c1"># object</span>
+        <span class="n">needs_wrapper</span> <span class="o">=</span> <span class="kc">False</span>
+        <span class="k">try</span><span class="p">:</span>
+            <span class="n">fd</span><span class="o">.</span><span class="n">write</span><span class="p">(</span><span class="s1">&#39;&#39;</span><span class="p">)</span>
+        <span class="k">except</span> <span class="ne">TypeError</span><span class="p">:</span>
+            <span class="n">needs_wrapper</span> <span class="o">=</span> <span class="kc">True</span>
+
+        <span class="k">if</span> <span class="ow">not</span> <span class="nb">hasattr</span><span class="p">(</span><span class="n">fd</span><span class="p">,</span> <span class="s1">&#39;encoding&#39;</span><span class="p">)</span> <span class="ow">or</span> <span class="n">fd</span><span class="o">.</span><span class="n">encoding</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">needs_wrapper</span> <span class="o">=</span> <span class="kc">True</span>
+
+        <span class="k">if</span> <span class="n">needs_wrapper</span><span class="p">:</span>
+            <span class="k">yield</span> <span class="n">codecs</span><span class="o">.</span><span class="n">getwriter</span><span class="p">(</span><span class="s1">&#39;utf-8&#39;</span><span class="p">)(</span><span class="n">fd</span><span class="p">)</span>
+            <span class="n">fd</span><span class="o">.</span><span class="n">flush</span><span class="p">()</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">yield</span> <span class="n">fd</span>
+            <span class="n">fd</span><span class="o">.</span><span class="n">flush</span><span class="p">()</span>
+
+        <span class="k">return</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="ne">TypeError</span><span class="p">(</span><span class="s2">&quot;Can not be coerced to writable file-like object&quot;</span><span class="p">)</span></div>
+
+
+<span class="c1"># &lt;http://www.ivoa.net/Documents/REC/DM/STC-20071030.html&gt;</span>
+<span class="n">stc_reference_frames</span> <span class="o">=</span> <span class="nb">set</span><span class="p">([</span>
+    <span class="s1">&#39;FK4&#39;</span><span class="p">,</span> <span class="s1">&#39;FK5&#39;</span><span class="p">,</span> <span class="s1">&#39;ECLIPTIC&#39;</span><span class="p">,</span> <span class="s1">&#39;ICRS&#39;</span><span class="p">,</span> <span class="s1">&#39;GALACTIC&#39;</span><span class="p">,</span> <span class="s1">&#39;GALACTIC_I&#39;</span><span class="p">,</span> <span class="s1">&#39;GALACTIC_II&#39;</span><span class="p">,</span>
+    <span class="s1">&#39;SUPER_GALACTIC&#39;</span><span class="p">,</span> <span class="s1">&#39;AZ_EL&#39;</span><span class="p">,</span> <span class="s1">&#39;BODY&#39;</span><span class="p">,</span> <span class="s1">&#39;GEO_C&#39;</span><span class="p">,</span> <span class="s1">&#39;GEO_D&#39;</span><span class="p">,</span> <span class="s1">&#39;MAG&#39;</span><span class="p">,</span> <span class="s1">&#39;GSE&#39;</span><span class="p">,</span> <span class="s1">&#39;GSM&#39;</span><span class="p">,</span>
+    <span class="s1">&#39;SM&#39;</span><span class="p">,</span> <span class="s1">&#39;HGC&#39;</span><span class="p">,</span> <span class="s1">&#39;HGS&#39;</span><span class="p">,</span> <span class="s1">&#39;HEEQ&#39;</span><span class="p">,</span> <span class="s1">&#39;HRTN&#39;</span><span class="p">,</span> <span class="s1">&#39;HPC&#39;</span><span class="p">,</span> <span class="s1">&#39;HPR&#39;</span><span class="p">,</span> <span class="s1">&#39;HCC&#39;</span><span class="p">,</span> <span class="s1">&#39;HGI&#39;</span><span class="p">,</span>
+    <span class="s1">&#39;MERCURY_C&#39;</span><span class="p">,</span> <span class="s1">&#39;VENUS_C&#39;</span><span class="p">,</span> <span class="s1">&#39;LUNA_C&#39;</span><span class="p">,</span> <span class="s1">&#39;MARS_C&#39;</span><span class="p">,</span> <span class="s1">&#39;JUPITER_C_III&#39;</span><span class="p">,</span>
+    <span class="s1">&#39;SATURN_C_III&#39;</span><span class="p">,</span> <span class="s1">&#39;URANUS_C_III&#39;</span><span class="p">,</span> <span class="s1">&#39;NEPTUNE_C_III&#39;</span><span class="p">,</span> <span class="s1">&#39;PLUTO_C&#39;</span><span class="p">,</span> <span class="s1">&#39;MERCURY_G&#39;</span><span class="p">,</span>
+    <span class="s1">&#39;VENUS_G&#39;</span><span class="p">,</span> <span class="s1">&#39;LUNA_G&#39;</span><span class="p">,</span> <span class="s1">&#39;MARS_G&#39;</span><span class="p">,</span> <span class="s1">&#39;JUPITER_G_III&#39;</span><span class="p">,</span> <span class="s1">&#39;SATURN_G_III&#39;</span><span class="p">,</span>
+    <span class="s1">&#39;URANUS_G_III&#39;</span><span class="p">,</span> <span class="s1">&#39;NEPTUNE_G_III&#39;</span><span class="p">,</span> <span class="s1">&#39;PLUTO_G&#39;</span><span class="p">,</span> <span class="s1">&#39;UNKNOWNFrame&#39;</span><span class="p">])</span>
+
+
+<div class="viewcode-block" id="coerce_range_list_param"><a class="viewcode-back" href="../../../../api/astropy.io.votable.util.coerce_range_list_param.html#astropy.io.votable.util.coerce_range_list_param">[docs]</a><span class="k">def</span> <span class="nf">coerce_range_list_param</span><span class="p">(</span><span class="n">p</span><span class="p">,</span> <span class="n">frames</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">numeric</span><span class="o">=</span><span class="kc">True</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Coerces and/or verifies the object *p* into a valid range-list-format parameter.</span>
+
+<span class="sd">    As defined in `Section 8.7.2 of Simple</span>
+<span class="sd">    Spectral Access Protocol</span>
+<span class="sd">    &lt;http://www.ivoa.net/Documents/REC/DAL/SSA-20080201.html&gt;`_.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    p : str or sequence</span>
+<span class="sd">        May be a string as passed verbatim to the service expecting a</span>
+<span class="sd">        range-list, or a sequence.  If a sequence, each item must be</span>
+<span class="sd">        either:</span>
+
+<span class="sd">            - a numeric value</span>
+
+<span class="sd">            - a named value, such as, for example, &#39;J&#39; for named</span>
+<span class="sd">              spectrum (if the *numeric* kwarg is False)</span>
+
+<span class="sd">            - a 2-tuple indicating a range</span>
+
+<span class="sd">            - the last item my be a string indicating the frame of</span>
+<span class="sd">              reference</span>
+
+<span class="sd">    frames : sequence of str, optional</span>
+<span class="sd">        A sequence of acceptable frame of reference keywords.  If not</span>
+<span class="sd">        provided, the default set in ``set_reference_frames`` will be</span>
+<span class="sd">        used.</span>
+
+<span class="sd">    numeric : bool, optional</span>
+<span class="sd">        TODO</span>
+
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+<span class="sd">    parts : tuple</span>
+<span class="sd">        The result is a tuple:</span>
+<span class="sd">            - a string suitable for passing to a service as a range-list</span>
+<span class="sd">              argument</span>
+
+<span class="sd">            - an integer counting the number of elements</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">def</span> <span class="nf">str_or_none</span><span class="p">(</span><span class="n">x</span><span class="p">):</span>
+        <span class="k">if</span> <span class="n">x</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="k">return</span> <span class="s1">&#39;&#39;</span>
+        <span class="k">if</span> <span class="n">numeric</span><span class="p">:</span>
+            <span class="n">x</span> <span class="o">=</span> <span class="nb">float</span><span class="p">(</span><span class="n">x</span><span class="p">)</span>
+        <span class="k">return</span> <span class="nb">str</span><span class="p">(</span><span class="n">x</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">numeric_or_range</span><span class="p">(</span><span class="n">x</span><span class="p">):</span>
+        <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">x</span><span class="p">,</span> <span class="nb">tuple</span><span class="p">)</span> <span class="ow">and</span> <span class="nb">len</span><span class="p">(</span><span class="n">x</span><span class="p">)</span> <span class="o">==</span> <span class="mi">2</span><span class="p">:</span>
+            <span class="k">return</span> <span class="s1">&#39;</span><span class="si">{}</span><span class="s1">/</span><span class="si">{}</span><span class="s1">&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">str_or_none</span><span class="p">(</span><span class="n">x</span><span class="p">[</span><span class="mi">0</span><span class="p">]),</span> <span class="n">str_or_none</span><span class="p">(</span><span class="n">x</span><span class="p">[</span><span class="mi">1</span><span class="p">]))</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">return</span> <span class="n">str_or_none</span><span class="p">(</span><span class="n">x</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">is_frame_of_reference</span><span class="p">(</span><span class="n">x</span><span class="p">):</span>
+        <span class="k">return</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">x</span><span class="p">,</span> <span class="n">six</span><span class="o">.</span><span class="n">string_types</span><span class="p">)</span>
+
+    <span class="k">if</span> <span class="n">p</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="k">return</span> <span class="kc">None</span><span class="p">,</span> <span class="mi">0</span>
+
+    <span class="k">elif</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">p</span><span class="p">,</span> <span class="p">(</span><span class="nb">tuple</span><span class="p">,</span> <span class="nb">list</span><span class="p">)):</span>
+        <span class="n">has_frame_of_reference</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="n">p</span><span class="p">)</span> <span class="o">&gt;</span> <span class="mi">1</span> <span class="ow">and</span> <span class="n">is_frame_of_reference</span><span class="p">(</span><span class="n">p</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">])</span>
+        <span class="k">if</span> <span class="n">has_frame_of_reference</span><span class="p">:</span>
+            <span class="n">points</span> <span class="o">=</span> <span class="n">p</span><span class="p">[:</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">points</span> <span class="o">=</span> <span class="n">p</span><span class="p">[:]</span>
+
+        <span class="n">out</span> <span class="o">=</span> <span class="s1">&#39;,&#39;</span><span class="o">.</span><span class="n">join</span><span class="p">([</span><span class="n">numeric_or_range</span><span class="p">(</span><span class="n">x</span><span class="p">)</span> <span class="k">for</span> <span class="n">x</span> <span class="ow">in</span> <span class="n">points</span><span class="p">])</span>
+        <span class="n">length</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="n">points</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">has_frame_of_reference</span><span class="p">:</span>
+            <span class="k">if</span> <span class="n">frames</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="ow">and</span> <span class="n">p</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">frames</span><span class="p">:</span>
+                <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
+                    <span class="s2">&quot;&#39;</span><span class="si">{}</span><span class="s2">&#39; is not a valid frame of reference&quot;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">p</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">]))</span>
+            <span class="n">out</span> <span class="o">+=</span> <span class="s1">&#39;;&#39;</span> <span class="o">+</span> <span class="n">p</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span>
+            <span class="n">length</span> <span class="o">+=</span> <span class="mi">1</span>
+
+        <span class="k">return</span> <span class="n">out</span><span class="p">,</span> <span class="n">length</span>
+
+    <span class="k">elif</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">p</span><span class="p">,</span> <span class="n">six</span><span class="o">.</span><span class="n">string_types</span><span class="p">):</span>
+        <span class="n">number</span> <span class="o">=</span> <span class="s1">r&#39;([-+]?[0-9]*\.?[0-9]+([eE][-+]?[0-9]+)?)?&#39;</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">numeric</span><span class="p">:</span>
+            <span class="n">number</span> <span class="o">=</span> <span class="s1">r&#39;(&#39;</span> <span class="o">+</span> <span class="n">number</span> <span class="o">+</span> <span class="s1">&#39;)|([A-Z_]+)&#39;</span>
+        <span class="n">match</span> <span class="o">=</span> <span class="n">re</span><span class="o">.</span><span class="n">match</span><span class="p">(</span>
+            <span class="s1">&#39;^&#39;</span> <span class="o">+</span> <span class="n">number</span> <span class="o">+</span> <span class="s1">r&#39;([,/]&#39;</span> <span class="o">+</span> <span class="n">number</span> <span class="o">+</span>
+            <span class="s1">r&#39;)+(;(?P&lt;frame&gt;[&lt;A-Za-z_0-9]+))?$&#39;</span><span class="p">,</span>
+            <span class="n">p</span><span class="p">)</span>
+
+        <span class="k">if</span> <span class="n">match</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;&#39;</span><span class="si">{}</span><span class="s2">&#39; is not a valid range list&quot;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">p</span><span class="p">))</span>
+
+        <span class="n">frame</span> <span class="o">=</span> <span class="n">match</span><span class="o">.</span><span class="n">groupdict</span><span class="p">()[</span><span class="s1">&#39;frame&#39;</span><span class="p">]</span>
+        <span class="k">if</span> <span class="n">frames</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="ow">and</span> <span class="n">frame</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="ow">and</span> <span class="n">frame</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">frames</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
+                <span class="s2">&quot;&#39;</span><span class="si">{}</span><span class="s2">&#39; is not a valid frame of reference&quot;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">frame</span><span class="p">))</span>
+        <span class="k">return</span> <span class="n">p</span><span class="p">,</span> <span class="n">p</span><span class="o">.</span><span class="n">count</span><span class="p">(</span><span class="s1">&#39;,&#39;</span><span class="p">)</span> <span class="o">+</span> <span class="n">p</span><span class="o">.</span><span class="n">count</span><span class="p">(</span><span class="s1">&#39;;&#39;</span><span class="p">)</span> <span class="o">+</span> <span class="mi">1</span>
+
+    <span class="k">try</span><span class="p">:</span>
+        <span class="nb">float</span><span class="p">(</span><span class="n">p</span><span class="p">)</span>
+        <span class="k">return</span> <span class="nb">str</span><span class="p">(</span><span class="n">p</span><span class="p">),</span> <span class="mi">1</span>
+    <span class="k">except</span> <span class="ne">TypeError</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;&#39;</span><span class="si">{}</span><span class="s2">&#39; is not a valid range list&quot;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">p</span><span class="p">))</span></div>
+
+
+<span class="k">def</span> <span class="nf">version_compare</span><span class="p">(</span><span class="n">a</span><span class="p">,</span> <span class="n">b</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Compare two VOTable version identifiers.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">def</span> <span class="nf">version_to_tuple</span><span class="p">(</span><span class="n">v</span><span class="p">):</span>
+        <span class="k">if</span> <span class="n">v</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">lower</span><span class="p">()</span> <span class="o">==</span> <span class="s1">&#39;v&#39;</span><span class="p">:</span>
+            <span class="n">v</span> <span class="o">=</span> <span class="n">v</span><span class="p">[</span><span class="mi">1</span><span class="p">:]</span>
+        <span class="k">return</span> <span class="n">version</span><span class="o">.</span><span class="n">StrictVersion</span><span class="p">(</span><span class="n">v</span><span class="p">)</span>
+    <span class="n">av</span> <span class="o">=</span> <span class="n">version_to_tuple</span><span class="p">(</span><span class="n">a</span><span class="p">)</span>
+    <span class="n">bv</span> <span class="o">=</span> <span class="n">version_to_tuple</span><span class="p">(</span><span class="n">b</span><span class="p">)</span>
+    <span class="c1"># Can&#39;t use cmp because it was removed from Python 3.x</span>
+    <span class="k">return</span> <span class="p">(</span><span class="n">av</span> <span class="o">&gt;</span> <span class="n">bv</span><span class="p">)</span> <span class="o">-</span> <span class="p">(</span><span class="n">av</span> <span class="o">&lt;</span> <span class="n">bv</span><span class="p">)</span>
+</pre></div>
+
+          </div>
+        </div>
+      </div>
+      <div class="sphinxsidebar" role="navigation" aria-label="main navigation">
+        <div class="sphinxsidebarwrapper"><h3>Page Contents</h3>
+
+
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+<footer class="footer">
+  <p class="pull-right"> &nbsp;
+    <a href="#">Back to Top</a></p>
+  <p>
+    &copy; Copyright 2011-2016, The Astropy Developers.<br/>
+    Created using <a href="http://sphinx.pocoo.org/">Sphinx</a> 1.5.6. &nbsp;
+    Last built 05 Jul 2017. <br/>
+  </p>
+</footer>
+  </body>
+</html>

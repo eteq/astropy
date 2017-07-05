@@ -1,0 +1,689 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <head>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    
+    <title>astropy.logger &#8212; Astropy v3.0.dev19489</title>
+    
+    <link rel="stylesheet" href="../../_static/bootstrap-astropy.css" type="text/css" />
+    <link rel="stylesheet" href="../../_static/pygments.css" type="text/css" />
+    <link rel="stylesheet" href="../../_static/gallery.css" type="text/css" />
+    
+    <script type="text/javascript">
+      var DOCUMENTATION_OPTIONS = {
+        URL_ROOT:    '../../',
+        VERSION:     '3.0.dev19489',
+        COLLAPSE_INDEX: false,
+        FILE_SUFFIX: '.html',
+        HAS_SOURCE:  true,
+        SOURCELINK_SUFFIX: '.txt'
+      };
+    </script>
+    <script type="text/javascript" src="../../_static/jquery.js"></script>
+    <script type="text/javascript" src="../../_static/underscore.js"></script>
+    <script type="text/javascript" src="../../_static/doctools.js"></script>
+    <script type="text/javascript" src="../../_static/sidebar.js"></script>
+    <link rel="shortcut icon" href="../../_static/astropy_logo.ico"/>
+    <link rel="index" title="Index" href="../../genindex.html" />
+    <link rel="search" title="Search" href="../../search.html" />
+<link href='https://fonts.googleapis.com/css?family=Source+Sans+Pro:200,600' rel='stylesheet' type='text/css'/>
+<script type="text/javascript" src="../../_static/copybutton.js"></script>
+
+
+  </head>
+  <body role="document">
+<div class="topbar">
+  <a class="brand" title="Documentation Home" href="../../index.html"><span id="logotext1">astro</span><span id="logotext2">py</span><span id="logotext3">:docs</span></a>
+  <ul>
+    <li><a class="homelink" title="Astropy Homepage" href="http://www.astropy.org"></a></li>
+    <li><a title="General Index" href="../../genindex.html">Index</a></li>
+    <li><a title="Module Index" href="../../py-modindex.html">Modules</a></li>
+    <li>
+      
+      
+<form action="../../search.html" method="get">
+  <input type="text" name="q" placeholder="Search" />
+  <input type="hidden" name="check_keywords" value="yes" />
+  <input type="hidden" name="area" value="default" />
+</form>
+      
+    </li>
+  </ul>
+</div>
+
+<div class="related">
+    <h3>Navigation</h3>
+    <ul>
+      <li>
+	<a href="../../index.html">Astropy v3.0.dev19489</a>
+	 &#187;
+      </li>
+      <li><a href="../index.html" >Module code</a> &#187;</li>
+      <li><a href="../astropy.html" accesskey="U">astropy</a> &#187;</li>
+      
+       
+    </ul>
+</div>
+  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          <div class="body" role="main">
+            
+  <h1>Source code for astropy.logger</h1><div class="highlight"><pre>
+<span></span><span class="c1"># Licensed under a 3-clause BSD style license - see LICENSE.rst</span>
+<span class="sd">&quot;&quot;&quot;This module defines a logging class based on the built-in logging module&quot;&quot;&quot;</span>
+
+<span class="kn">from</span> <span class="nn">__future__</span> <span class="k">import</span> <span class="n">print_function</span>
+
+<span class="kn">import</span> <span class="nn">inspect</span>
+<span class="kn">import</span> <span class="nn">os</span>
+<span class="kn">import</span> <span class="nn">sys</span>
+<span class="kn">import</span> <span class="nn">logging</span>
+<span class="kn">import</span> <span class="nn">warnings</span>
+<span class="kn">from</span> <span class="nn">contextlib</span> <span class="k">import</span> <span class="n">contextmanager</span>
+
+<span class="kn">from</span> <span class="nn">.</span> <span class="k">import</span> <span class="n">config</span> <span class="k">as</span> <span class="n">_config</span>
+<span class="kn">from</span> <span class="nn">.</span> <span class="k">import</span> <span class="n">conf</span> <span class="k">as</span> <span class="n">_conf</span>
+<span class="kn">from</span> <span class="nn">.extern.six</span> <span class="k">import</span> <span class="n">PY3</span><span class="p">,</span> <span class="n">text_type</span>
+<span class="kn">from</span> <span class="nn">.utils</span> <span class="k">import</span> <span class="n">find_current_module</span>
+<span class="kn">from</span> <span class="nn">.utils.exceptions</span> <span class="k">import</span> <span class="n">AstropyWarning</span><span class="p">,</span> <span class="n">AstropyUserWarning</span>
+
+<span class="n">__all__</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;Conf&#39;</span><span class="p">,</span> <span class="s1">&#39;conf&#39;</span><span class="p">,</span> <span class="s1">&#39;log&#39;</span><span class="p">,</span> <span class="s1">&#39;AstropyLogger&#39;</span><span class="p">,</span> <span class="s1">&#39;LoggingError&#39;</span><span class="p">]</span>
+
+<span class="c1"># import the logging levels from logging so that one can do:</span>
+<span class="c1"># log.setLevel(log.DEBUG), for example</span>
+<span class="n">logging_levels</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;NOTSET&#39;</span><span class="p">,</span> <span class="s1">&#39;DEBUG&#39;</span><span class="p">,</span> <span class="s1">&#39;INFO&#39;</span><span class="p">,</span> <span class="s1">&#39;WARNING&#39;</span><span class="p">,</span> <span class="s1">&#39;ERROR&#39;</span><span class="p">,</span> <span class="s1">&#39;CRITICAL&#39;</span><span class="p">,</span>
+                  <span class="s1">&#39;FATAL&#39;</span><span class="p">,</span> <span class="p">]</span>
+<span class="k">for</span> <span class="n">level</span> <span class="ow">in</span> <span class="n">logging_levels</span><span class="p">:</span>
+    <span class="nb">globals</span><span class="p">()[</span><span class="n">level</span><span class="p">]</span> <span class="o">=</span> <span class="nb">getattr</span><span class="p">(</span><span class="n">logging</span><span class="p">,</span> <span class="n">level</span><span class="p">)</span>
+<span class="n">__all__</span> <span class="o">+=</span> <span class="n">logging_levels</span>
+
+
+<span class="c1"># Initialize by calling _init_log()</span>
+<span class="n">log</span> <span class="o">=</span> <span class="kc">None</span>
+
+
+<div class="viewcode-block" id="LoggingError"><a class="viewcode-back" href="../../api/astropy.logger.LoggingError.html#astropy.logger.LoggingError">[docs]</a><span class="k">class</span> <span class="nc">LoggingError</span><span class="p">(</span><span class="ne">Exception</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    This exception is for various errors that occur in the astropy logger,</span>
+<span class="sd">    typically when activating or deactivating logger-related features.</span>
+<span class="sd">    &quot;&quot;&quot;</span></div>
+
+
+<span class="k">class</span> <span class="nc">_AstLogIPYExc</span><span class="p">(</span><span class="ne">Exception</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    An exception that is used only as a placeholder to indicate to the</span>
+<span class="sd">    IPython exception-catching mechanism that the astropy</span>
+<span class="sd">    exception-capturing is activated. It should not actually be used as</span>
+<span class="sd">    an exception anywhere.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+
+<div class="viewcode-block" id="Conf"><a class="viewcode-back" href="../../api/astropy.logger.Conf.html#astropy.logger.Conf">[docs]</a><span class="k">class</span> <span class="nc">Conf</span><span class="p">(</span><span class="n">_config</span><span class="o">.</span><span class="n">ConfigNamespace</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Configuration parameters for `astropy.logger`.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">log_level</span> <span class="o">=</span> <span class="n">_config</span><span class="o">.</span><span class="n">ConfigItem</span><span class="p">(</span>
+        <span class="s1">&#39;INFO&#39;</span><span class="p">,</span>
+        <span class="s2">&quot;Threshold for the logging messages. Logging &quot;</span>
+        <span class="s2">&quot;messages that are less severe than this level &quot;</span>
+        <span class="s2">&quot;will be ignored. The levels are ``&#39;DEBUG&#39;``, &quot;</span>
+        <span class="s2">&quot;``&#39;INFO&#39;``, ``&#39;WARNING&#39;``, ``&#39;ERROR&#39;``.&quot;</span><span class="p">)</span>
+    <span class="n">log_warnings</span> <span class="o">=</span> <span class="n">_config</span><span class="o">.</span><span class="n">ConfigItem</span><span class="p">(</span>
+        <span class="kc">True</span><span class="p">,</span>
+        <span class="s2">&quot;Whether to log `warnings.warn` calls.&quot;</span><span class="p">)</span>
+    <span class="n">log_exceptions</span> <span class="o">=</span> <span class="n">_config</span><span class="o">.</span><span class="n">ConfigItem</span><span class="p">(</span>
+        <span class="kc">False</span><span class="p">,</span>
+        <span class="s2">&quot;Whether to log exceptions before raising &quot;</span>
+        <span class="s2">&quot;them.&quot;</span><span class="p">)</span>
+    <span class="n">log_to_file</span> <span class="o">=</span> <span class="n">_config</span><span class="o">.</span><span class="n">ConfigItem</span><span class="p">(</span>
+        <span class="kc">False</span><span class="p">,</span>
+        <span class="s2">&quot;Whether to always log messages to a log &quot;</span>
+        <span class="s2">&quot;file.&quot;</span><span class="p">)</span>
+    <span class="n">log_file_path</span> <span class="o">=</span> <span class="n">_config</span><span class="o">.</span><span class="n">ConfigItem</span><span class="p">(</span>
+        <span class="s1">&#39;&#39;</span><span class="p">,</span>
+        <span class="s2">&quot;The file to log messages to. When ``&#39;&#39;``, &quot;</span>
+        <span class="s2">&quot;it defaults to a file ``&#39;astropy.log&#39;`` in &quot;</span>
+        <span class="s2">&quot;the astropy config directory.&quot;</span><span class="p">)</span>
+    <span class="n">log_file_level</span> <span class="o">=</span> <span class="n">_config</span><span class="o">.</span><span class="n">ConfigItem</span><span class="p">(</span>
+        <span class="s1">&#39;INFO&#39;</span><span class="p">,</span>
+        <span class="s2">&quot;Threshold for logging messages to &quot;</span>
+        <span class="s2">&quot;`log_file_path`.&quot;</span><span class="p">)</span>
+    <span class="n">log_file_format</span> <span class="o">=</span> <span class="n">_config</span><span class="o">.</span><span class="n">ConfigItem</span><span class="p">(</span>
+        <span class="s2">&quot;</span><span class="si">%(asctime)r</span><span class="s2">, &quot;</span>
+        <span class="s2">&quot;</span><span class="si">%(origin)r</span><span class="s2">, </span><span class="si">%(levelname)r</span><span class="s2">, </span><span class="si">%(message)r</span><span class="s2">&quot;</span><span class="p">,</span>
+        <span class="s2">&quot;Format for log file entries.&quot;</span><span class="p">)</span></div>
+
+
+<span class="n">conf</span> <span class="o">=</span> <span class="n">Conf</span><span class="p">()</span>
+
+
+<span class="k">def</span> <span class="nf">_init_log</span><span class="p">():</span>
+    <span class="sd">&quot;&quot;&quot;Initializes the Astropy log--in most circumstances this is called</span>
+<span class="sd">    automatically when importing astropy.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="k">global</span> <span class="n">log</span>
+
+    <span class="n">orig_logger_cls</span> <span class="o">=</span> <span class="n">logging</span><span class="o">.</span><span class="n">getLoggerClass</span><span class="p">()</span>
+    <span class="n">logging</span><span class="o">.</span><span class="n">setLoggerClass</span><span class="p">(</span><span class="n">AstropyLogger</span><span class="p">)</span>
+    <span class="k">try</span><span class="p">:</span>
+        <span class="n">log</span> <span class="o">=</span> <span class="n">logging</span><span class="o">.</span><span class="n">getLogger</span><span class="p">(</span><span class="s1">&#39;astropy&#39;</span><span class="p">)</span>
+        <span class="n">log</span><span class="o">.</span><span class="n">_set_defaults</span><span class="p">()</span>
+    <span class="k">finally</span><span class="p">:</span>
+        <span class="n">logging</span><span class="o">.</span><span class="n">setLoggerClass</span><span class="p">(</span><span class="n">orig_logger_cls</span><span class="p">)</span>
+
+    <span class="k">return</span> <span class="n">log</span>
+
+
+<span class="k">def</span> <span class="nf">_teardown_log</span><span class="p">():</span>
+    <span class="sd">&quot;&quot;&quot;Shut down exception and warning logging (if enabled) and clear all</span>
+<span class="sd">    Astropy loggers from the logging module&#39;s cache.</span>
+
+<span class="sd">    This involves poking some logging module internals, so much if it is &#39;at</span>
+<span class="sd">    your own risk&#39; and is allowed to pass silently if any exceptions occur.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="k">global</span> <span class="n">log</span>
+
+    <span class="k">if</span> <span class="n">log</span><span class="o">.</span><span class="n">exception_logging_enabled</span><span class="p">():</span>
+        <span class="n">log</span><span class="o">.</span><span class="n">disable_exception_logging</span><span class="p">()</span>
+
+    <span class="k">if</span> <span class="n">log</span><span class="o">.</span><span class="n">warnings_logging_enabled</span><span class="p">():</span>
+        <span class="n">log</span><span class="o">.</span><span class="n">disable_warnings_logging</span><span class="p">()</span>
+
+    <span class="k">del</span> <span class="n">log</span>
+
+    <span class="c1"># Now for the fun stuff...</span>
+    <span class="k">try</span><span class="p">:</span>
+        <span class="n">logging</span><span class="o">.</span><span class="n">_acquireLock</span><span class="p">()</span>
+        <span class="k">try</span><span class="p">:</span>
+            <span class="n">loggerDict</span> <span class="o">=</span> <span class="n">logging</span><span class="o">.</span><span class="n">Logger</span><span class="o">.</span><span class="n">manager</span><span class="o">.</span><span class="n">loggerDict</span>
+            <span class="k">for</span> <span class="n">key</span> <span class="ow">in</span> <span class="n">loggerDict</span><span class="o">.</span><span class="n">keys</span><span class="p">():</span>
+                <span class="k">if</span> <span class="n">key</span> <span class="o">==</span> <span class="s1">&#39;astropy&#39;</span> <span class="ow">or</span> <span class="n">key</span><span class="o">.</span><span class="n">startswith</span><span class="p">(</span><span class="s1">&#39;astropy.&#39;</span><span class="p">):</span>
+                    <span class="k">del</span> <span class="n">loggerDict</span><span class="p">[</span><span class="n">key</span><span class="p">]</span>
+        <span class="k">finally</span><span class="p">:</span>
+            <span class="n">logging</span><span class="o">.</span><span class="n">_releaseLock</span><span class="p">()</span>
+    <span class="k">except</span> <span class="ne">Exception</span><span class="p">:</span>
+        <span class="k">pass</span>
+
+
+<span class="n">Logger</span> <span class="o">=</span> <span class="n">logging</span><span class="o">.</span><span class="n">getLoggerClass</span><span class="p">()</span>
+
+
+<div class="viewcode-block" id="AstropyLogger"><a class="viewcode-back" href="../../api/astropy.logger.AstropyLogger.html#astropy.logger.AstropyLogger">[docs]</a><span class="k">class</span> <span class="nc">AstropyLogger</span><span class="p">(</span><span class="n">Logger</span><span class="p">):</span>
+    <span class="sd">&#39;&#39;&#39;</span>
+<span class="sd">    This class is used to set up the Astropy logging.</span>
+
+<span class="sd">    The main functionality added by this class over the built-in</span>
+<span class="sd">    logging.Logger class is the ability to keep track of the origin of the</span>
+<span class="sd">    messages, the ability to enable logging of warnings.warn calls and</span>
+<span class="sd">    exceptions, and the addition of colorized output and context managers to</span>
+<span class="sd">    easily capture messages to a file or list.</span>
+<span class="sd">    &#39;&#39;&#39;</span>
+
+<div class="viewcode-block" id="AstropyLogger.makeRecord"><a class="viewcode-back" href="../../api/astropy.logger.AstropyLogger.html#astropy.logger.AstropyLogger.makeRecord">[docs]</a>    <span class="k">def</span> <span class="nf">makeRecord</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">name</span><span class="p">,</span> <span class="n">level</span><span class="p">,</span> <span class="n">pathname</span><span class="p">,</span> <span class="n">lineno</span><span class="p">,</span> <span class="n">msg</span><span class="p">,</span> <span class="n">args</span><span class="p">,</span> <span class="n">exc_info</span><span class="p">,</span>
+                   <span class="n">func</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">extra</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">sinfo</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+        <span class="k">if</span> <span class="n">extra</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">extra</span> <span class="o">=</span> <span class="p">{}</span>
+        <span class="k">if</span> <span class="s1">&#39;origin&#39;</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">extra</span><span class="p">:</span>
+            <span class="n">current_module</span> <span class="o">=</span> <span class="n">find_current_module</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="n">finddiff</span><span class="o">=</span><span class="p">[</span><span class="kc">True</span><span class="p">,</span> <span class="s1">&#39;logging&#39;</span><span class="p">])</span>
+            <span class="k">if</span> <span class="n">current_module</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+                <span class="n">extra</span><span class="p">[</span><span class="s1">&#39;origin&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">current_module</span><span class="o">.</span><span class="n">__name__</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="n">extra</span><span class="p">[</span><span class="s1">&#39;origin&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="s1">&#39;unknown&#39;</span>
+        <span class="k">if</span> <span class="n">PY3</span><span class="p">:</span>
+            <span class="k">return</span> <span class="n">Logger</span><span class="o">.</span><span class="n">makeRecord</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">name</span><span class="p">,</span> <span class="n">level</span><span class="p">,</span> <span class="n">pathname</span><span class="p">,</span> <span class="n">lineno</span><span class="p">,</span> <span class="n">msg</span><span class="p">,</span>
+                                     <span class="n">args</span><span class="p">,</span> <span class="n">exc_info</span><span class="p">,</span> <span class="n">func</span><span class="o">=</span><span class="n">func</span><span class="p">,</span> <span class="n">extra</span><span class="o">=</span><span class="n">extra</span><span class="p">,</span>
+                                     <span class="n">sinfo</span><span class="o">=</span><span class="n">sinfo</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">return</span> <span class="n">Logger</span><span class="o">.</span><span class="n">makeRecord</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">name</span><span class="p">,</span> <span class="n">level</span><span class="p">,</span> <span class="n">pathname</span><span class="p">,</span> <span class="n">lineno</span><span class="p">,</span> <span class="n">msg</span><span class="p">,</span>
+                                     <span class="n">args</span><span class="p">,</span> <span class="n">exc_info</span><span class="p">,</span> <span class="n">func</span><span class="o">=</span><span class="n">func</span><span class="p">,</span> <span class="n">extra</span><span class="o">=</span><span class="n">extra</span><span class="p">)</span></div>
+
+    <span class="n">_showwarning_orig</span> <span class="o">=</span> <span class="kc">None</span>
+
+    <span class="k">def</span> <span class="nf">_showwarning</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+
+        <span class="c1"># Bail out if we are not catching a warning from Astropy</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">args</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="n">AstropyWarning</span><span class="p">):</span>
+            <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_showwarning_orig</span><span class="p">(</span><span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
+
+        <span class="n">warning</span> <span class="o">=</span> <span class="n">args</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+        <span class="c1"># Deliberately not using isinstance here: We want to display</span>
+        <span class="c1"># the class name only when it&#39;s not the default class,</span>
+        <span class="c1"># AstropyWarning.  The name of subclasses of AstropyWarning should</span>
+        <span class="c1"># be displayed.</span>
+        <span class="k">if</span> <span class="nb">type</span><span class="p">(</span><span class="n">warning</span><span class="p">)</span> <span class="ow">not</span> <span class="ow">in</span> <span class="p">(</span><span class="n">AstropyWarning</span><span class="p">,</span> <span class="n">AstropyUserWarning</span><span class="p">):</span>
+            <span class="n">message</span> <span class="o">=</span> <span class="s1">&#39;</span><span class="si">{0}</span><span class="s1">: </span><span class="si">{1}</span><span class="s1">&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">warning</span><span class="o">.</span><span class="n">__class__</span><span class="o">.</span><span class="n">__name__</span><span class="p">,</span> <span class="n">args</span><span class="p">[</span><span class="mi">0</span><span class="p">])</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">message</span> <span class="o">=</span> <span class="nb">str</span><span class="p">(</span><span class="n">args</span><span class="p">[</span><span class="mi">0</span><span class="p">])</span>
+
+        <span class="n">mod_path</span> <span class="o">=</span> <span class="n">args</span><span class="p">[</span><span class="mi">2</span><span class="p">]</span>
+        <span class="c1"># Now that we have the module&#39;s path, we look through</span>
+        <span class="c1"># sys.modules to find the module object and thus the</span>
+        <span class="c1"># fully-package-specified module name.  On Python 2, the</span>
+        <span class="c1"># module.__file__ is the compiled file name, not the .py, so</span>
+        <span class="c1"># we have to ignore the extension.  On Python 3,</span>
+        <span class="c1"># module.__file__ is the original source file name, so things</span>
+        <span class="c1"># are more direct.</span>
+        <span class="n">mod_name</span> <span class="o">=</span> <span class="kc">None</span>
+        <span class="k">if</span> <span class="n">PY3</span><span class="p">:</span>
+            <span class="n">mod_path</span><span class="p">,</span> <span class="n">ext</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">splitext</span><span class="p">(</span><span class="n">mod_path</span><span class="p">)</span>
+            <span class="k">for</span> <span class="n">name</span><span class="p">,</span> <span class="n">mod</span> <span class="ow">in</span> <span class="nb">list</span><span class="p">(</span><span class="n">sys</span><span class="o">.</span><span class="n">modules</span><span class="o">.</span><span class="n">items</span><span class="p">()):</span>
+                <span class="k">try</span><span class="p">:</span>
+                    <span class="c1"># Believe it or not this can fail in some cases:</span>
+                    <span class="c1"># https://github.com/astropy/astropy/issues/2671</span>
+                    <span class="n">path</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">splitext</span><span class="p">(</span><span class="nb">getattr</span><span class="p">(</span><span class="n">mod</span><span class="p">,</span> <span class="s1">&#39;__file__&#39;</span><span class="p">,</span> <span class="s1">&#39;&#39;</span><span class="p">))[</span><span class="mi">0</span><span class="p">]</span>
+                <span class="k">except</span> <span class="ne">Exception</span><span class="p">:</span>
+                    <span class="k">continue</span>
+                <span class="k">if</span> <span class="n">path</span> <span class="o">==</span> <span class="n">mod_path</span><span class="p">:</span>
+                    <span class="n">mod_name</span> <span class="o">=</span> <span class="n">mod</span><span class="o">.</span><span class="n">__name__</span>
+                    <span class="k">break</span>
+        <span class="k">else</span><span class="p">:</span>  <span class="c1"># pragma: py2</span>
+            <span class="k">for</span> <span class="n">name</span><span class="p">,</span> <span class="n">mod</span> <span class="ow">in</span> <span class="nb">list</span><span class="p">(</span><span class="n">sys</span><span class="o">.</span><span class="n">modules</span><span class="o">.</span><span class="n">items</span><span class="p">()):</span>
+                <span class="k">try</span><span class="p">:</span>
+                    <span class="k">if</span> <span class="nb">getattr</span><span class="p">(</span><span class="n">mod</span><span class="p">,</span> <span class="s1">&#39;__file__&#39;</span><span class="p">,</span> <span class="s1">&#39;&#39;</span><span class="p">)</span> <span class="o">==</span> <span class="n">mod_path</span><span class="p">:</span>
+                        <span class="n">mod_name</span> <span class="o">=</span> <span class="n">mod</span><span class="o">.</span><span class="n">__name__</span>
+                        <span class="k">break</span>
+                <span class="k">except</span> <span class="ne">Exception</span><span class="p">:</span>
+                    <span class="k">continue</span>
+
+        <span class="k">if</span> <span class="n">mod_name</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">warning</span><span class="p">(</span><span class="n">message</span><span class="p">,</span> <span class="n">extra</span><span class="o">=</span><span class="p">{</span><span class="s1">&#39;origin&#39;</span><span class="p">:</span> <span class="n">mod_name</span><span class="p">})</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">warning</span><span class="p">(</span><span class="n">message</span><span class="p">)</span>
+
+<div class="viewcode-block" id="AstropyLogger.warnings_logging_enabled"><a class="viewcode-back" href="../../api/astropy.logger.AstropyLogger.html#astropy.logger.AstropyLogger.warnings_logging_enabled">[docs]</a>    <span class="k">def</span> <span class="nf">warnings_logging_enabled</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_showwarning_orig</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span></div>
+
+<div class="viewcode-block" id="AstropyLogger.enable_warnings_logging"><a class="viewcode-back" href="../../api/astropy.logger.AstropyLogger.html#astropy.logger.AstropyLogger.enable_warnings_logging">[docs]</a>    <span class="k">def</span> <span class="nf">enable_warnings_logging</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&#39;&#39;&#39;</span>
+<span class="sd">        Enable logging of warnings.warn() calls</span>
+
+<span class="sd">        Once called, any subsequent calls to ``warnings.warn()`` are</span>
+<span class="sd">        redirected to this logger and emitted with level ``WARN``. Note that</span>
+<span class="sd">        this replaces the output from ``warnings.warn``.</span>
+
+<span class="sd">        This can be disabled with ``disable_warnings_logging``.</span>
+<span class="sd">        &#39;&#39;&#39;</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">warnings_logging_enabled</span><span class="p">():</span>
+            <span class="k">raise</span> <span class="n">LoggingError</span><span class="p">(</span><span class="s2">&quot;Warnings logging has already been enabled&quot;</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_showwarning_orig</span> <span class="o">=</span> <span class="n">warnings</span><span class="o">.</span><span class="n">showwarning</span>
+        <span class="n">warnings</span><span class="o">.</span><span class="n">showwarning</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_showwarning</span></div>
+
+<div class="viewcode-block" id="AstropyLogger.disable_warnings_logging"><a class="viewcode-back" href="../../api/astropy.logger.AstropyLogger.html#astropy.logger.AstropyLogger.disable_warnings_logging">[docs]</a>    <span class="k">def</span> <span class="nf">disable_warnings_logging</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&#39;&#39;&#39;</span>
+<span class="sd">        Disable logging of warnings.warn() calls</span>
+
+<span class="sd">        Once called, any subsequent calls to ``warnings.warn()`` are no longer</span>
+<span class="sd">        redirected to this logger.</span>
+
+<span class="sd">        This can be re-enabled with ``enable_warnings_logging``.</span>
+<span class="sd">        &#39;&#39;&#39;</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="bp">self</span><span class="o">.</span><span class="n">warnings_logging_enabled</span><span class="p">():</span>
+            <span class="k">raise</span> <span class="n">LoggingError</span><span class="p">(</span><span class="s2">&quot;Warnings logging has not been enabled&quot;</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">warnings</span><span class="o">.</span><span class="n">showwarning</span> <span class="o">!=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_showwarning</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="n">LoggingError</span><span class="p">(</span><span class="s2">&quot;Cannot disable warnings logging: &quot;</span>
+                               <span class="s2">&quot;warnings.showwarning was not set by this &quot;</span>
+                               <span class="s2">&quot;logger, or has been overridden&quot;</span><span class="p">)</span>
+        <span class="n">warnings</span><span class="o">.</span><span class="n">showwarning</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_showwarning_orig</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_showwarning_orig</span> <span class="o">=</span> <span class="kc">None</span></div>
+
+    <span class="n">_excepthook_orig</span> <span class="o">=</span> <span class="kc">None</span>
+
+    <span class="k">def</span> <span class="nf">_excepthook</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">etype</span><span class="p">,</span> <span class="n">value</span><span class="p">,</span> <span class="n">traceback</span><span class="p">):</span>
+
+        <span class="k">if</span> <span class="n">traceback</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">mod</span> <span class="o">=</span> <span class="kc">None</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">tb</span> <span class="o">=</span> <span class="n">traceback</span>
+            <span class="k">while</span> <span class="n">tb</span><span class="o">.</span><span class="n">tb_next</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+                <span class="n">tb</span> <span class="o">=</span> <span class="n">tb</span><span class="o">.</span><span class="n">tb_next</span>
+            <span class="n">mod</span> <span class="o">=</span> <span class="n">inspect</span><span class="o">.</span><span class="n">getmodule</span><span class="p">(</span><span class="n">tb</span><span class="p">)</span>
+
+        <span class="c1"># include the the error type in the message.</span>
+        <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">value</span><span class="o">.</span><span class="n">args</span><span class="p">)</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">:</span>
+            <span class="n">message</span> <span class="o">=</span> <span class="s1">&#39;</span><span class="si">{0}</span><span class="s1">: </span><span class="si">{1}</span><span class="s1">&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">etype</span><span class="o">.</span><span class="n">__name__</span><span class="p">,</span> <span class="nb">str</span><span class="p">(</span><span class="n">value</span><span class="p">))</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">message</span> <span class="o">=</span> <span class="n">text_type</span><span class="p">(</span><span class="n">etype</span><span class="o">.</span><span class="n">__name__</span><span class="p">)</span>
+
+        <span class="k">if</span> <span class="n">mod</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">error</span><span class="p">(</span><span class="n">message</span><span class="p">,</span> <span class="n">extra</span><span class="o">=</span><span class="p">{</span><span class="s1">&#39;origin&#39;</span><span class="p">:</span> <span class="n">mod</span><span class="o">.</span><span class="n">__name__</span><span class="p">})</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">error</span><span class="p">(</span><span class="n">message</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_excepthook_orig</span><span class="p">(</span><span class="n">etype</span><span class="p">,</span> <span class="n">value</span><span class="p">,</span> <span class="n">traceback</span><span class="p">)</span>
+
+<div class="viewcode-block" id="AstropyLogger.exception_logging_enabled"><a class="viewcode-back" href="../../api/astropy.logger.AstropyLogger.html#astropy.logger.AstropyLogger.exception_logging_enabled">[docs]</a>    <span class="k">def</span> <span class="nf">exception_logging_enabled</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&#39;&#39;&#39;</span>
+<span class="sd">        Determine if the exception-logging mechanism is enabled.</span>
+
+<span class="sd">        Returns</span>
+<span class="sd">        -------</span>
+<span class="sd">        exclog : bool</span>
+<span class="sd">            True if exception logging is on, False if not.</span>
+<span class="sd">        &#39;&#39;&#39;</span>
+        <span class="k">try</span><span class="p">:</span>
+            <span class="n">ip</span> <span class="o">=</span> <span class="n">get_ipython</span><span class="p">()</span>
+        <span class="k">except</span> <span class="ne">NameError</span><span class="p">:</span>
+            <span class="n">ip</span> <span class="o">=</span> <span class="kc">None</span>
+
+        <span class="k">if</span> <span class="n">ip</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_excepthook_orig</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">return</span> <span class="n">_AstLogIPYExc</span> <span class="ow">in</span> <span class="n">ip</span><span class="o">.</span><span class="n">custom_exceptions</span></div>
+
+<div class="viewcode-block" id="AstropyLogger.enable_exception_logging"><a class="viewcode-back" href="../../api/astropy.logger.AstropyLogger.html#astropy.logger.AstropyLogger.enable_exception_logging">[docs]</a>    <span class="k">def</span> <span class="nf">enable_exception_logging</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&#39;&#39;&#39;</span>
+<span class="sd">        Enable logging of exceptions</span>
+
+<span class="sd">        Once called, any uncaught exceptions will be emitted with level</span>
+<span class="sd">        ``ERROR`` by this logger, before being raised.</span>
+
+<span class="sd">        This can be disabled with ``disable_exception_logging``.</span>
+<span class="sd">        &#39;&#39;&#39;</span>
+        <span class="k">try</span><span class="p">:</span>
+            <span class="n">ip</span> <span class="o">=</span> <span class="n">get_ipython</span><span class="p">()</span>
+        <span class="k">except</span> <span class="ne">NameError</span><span class="p">:</span>
+            <span class="n">ip</span> <span class="o">=</span> <span class="kc">None</span>
+
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">exception_logging_enabled</span><span class="p">():</span>
+            <span class="k">raise</span> <span class="n">LoggingError</span><span class="p">(</span><span class="s2">&quot;Exception logging has already been enabled&quot;</span><span class="p">)</span>
+
+        <span class="k">if</span> <span class="n">ip</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="c1"># standard python interpreter</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_excepthook_orig</span> <span class="o">=</span> <span class="n">sys</span><span class="o">.</span><span class="n">excepthook</span>
+            <span class="n">sys</span><span class="o">.</span><span class="n">excepthook</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_excepthook</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="c1"># IPython has its own way of dealing with excepthook</span>
+
+            <span class="c1"># We need to locally define the function here, because IPython</span>
+            <span class="c1"># actually makes this a member function of their own class</span>
+            <span class="k">def</span> <span class="nf">ipy_exc_handler</span><span class="p">(</span><span class="n">ipyshell</span><span class="p">,</span> <span class="n">etype</span><span class="p">,</span> <span class="n">evalue</span><span class="p">,</span> <span class="n">tb</span><span class="p">,</span> <span class="n">tb_offset</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+                <span class="c1"># First use our excepthook</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">_excepthook</span><span class="p">(</span><span class="n">etype</span><span class="p">,</span> <span class="n">evalue</span><span class="p">,</span> <span class="n">tb</span><span class="p">)</span>
+
+                <span class="c1"># Now also do IPython&#39;s traceback</span>
+                <span class="n">ipyshell</span><span class="o">.</span><span class="n">showtraceback</span><span class="p">((</span><span class="n">etype</span><span class="p">,</span> <span class="n">evalue</span><span class="p">,</span> <span class="n">tb</span><span class="p">),</span> <span class="n">tb_offset</span><span class="o">=</span><span class="n">tb_offset</span><span class="p">)</span>
+
+            <span class="c1"># now register the function with IPython</span>
+            <span class="c1"># note that we include _AstLogIPYExc so `disable_exception_logging`</span>
+            <span class="c1"># knows that it&#39;s disabling the right thing</span>
+            <span class="n">ip</span><span class="o">.</span><span class="n">set_custom_exc</span><span class="p">((</span><span class="ne">BaseException</span><span class="p">,</span> <span class="n">_AstLogIPYExc</span><span class="p">),</span> <span class="n">ipy_exc_handler</span><span class="p">)</span>
+
+            <span class="c1"># and set self._excepthook_orig to a no-op</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_excepthook_orig</span> <span class="o">=</span> <span class="k">lambda</span> <span class="n">etype</span><span class="p">,</span> <span class="n">evalue</span><span class="p">,</span> <span class="n">tb</span><span class="p">:</span> <span class="kc">None</span></div>
+
+<div class="viewcode-block" id="AstropyLogger.disable_exception_logging"><a class="viewcode-back" href="../../api/astropy.logger.AstropyLogger.html#astropy.logger.AstropyLogger.disable_exception_logging">[docs]</a>    <span class="k">def</span> <span class="nf">disable_exception_logging</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&#39;&#39;&#39;</span>
+<span class="sd">        Disable logging of exceptions</span>
+
+<span class="sd">        Once called, any uncaught exceptions will no longer be emitted by this</span>
+<span class="sd">        logger.</span>
+
+<span class="sd">        This can be re-enabled with ``enable_exception_logging``.</span>
+<span class="sd">        &#39;&#39;&#39;</span>
+        <span class="k">try</span><span class="p">:</span>
+            <span class="n">ip</span> <span class="o">=</span> <span class="n">get_ipython</span><span class="p">()</span>
+        <span class="k">except</span> <span class="ne">NameError</span><span class="p">:</span>
+            <span class="n">ip</span> <span class="o">=</span> <span class="kc">None</span>
+
+        <span class="k">if</span> <span class="ow">not</span> <span class="bp">self</span><span class="o">.</span><span class="n">exception_logging_enabled</span><span class="p">():</span>
+            <span class="k">raise</span> <span class="n">LoggingError</span><span class="p">(</span><span class="s2">&quot;Exception logging has not been enabled&quot;</span><span class="p">)</span>
+
+        <span class="k">if</span> <span class="n">ip</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="c1"># standard python interpreter</span>
+            <span class="k">if</span> <span class="n">sys</span><span class="o">.</span><span class="n">excepthook</span> <span class="o">!=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_excepthook</span><span class="p">:</span>
+                <span class="k">raise</span> <span class="n">LoggingError</span><span class="p">(</span><span class="s2">&quot;Cannot disable exception logging: &quot;</span>
+                                   <span class="s2">&quot;sys.excepthook was not set by this logger, &quot;</span>
+                                   <span class="s2">&quot;or has been overridden&quot;</span><span class="p">)</span>
+            <span class="n">sys</span><span class="o">.</span><span class="n">excepthook</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_excepthook_orig</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_excepthook_orig</span> <span class="o">=</span> <span class="kc">None</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="c1"># IPython has its own way of dealing with exceptions</span>
+            <span class="n">ip</span><span class="o">.</span><span class="n">set_custom_exc</span><span class="p">(</span><span class="nb">tuple</span><span class="p">(),</span> <span class="kc">None</span><span class="p">)</span></div>
+
+<div class="viewcode-block" id="AstropyLogger.enable_color"><a class="viewcode-back" href="../../api/astropy.logger.AstropyLogger.html#astropy.logger.AstropyLogger.enable_color">[docs]</a>    <span class="k">def</span> <span class="nf">enable_color</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&#39;&#39;&#39;</span>
+<span class="sd">        Enable colorized output</span>
+<span class="sd">        &#39;&#39;&#39;</span>
+        <span class="n">_conf</span><span class="o">.</span><span class="n">use_color</span> <span class="o">=</span> <span class="kc">True</span></div>
+
+<div class="viewcode-block" id="AstropyLogger.disable_color"><a class="viewcode-back" href="../../api/astropy.logger.AstropyLogger.html#astropy.logger.AstropyLogger.disable_color">[docs]</a>    <span class="k">def</span> <span class="nf">disable_color</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&#39;&#39;&#39;</span>
+<span class="sd">        Disable colorized output</span>
+<span class="sd">        &#39;&#39;&#39;</span>
+        <span class="n">_conf</span><span class="o">.</span><span class="n">use_color</span> <span class="o">=</span> <span class="kc">False</span></div>
+
+    <span class="nd">@contextmanager</span>
+<div class="viewcode-block" id="AstropyLogger.log_to_file"><a class="viewcode-back" href="../../api/astropy.logger.AstropyLogger.html#astropy.logger.AstropyLogger.log_to_file">[docs]</a>    <span class="k">def</span> <span class="nf">log_to_file</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">filename</span><span class="p">,</span> <span class="n">filter_level</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">filter_origin</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+        <span class="sd">&#39;&#39;&#39;</span>
+<span class="sd">        Context manager to temporarily log messages to a file.</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        filename : str</span>
+<span class="sd">            The file to log messages to.</span>
+<span class="sd">        filter_level : str</span>
+<span class="sd">            If set, any log messages less important than ``filter_level`` will</span>
+<span class="sd">            not be output to the file. Note that this is in addition to the</span>
+<span class="sd">            top-level filtering for the logger, so if the logger has level</span>
+<span class="sd">            &#39;INFO&#39;, then setting ``filter_level`` to ``INFO`` or ``DEBUG``</span>
+<span class="sd">            will have no effect, since these messages are already filtered</span>
+<span class="sd">            out.</span>
+<span class="sd">        filter_origin : str</span>
+<span class="sd">            If set, only log messages with an origin starting with</span>
+<span class="sd">            ``filter_origin`` will be output to the file.</span>
+
+<span class="sd">        Notes</span>
+<span class="sd">        -----</span>
+
+<span class="sd">        By default, the logger already outputs log messages to a file set in</span>
+<span class="sd">        the Astropy configuration file. Using this context manager does not</span>
+<span class="sd">        stop log messages from being output to that file, nor does it stop log</span>
+<span class="sd">        messages from being printed to standard output.</span>
+
+<span class="sd">        Examples</span>
+<span class="sd">        --------</span>
+
+<span class="sd">        The context manager is used as::</span>
+
+<span class="sd">            with logger.log_to_file(&#39;myfile.log&#39;):</span>
+<span class="sd">                # your code here</span>
+<span class="sd">        &#39;&#39;&#39;</span>
+
+        <span class="n">fh</span> <span class="o">=</span> <span class="n">logging</span><span class="o">.</span><span class="n">FileHandler</span><span class="p">(</span><span class="n">filename</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">filter_level</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">fh</span><span class="o">.</span><span class="n">setLevel</span><span class="p">(</span><span class="n">filter_level</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">filter_origin</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">fh</span><span class="o">.</span><span class="n">addFilter</span><span class="p">(</span><span class="n">FilterOrigin</span><span class="p">(</span><span class="n">filter_origin</span><span class="p">))</span>
+        <span class="n">f</span> <span class="o">=</span> <span class="n">logging</span><span class="o">.</span><span class="n">Formatter</span><span class="p">(</span><span class="n">conf</span><span class="o">.</span><span class="n">log_file_format</span><span class="p">)</span>
+        <span class="n">fh</span><span class="o">.</span><span class="n">setFormatter</span><span class="p">(</span><span class="n">f</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">addHandler</span><span class="p">(</span><span class="n">fh</span><span class="p">)</span>
+        <span class="k">yield</span>
+        <span class="n">fh</span><span class="o">.</span><span class="n">close</span><span class="p">()</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">removeHandler</span><span class="p">(</span><span class="n">fh</span><span class="p">)</span></div>
+
+    <span class="nd">@contextmanager</span>
+<div class="viewcode-block" id="AstropyLogger.log_to_list"><a class="viewcode-back" href="../../api/astropy.logger.AstropyLogger.html#astropy.logger.AstropyLogger.log_to_list">[docs]</a>    <span class="k">def</span> <span class="nf">log_to_list</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">filter_level</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">filter_origin</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+        <span class="sd">&#39;&#39;&#39;</span>
+<span class="sd">        Context manager to temporarily log messages to a list.</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        filename : str</span>
+<span class="sd">            The file to log messages to.</span>
+<span class="sd">        filter_level : str</span>
+<span class="sd">            If set, any log messages less important than ``filter_level`` will</span>
+<span class="sd">            not be output to the file. Note that this is in addition to the</span>
+<span class="sd">            top-level filtering for the logger, so if the logger has level</span>
+<span class="sd">            &#39;INFO&#39;, then setting ``filter_level`` to ``INFO`` or ``DEBUG``</span>
+<span class="sd">            will have no effect, since these messages are already filtered</span>
+<span class="sd">            out.</span>
+<span class="sd">        filter_origin : str</span>
+<span class="sd">            If set, only log messages with an origin starting with</span>
+<span class="sd">            ``filter_origin`` will be output to the file.</span>
+
+<span class="sd">        Notes</span>
+<span class="sd">        -----</span>
+
+<span class="sd">        Using this context manager does not stop log messages from being</span>
+<span class="sd">        output to standard output.</span>
+
+<span class="sd">        Examples</span>
+<span class="sd">        --------</span>
+
+<span class="sd">        The context manager is used as::</span>
+
+<span class="sd">            with logger.log_to_list() as log_list:</span>
+<span class="sd">                # your code here</span>
+<span class="sd">        &#39;&#39;&#39;</span>
+        <span class="n">lh</span> <span class="o">=</span> <span class="n">ListHandler</span><span class="p">()</span>
+        <span class="k">if</span> <span class="n">filter_level</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">lh</span><span class="o">.</span><span class="n">setLevel</span><span class="p">(</span><span class="n">filter_level</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">filter_origin</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">lh</span><span class="o">.</span><span class="n">addFilter</span><span class="p">(</span><span class="n">FilterOrigin</span><span class="p">(</span><span class="n">filter_origin</span><span class="p">))</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">addHandler</span><span class="p">(</span><span class="n">lh</span><span class="p">)</span>
+        <span class="k">yield</span> <span class="n">lh</span><span class="o">.</span><span class="n">log_list</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">removeHandler</span><span class="p">(</span><span class="n">lh</span><span class="p">)</span></div>
+
+    <span class="k">def</span> <span class="nf">_set_defaults</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&#39;&#39;&#39;</span>
+<span class="sd">        Reset logger to its initial state</span>
+<span class="sd">        &#39;&#39;&#39;</span>
+
+        <span class="c1"># Reset any previously installed hooks</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">warnings_logging_enabled</span><span class="p">():</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">disable_warnings_logging</span><span class="p">()</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">exception_logging_enabled</span><span class="p">():</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">disable_exception_logging</span><span class="p">()</span>
+
+        <span class="c1"># Remove all previous handlers</span>
+        <span class="k">for</span> <span class="n">handler</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">handlers</span><span class="p">[:]:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">removeHandler</span><span class="p">(</span><span class="n">handler</span><span class="p">)</span>
+
+        <span class="c1"># Set levels</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">setLevel</span><span class="p">(</span><span class="n">conf</span><span class="o">.</span><span class="n">log_level</span><span class="p">)</span>
+
+        <span class="c1"># Set up the stdout handler</span>
+        <span class="n">sh</span> <span class="o">=</span> <span class="n">StreamHandler</span><span class="p">()</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">addHandler</span><span class="p">(</span><span class="n">sh</span><span class="p">)</span>
+
+        <span class="c1"># Set up the main log file handler if requested (but this might fail if</span>
+        <span class="c1"># configuration directory or log file is not writeable).</span>
+        <span class="k">if</span> <span class="n">conf</span><span class="o">.</span><span class="n">log_to_file</span><span class="p">:</span>
+            <span class="n">log_file_path</span> <span class="o">=</span> <span class="n">conf</span><span class="o">.</span><span class="n">log_file_path</span>
+
+            <span class="c1"># &quot;None&quot; as a string because it comes from config</span>
+            <span class="k">try</span><span class="p">:</span>
+                <span class="n">_ASTROPY_TEST_</span>
+                <span class="n">testing_mode</span> <span class="o">=</span> <span class="kc">True</span>
+            <span class="k">except</span> <span class="ne">NameError</span><span class="p">:</span>
+                <span class="n">testing_mode</span> <span class="o">=</span> <span class="kc">False</span>
+
+            <span class="k">try</span><span class="p">:</span>
+                <span class="k">if</span> <span class="n">log_file_path</span> <span class="o">==</span> <span class="s1">&#39;&#39;</span> <span class="ow">or</span> <span class="n">testing_mode</span><span class="p">:</span>
+                    <span class="n">log_file_path</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span>
+                        <span class="n">_config</span><span class="o">.</span><span class="n">get_config_dir</span><span class="p">(),</span> <span class="s2">&quot;astropy.log&quot;</span><span class="p">)</span>
+                <span class="k">else</span><span class="p">:</span>
+                    <span class="n">log_file_path</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">expanduser</span><span class="p">(</span><span class="n">log_file_path</span><span class="p">)</span>
+
+                <span class="n">fh</span> <span class="o">=</span> <span class="n">logging</span><span class="o">.</span><span class="n">FileHandler</span><span class="p">(</span><span class="n">log_file_path</span><span class="p">)</span>
+            <span class="k">except</span> <span class="p">(</span><span class="ne">IOError</span><span class="p">,</span> <span class="ne">OSError</span><span class="p">)</span> <span class="k">as</span> <span class="n">e</span><span class="p">:</span>
+                <span class="n">warnings</span><span class="o">.</span><span class="n">warn</span><span class="p">(</span>
+                    <span class="s1">&#39;log file </span><span class="si">{0!r}</span><span class="s1"> could not be opened for writing: &#39;</span>
+                    <span class="s1">&#39;</span><span class="si">{1}</span><span class="s1">&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">log_file_path</span><span class="p">,</span> <span class="n">text_type</span><span class="p">(</span><span class="n">e</span><span class="p">)),</span> <span class="ne">RuntimeWarning</span><span class="p">)</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="n">formatter</span> <span class="o">=</span> <span class="n">logging</span><span class="o">.</span><span class="n">Formatter</span><span class="p">(</span><span class="n">conf</span><span class="o">.</span><span class="n">log_file_format</span><span class="p">)</span>
+                <span class="n">fh</span><span class="o">.</span><span class="n">setFormatter</span><span class="p">(</span><span class="n">formatter</span><span class="p">)</span>
+                <span class="n">fh</span><span class="o">.</span><span class="n">setLevel</span><span class="p">(</span><span class="n">conf</span><span class="o">.</span><span class="n">log_file_level</span><span class="p">)</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">addHandler</span><span class="p">(</span><span class="n">fh</span><span class="p">)</span>
+
+        <span class="k">if</span> <span class="n">conf</span><span class="o">.</span><span class="n">log_warnings</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">enable_warnings_logging</span><span class="p">()</span>
+
+        <span class="k">if</span> <span class="n">conf</span><span class="o">.</span><span class="n">log_exceptions</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">enable_exception_logging</span><span class="p">()</span></div>
+
+
+<span class="k">class</span> <span class="nc">StreamHandler</span><span class="p">(</span><span class="n">logging</span><span class="o">.</span><span class="n">StreamHandler</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    A specialized StreamHandler that logs INFO and DEBUG messages to</span>
+<span class="sd">    stdout, and all other messages to stderr.  Also provides coloring</span>
+<span class="sd">    of the output, if enabled in the parent logger.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="k">def</span> <span class="nf">emit</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">record</span><span class="p">):</span>
+        <span class="sd">&#39;&#39;&#39;</span>
+<span class="sd">        The formatter for stderr</span>
+<span class="sd">        &#39;&#39;&#39;</span>
+        <span class="k">if</span> <span class="n">record</span><span class="o">.</span><span class="n">levelno</span> <span class="o">&lt;=</span> <span class="n">logging</span><span class="o">.</span><span class="n">INFO</span><span class="p">:</span>
+            <span class="n">stream</span> <span class="o">=</span> <span class="n">sys</span><span class="o">.</span><span class="n">stdout</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">stream</span> <span class="o">=</span> <span class="n">sys</span><span class="o">.</span><span class="n">stderr</span>
+
+        <span class="k">if</span> <span class="n">record</span><span class="o">.</span><span class="n">levelno</span> <span class="o">&lt;</span> <span class="n">logging</span><span class="o">.</span><span class="n">DEBUG</span> <span class="ow">or</span> <span class="ow">not</span> <span class="n">_conf</span><span class="o">.</span><span class="n">use_color</span><span class="p">:</span>
+            <span class="nb">print</span><span class="p">(</span><span class="n">record</span><span class="o">.</span><span class="n">levelname</span><span class="p">,</span> <span class="n">end</span><span class="o">=</span><span class="s1">&#39;&#39;</span><span class="p">,</span> <span class="n">file</span><span class="o">=</span><span class="n">stream</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="c1"># Import utils.console only if necessary and at the latest because</span>
+            <span class="c1"># the import takes a significant time [#4649]</span>
+            <span class="kn">from</span> <span class="nn">.utils.console</span> <span class="k">import</span> <span class="n">color_print</span>
+            <span class="k">if</span> <span class="n">record</span><span class="o">.</span><span class="n">levelno</span> <span class="o">&lt;</span> <span class="n">logging</span><span class="o">.</span><span class="n">INFO</span><span class="p">:</span>
+                <span class="n">color_print</span><span class="p">(</span><span class="n">record</span><span class="o">.</span><span class="n">levelname</span><span class="p">,</span> <span class="s1">&#39;magenta&#39;</span><span class="p">,</span> <span class="n">end</span><span class="o">=</span><span class="s1">&#39;&#39;</span><span class="p">,</span> <span class="n">file</span><span class="o">=</span><span class="n">stream</span><span class="p">)</span>
+            <span class="k">elif</span> <span class="n">record</span><span class="o">.</span><span class="n">levelno</span> <span class="o">&lt;</span> <span class="n">logging</span><span class="o">.</span><span class="n">WARN</span><span class="p">:</span>
+                <span class="n">color_print</span><span class="p">(</span><span class="n">record</span><span class="o">.</span><span class="n">levelname</span><span class="p">,</span> <span class="s1">&#39;green&#39;</span><span class="p">,</span> <span class="n">end</span><span class="o">=</span><span class="s1">&#39;&#39;</span><span class="p">,</span> <span class="n">file</span><span class="o">=</span><span class="n">stream</span><span class="p">)</span>
+            <span class="k">elif</span> <span class="n">record</span><span class="o">.</span><span class="n">levelno</span> <span class="o">&lt;</span> <span class="n">logging</span><span class="o">.</span><span class="n">ERROR</span><span class="p">:</span>
+                <span class="n">color_print</span><span class="p">(</span><span class="n">record</span><span class="o">.</span><span class="n">levelname</span><span class="p">,</span> <span class="s1">&#39;brown&#39;</span><span class="p">,</span> <span class="n">end</span><span class="o">=</span><span class="s1">&#39;&#39;</span><span class="p">,</span> <span class="n">file</span><span class="o">=</span><span class="n">stream</span><span class="p">)</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="n">color_print</span><span class="p">(</span><span class="n">record</span><span class="o">.</span><span class="n">levelname</span><span class="p">,</span> <span class="s1">&#39;red&#39;</span><span class="p">,</span> <span class="n">end</span><span class="o">=</span><span class="s1">&#39;&#39;</span><span class="p">,</span> <span class="n">file</span><span class="o">=</span><span class="n">stream</span><span class="p">)</span>
+        <span class="n">record</span><span class="o">.</span><span class="n">message</span> <span class="o">=</span> <span class="s2">&quot;</span><span class="si">{0}</span><span class="s2"> [</span><span class="si">{1:s}</span><span class="s2">]&quot;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">record</span><span class="o">.</span><span class="n">msg</span><span class="p">,</span> <span class="n">record</span><span class="o">.</span><span class="n">origin</span><span class="p">)</span>
+        <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;: &quot;</span> <span class="o">+</span> <span class="n">record</span><span class="o">.</span><span class="n">message</span><span class="p">,</span> <span class="n">file</span><span class="o">=</span><span class="n">stream</span><span class="p">)</span>
+
+
+<span class="k">class</span> <span class="nc">FilterOrigin</span><span class="p">(</span><span class="nb">object</span><span class="p">):</span>
+    <span class="sd">&#39;&#39;&#39;A filter for the record origin&#39;&#39;&#39;</span>
+
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">origin</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">origin</span> <span class="o">=</span> <span class="n">origin</span>
+
+    <span class="k">def</span> <span class="nf">filter</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">record</span><span class="p">):</span>
+        <span class="k">return</span> <span class="n">record</span><span class="o">.</span><span class="n">origin</span><span class="o">.</span><span class="n">startswith</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">origin</span><span class="p">)</span>
+
+
+<span class="k">class</span> <span class="nc">ListHandler</span><span class="p">(</span><span class="n">logging</span><span class="o">.</span><span class="n">Handler</span><span class="p">):</span>
+    <span class="sd">&#39;&#39;&#39;A handler that can be used to capture the records in a list&#39;&#39;&#39;</span>
+
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">filter_level</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">filter_origin</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+        <span class="n">logging</span><span class="o">.</span><span class="n">Handler</span><span class="o">.</span><span class="n">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">log_list</span> <span class="o">=</span> <span class="p">[]</span>
+
+    <span class="k">def</span> <span class="nf">emit</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">record</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">log_list</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">record</span><span class="p">)</span>
+</pre></div>
+
+          </div>
+        </div>
+      </div>
+      <div class="sphinxsidebar" role="navigation" aria-label="main navigation">
+        <div class="sphinxsidebarwrapper"><h3>Page Contents</h3>
+
+
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+<footer class="footer">
+  <p class="pull-right"> &nbsp;
+    <a href="#">Back to Top</a></p>
+  <p>
+    &copy; Copyright 2011-2016, The Astropy Developers.<br/>
+    Created using <a href="http://sphinx.pocoo.org/">Sphinx</a> 1.5.6. &nbsp;
+    Last built 05 Jul 2017. <br/>
+  </p>
+</footer>
+  </body>
+</html>

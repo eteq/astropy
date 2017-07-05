@@ -1,0 +1,620 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <head>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    
+    <title>astropy.tests.runner &#8212; Astropy v3.0.dev19489</title>
+    
+    <link rel="stylesheet" href="../../../_static/bootstrap-astropy.css" type="text/css" />
+    <link rel="stylesheet" href="../../../_static/pygments.css" type="text/css" />
+    <link rel="stylesheet" href="../../../_static/gallery.css" type="text/css" />
+    
+    <script type="text/javascript">
+      var DOCUMENTATION_OPTIONS = {
+        URL_ROOT:    '../../../',
+        VERSION:     '3.0.dev19489',
+        COLLAPSE_INDEX: false,
+        FILE_SUFFIX: '.html',
+        HAS_SOURCE:  true,
+        SOURCELINK_SUFFIX: '.txt'
+      };
+    </script>
+    <script type="text/javascript" src="../../../_static/jquery.js"></script>
+    <script type="text/javascript" src="../../../_static/underscore.js"></script>
+    <script type="text/javascript" src="../../../_static/doctools.js"></script>
+    <script type="text/javascript" src="../../../_static/sidebar.js"></script>
+    <link rel="shortcut icon" href="../../../_static/astropy_logo.ico"/>
+    <link rel="index" title="Index" href="../../../genindex.html" />
+    <link rel="search" title="Search" href="../../../search.html" />
+<link href='https://fonts.googleapis.com/css?family=Source+Sans+Pro:200,600' rel='stylesheet' type='text/css'/>
+<script type="text/javascript" src="../../../_static/copybutton.js"></script>
+
+
+  </head>
+  <body role="document">
+<div class="topbar">
+  <a class="brand" title="Documentation Home" href="../../../index.html"><span id="logotext1">astro</span><span id="logotext2">py</span><span id="logotext3">:docs</span></a>
+  <ul>
+    <li><a class="homelink" title="Astropy Homepage" href="http://www.astropy.org"></a></li>
+    <li><a title="General Index" href="../../../genindex.html">Index</a></li>
+    <li><a title="Module Index" href="../../../py-modindex.html">Modules</a></li>
+    <li>
+      
+      
+<form action="../../../search.html" method="get">
+  <input type="text" name="q" placeholder="Search" />
+  <input type="hidden" name="check_keywords" value="yes" />
+  <input type="hidden" name="area" value="default" />
+</form>
+      
+    </li>
+  </ul>
+</div>
+
+<div class="related">
+    <h3>Navigation</h3>
+    <ul>
+      <li>
+	<a href="../../../index.html">Astropy v3.0.dev19489</a>
+	 &#187;
+      </li>
+      <li><a href="../../index.html" >Module code</a> &#187;</li>
+      <li><a href="../../astropy.html" accesskey="U">astropy</a> &#187;</li>
+      
+       
+    </ul>
+</div>
+  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          <div class="body" role="main">
+            
+  <h1>Source code for astropy.tests.runner</h1><div class="highlight"><pre>
+<span></span><span class="sd">&quot;&quot;&quot;Implements the Astropy TestRunner which is a thin wrapper around py.test.&quot;&quot;&quot;</span>
+<span class="kn">from</span> <span class="nn">__future__</span> <span class="k">import</span> <span class="p">(</span><span class="n">absolute_import</span><span class="p">,</span> <span class="n">division</span><span class="p">,</span> <span class="n">print_function</span><span class="p">,</span>
+                        <span class="n">unicode_literals</span><span class="p">)</span>
+
+<span class="kn">import</span> <span class="nn">inspect</span>
+<span class="kn">import</span> <span class="nn">os</span>
+<span class="kn">import</span> <span class="nn">copy</span>
+<span class="kn">import</span> <span class="nn">shlex</span>
+<span class="kn">import</span> <span class="nn">sys</span>
+<span class="kn">import</span> <span class="nn">tempfile</span>
+<span class="kn">import</span> <span class="nn">warnings</span>
+<span class="kn">from</span> <span class="nn">collections</span> <span class="k">import</span> <span class="n">OrderedDict</span>
+
+<span class="kn">from</span> <span class="nn">..config.paths</span> <span class="k">import</span> <span class="n">set_temp_config</span><span class="p">,</span> <span class="n">set_temp_cache</span>
+<span class="kn">from</span> <span class="nn">..extern</span> <span class="k">import</span> <span class="n">six</span>
+<span class="kn">from</span> <span class="nn">..utils</span> <span class="k">import</span> <span class="n">wraps</span><span class="p">,</span> <span class="n">find_current_module</span>
+<span class="kn">from</span> <span class="nn">..utils.exceptions</span> <span class="k">import</span> <span class="n">AstropyWarning</span><span class="p">,</span> <span class="n">AstropyDeprecationWarning</span>
+
+<span class="n">__all__</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;TestRunner&#39;</span><span class="p">,</span> <span class="s1">&#39;TestRunnerBase&#39;</span><span class="p">,</span> <span class="s1">&#39;keyword&#39;</span><span class="p">]</span>
+
+
+<div class="viewcode-block" id="keyword"><a class="viewcode-back" href="../../../api/astropy.tests.runner.keyword.html#astropy.tests.runner.keyword">[docs]</a><span class="k">class</span> <span class="nc">keyword</span><span class="p">(</span><span class="nb">object</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    A decorator to mark a method as keyword argument for the ``TestRunner``.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    default_value : `object`</span>
+<span class="sd">        The default value for the keyword argument. (Default: `None`)</span>
+
+<span class="sd">    priority : `int`</span>
+<span class="sd">        keyword argument methods are executed in order of descending priority.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">default_value</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">priority</span><span class="o">=</span><span class="mi">0</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">default_value</span> <span class="o">=</span> <span class="n">default_value</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">priority</span> <span class="o">=</span> <span class="n">priority</span>
+
+<div class="viewcode-block" id="keyword.__call__"><a class="viewcode-back" href="../../../api/astropy.tests.runner.keyword.html#astropy.tests.runner.keyword.__call__">[docs]</a>    <span class="k">def</span> <span class="nf">__call__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">f</span><span class="p">):</span>
+        <span class="k">def</span> <span class="nf">keyword</span><span class="p">(</span><span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+            <span class="k">return</span> <span class="n">f</span><span class="p">(</span><span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
+
+        <span class="n">keyword</span><span class="o">.</span><span class="n">_default_value</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">default_value</span>
+        <span class="n">keyword</span><span class="o">.</span><span class="n">_priority</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">priority</span>
+        <span class="c1"># Set __doc__ explicitly here rather than using wraps because we want</span>
+        <span class="c1"># to keep the function name as keyword so we can inspect it later.</span>
+        <span class="n">keyword</span><span class="o">.</span><span class="n">__doc__</span> <span class="o">=</span> <span class="n">f</span><span class="o">.</span><span class="n">__doc__</span>
+
+        <span class="k">return</span> <span class="n">keyword</span></div></div>
+
+
+<div class="viewcode-block" id="TestRunnerBase"><a class="viewcode-back" href="../../../api/astropy.tests.runner.TestRunnerBase.html#astropy.tests.runner.TestRunnerBase">[docs]</a><span class="k">class</span> <span class="nc">TestRunnerBase</span><span class="p">(</span><span class="nb">object</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    The base class for the TestRunner.</span>
+
+<span class="sd">    A test runner can be constructed by creating a subclass of this class and</span>
+<span class="sd">    defining &#39;keyword&#39; methods. These are methods that have the</span>
+<span class="sd">    `~astropy.tests.runner.keyword` decorator, these methods are used to</span>
+<span class="sd">    construct allowed keyword arguments to the</span>
+<span class="sd">    `~astropy.tests.runner.TestRunnerBase.run_tests` method as a way to allow</span>
+<span class="sd">    customization of individual keyword arguments (and associated logic)</span>
+<span class="sd">    without having to re-implement the whole</span>
+<span class="sd">    `~astropy.tests.runner.TestRunnerBase.run_tests` method.</span>
+
+<span class="sd">    Examples</span>
+<span class="sd">    --------</span>
+
+<span class="sd">    A simple keyword method::</span>
+
+<span class="sd">        class MyRunner(TestRunnerBase):</span>
+
+<span class="sd">            @keyword(&#39;default_value&#39;):</span>
+<span class="sd">            def spam(self, spam, kwargs):</span>
+<span class="sd">                \&quot;\&quot;\&quot;</span>
+<span class="sd">                spam : `str`</span>
+<span class="sd">                    The parameter description for the run_tests docstring.</span>
+<span class="sd">                \&quot;\&quot;\&quot;</span>
+<span class="sd">                # Return value must be a list with a CLI parameter for pytest.</span>
+<span class="sd">                return [&#39;--spam={}&#39;.format(spam)]</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">base_path</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">base_path</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">abspath</span><span class="p">(</span><span class="n">base_path</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">__new__</span><span class="p">(</span><span class="n">cls</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+        <span class="c1"># Before constructing the class parse all the methods that have been</span>
+        <span class="c1"># decorated with ``keyword``.</span>
+
+        <span class="c1"># The objective of this method is to construct a default set of keyword</span>
+        <span class="c1"># arguments to the ``run_tests`` method. It does this by inspecting the</span>
+        <span class="c1"># methods of the class for functions with the name ``keyword`` which is</span>
+        <span class="c1"># the name of the decorator wrapping function. Once it has created this</span>
+        <span class="c1"># dictionary, it also formats the docstring of ``run_tests`` to be</span>
+        <span class="c1"># comprised of the docstrings for the ``keyword`` methods.</span>
+
+        <span class="c1"># To add a keyword argument to the ``run_tests`` method, define a new</span>
+        <span class="c1"># method decorated with ``@keyword`` and with the ``self, name, kwargs``</span>
+        <span class="c1"># signature.</span>
+        <span class="c1"># Get all &#39;function&#39; members as the wrapped methods are functions</span>
+        <span class="k">if</span> <span class="n">six</span><span class="o">.</span><span class="n">PY2</span><span class="p">:</span>
+            <span class="n">functions</span> <span class="o">=</span> <span class="n">inspect</span><span class="o">.</span><span class="n">getmembers</span><span class="p">(</span><span class="n">cls</span><span class="p">,</span> <span class="n">predicate</span><span class="o">=</span><span class="n">inspect</span><span class="o">.</span><span class="n">ismethod</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">functions</span> <span class="o">=</span> <span class="n">inspect</span><span class="o">.</span><span class="n">getmembers</span><span class="p">(</span><span class="n">cls</span><span class="p">,</span> <span class="n">predicate</span><span class="o">=</span><span class="n">inspect</span><span class="o">.</span><span class="n">isfunction</span><span class="p">)</span>
+
+        <span class="c1"># Filter out anything that&#39;s not got the name &#39;keyword&#39;</span>
+        <span class="n">keywords</span> <span class="o">=</span> <span class="nb">filter</span><span class="p">(</span><span class="k">lambda</span> <span class="n">func</span><span class="p">:</span> <span class="n">func</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span><span class="o">.</span><span class="n">__name__</span> <span class="o">==</span> <span class="s1">&#39;keyword&#39;</span><span class="p">,</span> <span class="n">functions</span><span class="p">)</span>
+        <span class="c1"># Sort all keywords based on the priority flag.</span>
+        <span class="n">sorted_keywords</span> <span class="o">=</span> <span class="nb">sorted</span><span class="p">(</span><span class="n">keywords</span><span class="p">,</span> <span class="n">key</span><span class="o">=</span><span class="k">lambda</span> <span class="n">x</span><span class="p">:</span> <span class="n">x</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span><span class="o">.</span><span class="n">_priority</span><span class="p">,</span> <span class="n">reverse</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+
+        <span class="n">cls</span><span class="o">.</span><span class="n">keywords</span> <span class="o">=</span> <span class="n">OrderedDict</span><span class="p">()</span>
+        <span class="n">doc_keywords</span> <span class="o">=</span> <span class="s2">&quot;&quot;</span>
+        <span class="k">for</span> <span class="n">name</span><span class="p">,</span> <span class="n">func</span> <span class="ow">in</span> <span class="n">sorted_keywords</span><span class="p">:</span>
+            <span class="c1"># Here we test if the function has been overloaded to return</span>
+            <span class="c1"># NotImplemented which is the way to disable arguments on</span>
+            <span class="c1"># subclasses. If it has been disabled we need to remove it from the</span>
+            <span class="c1"># default keywords dict. We do it in the try except block because</span>
+            <span class="c1"># we do not have access to an instance of the class, so this is</span>
+            <span class="c1"># going to error unless the method is just doing `return</span>
+            <span class="c1"># NotImplemented`.</span>
+            <span class="k">try</span><span class="p">:</span>
+                <span class="c1"># Second argument is False, as it is normally a bool.</span>
+                <span class="c1"># The other two are placeholders for objects.</span>
+                <span class="k">if</span> <span class="n">func</span><span class="p">(</span><span class="kc">None</span><span class="p">,</span> <span class="kc">False</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span> <span class="ow">is</span> <span class="bp">NotImplemented</span><span class="p">:</span>
+                    <span class="k">continue</span>
+            <span class="k">except</span> <span class="ne">Exception</span><span class="p">:</span>
+                <span class="k">pass</span>
+
+            <span class="c1"># Construct the default kwargs dict and docstring</span>
+            <span class="n">cls</span><span class="o">.</span><span class="n">keywords</span><span class="p">[</span><span class="n">name</span><span class="p">]</span> <span class="o">=</span> <span class="n">func</span><span class="o">.</span><span class="n">_default_value</span>
+            <span class="k">if</span> <span class="n">func</span><span class="o">.</span><span class="n">__doc__</span><span class="p">:</span>
+                <span class="n">doc_keywords</span> <span class="o">+=</span> <span class="s1">&#39; &#39;</span><span class="o">*</span><span class="mi">8</span>
+                <span class="n">doc_keywords</span> <span class="o">+=</span> <span class="n">func</span><span class="o">.</span><span class="n">__doc__</span><span class="o">.</span><span class="n">strip</span><span class="p">()</span>
+                <span class="n">doc_keywords</span> <span class="o">+=</span> <span class="s1">&#39;</span><span class="se">\n\n</span><span class="s1">&#39;</span>
+
+        <span class="k">if</span> <span class="n">six</span><span class="o">.</span><span class="n">PY2</span><span class="p">:</span>
+            <span class="n">cls</span><span class="o">.</span><span class="n">run_tests</span><span class="o">.</span><span class="n">__func__</span><span class="o">.</span><span class="n">__doc__</span> <span class="o">=</span> <span class="n">cls</span><span class="o">.</span><span class="n">RUN_TESTS_DOCSTRING</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">keywords</span><span class="o">=</span><span class="n">doc_keywords</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">cls</span><span class="o">.</span><span class="n">run_tests</span><span class="o">.</span><span class="n">__doc__</span> <span class="o">=</span> <span class="n">cls</span><span class="o">.</span><span class="n">RUN_TESTS_DOCSTRING</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">keywords</span><span class="o">=</span><span class="n">doc_keywords</span><span class="p">)</span>
+
+        <span class="k">return</span> <span class="nb">super</span><span class="p">(</span><span class="n">TestRunnerBase</span><span class="p">,</span> <span class="n">cls</span><span class="p">)</span><span class="o">.</span><span class="n">__new__</span><span class="p">(</span><span class="n">cls</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">_generate_args</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+        <span class="c1"># Update default values with passed kwargs</span>
+        <span class="c1"># but don&#39;t modify the defaults</span>
+        <span class="n">keywords</span> <span class="o">=</span> <span class="n">copy</span><span class="o">.</span><span class="n">deepcopy</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">keywords</span><span class="p">)</span>
+        <span class="n">keywords</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="n">kwargs</span><span class="p">)</span>
+        <span class="c1"># Iterate through the keywords (in order of priority)</span>
+        <span class="n">args</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="k">for</span> <span class="n">keyword</span> <span class="ow">in</span> <span class="n">keywords</span><span class="o">.</span><span class="n">keys</span><span class="p">():</span>
+            <span class="n">func</span> <span class="o">=</span> <span class="nb">getattr</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">keyword</span><span class="p">)</span>
+            <span class="n">result</span> <span class="o">=</span> <span class="n">func</span><span class="p">(</span><span class="n">keywords</span><span class="p">[</span><span class="n">keyword</span><span class="p">],</span> <span class="n">keywords</span><span class="p">)</span>
+
+            <span class="c1"># Allow disabaling of options in a subclass</span>
+            <span class="k">if</span> <span class="n">result</span> <span class="ow">is</span> <span class="bp">NotImplemented</span><span class="p">:</span>
+                <span class="k">raise</span> <span class="ne">TypeError</span><span class="p">(</span><span class="s2">&quot;run_tests() got an unexpected keyword argument </span><span class="si">{}</span><span class="s2">&quot;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">keyword</span><span class="p">))</span>
+
+            <span class="c1"># keyword methods must return a list</span>
+            <span class="k">if</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">result</span><span class="p">,</span> <span class="nb">list</span><span class="p">):</span>
+                <span class="k">raise</span> <span class="ne">TypeError</span><span class="p">(</span><span class="s2">&quot;</span><span class="si">{}</span><span class="s2"> keyword method must return a list&quot;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">keyword</span><span class="p">))</span>
+
+            <span class="n">args</span> <span class="o">+=</span> <span class="n">result</span>
+
+        <span class="k">if</span> <span class="n">six</span><span class="o">.</span><span class="n">PY2</span><span class="p">:</span>
+            <span class="n">args</span> <span class="o">=</span> <span class="p">[</span><span class="n">x</span><span class="o">.</span><span class="n">encode</span><span class="p">(</span><span class="s1">&#39;utf-8&#39;</span><span class="p">)</span> <span class="k">for</span> <span class="n">x</span> <span class="ow">in</span> <span class="n">args</span><span class="p">]</span>
+
+        <span class="k">return</span> <span class="n">args</span>
+
+    <span class="n">RUN_TESTS_DOCSTRING</span> <span class="o">=</span> \
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Run the tests for the package.</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        {keywords}</span>
+<span class="sd">        See Also</span>
+<span class="sd">        --------</span>
+<span class="sd">        pytest.main : This method builds arguments for and then calls this function.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+
+<div class="viewcode-block" id="TestRunnerBase.run_tests"><a class="viewcode-back" href="../../../api/astropy.tests.runner.TestRunnerBase.html#astropy.tests.runner.TestRunnerBase.run_tests">[docs]</a>    <span class="k">def</span> <span class="nf">run_tests</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+        <span class="c1"># The docstring for this method is defined as a class variable.</span>
+        <span class="c1"># This allows it to be built for each subclass in __new__.</span>
+
+        <span class="c1"># Don&#39;t import pytest until it&#39;s actually needed to run the tests</span>
+        <span class="kn">import</span> <span class="nn">pytest</span>
+
+        <span class="c1"># Raise error for undefined kwargs</span>
+        <span class="n">allowed_kwargs</span> <span class="o">=</span> <span class="nb">set</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">keywords</span><span class="o">.</span><span class="n">keys</span><span class="p">())</span>
+        <span class="n">passed_kwargs</span> <span class="o">=</span> <span class="nb">set</span><span class="p">(</span><span class="n">kwargs</span><span class="o">.</span><span class="n">keys</span><span class="p">())</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">passed_kwargs</span><span class="o">.</span><span class="n">issubset</span><span class="p">(</span><span class="n">allowed_kwargs</span><span class="p">):</span>
+            <span class="n">wrong_kwargs</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="n">passed_kwargs</span><span class="o">.</span><span class="n">difference</span><span class="p">(</span><span class="n">allowed_kwargs</span><span class="p">))</span>
+            <span class="k">raise</span> <span class="ne">TypeError</span><span class="p">(</span><span class="s2">&quot;run_tests() got an unexpected keyword argument </span><span class="si">{}</span><span class="s2">&quot;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">wrong_kwargs</span><span class="p">[</span><span class="mi">0</span><span class="p">]))</span>
+
+        <span class="n">args</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_generate_args</span><span class="p">(</span><span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
+
+        <span class="c1"># override the config locations to not make a new directory nor use</span>
+        <span class="c1"># existing cache or config</span>
+        <span class="n">astropy_config</span> <span class="o">=</span> <span class="n">tempfile</span><span class="o">.</span><span class="n">mkdtemp</span><span class="p">(</span><span class="s1">&#39;astropy_config&#39;</span><span class="p">)</span>
+        <span class="n">astropy_cache</span> <span class="o">=</span> <span class="n">tempfile</span><span class="o">.</span><span class="n">mkdtemp</span><span class="p">(</span><span class="s1">&#39;astropy_cache&#39;</span><span class="p">)</span>
+
+        <span class="c1"># Have to use nested with statements for cross-Python support</span>
+        <span class="c1"># Note, using these context managers here is superfluous if the</span>
+        <span class="c1"># config_dir or cache_dir options to py.test are in use, but it&#39;s</span>
+        <span class="c1"># also harmless to nest the contexts</span>
+        <span class="k">with</span> <span class="n">set_temp_config</span><span class="p">(</span><span class="n">astropy_config</span><span class="p">,</span> <span class="n">delete</span><span class="o">=</span><span class="kc">True</span><span class="p">):</span>
+            <span class="k">with</span> <span class="n">set_temp_cache</span><span class="p">(</span><span class="n">astropy_cache</span><span class="p">,</span> <span class="n">delete</span><span class="o">=</span><span class="kc">True</span><span class="p">):</span>
+                <span class="k">return</span> <span class="n">pytest</span><span class="o">.</span><span class="n">main</span><span class="p">(</span><span class="n">args</span><span class="o">=</span><span class="n">args</span><span class="p">,</span> <span class="n">plugins</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">keywords</span><span class="p">[</span><span class="s1">&#39;plugins&#39;</span><span class="p">])</span></div>
+
+    <span class="nd">@classmethod</span>
+<div class="viewcode-block" id="TestRunnerBase.make_test_runner_in"><a class="viewcode-back" href="../../../api/astropy.tests.runner.TestRunnerBase.html#astropy.tests.runner.TestRunnerBase.make_test_runner_in">[docs]</a>    <span class="k">def</span> <span class="nf">make_test_runner_in</span><span class="p">(</span><span class="n">cls</span><span class="p">,</span> <span class="n">path</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Constructs a `TestRunner` to run in the given path, and returns a</span>
+<span class="sd">        ``test()`` function which takes the same arguments as</span>
+<span class="sd">        `TestRunner.run_tests`.</span>
+
+<span class="sd">        The returned ``test()`` function will be defined in the module this</span>
+<span class="sd">        was called from.  This is used to implement the ``astropy.test()``</span>
+<span class="sd">        function (or the equivalent for affiliated packages).</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+
+        <span class="n">runner</span> <span class="o">=</span> <span class="n">cls</span><span class="p">(</span><span class="n">path</span><span class="p">)</span>
+
+        <span class="nd">@wraps</span><span class="p">(</span><span class="n">runner</span><span class="o">.</span><span class="n">run_tests</span><span class="p">,</span> <span class="p">(</span><span class="s1">&#39;__doc__&#39;</span><span class="p">,),</span> <span class="n">exclude_args</span><span class="o">=</span><span class="p">(</span><span class="s1">&#39;self&#39;</span><span class="p">,))</span>
+        <span class="k">def</span> <span class="nf">test</span><span class="p">(</span><span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+            <span class="k">return</span> <span class="n">runner</span><span class="o">.</span><span class="n">run_tests</span><span class="p">(</span><span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
+
+        <span class="n">module</span> <span class="o">=</span> <span class="n">find_current_module</span><span class="p">(</span><span class="mi">2</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">module</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">test</span><span class="o">.</span><span class="n">__module__</span> <span class="o">=</span> <span class="n">module</span><span class="o">.</span><span class="n">__name__</span>
+
+        <span class="c1"># A somewhat unusual hack, but delete the attached __wrapped__</span>
+        <span class="c1"># attribute--although this is normally used to tell if the function</span>
+        <span class="c1"># was wrapped with wraps, on some version of Python this is also</span>
+        <span class="c1"># used to determine the signature to display in help() which is</span>
+        <span class="c1"># not useful in this case.  We don&#39;t really care in this case if the</span>
+        <span class="c1"># function was wrapped either</span>
+        <span class="k">if</span> <span class="nb">hasattr</span><span class="p">(</span><span class="n">test</span><span class="p">,</span> <span class="s1">&#39;__wrapped__&#39;</span><span class="p">):</span>
+            <span class="k">del</span> <span class="n">test</span><span class="o">.</span><span class="n">__wrapped__</span>
+
+        <span class="k">return</span> <span class="n">test</span></div></div>
+
+
+<div class="viewcode-block" id="TestRunner"><a class="viewcode-back" href="../../../api/astropy.tests.runner.TestRunner.html#astropy.tests.runner.TestRunner">[docs]</a><span class="k">class</span> <span class="nc">TestRunner</span><span class="p">(</span><span class="n">TestRunnerBase</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    A test runner for astropy tests</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="c1"># Increase priority so this warning is displayed first.</span>
+    <span class="nd">@keyword</span><span class="p">(</span><span class="n">priority</span><span class="o">=</span><span class="mi">1000</span><span class="p">)</span>
+<div class="viewcode-block" id="TestRunner.coverage"><a class="viewcode-back" href="../../../api/astropy.tests.runner.TestRunner.html#astropy.tests.runner.TestRunner.coverage">[docs]</a>    <span class="k">def</span> <span class="nf">coverage</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">coverage</span><span class="p">,</span> <span class="n">kwargs</span><span class="p">):</span>
+        <span class="k">if</span> <span class="n">coverage</span><span class="p">:</span>
+            <span class="n">warnings</span><span class="o">.</span><span class="n">warn</span><span class="p">(</span>
+                <span class="s2">&quot;The coverage option is ignored on run_tests, since it &quot;</span>
+                <span class="s2">&quot;can not be made to work in that context.  Use &quot;</span>
+                <span class="s2">&quot;&#39;python setup.py test --coverage&#39; instead.&quot;</span><span class="p">,</span>
+                <span class="n">AstropyWarning</span><span class="p">)</span>
+
+        <span class="k">return</span> <span class="p">[]</span></div>
+
+    <span class="c1"># test_path depends on self.package_path so make sure this runs before</span>
+    <span class="c1"># test_path.</span>
+    <span class="nd">@keyword</span><span class="p">(</span><span class="n">priority</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span>
+<div class="viewcode-block" id="TestRunner.package"><a class="viewcode-back" href="../../../api/astropy.tests.runner.TestRunner.html#astropy.tests.runner.TestRunner.package">[docs]</a>    <span class="k">def</span> <span class="nf">package</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">package</span><span class="p">,</span> <span class="n">kwargs</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        package : str, optional</span>
+<span class="sd">            The name of a specific package to test, e.g. &#39;io.fits&#39; or &#39;utils&#39;.</span>
+<span class="sd">            If nothing is specified all default Astropy tests are run.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="n">package</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">package_path</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">base_path</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">package_path</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">base_path</span><span class="p">,</span>
+                                        <span class="n">package</span><span class="o">.</span><span class="n">replace</span><span class="p">(</span><span class="s1">&#39;.&#39;</span><span class="p">,</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">sep</span><span class="p">))</span>
+
+            <span class="k">if</span> <span class="ow">not</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">isdir</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">package_path</span><span class="p">):</span>
+                <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s1">&#39;Package not found: </span><span class="si">{0}</span><span class="s1">&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">package</span><span class="p">))</span>
+
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">kwargs</span><span class="p">[</span><span class="s1">&#39;test_path&#39;</span><span class="p">]:</span>
+            <span class="k">return</span> <span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">package_path</span><span class="p">]</span>
+
+        <span class="k">return</span> <span class="p">[]</span></div>
+
+    <span class="nd">@keyword</span><span class="p">()</span>
+<div class="viewcode-block" id="TestRunner.test_path"><a class="viewcode-back" href="../../../api/astropy.tests.runner.TestRunner.html#astropy.tests.runner.TestRunner.test_path">[docs]</a>    <span class="k">def</span> <span class="nf">test_path</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">test_path</span><span class="p">,</span> <span class="n">kwargs</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        test_path : str, optional</span>
+<span class="sd">            Specify location to test by path. May be a single file or</span>
+<span class="sd">            directory. Must be specified absolutely or relative to the</span>
+<span class="sd">            calling directory.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">all_args</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="c1"># Ensure that the package kwarg has been run.</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">package</span><span class="p">(</span><span class="n">kwargs</span><span class="p">[</span><span class="s1">&#39;package&#39;</span><span class="p">],</span> <span class="n">kwargs</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">test_path</span><span class="p">:</span>
+            <span class="n">base</span><span class="p">,</span> <span class="n">ext</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">splitext</span><span class="p">(</span><span class="n">test_path</span><span class="p">)</span>
+
+            <span class="k">if</span> <span class="n">ext</span> <span class="ow">in</span> <span class="p">(</span><span class="s1">&#39;.rst&#39;</span><span class="p">,</span> <span class="s1">&#39;&#39;</span><span class="p">):</span>
+                <span class="k">if</span> <span class="n">kwargs</span><span class="p">[</span><span class="s1">&#39;docs_path&#39;</span><span class="p">]</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+                    <span class="c1"># This shouldn&#39;t happen from &quot;python setup.py test&quot;</span>
+                    <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
+                        <span class="s2">&quot;Can not test .rst files without a docs_path &quot;</span>
+                        <span class="s2">&quot;specified.&quot;</span><span class="p">)</span>
+
+                <span class="n">abs_docs_path</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">abspath</span><span class="p">(</span><span class="n">kwargs</span><span class="p">[</span><span class="s1">&#39;docs_path&#39;</span><span class="p">])</span>
+                <span class="n">abs_test_path</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">abspath</span><span class="p">(</span>
+                    <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">abs_docs_path</span><span class="p">,</span> <span class="n">os</span><span class="o">.</span><span class="n">pardir</span><span class="p">,</span> <span class="n">test_path</span><span class="p">))</span>
+
+                <span class="n">common</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">commonprefix</span><span class="p">((</span><span class="n">abs_docs_path</span><span class="p">,</span> <span class="n">abs_test_path</span><span class="p">))</span>
+
+                <span class="k">if</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">exists</span><span class="p">(</span><span class="n">abs_test_path</span><span class="p">)</span> <span class="ow">and</span> <span class="n">common</span> <span class="o">==</span> <span class="n">abs_docs_path</span><span class="p">:</span>
+                    <span class="c1"># Since we aren&#39;t testing any Python files within</span>
+                    <span class="c1"># the astropy tree, we need to forcibly load the</span>
+                    <span class="c1"># astropy py.test plugins, and then turn on the</span>
+                    <span class="c1"># doctest_rst plugin.</span>
+                    <span class="n">all_args</span><span class="o">.</span><span class="n">extend</span><span class="p">([</span><span class="s1">&#39;-p&#39;</span><span class="p">,</span> <span class="s1">&#39;astropy.tests.pytest_plugins&#39;</span><span class="p">,</span>
+                                     <span class="s1">&#39;--doctest-rst&#39;</span><span class="p">])</span>
+                    <span class="n">test_path</span> <span class="o">=</span> <span class="n">abs_test_path</span>
+
+            <span class="k">if</span> <span class="ow">not</span> <span class="p">(</span><span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">isdir</span><span class="p">(</span><span class="n">test_path</span><span class="p">)</span> <span class="ow">or</span> <span class="n">ext</span> <span class="ow">in</span> <span class="p">(</span><span class="s1">&#39;.py&#39;</span><span class="p">,</span> <span class="s1">&#39;.rst&#39;</span><span class="p">)):</span>
+                <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;Test path must be a directory or a path to &quot;</span>
+                                 <span class="s2">&quot;a .py or .rst file&quot;</span><span class="p">)</span>
+
+            <span class="k">return</span> <span class="n">all_args</span> <span class="o">+</span> <span class="p">[</span><span class="n">test_path</span><span class="p">]</span>
+
+        <span class="k">return</span> <span class="p">[]</span></div>
+
+    <span class="nd">@keyword</span><span class="p">()</span>
+<div class="viewcode-block" id="TestRunner.args"><a class="viewcode-back" href="../../../api/astropy.tests.runner.TestRunner.html#astropy.tests.runner.TestRunner.args">[docs]</a>    <span class="k">def</span> <span class="nf">args</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">args</span><span class="p">,</span> <span class="n">kwargs</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        args : str, optional</span>
+<span class="sd">            Additional arguments to be passed to ``pytest.main`` in the ``args``</span>
+<span class="sd">            keyword argument.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="n">args</span><span class="p">:</span>
+            <span class="k">return</span> <span class="n">shlex</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="n">args</span><span class="p">,</span> <span class="n">posix</span><span class="o">=</span><span class="ow">not</span> <span class="n">sys</span><span class="o">.</span><span class="n">platform</span><span class="o">.</span><span class="n">startswith</span><span class="p">(</span><span class="s1">&#39;win&#39;</span><span class="p">))</span>
+
+        <span class="k">return</span> <span class="p">[]</span></div>
+
+    <span class="nd">@keyword</span><span class="p">()</span>
+<div class="viewcode-block" id="TestRunner.plugins"><a class="viewcode-back" href="../../../api/astropy.tests.runner.TestRunner.html#astropy.tests.runner.TestRunner.plugins">[docs]</a>    <span class="k">def</span> <span class="nf">plugins</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">plugins</span><span class="p">,</span> <span class="n">kwargs</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        plugins : list, optional</span>
+<span class="sd">            Plugins to be passed to ``pytest.main`` in the ``plugins`` keyword</span>
+<span class="sd">            argument.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="p">[]</span></div>
+
+    <span class="nd">@keyword</span><span class="p">()</span>
+<div class="viewcode-block" id="TestRunner.verbose"><a class="viewcode-back" href="../../../api/astropy.tests.runner.TestRunner.html#astropy.tests.runner.TestRunner.verbose">[docs]</a>    <span class="k">def</span> <span class="nf">verbose</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">verbose</span><span class="p">,</span> <span class="n">kwargs</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        verbose : bool, optional</span>
+<span class="sd">            Convenience option to turn on verbose output from py.test. Passing</span>
+<span class="sd">            True is the same as specifying ``-v`` in ``args``.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="n">verbose</span><span class="p">:</span>
+            <span class="k">return</span> <span class="p">[</span><span class="s1">&#39;-v&#39;</span><span class="p">]</span>
+
+        <span class="k">return</span> <span class="p">[]</span></div>
+
+    <span class="nd">@keyword</span><span class="p">()</span>
+<div class="viewcode-block" id="TestRunner.pastebin"><a class="viewcode-back" href="../../../api/astropy.tests.runner.TestRunner.html#astropy.tests.runner.TestRunner.pastebin">[docs]</a>    <span class="k">def</span> <span class="nf">pastebin</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">pastebin</span><span class="p">,</span> <span class="n">kwargs</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        pastebin : (&#39;failed&#39;, &#39;all&#39;, None), optional</span>
+<span class="sd">            Convenience option for turning on py.test pastebin output. Set to</span>
+<span class="sd">            &#39;failed&#39; to upload info for failed tests, or &#39;all&#39; to upload info</span>
+<span class="sd">            for all tests.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="n">pastebin</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="k">if</span> <span class="n">pastebin</span> <span class="ow">in</span> <span class="p">[</span><span class="s1">&#39;failed&#39;</span><span class="p">,</span> <span class="s1">&#39;all&#39;</span><span class="p">]:</span>
+                <span class="k">return</span> <span class="p">[</span><span class="s1">&#39;--pastebin=</span><span class="si">{0}</span><span class="s1">&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">pastebin</span><span class="p">)]</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;pastebin should be &#39;failed&#39; or &#39;all&#39;&quot;</span><span class="p">)</span>
+
+        <span class="k">return</span> <span class="p">[]</span></div>
+
+    <span class="nd">@keyword</span><span class="p">(</span><span class="n">default_value</span><span class="o">=</span><span class="s1">&#39;none&#39;</span><span class="p">)</span>
+<div class="viewcode-block" id="TestRunner.remote_data"><a class="viewcode-back" href="../../../api/astropy.tests.runner.TestRunner.html#astropy.tests.runner.TestRunner.remote_data">[docs]</a>    <span class="k">def</span> <span class="nf">remote_data</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">remote_data</span><span class="p">,</span> <span class="n">kwargs</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        remote_data : {&#39;none&#39;, &#39;astropy&#39;, &#39;any&#39;}, optional</span>
+<span class="sd">            Controls whether to run tests marked with @remote_data. This can be</span>
+<span class="sd">            set to run no tests with remote data (``none``), only ones that use</span>
+<span class="sd">            data from http://data.astropy.org (``astropy``), or all tests that</span>
+<span class="sd">            use remote data (``any``). The default is ``none``.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+
+        <span class="k">if</span> <span class="n">remote_data</span> <span class="ow">is</span> <span class="kc">True</span><span class="p">:</span>
+            <span class="n">remote_data</span> <span class="o">=</span> <span class="s1">&#39;any&#39;</span>
+        <span class="k">elif</span> <span class="n">remote_data</span> <span class="ow">is</span> <span class="kc">False</span><span class="p">:</span>
+            <span class="n">remote_data</span> <span class="o">=</span> <span class="s1">&#39;none&#39;</span>
+        <span class="k">elif</span> <span class="n">remote_data</span> <span class="ow">not</span> <span class="ow">in</span> <span class="p">(</span><span class="s1">&#39;none&#39;</span><span class="p">,</span> <span class="s1">&#39;astropy&#39;</span><span class="p">,</span> <span class="s1">&#39;any&#39;</span><span class="p">):</span>
+            <span class="n">warnings</span><span class="o">.</span><span class="n">warn</span><span class="p">(</span><span class="s2">&quot;The remote_data option should be one of &quot;</span>
+                          <span class="s2">&quot;none/astropy/any (found </span><span class="si">{0}</span><span class="s2">). For backward-compatibility, &quot;</span>
+                          <span class="s2">&quot;assuming &#39;any&#39;, but you should change the option to be &quot;</span>
+                          <span class="s2">&quot;one of the supported ones to avoid issues in &quot;</span>
+                          <span class="s2">&quot;future.&quot;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">remote_data</span><span class="p">),</span>
+                          <span class="n">AstropyDeprecationWarning</span><span class="p">)</span>
+            <span class="n">remote_data</span> <span class="o">=</span> <span class="s1">&#39;any&#39;</span>
+
+        <span class="k">return</span> <span class="p">[</span><span class="s1">&#39;--remote-data=</span><span class="si">{0}</span><span class="s1">&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">remote_data</span><span class="p">)]</span></div>
+
+    <span class="nd">@keyword</span><span class="p">()</span>
+<div class="viewcode-block" id="TestRunner.pep8"><a class="viewcode-back" href="../../../api/astropy.tests.runner.TestRunner.html#astropy.tests.runner.TestRunner.pep8">[docs]</a>    <span class="k">def</span> <span class="nf">pep8</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">pep8</span><span class="p">,</span> <span class="n">kwargs</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        pep8 : bool, optional</span>
+<span class="sd">            Turn on PEP8 checking via the pytest-pep8 plugin and disable normal</span>
+<span class="sd">            tests. Same as specifying ``--pep8 -k pep8`` in ``args``.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="n">pep8</span><span class="p">:</span>
+            <span class="k">try</span><span class="p">:</span>
+                <span class="kn">import</span> <span class="nn">pytest_pep8</span>  <span class="c1"># pylint: disable=W0611</span>
+            <span class="k">except</span> <span class="ne">ImportError</span><span class="p">:</span>
+                <span class="k">raise</span> <span class="ne">ImportError</span><span class="p">(</span><span class="s1">&#39;PEP8 checking requires pytest-pep8 plugin: &#39;</span>
+                                  <span class="s1">&#39;http://pypi.python.org/pypi/pytest-pep8&#39;</span><span class="p">)</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="k">return</span> <span class="p">[</span><span class="s1">&#39;--pep8&#39;</span><span class="p">,</span> <span class="s1">&#39;-k&#39;</span><span class="p">,</span> <span class="s1">&#39;pep8&#39;</span><span class="p">]</span>
+
+        <span class="k">return</span> <span class="p">[]</span></div>
+
+    <span class="nd">@keyword</span><span class="p">()</span>
+<div class="viewcode-block" id="TestRunner.pdb"><a class="viewcode-back" href="../../../api/astropy.tests.runner.TestRunner.html#astropy.tests.runner.TestRunner.pdb">[docs]</a>    <span class="k">def</span> <span class="nf">pdb</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">pdb</span><span class="p">,</span> <span class="n">kwargs</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        pdb : bool, optional</span>
+<span class="sd">            Turn on PDB post-mortem analysis for failing tests. Same as</span>
+<span class="sd">            specifying ``--pdb`` in ``args``.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="n">pdb</span><span class="p">:</span>
+            <span class="k">return</span> <span class="p">[</span><span class="s1">&#39;--pdb&#39;</span><span class="p">]</span>
+        <span class="k">return</span> <span class="p">[]</span></div>
+
+    <span class="nd">@keyword</span><span class="p">()</span>
+<div class="viewcode-block" id="TestRunner.open_files"><a class="viewcode-back" href="../../../api/astropy.tests.runner.TestRunner.html#astropy.tests.runner.TestRunner.open_files">[docs]</a>    <span class="k">def</span> <span class="nf">open_files</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">open_files</span><span class="p">,</span> <span class="n">kwargs</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        open_files : bool, optional</span>
+<span class="sd">            Fail when any tests leave files open.  Off by default, because</span>
+<span class="sd">            this adds extra run time to the test suite.  Requires the</span>
+<span class="sd">            ``psutil`` package.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="n">open_files</span><span class="p">:</span>
+            <span class="k">if</span> <span class="n">kwargs</span><span class="p">[</span><span class="s1">&#39;parallel&#39;</span><span class="p">]</span> <span class="o">!=</span> <span class="mi">0</span><span class="p">:</span>
+                <span class="k">raise</span> <span class="ne">SystemError</span><span class="p">(</span>
+                    <span class="s2">&quot;open file detection may not be used in conjunction with &quot;</span>
+                    <span class="s2">&quot;parallel testing.&quot;</span><span class="p">)</span>
+
+            <span class="k">try</span><span class="p">:</span>
+                <span class="kn">import</span> <span class="nn">psutil</span>  <span class="c1"># pylint: disable=W0611</span>
+            <span class="k">except</span> <span class="ne">ImportError</span><span class="p">:</span>
+                <span class="k">raise</span> <span class="ne">SystemError</span><span class="p">(</span>
+                    <span class="s2">&quot;open file detection requested, but psutil package &quot;</span>
+                    <span class="s2">&quot;is not installed.&quot;</span><span class="p">)</span>
+
+            <span class="k">return</span> <span class="p">[</span><span class="s1">&#39;--open-files&#39;</span><span class="p">]</span>
+
+            <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;Checking for unclosed files&quot;</span><span class="p">)</span>
+
+        <span class="k">return</span> <span class="p">[]</span></div>
+
+    <span class="nd">@keyword</span><span class="p">(</span><span class="mi">0</span><span class="p">)</span>
+<div class="viewcode-block" id="TestRunner.parallel"><a class="viewcode-back" href="../../../api/astropy.tests.runner.TestRunner.html#astropy.tests.runner.TestRunner.parallel">[docs]</a>    <span class="k">def</span> <span class="nf">parallel</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">parallel</span><span class="p">,</span> <span class="n">kwargs</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        parallel : int, optional</span>
+<span class="sd">            When provided, run the tests in parallel on the specified</span>
+<span class="sd">            number of CPUs.  If parallel is negative, it will use the all</span>
+<span class="sd">            the cores on the machine.  Requires the ``pytest-xdist`` plugin.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="n">parallel</span> <span class="o">!=</span> <span class="mi">0</span><span class="p">:</span>
+            <span class="k">return</span> <span class="p">[</span><span class="s1">&#39;-n&#39;</span><span class="p">,</span> <span class="n">six</span><span class="o">.</span><span class="n">text_type</span><span class="p">(</span><span class="n">parallel</span><span class="p">)]</span>
+
+        <span class="k">return</span> <span class="p">[]</span></div>
+
+    <span class="nd">@keyword</span><span class="p">()</span>
+<div class="viewcode-block" id="TestRunner.docs_path"><a class="viewcode-back" href="../../../api/astropy.tests.runner.TestRunner.html#astropy.tests.runner.TestRunner.docs_path">[docs]</a>    <span class="k">def</span> <span class="nf">docs_path</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">docs_path</span><span class="p">,</span> <span class="n">kwargs</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        docs_path : str, optional</span>
+<span class="sd">            The path to the documentation .rst files.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="n">docs_path</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="ow">and</span> <span class="ow">not</span> <span class="n">kwargs</span><span class="p">[</span><span class="s1">&#39;skip_docs&#39;</span><span class="p">]:</span>
+            <span class="k">if</span> <span class="n">kwargs</span><span class="p">[</span><span class="s1">&#39;package&#39;</span><span class="p">]</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+                <span class="n">docs_path</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span>
+                    <span class="n">docs_path</span><span class="p">,</span> <span class="n">kwargs</span><span class="p">[</span><span class="s1">&#39;package&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">replace</span><span class="p">(</span><span class="s1">&#39;.&#39;</span><span class="p">,</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">sep</span><span class="p">))</span>
+            <span class="k">if</span> <span class="ow">not</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">exists</span><span class="p">(</span><span class="n">docs_path</span><span class="p">):</span>
+                <span class="n">warnings</span><span class="o">.</span><span class="n">warn</span><span class="p">(</span>
+                    <span class="s2">&quot;Can not test .rst docs, since docs path &quot;</span>
+                    <span class="s2">&quot;(</span><span class="si">{0}</span><span class="s2">) does not exist.&quot;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">docs_path</span><span class="p">))</span>
+                <span class="n">docs_path</span> <span class="o">=</span> <span class="kc">None</span>
+        <span class="k">if</span> <span class="n">docs_path</span> <span class="ow">and</span> <span class="ow">not</span> <span class="n">kwargs</span><span class="p">[</span><span class="s1">&#39;skip_docs&#39;</span><span class="p">]</span> <span class="ow">and</span> <span class="ow">not</span> <span class="n">kwargs</span><span class="p">[</span><span class="s1">&#39;test_path&#39;</span><span class="p">]:</span>
+            <span class="k">return</span> <span class="p">[</span><span class="n">docs_path</span><span class="p">,</span> <span class="s1">&#39;--doctest-rst&#39;</span><span class="p">]</span>
+
+        <span class="k">return</span> <span class="p">[]</span></div>
+
+    <span class="nd">@keyword</span><span class="p">()</span>
+<div class="viewcode-block" id="TestRunner.skip_docs"><a class="viewcode-back" href="../../../api/astropy.tests.runner.TestRunner.html#astropy.tests.runner.TestRunner.skip_docs">[docs]</a>    <span class="k">def</span> <span class="nf">skip_docs</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">skip_docs</span><span class="p">,</span> <span class="n">kwargs</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        skip_docs : `bool`, optional</span>
+<span class="sd">            When `True`, skips running the doctests in the .rst files.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="c1"># Skip docs is a bool used by docs_path only.</span>
+        <span class="k">return</span> <span class="p">[]</span></div>
+
+    <span class="nd">@keyword</span><span class="p">()</span>
+<div class="viewcode-block" id="TestRunner.repeat"><a class="viewcode-back" href="../../../api/astropy.tests.runner.TestRunner.html#astropy.tests.runner.TestRunner.repeat">[docs]</a>    <span class="k">def</span> <span class="nf">repeat</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">repeat</span><span class="p">,</span> <span class="n">kwargs</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        repeat : `int`, optional</span>
+<span class="sd">            If set, specifies how many times each test should be run. This is</span>
+<span class="sd">            useful for diagnosing sporadic failures.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="n">repeat</span><span class="p">:</span>
+            <span class="k">return</span> <span class="p">[</span><span class="s1">&#39;--repeat=</span><span class="si">{0}</span><span class="s1">&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">repeat</span><span class="p">)]</span>
+
+        <span class="k">return</span> <span class="p">[]</span></div>
+
+    <span class="c1"># Override run_tests for astropy-specific fixes</span>
+<div class="viewcode-block" id="TestRunner.run_tests"><a class="viewcode-back" href="../../../api/astropy.tests.runner.TestRunner.html#astropy.tests.runner.TestRunner.run_tests">[docs]</a>    <span class="k">def</span> <span class="nf">run_tests</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+
+        <span class="c1"># This prevents cyclical import problems that make it</span>
+        <span class="c1"># impossible to test packages that define Table types on their</span>
+        <span class="c1"># own.</span>
+        <span class="kn">from</span> <span class="nn">..table</span> <span class="k">import</span> <span class="n">Table</span>  <span class="c1"># pylint: disable=W0611</span>
+
+        <span class="k">return</span> <span class="nb">super</span><span class="p">(</span><span class="n">TestRunner</span><span class="p">,</span> <span class="bp">self</span><span class="p">)</span><span class="o">.</span><span class="n">run_tests</span><span class="p">(</span><span class="o">**</span><span class="n">kwargs</span><span class="p">)</span></div></div>
+</pre></div>
+
+          </div>
+        </div>
+      </div>
+      <div class="sphinxsidebar" role="navigation" aria-label="main navigation">
+        <div class="sphinxsidebarwrapper"><h3>Page Contents</h3>
+
+
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+<footer class="footer">
+  <p class="pull-right"> &nbsp;
+    <a href="#">Back to Top</a></p>
+  <p>
+    &copy; Copyright 2011-2016, The Astropy Developers.<br/>
+    Created using <a href="http://sphinx.pocoo.org/">Sphinx</a> 1.5.6. &nbsp;
+    Last built 05 Jul 2017. <br/>
+  </p>
+</footer>
+  </body>
+</html>

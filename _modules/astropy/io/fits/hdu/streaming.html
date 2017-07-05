@@ -1,0 +1,332 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <head>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    
+    <title>astropy.io.fits.hdu.streaming &#8212; Astropy v3.0.dev19489</title>
+    
+    <link rel="stylesheet" href="../../../../../_static/bootstrap-astropy.css" type="text/css" />
+    <link rel="stylesheet" href="../../../../../_static/pygments.css" type="text/css" />
+    <link rel="stylesheet" href="../../../../../_static/gallery.css" type="text/css" />
+    
+    <script type="text/javascript">
+      var DOCUMENTATION_OPTIONS = {
+        URL_ROOT:    '../../../../../',
+        VERSION:     '3.0.dev19489',
+        COLLAPSE_INDEX: false,
+        FILE_SUFFIX: '.html',
+        HAS_SOURCE:  true,
+        SOURCELINK_SUFFIX: '.txt'
+      };
+    </script>
+    <script type="text/javascript" src="../../../../../_static/jquery.js"></script>
+    <script type="text/javascript" src="../../../../../_static/underscore.js"></script>
+    <script type="text/javascript" src="../../../../../_static/doctools.js"></script>
+    <script type="text/javascript" src="../../../../../_static/sidebar.js"></script>
+    <link rel="shortcut icon" href="../../../../../_static/astropy_logo.ico"/>
+    <link rel="index" title="Index" href="../../../../../genindex.html" />
+    <link rel="search" title="Search" href="../../../../../search.html" />
+<link href='https://fonts.googleapis.com/css?family=Source+Sans+Pro:200,600' rel='stylesheet' type='text/css'/>
+<script type="text/javascript" src="../../../../../_static/copybutton.js"></script>
+
+
+  </head>
+  <body role="document">
+<div class="topbar">
+  <a class="brand" title="Documentation Home" href="../../../../../index.html"><span id="logotext1">astro</span><span id="logotext2">py</span><span id="logotext3">:docs</span></a>
+  <ul>
+    <li><a class="homelink" title="Astropy Homepage" href="http://www.astropy.org"></a></li>
+    <li><a title="General Index" href="../../../../../genindex.html">Index</a></li>
+    <li><a title="Module Index" href="../../../../../py-modindex.html">Modules</a></li>
+    <li>
+      
+      
+<form action="../../../../../search.html" method="get">
+  <input type="text" name="q" placeholder="Search" />
+  <input type="hidden" name="check_keywords" value="yes" />
+  <input type="hidden" name="area" value="default" />
+</form>
+      
+    </li>
+  </ul>
+</div>
+
+<div class="related">
+    <h3>Navigation</h3>
+    <ul>
+      <li>
+	<a href="../../../../../index.html">Astropy v3.0.dev19489</a>
+	 &#187;
+      </li>
+      <li><a href="../../../../index.html" >Module code</a> &#187;</li>
+      <li><a href="../../../../astropy.html" accesskey="U">astropy</a> &#187;</li>
+      
+       
+    </ul>
+</div>
+  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          <div class="body" role="main">
+            
+  <h1>Source code for astropy.io.fits.hdu.streaming</h1><div class="highlight"><pre>
+<span></span><span class="c1"># Licensed under a 3-clause BSD style license - see PYFITS.rst</span>
+
+<span class="kn">import</span> <span class="nn">gzip</span>
+<span class="kn">import</span> <span class="nn">os</span>
+
+<span class="kn">from</span> <span class="nn">.base</span> <span class="k">import</span> <span class="n">_BaseHDU</span><span class="p">,</span> <span class="n">BITPIX2DTYPE</span>
+<span class="kn">from</span> <span class="nn">.hdulist</span> <span class="k">import</span> <span class="n">HDUList</span>
+<span class="kn">from</span> <span class="nn">.image</span> <span class="k">import</span> <span class="n">PrimaryHDU</span>
+
+<span class="kn">from</span> <span class="nn">..file</span> <span class="k">import</span> <span class="n">_File</span>
+<span class="kn">from</span> <span class="nn">..header</span> <span class="k">import</span> <span class="n">_pad_length</span>
+<span class="kn">from</span> <span class="nn">..util</span> <span class="k">import</span> <span class="n">fileobj_name</span>
+
+<span class="kn">from</span> <span class="nn">....extern.six.moves</span> <span class="k">import</span> <span class="nb">range</span>
+
+
+<div class="viewcode-block" id="StreamingHDU"><a class="viewcode-back" href="../../../../../io/fits/api/hdus.html#astropy.io.fits.StreamingHDU">[docs]</a><span class="k">class</span> <span class="nc">StreamingHDU</span><span class="p">(</span><span class="nb">object</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    A class that provides the capability to stream data to a FITS file</span>
+<span class="sd">    instead of requiring data to all be written at once.</span>
+
+<span class="sd">    The following pseudocode illustrates its use::</span>
+
+<span class="sd">        header = astropy.io.fits.Header()</span>
+
+<span class="sd">        for all the cards you need in the header:</span>
+<span class="sd">            header[key] = (value, comment)</span>
+
+<span class="sd">        shdu = astropy.io.fits.StreamingHDU(&#39;filename.fits&#39;, header)</span>
+
+<span class="sd">        for each piece of data:</span>
+<span class="sd">            shdu.write(data)</span>
+
+<span class="sd">        shdu.close()</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">name</span><span class="p">,</span> <span class="n">header</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Construct a `StreamingHDU` object given a file name and a header.</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        name : file path, file object, or file like object</span>
+<span class="sd">            The file to which the header and data will be streamed.  If opened,</span>
+<span class="sd">            the file object must be opened in a writeable binary mode such as</span>
+<span class="sd">            &#39;wb&#39; or &#39;ab+&#39;.</span>
+
+<span class="sd">        header : `Header` instance</span>
+<span class="sd">            The header object associated with the data to be written</span>
+<span class="sd">            to the file.</span>
+
+<span class="sd">        Notes</span>
+<span class="sd">        -----</span>
+<span class="sd">        The file will be opened and the header appended to the end of</span>
+<span class="sd">        the file.  If the file does not already exist, it will be</span>
+<span class="sd">        created, and if the header represents a Primary header, it</span>
+<span class="sd">        will be written to the beginning of the file.  If the file</span>
+<span class="sd">        does not exist and the provided header is not a Primary</span>
+<span class="sd">        header, a default Primary HDU will be inserted at the</span>
+<span class="sd">        beginning of the file and the provided header will be added as</span>
+<span class="sd">        the first extension.  If the file does already exist, but the</span>
+<span class="sd">        provided header represents a Primary header, the header will</span>
+<span class="sd">        be modified to an image extension header and appended to the</span>
+<span class="sd">        end of the file.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+
+        <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">name</span><span class="p">,</span> <span class="n">gzip</span><span class="o">.</span><span class="n">GzipFile</span><span class="p">):</span>
+            <span class="k">raise</span> <span class="ne">TypeError</span><span class="p">(</span><span class="s1">&#39;StreamingHDU not supported for GzipFile objects.&#39;</span><span class="p">)</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">_header</span> <span class="o">=</span> <span class="n">header</span><span class="o">.</span><span class="n">copy</span><span class="p">()</span>
+
+        <span class="c1"># handle a file object instead of a file name</span>
+        <span class="n">filename</span> <span class="o">=</span> <span class="n">fileobj_name</span><span class="p">(</span><span class="n">name</span><span class="p">)</span> <span class="ow">or</span> <span class="s1">&#39;&#39;</span>
+
+        <span class="c1"># Check if the file already exists.  If it does not, check to see</span>
+        <span class="c1"># if we were provided with a Primary Header.  If not we will need</span>
+        <span class="c1"># to prepend a default PrimaryHDU to the file before writing the</span>
+        <span class="c1"># given header.</span>
+
+        <span class="n">newfile</span> <span class="o">=</span> <span class="kc">False</span>
+
+        <span class="k">if</span> <span class="n">filename</span><span class="p">:</span>
+            <span class="k">if</span> <span class="ow">not</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">exists</span><span class="p">(</span><span class="n">filename</span><span class="p">)</span> <span class="ow">or</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">getsize</span><span class="p">(</span><span class="n">filename</span><span class="p">)</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
+                <span class="n">newfile</span> <span class="o">=</span> <span class="kc">True</span>
+        <span class="k">elif</span> <span class="p">(</span><span class="nb">hasattr</span><span class="p">(</span><span class="n">name</span><span class="p">,</span> <span class="s1">&#39;len&#39;</span><span class="p">)</span> <span class="ow">and</span> <span class="n">name</span><span class="o">.</span><span class="n">len</span> <span class="o">==</span> <span class="mi">0</span><span class="p">):</span>
+            <span class="n">newfile</span> <span class="o">=</span> <span class="kc">True</span>
+
+        <span class="k">if</span> <span class="n">newfile</span><span class="p">:</span>
+            <span class="k">if</span> <span class="s1">&#39;SIMPLE&#39;</span> <span class="ow">not</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">_header</span><span class="p">:</span>
+                <span class="n">hdulist</span> <span class="o">=</span> <span class="n">HDUList</span><span class="p">([</span><span class="n">PrimaryHDU</span><span class="p">()])</span>
+                <span class="n">hdulist</span><span class="o">.</span><span class="n">writeto</span><span class="p">(</span><span class="n">name</span><span class="p">,</span> <span class="s1">&#39;exception&#39;</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+
+            <span class="c1"># This will not be the first extension in the file so we</span>
+            <span class="c1"># must change the Primary header provided into an image</span>
+            <span class="c1"># extension header.</span>
+
+            <span class="k">if</span> <span class="s1">&#39;SIMPLE&#39;</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">_header</span><span class="p">:</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">_header</span><span class="o">.</span><span class="n">set</span><span class="p">(</span><span class="s1">&#39;XTENSION&#39;</span><span class="p">,</span> <span class="s1">&#39;IMAGE&#39;</span><span class="p">,</span> <span class="s1">&#39;Image extension&#39;</span><span class="p">,</span>
+                                 <span class="n">after</span><span class="o">=</span><span class="s1">&#39;SIMPLE&#39;</span><span class="p">)</span>
+                <span class="k">del</span> <span class="bp">self</span><span class="o">.</span><span class="n">_header</span><span class="p">[</span><span class="s1">&#39;SIMPLE&#39;</span><span class="p">]</span>
+
+                <span class="k">if</span> <span class="s1">&#39;PCOUNT&#39;</span> <span class="ow">not</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">_header</span><span class="p">:</span>
+                    <span class="n">dim</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_header</span><span class="p">[</span><span class="s1">&#39;NAXIS&#39;</span><span class="p">]</span>
+
+                    <span class="k">if</span> <span class="n">dim</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
+                        <span class="n">dim</span> <span class="o">=</span> <span class="s1">&#39;&#39;</span>
+                    <span class="k">else</span><span class="p">:</span>
+                        <span class="n">dim</span> <span class="o">=</span> <span class="nb">str</span><span class="p">(</span><span class="n">dim</span><span class="p">)</span>
+
+                    <span class="bp">self</span><span class="o">.</span><span class="n">_header</span><span class="o">.</span><span class="n">set</span><span class="p">(</span><span class="s1">&#39;PCOUNT&#39;</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="s1">&#39;number of parameters&#39;</span><span class="p">,</span>
+                                     <span class="n">after</span><span class="o">=</span><span class="s1">&#39;NAXIS&#39;</span> <span class="o">+</span> <span class="n">dim</span><span class="p">)</span>
+
+                <span class="k">if</span> <span class="s1">&#39;GCOUNT&#39;</span> <span class="ow">not</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">_header</span><span class="p">:</span>
+                    <span class="bp">self</span><span class="o">.</span><span class="n">_header</span><span class="o">.</span><span class="n">set</span><span class="p">(</span><span class="s1">&#39;GCOUNT&#39;</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="s1">&#39;number of groups&#39;</span><span class="p">,</span>
+                                     <span class="n">after</span><span class="o">=</span><span class="s1">&#39;PCOUNT&#39;</span><span class="p">)</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">_ffo</span> <span class="o">=</span> <span class="n">_File</span><span class="p">(</span><span class="n">name</span><span class="p">,</span> <span class="s1">&#39;append&#39;</span><span class="p">)</span>
+
+        <span class="c1"># TODO : Fix this once the HDU writing API is cleaned up</span>
+        <span class="n">tmp_hdu</span> <span class="o">=</span> <span class="n">_BaseHDU</span><span class="p">()</span>
+        <span class="c1"># Passing self._header as an argument to _BaseHDU() will cause its</span>
+        <span class="c1"># values to be modified in undesired ways...need to have a better way</span>
+        <span class="c1"># of doing this</span>
+        <span class="n">tmp_hdu</span><span class="o">.</span><span class="n">_header</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_header</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_header_offset</span> <span class="o">=</span> <span class="n">tmp_hdu</span><span class="o">.</span><span class="n">_writeheader</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_ffo</span><span class="p">)[</span><span class="mi">0</span><span class="p">]</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_data_offset</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_ffo</span><span class="o">.</span><span class="n">tell</span><span class="p">()</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_size</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">size</span>
+
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_size</span> <span class="o">!=</span> <span class="mi">0</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">writecomplete</span> <span class="o">=</span> <span class="kc">False</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">writecomplete</span> <span class="o">=</span> <span class="kc">True</span>
+
+    <span class="c1"># Support the &#39;with&#39; statement</span>
+    <span class="k">def</span> <span class="nf">__enter__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="bp">self</span>
+
+    <span class="k">def</span> <span class="nf">__exit__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="nb">type</span><span class="p">,</span> <span class="n">value</span><span class="p">,</span> <span class="n">traceback</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">close</span><span class="p">()</span>
+
+<div class="viewcode-block" id="StreamingHDU.write"><a class="viewcode-back" href="../../../../../io/fits/api/hdus.html#astropy.io.fits.StreamingHDU.write">[docs]</a>    <span class="k">def</span> <span class="nf">write</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">data</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Write the given data to the stream.</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        data : ndarray</span>
+<span class="sd">            Data to stream to the file.</span>
+
+<span class="sd">        Returns</span>
+<span class="sd">        -------</span>
+<span class="sd">        writecomplete : int</span>
+<span class="sd">            Flag that when `True` indicates that all of the required</span>
+<span class="sd">            data has been written to the stream.</span>
+
+<span class="sd">        Notes</span>
+<span class="sd">        -----</span>
+<span class="sd">        Only the amount of data specified in the header provided to the class</span>
+<span class="sd">        constructor may be written to the stream.  If the provided data would</span>
+<span class="sd">        cause the stream to overflow, an `IOError` exception is</span>
+<span class="sd">        raised and the data is not written. Once sufficient data has been</span>
+<span class="sd">        written to the stream to satisfy the amount specified in the header,</span>
+<span class="sd">        the stream is padded to fill a complete FITS block and no more data</span>
+<span class="sd">        will be accepted. An attempt to write more data after the stream has</span>
+<span class="sd">        been filled will raise an `IOError` exception. If the</span>
+<span class="sd">        dtype of the input data does not match what is expected by the header,</span>
+<span class="sd">        a `TypeError` exception is raised.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+
+        <span class="n">size</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_ffo</span><span class="o">.</span><span class="n">tell</span><span class="p">()</span> <span class="o">-</span> <span class="bp">self</span><span class="o">.</span><span class="n">_data_offset</span>
+
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">writecomplete</span> <span class="ow">or</span> <span class="n">size</span> <span class="o">+</span> <span class="n">data</span><span class="o">.</span><span class="n">nbytes</span> <span class="o">&gt;</span> <span class="bp">self</span><span class="o">.</span><span class="n">_size</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">IOError</span><span class="p">(</span><span class="s1">&#39;Attempt to write more data to the stream than the &#39;</span>
+                          <span class="s1">&#39;header specified.&#39;</span><span class="p">)</span>
+
+        <span class="k">if</span> <span class="n">BITPIX2DTYPE</span><span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">_header</span><span class="p">[</span><span class="s1">&#39;BITPIX&#39;</span><span class="p">]]</span> <span class="o">!=</span> <span class="n">data</span><span class="o">.</span><span class="n">dtype</span><span class="o">.</span><span class="n">name</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">TypeError</span><span class="p">(</span><span class="s1">&#39;Supplied data does not match the type specified &#39;</span>
+                            <span class="s1">&#39;in the header.&#39;</span><span class="p">)</span>
+
+        <span class="k">if</span> <span class="n">data</span><span class="o">.</span><span class="n">dtype</span><span class="o">.</span><span class="n">str</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">!=</span> <span class="s1">&#39;&gt;&#39;</span><span class="p">:</span>
+            <span class="c1"># byteswap little endian arrays before writing</span>
+            <span class="n">output</span> <span class="o">=</span> <span class="n">data</span><span class="o">.</span><span class="n">byteswap</span><span class="p">()</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">output</span> <span class="o">=</span> <span class="n">data</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">_ffo</span><span class="o">.</span><span class="n">writearray</span><span class="p">(</span><span class="n">output</span><span class="p">)</span>
+
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_ffo</span><span class="o">.</span><span class="n">tell</span><span class="p">()</span> <span class="o">-</span> <span class="bp">self</span><span class="o">.</span><span class="n">_data_offset</span> <span class="o">==</span> <span class="bp">self</span><span class="o">.</span><span class="n">_size</span><span class="p">:</span>
+            <span class="c1"># the stream is full so pad the data to the next FITS block</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_ffo</span><span class="o">.</span><span class="n">write</span><span class="p">(</span><span class="n">_pad_length</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_size</span><span class="p">)</span> <span class="o">*</span> <span class="s1">&#39;</span><span class="se">\0</span><span class="s1">&#39;</span><span class="p">)</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">writecomplete</span> <span class="o">=</span> <span class="kc">True</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">_ffo</span><span class="o">.</span><span class="n">flush</span><span class="p">()</span>
+
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">writecomplete</span></div>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">size</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Return the size (in bytes) of the data portion of the HDU.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+
+        <span class="n">size</span> <span class="o">=</span> <span class="mi">0</span>
+        <span class="n">naxis</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_header</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;NAXIS&#39;</span><span class="p">,</span> <span class="mi">0</span><span class="p">)</span>
+
+        <span class="k">if</span> <span class="n">naxis</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">:</span>
+            <span class="n">simple</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_header</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;SIMPLE&#39;</span><span class="p">,</span> <span class="s1">&#39;F&#39;</span><span class="p">)</span>
+            <span class="n">random_groups</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_header</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;GROUPS&#39;</span><span class="p">,</span> <span class="s1">&#39;F&#39;</span><span class="p">)</span>
+
+            <span class="k">if</span> <span class="n">simple</span> <span class="o">==</span> <span class="s1">&#39;T&#39;</span> <span class="ow">and</span> <span class="n">random_groups</span> <span class="o">==</span> <span class="s1">&#39;T&#39;</span><span class="p">:</span>
+                <span class="n">groups</span> <span class="o">=</span> <span class="mi">1</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="n">groups</span> <span class="o">=</span> <span class="mi">0</span>
+
+            <span class="n">size</span> <span class="o">=</span> <span class="mi">1</span>
+
+            <span class="k">for</span> <span class="n">idx</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">groups</span><span class="p">,</span> <span class="n">naxis</span><span class="p">):</span>
+                <span class="n">size</span> <span class="o">=</span> <span class="n">size</span> <span class="o">*</span> <span class="bp">self</span><span class="o">.</span><span class="n">_header</span><span class="p">[</span><span class="s1">&#39;NAXIS&#39;</span> <span class="o">+</span> <span class="nb">str</span><span class="p">(</span><span class="n">idx</span> <span class="o">+</span> <span class="mi">1</span><span class="p">)]</span>
+            <span class="n">bitpix</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_header</span><span class="p">[</span><span class="s1">&#39;BITPIX&#39;</span><span class="p">]</span>
+            <span class="n">gcount</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_header</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;GCOUNT&#39;</span><span class="p">,</span> <span class="mi">1</span><span class="p">)</span>
+            <span class="n">pcount</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_header</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;PCOUNT&#39;</span><span class="p">,</span> <span class="mi">0</span><span class="p">)</span>
+            <span class="n">size</span> <span class="o">=</span> <span class="nb">abs</span><span class="p">(</span><span class="n">bitpix</span><span class="p">)</span> <span class="o">*</span> <span class="n">gcount</span> <span class="o">*</span> <span class="p">(</span><span class="n">pcount</span> <span class="o">+</span> <span class="n">size</span><span class="p">)</span> <span class="o">//</span> <span class="mi">8</span>
+        <span class="k">return</span> <span class="n">size</span>
+
+<div class="viewcode-block" id="StreamingHDU.close"><a class="viewcode-back" href="../../../../../io/fits/api/hdus.html#astropy.io.fits.StreamingHDU.close">[docs]</a>    <span class="k">def</span> <span class="nf">close</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Close the physical FITS file.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">_ffo</span><span class="o">.</span><span class="n">close</span><span class="p">()</span></div></div>
+</pre></div>
+
+          </div>
+        </div>
+      </div>
+      <div class="sphinxsidebar" role="navigation" aria-label="main navigation">
+        <div class="sphinxsidebarwrapper"><h3>Page Contents</h3>
+
+
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+<footer class="footer">
+  <p class="pull-right"> &nbsp;
+    <a href="#">Back to Top</a></p>
+  <p>
+    &copy; Copyright 2011-2016, The Astropy Developers.<br/>
+    Created using <a href="http://sphinx.pocoo.org/">Sphinx</a> 1.5.6. &nbsp;
+    Last built 05 Jul 2017. <br/>
+  </p>
+</footer>
+  </body>
+</html>

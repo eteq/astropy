@@ -1,0 +1,412 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <head>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    
+    <title>astropy.nddata.nddata &#8212; Astropy v3.0.dev19489</title>
+    
+    <link rel="stylesheet" href="../../../_static/bootstrap-astropy.css" type="text/css" />
+    <link rel="stylesheet" href="../../../_static/pygments.css" type="text/css" />
+    <link rel="stylesheet" href="../../../_static/gallery.css" type="text/css" />
+    
+    <script type="text/javascript">
+      var DOCUMENTATION_OPTIONS = {
+        URL_ROOT:    '../../../',
+        VERSION:     '3.0.dev19489',
+        COLLAPSE_INDEX: false,
+        FILE_SUFFIX: '.html',
+        HAS_SOURCE:  true,
+        SOURCELINK_SUFFIX: '.txt'
+      };
+    </script>
+    <script type="text/javascript" src="../../../_static/jquery.js"></script>
+    <script type="text/javascript" src="../../../_static/underscore.js"></script>
+    <script type="text/javascript" src="../../../_static/doctools.js"></script>
+    <script type="text/javascript" src="../../../_static/sidebar.js"></script>
+    <link rel="shortcut icon" href="../../../_static/astropy_logo.ico"/>
+    <link rel="index" title="Index" href="../../../genindex.html" />
+    <link rel="search" title="Search" href="../../../search.html" />
+<link href='https://fonts.googleapis.com/css?family=Source+Sans+Pro:200,600' rel='stylesheet' type='text/css'/>
+<script type="text/javascript" src="../../../_static/copybutton.js"></script>
+
+
+  </head>
+  <body role="document">
+<div class="topbar">
+  <a class="brand" title="Documentation Home" href="../../../index.html"><span id="logotext1">astro</span><span id="logotext2">py</span><span id="logotext3">:docs</span></a>
+  <ul>
+    <li><a class="homelink" title="Astropy Homepage" href="http://www.astropy.org"></a></li>
+    <li><a title="General Index" href="../../../genindex.html">Index</a></li>
+    <li><a title="Module Index" href="../../../py-modindex.html">Modules</a></li>
+    <li>
+      
+      
+<form action="../../../search.html" method="get">
+  <input type="text" name="q" placeholder="Search" />
+  <input type="hidden" name="check_keywords" value="yes" />
+  <input type="hidden" name="area" value="default" />
+</form>
+      
+    </li>
+  </ul>
+</div>
+
+<div class="related">
+    <h3>Navigation</h3>
+    <ul>
+      <li>
+	<a href="../../../index.html">Astropy v3.0.dev19489</a>
+	 &#187;
+      </li>
+      <li><a href="../../index.html" >Module code</a> &#187;</li>
+      <li><a href="../../astropy.html" >astropy</a> &#187;</li>
+      <li><a href="../nddata.html" accesskey="U">astropy.nddata</a> &#187;</li>
+      
+       
+    </ul>
+</div>
+  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          <div class="body" role="main">
+            
+  <h1>Source code for astropy.nddata.nddata</h1><div class="highlight"><pre>
+<span></span><span class="c1"># Licensed under a 3-clause BSD style license - see LICENSE.rst</span>
+<span class="c1"># This module implements the base NDData class.</span>
+
+<span class="kn">from</span> <span class="nn">__future__</span> <span class="k">import</span> <span class="p">(</span><span class="n">absolute_import</span><span class="p">,</span> <span class="n">division</span><span class="p">,</span> <span class="n">print_function</span><span class="p">,</span>
+                        <span class="n">unicode_literals</span><span class="p">)</span>
+
+<span class="kn">import</span> <span class="nn">numpy</span> <span class="k">as</span> <span class="nn">np</span>
+<span class="kn">from</span> <span class="nn">copy</span> <span class="k">import</span> <span class="n">deepcopy</span>
+
+<span class="kn">from</span> <span class="nn">.nddata_base</span> <span class="k">import</span> <span class="n">NDDataBase</span>
+<span class="kn">from</span> <span class="nn">.nduncertainty</span> <span class="k">import</span> <span class="n">NDUncertainty</span><span class="p">,</span> <span class="n">UnknownUncertainty</span>
+<span class="kn">from</span> <span class="nn">..</span> <span class="k">import</span> <span class="n">log</span>
+<span class="kn">from</span> <span class="nn">..units</span> <span class="k">import</span> <span class="n">Unit</span><span class="p">,</span> <span class="n">Quantity</span>
+<span class="kn">from</span> <span class="nn">..utils.metadata</span> <span class="k">import</span> <span class="n">MetaData</span>
+
+<span class="n">__all__</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;NDData&#39;</span><span class="p">]</span>
+
+<span class="n">_meta_doc</span> <span class="o">=</span> <span class="s2">&quot;&quot;&quot;`dict`-like : Additional meta information about the dataset.&quot;&quot;&quot;</span>
+
+
+<div class="viewcode-block" id="NDData"><a class="viewcode-back" href="../../../api/astropy.nddata.NDData.html#astropy.nddata.NDData">[docs]</a><span class="k">class</span> <span class="nc">NDData</span><span class="p">(</span><span class="n">NDDataBase</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    A container for `numpy.ndarray`-based datasets, using the</span>
+<span class="sd">    `~astropy.nddata.NDDataBase` interface.</span>
+
+<span class="sd">    The key distinction from raw `numpy.ndarray` is the presence of</span>
+<span class="sd">    additional metadata such as uncertainty, mask, unit, a coordinate system</span>
+<span class="sd">    and/or a dictionary containing further meta information. This class *only*</span>
+<span class="sd">    provides a container for *storing* such datasets. For further functionality</span>
+<span class="sd">    take a look at the ``See also`` section.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    -----------</span>
+<span class="sd">    data : `numpy.ndarray`-like or `NDData`-like</span>
+<span class="sd">        The dataset.</span>
+
+<span class="sd">    uncertainty : any type, optional</span>
+<span class="sd">        Uncertainty in the dataset.</span>
+<span class="sd">        Should have an attribute ``uncertainty_type`` that defines what kind of</span>
+<span class="sd">        uncertainty is stored, for example ``&quot;std&quot;`` for standard deviation or</span>
+<span class="sd">        ``&quot;var&quot;`` for variance. A metaclass defining such an interface is</span>
+<span class="sd">        `NDUncertainty` - but isn&#39;t mandatory. If the uncertainty has no such</span>
+<span class="sd">        attribute the uncertainty is stored as `UnknownUncertainty`.</span>
+<span class="sd">        Defaults to ``None``.</span>
+
+<span class="sd">    mask : any type, optional</span>
+<span class="sd">        Mask for the dataset. Masks should follow the ``numpy`` convention that</span>
+<span class="sd">        **valid** data points are marked by ``False`` and **invalid** ones with</span>
+<span class="sd">        ``True``.</span>
+<span class="sd">        Defaults to ``None``.</span>
+
+<span class="sd">    wcs : any type, optional</span>
+<span class="sd">        World coordinate system (WCS) for the dataset.</span>
+<span class="sd">        Default is ``None``.</span>
+
+<span class="sd">    meta : `dict`-like object, optional</span>
+<span class="sd">        Additional meta information about the dataset. If no meta is provided</span>
+<span class="sd">        an empty `collections.OrderedDict` is created.</span>
+<span class="sd">        Default is ``None``.</span>
+
+<span class="sd">    unit : `~astropy.units.Unit`-like or str, optional</span>
+<span class="sd">        Unit for the dataset. Strings that can be converted to a</span>
+<span class="sd">        `~astropy.units.Unit` are allowed.</span>
+<span class="sd">        Default is ``None``.</span>
+
+<span class="sd">    copy : `bool`, optional</span>
+<span class="sd">        Indicates whether to save the arguments as copy. ``True`` copies</span>
+<span class="sd">        every attribute before saving it while ``False`` tries to save every</span>
+<span class="sd">        parameter as reference.</span>
+<span class="sd">        Note however that it is not always possible to save the input as</span>
+<span class="sd">        reference.</span>
+<span class="sd">        Default is ``False``.</span>
+
+<span class="sd">        .. versionadded:: 1.2</span>
+
+<span class="sd">    Raises</span>
+<span class="sd">    ------</span>
+<span class="sd">    TypeError</span>
+<span class="sd">        In case ``data`` or ``meta`` don&#39;t meet the restrictions.</span>
+
+<span class="sd">    Notes</span>
+<span class="sd">    -----</span>
+<span class="sd">    Each attribute can be accessed through the homonymous instance attribute:</span>
+<span class="sd">    ``data`` in a `NDData` object can be accessed through the `data`</span>
+<span class="sd">    attribute::</span>
+
+<span class="sd">        &gt;&gt;&gt; from astropy.nddata import NDData</span>
+<span class="sd">        &gt;&gt;&gt; nd = NDData([1,2,3])</span>
+<span class="sd">        &gt;&gt;&gt; nd.data</span>
+<span class="sd">        array([1, 2, 3])</span>
+
+<span class="sd">    Given a conflicting implicit and an explicit parameter during</span>
+<span class="sd">    initialization, for example the ``data`` is a `~astropy.units.Quantity` and</span>
+<span class="sd">    the unit parameter is not ``None``, then the implicit parameter is replaced</span>
+<span class="sd">    (without conversion) by the explicit one and a warning is issued::</span>
+
+<span class="sd">        &gt;&gt;&gt; import numpy as np</span>
+<span class="sd">        &gt;&gt;&gt; import astropy.units as u</span>
+<span class="sd">        &gt;&gt;&gt; q = np.array([1,2,3,4]) * u.m</span>
+<span class="sd">        &gt;&gt;&gt; nd2 = NDData(q, unit=u.cm)</span>
+<span class="sd">        INFO: overwriting Quantity&#39;s current unit with specified unit. [astropy.nddata.nddata]</span>
+<span class="sd">        &gt;&gt;&gt; nd2.data</span>
+<span class="sd">        array([ 1.,  2.,  3.,  4.])</span>
+<span class="sd">        &gt;&gt;&gt; nd2.unit</span>
+<span class="sd">        Unit(&quot;cm&quot;)</span>
+
+<span class="sd">    See also</span>
+<span class="sd">    --------</span>
+<span class="sd">    NDDataRef</span>
+<span class="sd">    NDDataArray</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="c1"># Instead of a custom property use the MetaData descriptor also used for</span>
+    <span class="c1"># Tables. It will check if the meta is dict-like or raise an exception.</span>
+    <span class="n">meta</span> <span class="o">=</span> <span class="n">MetaData</span><span class="p">(</span><span class="n">doc</span><span class="o">=</span><span class="n">_meta_doc</span><span class="p">,</span> <span class="n">copy</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">data</span><span class="p">,</span> <span class="n">uncertainty</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">mask</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">wcs</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+                 <span class="n">meta</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">unit</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">copy</span><span class="o">=</span><span class="kc">False</span><span class="p">):</span>
+
+        <span class="c1"># Rather pointless since the NDDataBase does not implement any setting</span>
+        <span class="c1"># but before the NDDataBase did call the uncertainty</span>
+        <span class="c1"># setter. But if anyone wants to alter this behaviour again the call</span>
+        <span class="c1"># to the superclass NDDataBase should be in here.</span>
+        <span class="nb">super</span><span class="p">(</span><span class="n">NDData</span><span class="p">,</span> <span class="bp">self</span><span class="p">)</span><span class="o">.</span><span class="n">__init__</span><span class="p">()</span>
+
+        <span class="c1"># Check if data is any type from which to collect some implicitly</span>
+        <span class="c1"># passed parameters.</span>
+        <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">data</span><span class="p">,</span> <span class="n">NDData</span><span class="p">):</span>  <span class="c1"># don&#39;t use self.__class__ (issue #4137)</span>
+            <span class="c1"># Of course we need to check the data because subclasses with other</span>
+            <span class="c1"># init-logic might be passed in here. We could skip these</span>
+            <span class="c1"># tests if we compared for self.__class__ but that has other</span>
+            <span class="c1"># drawbacks.</span>
+
+            <span class="c1"># Comparing if there is an explicit and an implicit unit parameter.</span>
+            <span class="c1"># If that is the case use the explicit one and issue a warning</span>
+            <span class="c1"># that there might be a conflict. In case there is no explicit</span>
+            <span class="c1"># unit just overwrite the unit parameter with the NDData.unit</span>
+            <span class="c1"># and proceed as if that one was given as parameter. Same for the</span>
+            <span class="c1"># other parameters.</span>
+            <span class="k">if</span> <span class="p">(</span><span class="n">unit</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="ow">and</span> <span class="n">data</span><span class="o">.</span><span class="n">unit</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="ow">and</span>
+                    <span class="n">unit</span> <span class="o">!=</span> <span class="n">data</span><span class="o">.</span><span class="n">unit</span><span class="p">):</span>
+                <span class="n">log</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s2">&quot;overwriting NDData&#39;s current &quot;</span>
+                         <span class="s2">&quot;unit with specified unit.&quot;</span><span class="p">)</span>
+            <span class="k">elif</span> <span class="n">data</span><span class="o">.</span><span class="n">unit</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+                <span class="n">unit</span> <span class="o">=</span> <span class="n">data</span><span class="o">.</span><span class="n">unit</span>
+
+            <span class="k">if</span> <span class="n">uncertainty</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="ow">and</span> <span class="n">data</span><span class="o">.</span><span class="n">uncertainty</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+                <span class="n">log</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s2">&quot;overwriting NDData&#39;s current &quot;</span>
+                         <span class="s2">&quot;uncertainty with specified uncertainty.&quot;</span><span class="p">)</span>
+            <span class="k">elif</span> <span class="n">data</span><span class="o">.</span><span class="n">uncertainty</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+                <span class="n">uncertainty</span> <span class="o">=</span> <span class="n">data</span><span class="o">.</span><span class="n">uncertainty</span>
+
+            <span class="k">if</span> <span class="n">mask</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="ow">and</span> <span class="n">data</span><span class="o">.</span><span class="n">mask</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+                <span class="n">log</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s2">&quot;overwriting NDData&#39;s current &quot;</span>
+                         <span class="s2">&quot;mask with specified mask.&quot;</span><span class="p">)</span>
+            <span class="k">elif</span> <span class="n">data</span><span class="o">.</span><span class="n">mask</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+                <span class="n">mask</span> <span class="o">=</span> <span class="n">data</span><span class="o">.</span><span class="n">mask</span>
+
+            <span class="k">if</span> <span class="n">wcs</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="ow">and</span> <span class="n">data</span><span class="o">.</span><span class="n">wcs</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+                <span class="n">log</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s2">&quot;overwriting NDData&#39;s current &quot;</span>
+                         <span class="s2">&quot;wcs with specified wcs.&quot;</span><span class="p">)</span>
+            <span class="k">elif</span> <span class="n">data</span><span class="o">.</span><span class="n">wcs</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+                <span class="n">wcs</span> <span class="o">=</span> <span class="n">data</span><span class="o">.</span><span class="n">wcs</span>
+
+            <span class="k">if</span> <span class="n">meta</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="ow">and</span> <span class="n">data</span><span class="o">.</span><span class="n">meta</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+                <span class="n">log</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s2">&quot;overwriting NDData&#39;s current &quot;</span>
+                         <span class="s2">&quot;meta with specified meta.&quot;</span><span class="p">)</span>
+            <span class="k">elif</span> <span class="n">data</span><span class="o">.</span><span class="n">meta</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+                <span class="n">meta</span> <span class="o">=</span> <span class="n">data</span><span class="o">.</span><span class="n">meta</span>
+
+            <span class="n">data</span> <span class="o">=</span> <span class="n">data</span><span class="o">.</span><span class="n">data</span>
+
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">if</span> <span class="nb">hasattr</span><span class="p">(</span><span class="n">data</span><span class="p">,</span> <span class="s1">&#39;mask&#39;</span><span class="p">)</span> <span class="ow">and</span> <span class="nb">hasattr</span><span class="p">(</span><span class="n">data</span><span class="p">,</span> <span class="s1">&#39;data&#39;</span><span class="p">):</span>
+                <span class="c1"># Separating data and mask</span>
+                <span class="k">if</span> <span class="n">mask</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+                    <span class="n">log</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s2">&quot;overwriting Masked Objects&#39;s current &quot;</span>
+                             <span class="s2">&quot;mask with specified mask.&quot;</span><span class="p">)</span>
+                <span class="k">else</span><span class="p">:</span>
+                    <span class="n">mask</span> <span class="o">=</span> <span class="n">data</span><span class="o">.</span><span class="n">mask</span>
+
+                <span class="c1"># Just save the data for further processing, we could be given</span>
+                <span class="c1"># a masked Quantity or something else entirely. Better to check</span>
+                <span class="c1"># it first.</span>
+                <span class="n">data</span> <span class="o">=</span> <span class="n">data</span><span class="o">.</span><span class="n">data</span>
+
+            <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">data</span><span class="p">,</span> <span class="n">Quantity</span><span class="p">):</span>
+                <span class="k">if</span> <span class="n">unit</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="ow">and</span> <span class="n">unit</span> <span class="o">!=</span> <span class="n">data</span><span class="o">.</span><span class="n">unit</span><span class="p">:</span>
+                    <span class="n">log</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s2">&quot;overwriting Quantity&#39;s current &quot;</span>
+                             <span class="s2">&quot;unit with specified unit.&quot;</span><span class="p">)</span>
+                <span class="k">else</span><span class="p">:</span>
+                    <span class="n">unit</span> <span class="o">=</span> <span class="n">data</span><span class="o">.</span><span class="n">unit</span>
+                <span class="n">data</span> <span class="o">=</span> <span class="n">data</span><span class="o">.</span><span class="n">value</span>
+
+        <span class="c1"># Quick check on the parameters if they match the requirements.</span>
+        <span class="k">if</span> <span class="p">(</span><span class="ow">not</span> <span class="nb">hasattr</span><span class="p">(</span><span class="n">data</span><span class="p">,</span> <span class="s1">&#39;shape&#39;</span><span class="p">)</span> <span class="ow">or</span> <span class="ow">not</span> <span class="nb">hasattr</span><span class="p">(</span><span class="n">data</span><span class="p">,</span> <span class="s1">&#39;__getitem__&#39;</span><span class="p">)</span> <span class="ow">or</span>
+                <span class="ow">not</span> <span class="nb">hasattr</span><span class="p">(</span><span class="n">data</span><span class="p">,</span> <span class="s1">&#39;__array__&#39;</span><span class="p">)):</span>
+            <span class="c1"># Data doesn&#39;t look like a numpy array, try converting it to</span>
+            <span class="c1"># one.</span>
+            <span class="n">data</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">(</span><span class="n">data</span><span class="p">,</span> <span class="n">subok</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">copy</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
+
+        <span class="c1"># Another quick check to see if what we got looks like an array</span>
+        <span class="c1"># rather than an object (since numpy will convert a</span>
+        <span class="c1"># non-numerical/non-string inputs to an array of objects).</span>
+        <span class="k">if</span> <span class="n">data</span><span class="o">.</span><span class="n">dtype</span> <span class="o">==</span> <span class="s1">&#39;O&#39;</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">TypeError</span><span class="p">(</span><span class="s2">&quot;could not convert data to numpy array.&quot;</span><span class="p">)</span>
+
+        <span class="k">if</span> <span class="n">unit</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">unit</span> <span class="o">=</span> <span class="n">Unit</span><span class="p">(</span><span class="n">unit</span><span class="p">)</span>
+
+        <span class="k">if</span> <span class="n">copy</span><span class="p">:</span>
+            <span class="c1"># Data might have been copied before but no way of validating</span>
+            <span class="c1"># without another variable.</span>
+            <span class="n">data</span> <span class="o">=</span> <span class="n">deepcopy</span><span class="p">(</span><span class="n">data</span><span class="p">)</span>
+            <span class="n">mask</span> <span class="o">=</span> <span class="n">deepcopy</span><span class="p">(</span><span class="n">mask</span><span class="p">)</span>
+            <span class="n">wcs</span> <span class="o">=</span> <span class="n">deepcopy</span><span class="p">(</span><span class="n">wcs</span><span class="p">)</span>
+            <span class="n">meta</span> <span class="o">=</span> <span class="n">deepcopy</span><span class="p">(</span><span class="n">meta</span><span class="p">)</span>
+            <span class="n">uncertainty</span> <span class="o">=</span> <span class="n">deepcopy</span><span class="p">(</span><span class="n">uncertainty</span><span class="p">)</span>
+            <span class="c1"># Actually - copying the unit is unnecessary but better safe</span>
+            <span class="c1"># than sorry :-)</span>
+            <span class="n">unit</span> <span class="o">=</span> <span class="n">deepcopy</span><span class="p">(</span><span class="n">unit</span><span class="p">)</span>
+
+        <span class="c1"># Store the attributes</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_data</span> <span class="o">=</span> <span class="n">data</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">mask</span> <span class="o">=</span> <span class="n">mask</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_wcs</span> <span class="o">=</span> <span class="n">wcs</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">meta</span> <span class="o">=</span> <span class="n">meta</span>  <span class="c1"># TODO: Make this call the setter sometime</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_unit</span> <span class="o">=</span> <span class="n">unit</span>
+        <span class="c1"># Call the setter for uncertainty to further check the uncertainty</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">uncertainty</span> <span class="o">=</span> <span class="n">uncertainty</span>
+
+    <span class="k">def</span> <span class="nf">__str__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="nb">str</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">data</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">__repr__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="n">prefix</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">__class__</span><span class="o">.</span><span class="n">__name__</span> <span class="o">+</span> <span class="s1">&#39;(&#39;</span>
+        <span class="n">body</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array2string</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">data</span><span class="p">,</span> <span class="n">separator</span><span class="o">=</span><span class="s1">&#39;, &#39;</span><span class="p">,</span> <span class="n">prefix</span><span class="o">=</span><span class="n">prefix</span><span class="p">)</span>
+        <span class="k">return</span> <span class="s1">&#39;&#39;</span><span class="o">.</span><span class="n">join</span><span class="p">([</span><span class="n">prefix</span><span class="p">,</span> <span class="n">body</span><span class="p">,</span> <span class="s1">&#39;)&#39;</span><span class="p">])</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">data</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        `~numpy.ndarray`-like : The stored dataset.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_data</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">mask</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        any type : Mask for the dataset, if any.</span>
+
+<span class="sd">        Masks should follow the ``numpy`` convention that valid data points are</span>
+<span class="sd">        marked by ``False`` and invalid ones with ``True``.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_mask</span>
+
+    <span class="nd">@mask</span><span class="o">.</span><span class="n">setter</span>
+    <span class="k">def</span> <span class="nf">mask</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">value</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_mask</span> <span class="o">=</span> <span class="n">value</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">unit</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        `~astropy.units.Unit` : Unit for the dataset, if any.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_unit</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">wcs</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        any type : A world coordinate system (WCS) for the dataset, if any.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_wcs</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">uncertainty</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        any type : Uncertainty in the dataset, if any.</span>
+
+<span class="sd">        Should have an attribute ``uncertainty_type`` that defines what kind of</span>
+<span class="sd">        uncertainty is stored, such as ``&#39;std&#39;`` for standard deviation or</span>
+<span class="sd">        ``&#39;var&#39;`` for variance. A metaclass defining such an interface is</span>
+<span class="sd">        `~astropy.nddata.NDUncertainty` but isn&#39;t mandatory.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_uncertainty</span>
+
+    <span class="nd">@uncertainty</span><span class="o">.</span><span class="n">setter</span>
+    <span class="k">def</span> <span class="nf">uncertainty</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">value</span><span class="p">):</span>
+        <span class="k">if</span> <span class="n">value</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="c1"># There is one requirements on the uncertainty: That</span>
+            <span class="c1"># it has an attribute &#39;uncertainty_type&#39;.</span>
+            <span class="c1"># If it does not match this requirement convert it to an unknown</span>
+            <span class="c1"># uncertainty.</span>
+            <span class="k">if</span> <span class="ow">not</span> <span class="nb">hasattr</span><span class="p">(</span><span class="n">value</span><span class="p">,</span> <span class="s1">&#39;uncertainty_type&#39;</span><span class="p">):</span>
+                <span class="n">log</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s1">&#39;uncertainty should have attribute uncertainty_type.&#39;</span><span class="p">)</span>
+                <span class="n">value</span> <span class="o">=</span> <span class="n">UnknownUncertainty</span><span class="p">(</span><span class="n">value</span><span class="p">,</span> <span class="n">copy</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
+
+            <span class="c1"># If it is a subclass of NDUncertainty we must set the</span>
+            <span class="c1"># parent_nddata attribute. (#4152)</span>
+            <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">value</span><span class="p">,</span> <span class="n">NDUncertainty</span><span class="p">):</span>
+                <span class="c1"># In case the uncertainty already has a parent create a new</span>
+                <span class="c1"># instance because we need to assume that we don&#39;t want to</span>
+                <span class="c1"># steal the uncertainty from another NDData object</span>
+                <span class="k">if</span> <span class="n">value</span><span class="o">.</span><span class="n">_parent_nddata</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+                    <span class="n">value</span> <span class="o">=</span> <span class="n">value</span><span class="o">.</span><span class="n">__class__</span><span class="p">(</span><span class="n">value</span><span class="p">,</span> <span class="n">copy</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
+                <span class="c1"># Then link it to this NDData instance (internally this needs</span>
+                <span class="c1"># to be saved as weakref but that&#39;s done by NDUncertainty</span>
+                <span class="c1"># setter).</span>
+                <span class="n">value</span><span class="o">.</span><span class="n">parent_nddata</span> <span class="o">=</span> <span class="bp">self</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_uncertainty</span> <span class="o">=</span> <span class="n">value</span></div>
+</pre></div>
+
+          </div>
+        </div>
+      </div>
+      <div class="sphinxsidebar" role="navigation" aria-label="main navigation">
+        <div class="sphinxsidebarwrapper"><h3>Page Contents</h3>
+
+
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+<footer class="footer">
+  <p class="pull-right"> &nbsp;
+    <a href="#">Back to Top</a></p>
+  <p>
+    &copy; Copyright 2011-2016, The Astropy Developers.<br/>
+    Created using <a href="http://sphinx.pocoo.org/">Sphinx</a> 1.5.6. &nbsp;
+    Last built 05 Jul 2017. <br/>
+  </p>
+</footer>
+  </body>
+</html>

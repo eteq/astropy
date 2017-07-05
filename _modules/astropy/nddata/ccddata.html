@@ -1,0 +1,681 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <head>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    
+    <title>astropy.nddata.ccddata &#8212; Astropy v3.0.dev19489</title>
+    
+    <link rel="stylesheet" href="../../../_static/bootstrap-astropy.css" type="text/css" />
+    <link rel="stylesheet" href="../../../_static/pygments.css" type="text/css" />
+    <link rel="stylesheet" href="../../../_static/gallery.css" type="text/css" />
+    
+    <script type="text/javascript">
+      var DOCUMENTATION_OPTIONS = {
+        URL_ROOT:    '../../../',
+        VERSION:     '3.0.dev19489',
+        COLLAPSE_INDEX: false,
+        FILE_SUFFIX: '.html',
+        HAS_SOURCE:  true,
+        SOURCELINK_SUFFIX: '.txt'
+      };
+    </script>
+    <script type="text/javascript" src="../../../_static/jquery.js"></script>
+    <script type="text/javascript" src="../../../_static/underscore.js"></script>
+    <script type="text/javascript" src="../../../_static/doctools.js"></script>
+    <script type="text/javascript" src="../../../_static/sidebar.js"></script>
+    <link rel="shortcut icon" href="../../../_static/astropy_logo.ico"/>
+    <link rel="index" title="Index" href="../../../genindex.html" />
+    <link rel="search" title="Search" href="../../../search.html" />
+<link href='https://fonts.googleapis.com/css?family=Source+Sans+Pro:200,600' rel='stylesheet' type='text/css'/>
+<script type="text/javascript" src="../../../_static/copybutton.js"></script>
+
+
+  </head>
+  <body role="document">
+<div class="topbar">
+  <a class="brand" title="Documentation Home" href="../../../index.html"><span id="logotext1">astro</span><span id="logotext2">py</span><span id="logotext3">:docs</span></a>
+  <ul>
+    <li><a class="homelink" title="Astropy Homepage" href="http://www.astropy.org"></a></li>
+    <li><a title="General Index" href="../../../genindex.html">Index</a></li>
+    <li><a title="Module Index" href="../../../py-modindex.html">Modules</a></li>
+    <li>
+      
+      
+<form action="../../../search.html" method="get">
+  <input type="text" name="q" placeholder="Search" />
+  <input type="hidden" name="check_keywords" value="yes" />
+  <input type="hidden" name="area" value="default" />
+</form>
+      
+    </li>
+  </ul>
+</div>
+
+<div class="related">
+    <h3>Navigation</h3>
+    <ul>
+      <li>
+	<a href="../../../index.html">Astropy v3.0.dev19489</a>
+	 &#187;
+      </li>
+      <li><a href="../../index.html" >Module code</a> &#187;</li>
+      <li><a href="../../astropy.html" >astropy</a> &#187;</li>
+      <li><a href="../nddata.html" accesskey="U">astropy.nddata</a> &#187;</li>
+      
+       
+    </ul>
+</div>
+  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          <div class="body" role="main">
+            
+  <h1>Source code for astropy.nddata.ccddata</h1><div class="highlight"><pre>
+<span></span><span class="c1"># Licensed under a 3-clause BSD style license - see LICENSE.rst</span>
+<span class="sd">&quot;&quot;&quot;This module implements the base CCDData class.&quot;&quot;&quot;</span>
+<span class="kn">from</span> <span class="nn">__future__</span> <span class="k">import</span> <span class="p">(</span><span class="n">absolute_import</span><span class="p">,</span> <span class="n">division</span><span class="p">,</span> <span class="n">print_function</span><span class="p">,</span>
+                        <span class="n">unicode_literals</span><span class="p">)</span>
+
+<span class="kn">import</span> <span class="nn">numpy</span> <span class="k">as</span> <span class="nn">np</span>
+
+<span class="kn">from</span> <span class="nn">.compat</span> <span class="k">import</span> <span class="n">NDDataArray</span>
+<span class="kn">from</span> <span class="nn">.nduncertainty</span> <span class="k">import</span> <span class="n">StdDevUncertainty</span><span class="p">,</span> <span class="n">NDUncertainty</span>
+<span class="kn">from</span> <span class="nn">..io</span> <span class="k">import</span> <span class="n">fits</span><span class="p">,</span> <span class="n">registry</span>
+<span class="kn">from</span> <span class="nn">..</span> <span class="k">import</span> <span class="n">units</span> <span class="k">as</span> <span class="n">u</span>
+<span class="kn">from</span> <span class="nn">..</span> <span class="k">import</span> <span class="n">log</span>
+<span class="kn">from</span> <span class="nn">..wcs</span> <span class="k">import</span> <span class="n">WCS</span>
+<span class="kn">from</span> <span class="nn">..utils.decorators</span> <span class="k">import</span> <span class="n">sharedmethod</span>
+
+
+<span class="n">__all__</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;CCDData&#39;</span><span class="p">,</span> <span class="s1">&#39;fits_ccddata_reader&#39;</span><span class="p">,</span> <span class="s1">&#39;fits_ccddata_writer&#39;</span><span class="p">]</span>
+
+
+<span class="c1"># Global value which can turn on/off the unit requirements when creating a</span>
+<span class="c1"># CCDData. Should be used with care because several functions actually break</span>
+<span class="c1"># if the unit is None!</span>
+<span class="n">_config_ccd_requires_unit</span> <span class="o">=</span> <span class="kc">True</span>
+
+
+<span class="k">def</span> <span class="nf">_arithmetic</span><span class="p">(</span><span class="n">op</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;Decorator factory which temporarly disables the need for a unit when</span>
+<span class="sd">    creating a new CCDData instance. The final result must have a unit.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    op : function</span>
+<span class="sd">        The function to apply. Supported are:</span>
+
+<span class="sd">        - ``np.add``</span>
+<span class="sd">        - ``np.subtract``</span>
+<span class="sd">        - ``np.multiply``</span>
+<span class="sd">        - ``np.true_divide``</span>
+
+<span class="sd">    Notes</span>
+<span class="sd">    -----</span>
+<span class="sd">    Should only be used on CCDData ``add``, ``subtract``, ``divide`` or</span>
+<span class="sd">    ``multiply`` because only these methods from NDArithmeticMixin are</span>
+<span class="sd">    overwritten.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">def</span> <span class="nf">decorator</span><span class="p">(</span><span class="n">func</span><span class="p">):</span>
+        <span class="k">def</span> <span class="nf">inner</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">operand</span><span class="p">,</span> <span class="n">operand2</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+            <span class="k">global</span> <span class="n">_config_ccd_requires_unit</span>
+            <span class="n">_config_ccd_requires_unit</span> <span class="o">=</span> <span class="kc">False</span>
+            <span class="n">result</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_prepare_then_do_arithmetic</span><span class="p">(</span><span class="n">op</span><span class="p">,</span> <span class="n">operand</span><span class="p">,</span>
+                                                      <span class="n">operand2</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
+            <span class="c1"># Wrap it again as CCDData so it checks the final unit.</span>
+            <span class="n">_config_ccd_requires_unit</span> <span class="o">=</span> <span class="kc">True</span>
+            <span class="k">return</span> <span class="n">result</span><span class="o">.</span><span class="n">__class__</span><span class="p">(</span><span class="n">result</span><span class="p">)</span>
+        <span class="n">inner</span><span class="o">.</span><span class="n">__doc__</span> <span class="o">=</span> <span class="p">(</span><span class="s2">&quot;See `astropy.nddata.NDArithmeticMixin.</span><span class="si">{}</span><span class="s2">`.&quot;</span>
+                         <span class="s2">&quot;&quot;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">func</span><span class="o">.</span><span class="n">__name__</span><span class="p">))</span>
+        <span class="k">return</span> <span class="n">sharedmethod</span><span class="p">(</span><span class="n">inner</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">decorator</span>
+
+
+<div class="viewcode-block" id="CCDData"><a class="viewcode-back" href="../../../api/astropy.nddata.CCDData.html#astropy.nddata.CCDData">[docs]</a><span class="k">class</span> <span class="nc">CCDData</span><span class="p">(</span><span class="n">NDDataArray</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;A class describing basic CCD data.</span>
+
+<span class="sd">    The CCDData class is based on the NDData object and includes a data array,</span>
+<span class="sd">    uncertainty frame, mask frame, meta data, units, and WCS information for a</span>
+<span class="sd">    single CCD image.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    -----------</span>
+<span class="sd">    data : `~astropy.nddata.CCDData`-like or `numpy.ndarray`-like</span>
+<span class="sd">        The actual data contained in this `~astropy.nddata.CCDData` object.</span>
+<span class="sd">        Note that the data will always be saved by *reference*, so you should</span>
+<span class="sd">        make a copy of the ``data`` before passing it in if that&#39;s the desired</span>
+<span class="sd">        behavior.</span>
+
+<span class="sd">    uncertainty : `~astropy.nddata.StdDevUncertainty`, `numpy.ndarray` or \</span>
+<span class="sd">            None, optional</span>
+<span class="sd">        Uncertainties on the data.</span>
+<span class="sd">        Default is ``None``.</span>
+
+<span class="sd">    mask : `numpy.ndarray` or None, optional</span>
+<span class="sd">        Mask for the data, given as a boolean Numpy array with a shape</span>
+<span class="sd">        matching that of the data. The values must be `False` where</span>
+<span class="sd">        the data is *valid* and `True` when it is not (like Numpy</span>
+<span class="sd">        masked arrays). If ``data`` is a numpy masked array, providing</span>
+<span class="sd">        ``mask`` here will causes the mask from the masked array to be</span>
+<span class="sd">        ignored.</span>
+<span class="sd">        Default is ``None``.</span>
+
+<span class="sd">    flags : `numpy.ndarray` or `~astropy.nddata.FlagCollection` or None, \</span>
+<span class="sd">            optional</span>
+<span class="sd">        Flags giving information about each pixel. These can be specified</span>
+<span class="sd">        either as a Numpy array of any type with a shape matching that of the</span>
+<span class="sd">        data, or as a `~astropy.nddata.FlagCollection` instance which has a</span>
+<span class="sd">        shape matching that of the data.</span>
+<span class="sd">        Default is ``None``.</span>
+
+<span class="sd">    wcs : `~astropy.wcs.WCS` or None, optional</span>
+<span class="sd">        WCS-object containing the world coordinate system for the data.</span>
+<span class="sd">        Default is ``None``.</span>
+
+<span class="sd">    meta : dict-like object or None, optional</span>
+<span class="sd">        Metadata for this object. &quot;Metadata&quot; here means all information that</span>
+<span class="sd">        is included with this object but not part of any other attribute</span>
+<span class="sd">        of this particular object, e.g. creation date, unique identifier,</span>
+<span class="sd">        simulation parameters, exposure time, telescope name, etc.</span>
+
+<span class="sd">    unit : `~astropy.units.Unit` or str, optional</span>
+<span class="sd">        The units of the data.</span>
+<span class="sd">        Default is ``None``.</span>
+
+<span class="sd">        .. warning::</span>
+
+<span class="sd">            If the unit is ``None`` or not otherwise specified it will raise a</span>
+<span class="sd">            ``ValueError``</span>
+
+<span class="sd">    Raises</span>
+<span class="sd">    ------</span>
+<span class="sd">    ValueError</span>
+<span class="sd">        If the ``uncertainty`` or ``mask`` inputs cannot be broadcast (e.g.,</span>
+<span class="sd">        match shape) onto ``data``.</span>
+
+<span class="sd">    Methods</span>
+<span class="sd">    -------</span>
+<span class="sd">    read(\\*args, \\**kwargs)</span>
+<span class="sd">        ``Classmethod`` to create an CCDData instance based on a ``FITS`` file.</span>
+<span class="sd">        This method uses :func:`fits_ccddata_reader` with the provided</span>
+<span class="sd">        parameters.</span>
+<span class="sd">    write(\\*args, \\**kwargs)</span>
+<span class="sd">        Writes the contents of the CCDData instance into a new ``FITS`` file.</span>
+<span class="sd">        This method uses :func:`fits_ccddata_writer` with the provided</span>
+<span class="sd">        parameters.</span>
+
+<span class="sd">    Notes</span>
+<span class="sd">    -----</span>
+<span class="sd">    `~astropy.nddata.CCDData` objects can be easily converted to a regular</span>
+<span class="sd">     Numpy array using `numpy.asarray`.</span>
+
+<span class="sd">    For example::</span>
+
+<span class="sd">        &gt;&gt;&gt; from astropy.nddata import CCDData</span>
+<span class="sd">        &gt;&gt;&gt; import numpy as np</span>
+<span class="sd">        &gt;&gt;&gt; x = CCDData([1,2,3], unit=&#39;adu&#39;)</span>
+<span class="sd">        &gt;&gt;&gt; np.asarray(x)</span>
+<span class="sd">        array([1, 2, 3])</span>
+
+<span class="sd">    This is useful, for example, when plotting a 2D image using</span>
+<span class="sd">    matplotlib.</span>
+
+<span class="sd">        &gt;&gt;&gt; from astropy.nddata import CCDData</span>
+<span class="sd">        &gt;&gt;&gt; from matplotlib import pyplot as plt   # doctest: +SKIP</span>
+<span class="sd">        &gt;&gt;&gt; x = CCDData([[1,2,3], [4,5,6]], unit=&#39;adu&#39;)</span>
+<span class="sd">        &gt;&gt;&gt; plt.imshow(x)   # doctest: +SKIP</span>
+
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwd</span><span class="p">):</span>
+        <span class="k">if</span> <span class="s1">&#39;meta&#39;</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">kwd</span><span class="p">:</span>
+            <span class="n">kwd</span><span class="p">[</span><span class="s1">&#39;meta&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">kwd</span><span class="o">.</span><span class="n">pop</span><span class="p">(</span><span class="s1">&#39;header&#39;</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span>
+        <span class="k">if</span> <span class="s1">&#39;header&#39;</span> <span class="ow">in</span> <span class="n">kwd</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;can&#39;t have both header and meta.&quot;</span><span class="p">)</span>
+
+        <span class="nb">super</span><span class="p">(</span><span class="n">CCDData</span><span class="p">,</span> <span class="bp">self</span><span class="p">)</span><span class="o">.</span><span class="n">__init__</span><span class="p">(</span><span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwd</span><span class="p">)</span>
+
+        <span class="c1"># Check if a unit is set. This can be temporarly disabled by the</span>
+        <span class="c1"># _CCDDataUnit contextmanager.</span>
+        <span class="k">if</span> <span class="n">_config_ccd_requires_unit</span> <span class="ow">and</span> <span class="bp">self</span><span class="o">.</span><span class="n">unit</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;a unit for CCDData must be specified.&quot;</span><span class="p">)</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">data</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_data</span>
+
+    <span class="nd">@data</span><span class="o">.</span><span class="n">setter</span>
+    <span class="k">def</span> <span class="nf">data</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">value</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_data</span> <span class="o">=</span> <span class="n">value</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">wcs</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_wcs</span>
+
+    <span class="nd">@wcs</span><span class="o">.</span><span class="n">setter</span>
+    <span class="k">def</span> <span class="nf">wcs</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">value</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_wcs</span> <span class="o">=</span> <span class="n">value</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">unit</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_unit</span>
+
+    <span class="nd">@unit</span><span class="o">.</span><span class="n">setter</span>
+    <span class="k">def</span> <span class="nf">unit</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">value</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_unit</span> <span class="o">=</span> <span class="n">u</span><span class="o">.</span><span class="n">Unit</span><span class="p">(</span><span class="n">value</span><span class="p">)</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">header</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_meta</span>
+
+    <span class="nd">@header</span><span class="o">.</span><span class="n">setter</span>
+    <span class="k">def</span> <span class="nf">header</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">value</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">meta</span> <span class="o">=</span> <span class="n">value</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">uncertainty</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_uncertainty</span>
+
+    <span class="nd">@uncertainty</span><span class="o">.</span><span class="n">setter</span>
+    <span class="k">def</span> <span class="nf">uncertainty</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">value</span><span class="p">):</span>
+        <span class="k">if</span> <span class="n">value</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">value</span><span class="p">,</span> <span class="n">NDUncertainty</span><span class="p">):</span>
+                <span class="k">if</span> <span class="nb">getattr</span><span class="p">(</span><span class="n">value</span><span class="p">,</span> <span class="s1">&#39;_parent_nddata&#39;</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+                    <span class="n">value</span> <span class="o">=</span> <span class="n">value</span><span class="o">.</span><span class="n">__class__</span><span class="p">(</span><span class="n">value</span><span class="p">,</span> <span class="n">copy</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">_uncertainty</span> <span class="o">=</span> <span class="n">value</span>
+            <span class="k">elif</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">value</span><span class="p">,</span> <span class="n">np</span><span class="o">.</span><span class="n">ndarray</span><span class="p">):</span>
+                <span class="k">if</span> <span class="n">value</span><span class="o">.</span><span class="n">shape</span> <span class="o">!=</span> <span class="bp">self</span><span class="o">.</span><span class="n">shape</span><span class="p">:</span>
+                    <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;uncertainty must have same shape as &quot;</span>
+                                     <span class="s2">&quot;data.&quot;</span><span class="p">)</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">_uncertainty</span> <span class="o">=</span> <span class="n">StdDevUncertainty</span><span class="p">(</span><span class="n">value</span><span class="p">)</span>
+                <span class="n">log</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s2">&quot;array provided for uncertainty; assuming it is a &quot;</span>
+                         <span class="s2">&quot;StdDevUncertainty.&quot;</span><span class="p">)</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="k">raise</span> <span class="ne">TypeError</span><span class="p">(</span><span class="s2">&quot;uncertainty must be an instance of a &quot;</span>
+                                <span class="s2">&quot;NDUncertainty object or a numpy array.&quot;</span><span class="p">)</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_uncertainty</span><span class="o">.</span><span class="n">parent_nddata</span> <span class="o">=</span> <span class="bp">self</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_uncertainty</span> <span class="o">=</span> <span class="n">value</span>
+
+<div class="viewcode-block" id="CCDData.to_hdu"><a class="viewcode-back" href="../../../api/astropy.nddata.CCDData.html#astropy.nddata.CCDData.to_hdu">[docs]</a>    <span class="k">def</span> <span class="nf">to_hdu</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">hdu_mask</span><span class="o">=</span><span class="s1">&#39;MASK&#39;</span><span class="p">,</span> <span class="n">hdu_uncertainty</span><span class="o">=</span><span class="s1">&#39;UNCERT&#39;</span><span class="p">,</span>
+               <span class="n">hdu_flags</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">wcs_relax</span><span class="o">=</span><span class="kc">True</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Creates an HDUList object from a CCDData object.</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        hdu_mask, hdu_uncertainty, hdu_flags : str or None, optional</span>
+<span class="sd">            If it is a string append this attribute to the HDUList as</span>
+<span class="sd">            `~astropy.io.fits.ImageHDU` with the string as extension name.</span>
+<span class="sd">            Flags are not supported at this time. If ``None`` this attribute</span>
+<span class="sd">            is not appended.</span>
+<span class="sd">            Default is ``&#39;MASK&#39;`` for mask, ``&#39;UNCERT&#39;`` for uncertainty and</span>
+<span class="sd">            ``None`` for flags.</span>
+
+<span class="sd">        wcs_relax : bool</span>
+<span class="sd">            Value of the ``relax`` parameter to use in converting the WCS to a</span>
+<span class="sd">            FITS header using `~astropy.wcs.WCS.to_header`. The common</span>
+<span class="sd">            ``CTYPE`` ``RA---TAN-SIP`` and ``DEC--TAN-SIP`` requires</span>
+<span class="sd">            ``relax=True`` for the ``-SIP`` part of the ``CTYPE`` to be</span>
+<span class="sd">            preserved.</span>
+
+<span class="sd">        Raises</span>
+<span class="sd">        -------</span>
+<span class="sd">        ValueError</span>
+<span class="sd">            - If ``self.mask`` is set but not a `numpy.ndarray`.</span>
+<span class="sd">            - If ``self.uncertainty`` is set but not a</span>
+<span class="sd">              `~astropy.nddata.StdDevUncertainty`.</span>
+<span class="sd">            - If ``self.uncertainty`` is set but has another unit then</span>
+<span class="sd">              ``self.data``.</span>
+
+<span class="sd">        NotImplementedError</span>
+<span class="sd">            Saving flags is not supported.</span>
+
+<span class="sd">        Returns</span>
+<span class="sd">        -------</span>
+<span class="sd">        hdulist : `~astropy.io.fits.HDUList`</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">header</span><span class="p">,</span> <span class="n">fits</span><span class="o">.</span><span class="n">Header</span><span class="p">):</span>
+            <span class="c1"># Copy here so that we can modify the HDU header by adding WCS</span>
+            <span class="c1"># information without changing the header of the CCDData object.</span>
+            <span class="n">header</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">header</span><span class="o">.</span><span class="n">copy</span><span class="p">()</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="c1"># Because _insert_in_metadata_fits_safe is written as a method</span>
+            <span class="c1"># we need to create a dummy CCDData instance to hold the FITS</span>
+            <span class="c1"># header we are constructing. This probably indicates that</span>
+            <span class="c1"># _insert_in_metadata_fits_safe should be rewritten in a more</span>
+            <span class="c1"># sensible way...</span>
+            <span class="n">dummy_ccd</span> <span class="o">=</span> <span class="n">CCDData</span><span class="p">([</span><span class="mi">1</span><span class="p">],</span> <span class="n">meta</span><span class="o">=</span><span class="n">fits</span><span class="o">.</span><span class="n">Header</span><span class="p">(),</span> <span class="n">unit</span><span class="o">=</span><span class="s2">&quot;adu&quot;</span><span class="p">)</span>
+            <span class="k">for</span> <span class="n">k</span><span class="p">,</span> <span class="n">v</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">header</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
+                <span class="n">dummy_ccd</span><span class="o">.</span><span class="n">_insert_in_metadata_fits_safe</span><span class="p">(</span><span class="n">k</span><span class="p">,</span> <span class="n">v</span><span class="p">)</span>
+            <span class="n">header</span> <span class="o">=</span> <span class="n">dummy_ccd</span><span class="o">.</span><span class="n">header</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">unit</span> <span class="ow">is</span> <span class="ow">not</span> <span class="n">u</span><span class="o">.</span><span class="n">dimensionless_unscaled</span><span class="p">:</span>
+            <span class="n">header</span><span class="p">[</span><span class="s1">&#39;bunit&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">unit</span><span class="o">.</span><span class="n">to_string</span><span class="p">()</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">wcs</span><span class="p">:</span>
+            <span class="c1"># Simply extending the FITS header with the WCS can lead to</span>
+            <span class="c1"># duplicates of the WCS keywords; iterating over the WCS</span>
+            <span class="c1"># header should be safer.</span>
+            <span class="c1">#</span>
+            <span class="c1"># Turns out if I had read the io.fits.Header.extend docs more</span>
+            <span class="c1"># carefully, I would have realized that the keywords exist to</span>
+            <span class="c1"># avoid duplicates and preserve, as much as possible, the</span>
+            <span class="c1"># structure of the commentary cards.</span>
+            <span class="c1">#</span>
+            <span class="c1"># Note that until astropy/astropy#3967 is closed, the extend</span>
+            <span class="c1"># will fail if there are comment cards in the WCS header but</span>
+            <span class="c1"># not header.</span>
+            <span class="n">wcs_header</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">wcs</span><span class="o">.</span><span class="n">to_header</span><span class="p">(</span><span class="n">relax</span><span class="o">=</span><span class="n">wcs_relax</span><span class="p">)</span>
+            <span class="n">header</span><span class="o">.</span><span class="n">extend</span><span class="p">(</span><span class="n">wcs_header</span><span class="p">,</span> <span class="n">useblanks</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="n">update</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+        <span class="n">hdus</span> <span class="o">=</span> <span class="p">[</span><span class="n">fits</span><span class="o">.</span><span class="n">PrimaryHDU</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">data</span><span class="p">,</span> <span class="n">header</span><span class="p">)]</span>
+
+        <span class="k">if</span> <span class="n">hdu_mask</span> <span class="ow">and</span> <span class="bp">self</span><span class="o">.</span><span class="n">mask</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="c1"># Always assuming that the mask is a np.ndarray (check that it has</span>
+            <span class="c1"># a &#39;shape&#39;).</span>
+            <span class="k">if</span> <span class="ow">not</span> <span class="nb">hasattr</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">mask</span><span class="p">,</span> <span class="s1">&#39;shape&#39;</span><span class="p">):</span>
+                <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s1">&#39;only a numpy.ndarray mask can be saved.&#39;</span><span class="p">)</span>
+
+            <span class="c1"># Convert boolean mask to uint since io.fits cannot handle bool.</span>
+            <span class="n">hduMask</span> <span class="o">=</span> <span class="n">fits</span><span class="o">.</span><span class="n">ImageHDU</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">mask</span><span class="o">.</span><span class="n">astype</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">uint8</span><span class="p">),</span> <span class="n">name</span><span class="o">=</span><span class="n">hdu_mask</span><span class="p">)</span>
+            <span class="n">hdus</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">hduMask</span><span class="p">)</span>
+
+        <span class="k">if</span> <span class="n">hdu_uncertainty</span> <span class="ow">and</span> <span class="bp">self</span><span class="o">.</span><span class="n">uncertainty</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="c1"># We need to save some kind of information which uncertainty was</span>
+            <span class="c1"># used so that loading the HDUList can infer the uncertainty type.</span>
+            <span class="c1"># No idea how this can be done so only allow StdDevUncertainty.</span>
+            <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">uncertainty</span><span class="o">.</span><span class="n">__class__</span><span class="o">.</span><span class="n">__name__</span> <span class="o">!=</span> <span class="s1">&#39;StdDevUncertainty&#39;</span><span class="p">:</span>
+                <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s1">&#39;only StdDevUncertainty can be saved.&#39;</span><span class="p">)</span>
+
+            <span class="c1"># Assuming uncertainty is an StdDevUncertainty save just the array</span>
+            <span class="c1"># this might be problematic if the Uncertainty has a unit differing</span>
+            <span class="c1"># from the data so abort for different units. This is important for</span>
+            <span class="c1"># astropy &gt; 1.2</span>
+            <span class="k">if</span> <span class="p">(</span><span class="nb">hasattr</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">uncertainty</span><span class="p">,</span> <span class="s1">&#39;unit&#39;</span><span class="p">)</span> <span class="ow">and</span>
+                    <span class="bp">self</span><span class="o">.</span><span class="n">uncertainty</span><span class="o">.</span><span class="n">unit</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="ow">and</span>
+                    <span class="bp">self</span><span class="o">.</span><span class="n">uncertainty</span><span class="o">.</span><span class="n">unit</span> <span class="o">!=</span> <span class="bp">self</span><span class="o">.</span><span class="n">unit</span><span class="p">):</span>
+                <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s1">&#39;saving uncertainties with a unit differing&#39;</span>
+                                 <span class="s1">&#39;from the data unit is not supported.&#39;</span><span class="p">)</span>
+
+            <span class="n">hduUncert</span> <span class="o">=</span> <span class="n">fits</span><span class="o">.</span><span class="n">ImageHDU</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">uncertainty</span><span class="o">.</span><span class="n">array</span><span class="p">,</span>
+                                      <span class="n">name</span><span class="o">=</span><span class="n">hdu_uncertainty</span><span class="p">)</span>
+            <span class="n">hdus</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">hduUncert</span><span class="p">)</span>
+
+        <span class="k">if</span> <span class="n">hdu_flags</span> <span class="ow">and</span> <span class="bp">self</span><span class="o">.</span><span class="n">flags</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">NotImplementedError</span><span class="p">(</span><span class="s1">&#39;adding the flags to a HDU is not &#39;</span>
+                                      <span class="s1">&#39;supported at this time.&#39;</span><span class="p">)</span>
+
+        <span class="n">hdulist</span> <span class="o">=</span> <span class="n">fits</span><span class="o">.</span><span class="n">HDUList</span><span class="p">(</span><span class="n">hdus</span><span class="p">)</span>
+
+        <span class="k">return</span> <span class="n">hdulist</span></div>
+
+<div class="viewcode-block" id="CCDData.copy"><a class="viewcode-back" href="../../../api/astropy.nddata.CCDData.html#astropy.nddata.CCDData.copy">[docs]</a>    <span class="k">def</span> <span class="nf">copy</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Return a copy of the CCDData object.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">__class__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">copy</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span></div>
+
+    <span class="n">add</span> <span class="o">=</span> <span class="n">_arithmetic</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">add</span><span class="p">)(</span><span class="n">NDDataArray</span><span class="o">.</span><span class="n">add</span><span class="p">)</span>
+    <span class="n">subtract</span> <span class="o">=</span> <span class="n">_arithmetic</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">subtract</span><span class="p">)(</span><span class="n">NDDataArray</span><span class="o">.</span><span class="n">subtract</span><span class="p">)</span>
+    <span class="n">multiply</span> <span class="o">=</span> <span class="n">_arithmetic</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">multiply</span><span class="p">)(</span><span class="n">NDDataArray</span><span class="o">.</span><span class="n">multiply</span><span class="p">)</span>
+    <span class="n">divide</span> <span class="o">=</span> <span class="n">_arithmetic</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">true_divide</span><span class="p">)(</span><span class="n">NDDataArray</span><span class="o">.</span><span class="n">divide</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">_insert_in_metadata_fits_safe</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">key</span><span class="p">,</span> <span class="n">value</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Insert key/value pair into metadata in a way that FITS can serialize.</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        key : str</span>
+<span class="sd">            Key to be inserted in dictionary.</span>
+
+<span class="sd">        value : str or None</span>
+<span class="sd">            Value to be inserted.</span>
+
+<span class="sd">        Notes</span>
+<span class="sd">        -----</span>
+<span class="sd">        This addresses a shortcoming of the FITS standard. There are length</span>
+<span class="sd">        restrictions on both the ``key`` (8 characters) and ``value`` (72</span>
+<span class="sd">        characters) in the FITS standard. There is a convention for handling</span>
+<span class="sd">        long keywords and a convention for handling long values, but the</span>
+<span class="sd">        two conventions cannot be used at the same time.</span>
+
+<span class="sd">        This addresses that case by checking the length of the ``key`` and</span>
+<span class="sd">        ``value`` and, if necessary, shortening the key.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+
+        <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">key</span><span class="p">)</span> <span class="o">&gt;</span> <span class="mi">8</span> <span class="ow">and</span> <span class="nb">len</span><span class="p">(</span><span class="n">value</span><span class="p">)</span> <span class="o">&gt;</span> <span class="mi">72</span><span class="p">:</span>
+            <span class="n">short_name</span> <span class="o">=</span> <span class="n">key</span><span class="p">[:</span><span class="mi">8</span><span class="p">]</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">meta</span><span class="p">[</span><span class="s1">&#39;HIERARCH </span><span class="si">{0}</span><span class="s1">&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">key</span><span class="o">.</span><span class="n">upper</span><span class="p">())]</span> <span class="o">=</span> <span class="p">(</span>
+                <span class="n">short_name</span><span class="p">,</span> <span class="s2">&quot;Shortened name for </span><span class="si">{}</span><span class="s2">&quot;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">key</span><span class="p">))</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">meta</span><span class="p">[</span><span class="n">short_name</span><span class="p">]</span> <span class="o">=</span> <span class="n">value</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">meta</span><span class="p">[</span><span class="n">key</span><span class="p">]</span> <span class="o">=</span> <span class="n">value</span></div>
+
+
+<span class="c1"># This needs to be importable by the tests...</span>
+<span class="n">_KEEP_THESE_KEYWORDS_IN_HEADER</span> <span class="o">=</span> <span class="p">[</span>
+    <span class="s1">&#39;JD-OBS&#39;</span><span class="p">,</span>
+    <span class="s1">&#39;MJD-OBS&#39;</span><span class="p">,</span>
+    <span class="s1">&#39;DATE-OBS&#39;</span>
+<span class="p">]</span>
+
+
+<span class="k">def</span> <span class="nf">_generate_wcs_and_update_header</span><span class="p">(</span><span class="n">hdr</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Generate a WCS object from a header and remove the WCS-specific</span>
+<span class="sd">    keywords from the header.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+
+<span class="sd">    hdr : astropy.io.fits.header or other dict-like</span>
+
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+
+<span class="sd">    new_header, wcs</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="c1"># Try constructing a WCS object. This may generate a warning, but never</span>
+    <span class="c1"># an error.</span>
+    <span class="n">wcs</span> <span class="o">=</span> <span class="n">WCS</span><span class="p">(</span><span class="n">hdr</span><span class="p">)</span>
+    <span class="c1"># Test for success by checking to see if the wcs ctype has a non-empty</span>
+    <span class="c1"># value, return None for wcs if ctype is empty.</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="n">wcs</span><span class="o">.</span><span class="n">wcs</span><span class="o">.</span><span class="n">ctype</span><span class="p">[</span><span class="mi">0</span><span class="p">]:</span>
+        <span class="k">return</span> <span class="p">(</span><span class="n">hdr</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span>
+
+    <span class="n">new_hdr</span> <span class="o">=</span> <span class="n">hdr</span><span class="o">.</span><span class="n">copy</span><span class="p">()</span>
+    <span class="c1"># If the keywords below are in the header they are also added to WCS.</span>
+    <span class="c1"># It seems like they should *not* be removed from the header, though.</span>
+
+    <span class="n">wcs_header</span> <span class="o">=</span> <span class="n">wcs</span><span class="o">.</span><span class="n">to_header</span><span class="p">(</span><span class="n">relax</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+    <span class="k">for</span> <span class="n">k</span> <span class="ow">in</span> <span class="n">wcs_header</span><span class="p">:</span>
+        <span class="k">if</span> <span class="n">k</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">_KEEP_THESE_KEYWORDS_IN_HEADER</span><span class="p">:</span>
+            <span class="k">del</span> <span class="n">new_hdr</span><span class="p">[</span><span class="n">k</span><span class="p">]</span>
+    <span class="k">return</span> <span class="p">(</span><span class="n">new_hdr</span><span class="p">,</span> <span class="n">wcs</span><span class="p">)</span>
+
+
+<div class="viewcode-block" id="fits_ccddata_reader"><a class="viewcode-back" href="../../../api/astropy.nddata.fits_ccddata_reader.html#astropy.nddata.fits_ccddata_reader">[docs]</a><span class="k">def</span> <span class="nf">fits_ccddata_reader</span><span class="p">(</span><span class="n">filename</span><span class="p">,</span> <span class="n">hdu</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span> <span class="n">unit</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">hdu_uncertainty</span><span class="o">=</span><span class="s1">&#39;UNCERT&#39;</span><span class="p">,</span>
+                        <span class="n">hdu_mask</span><span class="o">=</span><span class="s1">&#39;MASK&#39;</span><span class="p">,</span> <span class="n">hdu_flags</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="o">**</span><span class="n">kwd</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Generate a CCDData object from a FITS file.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    filename : str</span>
+<span class="sd">        Name of fits file.</span>
+
+<span class="sd">    hdu : int, optional</span>
+<span class="sd">        FITS extension from which CCDData should be initialized. If zero and</span>
+<span class="sd">        and no data in the primary extension, it will search for the first</span>
+<span class="sd">        extension with data. The header will be added to the primary header.</span>
+<span class="sd">        Default is ``0``.</span>
+
+<span class="sd">    unit : `~astropy.units.Unit`, optional</span>
+<span class="sd">        Units of the image data. If this argument is provided and there is a</span>
+<span class="sd">        unit for the image in the FITS header (the keyword ``BUNIT`` is used</span>
+<span class="sd">        as the unit, if present), this argument is used for the unit.</span>
+<span class="sd">        Default is ``None``.</span>
+
+<span class="sd">    hdu_uncertainty : str or None, optional</span>
+<span class="sd">        FITS extension from which the uncertainty should be initialized. If the</span>
+<span class="sd">        extension does not exist the uncertainty of the CCDData is ``None``.</span>
+<span class="sd">        Default is ``&#39;UNCERT&#39;``.</span>
+
+<span class="sd">    hdu_mask : str or None, optional</span>
+<span class="sd">        FITS extension from which the mask should be initialized. If the</span>
+<span class="sd">        extension does not exist the mask of the CCDData is ``None``.</span>
+<span class="sd">        Default is ``&#39;MASK&#39;``.</span>
+
+<span class="sd">    hdu_flags : str or None, optional</span>
+<span class="sd">        Currently not implemented.</span>
+<span class="sd">        Default is ``None``.</span>
+
+<span class="sd">    kwd :</span>
+<span class="sd">        Any additional keyword parameters are passed through to the FITS reader</span>
+<span class="sd">        in :mod:`astropy.io.fits`; see Notes for additional discussion.</span>
+
+<span class="sd">    Notes</span>
+<span class="sd">    -----</span>
+<span class="sd">    FITS files that contained scaled data (e.g. unsigned integer images) will</span>
+<span class="sd">    be scaled and the keywords used to manage scaled data in</span>
+<span class="sd">    :mod:`astropy.io.fits` are disabled.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">unsupport_open_keywords</span> <span class="o">=</span> <span class="p">{</span>
+        <span class="s1">&#39;do_not_scale_image_data&#39;</span><span class="p">:</span> <span class="s1">&#39;Image data must be scaled.&#39;</span><span class="p">,</span>
+        <span class="s1">&#39;scale_back&#39;</span><span class="p">:</span> <span class="s1">&#39;Scale information is not preserved.&#39;</span>
+    <span class="p">}</span>
+    <span class="k">for</span> <span class="n">key</span><span class="p">,</span> <span class="n">msg</span> <span class="ow">in</span> <span class="n">unsupport_open_keywords</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
+        <span class="k">if</span> <span class="n">key</span> <span class="ow">in</span> <span class="n">kwd</span><span class="p">:</span>
+            <span class="n">prefix</span> <span class="o">=</span> <span class="s1">&#39;unsupported keyword: </span><span class="si">{0}</span><span class="s1">.&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">key</span><span class="p">)</span>
+            <span class="k">raise</span> <span class="ne">TypeError</span><span class="p">(</span><span class="s1">&#39; &#39;</span><span class="o">.</span><span class="n">join</span><span class="p">([</span><span class="n">prefix</span><span class="p">,</span> <span class="n">msg</span><span class="p">]))</span>
+    <span class="k">with</span> <span class="n">fits</span><span class="o">.</span><span class="n">open</span><span class="p">(</span><span class="n">filename</span><span class="p">,</span> <span class="o">**</span><span class="n">kwd</span><span class="p">)</span> <span class="k">as</span> <span class="n">hdus</span><span class="p">:</span>
+        <span class="n">hdr</span> <span class="o">=</span> <span class="n">hdus</span><span class="p">[</span><span class="n">hdu</span><span class="p">]</span><span class="o">.</span><span class="n">header</span>
+
+        <span class="k">if</span> <span class="n">hdu_uncertainty</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="ow">and</span> <span class="n">hdu_uncertainty</span> <span class="ow">in</span> <span class="n">hdus</span><span class="p">:</span>
+            <span class="n">uncertainty</span> <span class="o">=</span> <span class="n">StdDevUncertainty</span><span class="p">(</span><span class="n">hdus</span><span class="p">[</span><span class="n">hdu_uncertainty</span><span class="p">]</span><span class="o">.</span><span class="n">data</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">uncertainty</span> <span class="o">=</span> <span class="kc">None</span>
+
+        <span class="k">if</span> <span class="n">hdu_mask</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="ow">and</span> <span class="n">hdu_mask</span> <span class="ow">in</span> <span class="n">hdus</span><span class="p">:</span>
+            <span class="c1"># Mask is saved as uint but we want it to be boolean.</span>
+            <span class="n">mask</span> <span class="o">=</span> <span class="n">hdus</span><span class="p">[</span><span class="n">hdu_mask</span><span class="p">]</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">astype</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">bool_</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">mask</span> <span class="o">=</span> <span class="kc">None</span>
+
+        <span class="k">if</span> <span class="n">hdu_flags</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="ow">and</span> <span class="n">hdu_flags</span> <span class="ow">in</span> <span class="n">hdus</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">NotImplementedError</span><span class="p">(</span><span class="s1">&#39;loading flags is currently not &#39;</span>
+                                      <span class="s1">&#39;supported.&#39;</span><span class="p">)</span>
+
+        <span class="c1"># search for the first instance with data if</span>
+        <span class="c1"># the primary header is empty.</span>
+        <span class="k">if</span> <span class="n">hdu</span> <span class="o">==</span> <span class="mi">0</span> <span class="ow">and</span> <span class="n">hdus</span><span class="p">[</span><span class="n">hdu</span><span class="p">]</span><span class="o">.</span><span class="n">data</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">hdus</span><span class="p">)):</span>
+                <span class="k">if</span> <span class="n">hdus</span><span class="o">.</span><span class="n">fileinfo</span><span class="p">(</span><span class="n">i</span><span class="p">)[</span><span class="s1">&#39;datSpan&#39;</span><span class="p">]</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">:</span>
+                    <span class="n">hdu</span> <span class="o">=</span> <span class="n">i</span>
+                    <span class="n">hdr</span> <span class="o">=</span> <span class="n">hdr</span> <span class="o">+</span> <span class="n">hdus</span><span class="p">[</span><span class="n">hdu</span><span class="p">]</span><span class="o">.</span><span class="n">header</span>
+                    <span class="n">log</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s2">&quot;first HDU with data is extension &quot;</span>
+                             <span class="s2">&quot;</span><span class="si">{0}</span><span class="s2">.&quot;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">hdu</span><span class="p">))</span>
+                    <span class="k">break</span>
+
+        <span class="k">if</span> <span class="s1">&#39;bunit&#39;</span> <span class="ow">in</span> <span class="n">hdr</span><span class="p">:</span>
+            <span class="n">fits_unit_string</span> <span class="o">=</span> <span class="n">hdr</span><span class="p">[</span><span class="s1">&#39;bunit&#39;</span><span class="p">]</span>
+            <span class="c1"># patch to handle FITS files using ADU for the unit instead of the</span>
+            <span class="c1"># standard version of &#39;adu&#39;</span>
+            <span class="k">if</span> <span class="n">fits_unit_string</span><span class="o">.</span><span class="n">strip</span><span class="p">()</span><span class="o">.</span><span class="n">lower</span><span class="p">()</span> <span class="o">==</span> <span class="s1">&#39;adu&#39;</span><span class="p">:</span>
+                <span class="n">fits_unit_string</span> <span class="o">=</span> <span class="n">fits_unit_string</span><span class="o">.</span><span class="n">lower</span><span class="p">()</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">fits_unit_string</span> <span class="o">=</span> <span class="kc">None</span>
+
+        <span class="k">if</span> <span class="n">unit</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="ow">and</span> <span class="n">fits_unit_string</span><span class="p">:</span>
+            <span class="n">log</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s2">&quot;using the unit </span><span class="si">{0}</span><span class="s2"> passed to the FITS reader instead of &quot;</span>
+                     <span class="s2">&quot;the unit </span><span class="si">{1}</span><span class="s2"> in the FITS file.&quot;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">unit</span><span class="p">,</span>
+                                                             <span class="n">fits_unit_string</span><span class="p">))</span>
+
+        <span class="n">use_unit</span> <span class="o">=</span> <span class="n">unit</span> <span class="ow">or</span> <span class="n">fits_unit_string</span>
+        <span class="n">hdr</span><span class="p">,</span> <span class="n">wcs</span> <span class="o">=</span> <span class="n">_generate_wcs_and_update_header</span><span class="p">(</span><span class="n">hdr</span><span class="p">)</span>
+        <span class="n">ccd_data</span> <span class="o">=</span> <span class="n">CCDData</span><span class="p">(</span><span class="n">hdus</span><span class="p">[</span><span class="n">hdu</span><span class="p">]</span><span class="o">.</span><span class="n">data</span><span class="p">,</span> <span class="n">meta</span><span class="o">=</span><span class="n">hdr</span><span class="p">,</span> <span class="n">unit</span><span class="o">=</span><span class="n">use_unit</span><span class="p">,</span>
+                           <span class="n">mask</span><span class="o">=</span><span class="n">mask</span><span class="p">,</span> <span class="n">uncertainty</span><span class="o">=</span><span class="n">uncertainty</span><span class="p">,</span> <span class="n">wcs</span><span class="o">=</span><span class="n">wcs</span><span class="p">)</span>
+
+    <span class="k">return</span> <span class="n">ccd_data</span></div>
+
+
+<div class="viewcode-block" id="fits_ccddata_writer"><a class="viewcode-back" href="../../../api/astropy.nddata.fits_ccddata_writer.html#astropy.nddata.fits_ccddata_writer">[docs]</a><span class="k">def</span> <span class="nf">fits_ccddata_writer</span><span class="p">(</span><span class="n">ccd_data</span><span class="p">,</span> <span class="n">filename</span><span class="p">,</span> <span class="n">hdu_mask</span><span class="o">=</span><span class="s1">&#39;MASK&#39;</span><span class="p">,</span>
+                        <span class="n">hdu_uncertainty</span><span class="o">=</span><span class="s1">&#39;UNCERT&#39;</span><span class="p">,</span> <span class="n">hdu_flags</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="o">**</span><span class="n">kwd</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Write CCDData object to FITS file.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    filename : str</span>
+<span class="sd">        Name of file.</span>
+
+<span class="sd">    hdu_mask, hdu_uncertainty, hdu_flags : str or None, optional</span>
+<span class="sd">        If it is a string append this attribute to the HDUList as</span>
+<span class="sd">        `~astropy.io.fits.ImageHDU` with the string as extension name.</span>
+<span class="sd">        Flags are not supported at this time. If ``None`` this attribute</span>
+<span class="sd">        is not appended.</span>
+<span class="sd">        Default is ``&#39;MASK&#39;`` for mask, ``&#39;UNCERT&#39;`` for uncertainty and</span>
+<span class="sd">        ``None`` for flags.</span>
+
+<span class="sd">    kwd :</span>
+<span class="sd">        All additional keywords are passed to :py:mod:`astropy.io.fits`</span>
+
+<span class="sd">    Raises</span>
+<span class="sd">    -------</span>
+<span class="sd">    ValueError</span>
+<span class="sd">        - If ``self.mask`` is set but not a `numpy.ndarray`.</span>
+<span class="sd">        - If ``self.uncertainty`` is set but not a</span>
+<span class="sd">          `~astropy.nddata.StdDevUncertainty`.</span>
+<span class="sd">        - If ``self.uncertainty`` is set but has another unit then</span>
+<span class="sd">          ``self.data``.</span>
+
+<span class="sd">    NotImplementedError</span>
+<span class="sd">        Saving flags is not supported.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">hdu</span> <span class="o">=</span> <span class="n">ccd_data</span><span class="o">.</span><span class="n">to_hdu</span><span class="p">(</span><span class="n">hdu_mask</span><span class="o">=</span><span class="n">hdu_mask</span><span class="p">,</span> <span class="n">hdu_uncertainty</span><span class="o">=</span><span class="n">hdu_uncertainty</span><span class="p">,</span>
+                          <span class="n">hdu_flags</span><span class="o">=</span><span class="n">hdu_flags</span><span class="p">)</span>
+    <span class="n">hdu</span><span class="o">.</span><span class="n">writeto</span><span class="p">(</span><span class="n">filename</span><span class="p">,</span> <span class="o">**</span><span class="n">kwd</span><span class="p">)</span></div>
+
+
+<span class="k">with</span> <span class="n">registry</span><span class="o">.</span><span class="n">delay_doc_updates</span><span class="p">(</span><span class="n">CCDData</span><span class="p">):</span>
+    <span class="n">registry</span><span class="o">.</span><span class="n">register_reader</span><span class="p">(</span><span class="s1">&#39;fits&#39;</span><span class="p">,</span> <span class="n">CCDData</span><span class="p">,</span> <span class="n">fits_ccddata_reader</span><span class="p">)</span>
+    <span class="n">registry</span><span class="o">.</span><span class="n">register_writer</span><span class="p">(</span><span class="s1">&#39;fits&#39;</span><span class="p">,</span> <span class="n">CCDData</span><span class="p">,</span> <span class="n">fits_ccddata_writer</span><span class="p">)</span>
+    <span class="n">registry</span><span class="o">.</span><span class="n">register_identifier</span><span class="p">(</span><span class="s1">&#39;fits&#39;</span><span class="p">,</span> <span class="n">CCDData</span><span class="p">,</span> <span class="n">fits</span><span class="o">.</span><span class="n">connect</span><span class="o">.</span><span class="n">is_fits</span><span class="p">)</span>
+
+<span class="k">try</span><span class="p">:</span>
+    <span class="n">CCDData</span><span class="o">.</span><span class="n">read</span><span class="o">.</span><span class="n">__doc__</span> <span class="o">=</span> <span class="n">fits_ccddata_reader</span><span class="o">.</span><span class="n">__doc__</span>
+<span class="k">except</span> <span class="ne">AttributeError</span><span class="p">:</span>
+    <span class="n">CCDData</span><span class="o">.</span><span class="n">read</span><span class="o">.</span><span class="n">__func__</span><span class="o">.</span><span class="n">__doc__</span> <span class="o">=</span> <span class="n">fits_ccddata_reader</span><span class="o">.</span><span class="n">__doc__</span>
+
+<span class="k">try</span><span class="p">:</span>
+    <span class="n">CCDData</span><span class="o">.</span><span class="n">write</span><span class="o">.</span><span class="n">__doc__</span> <span class="o">=</span> <span class="n">fits_ccddata_writer</span><span class="o">.</span><span class="n">__doc__</span>
+<span class="k">except</span> <span class="ne">AttributeError</span><span class="p">:</span>
+    <span class="n">CCDData</span><span class="o">.</span><span class="n">write</span><span class="o">.</span><span class="n">__func__</span><span class="o">.</span><span class="n">__doc__</span> <span class="o">=</span> <span class="n">fits_ccddata_writer</span><span class="o">.</span><span class="n">__doc__</span>
+</pre></div>
+
+          </div>
+        </div>
+      </div>
+      <div class="sphinxsidebar" role="navigation" aria-label="main navigation">
+        <div class="sphinxsidebarwrapper"><h3>Page Contents</h3>
+
+
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+<footer class="footer">
+  <p class="pull-right"> &nbsp;
+    <a href="#">Back to Top</a></p>
+  <p>
+    &copy; Copyright 2011-2016, The Astropy Developers.<br/>
+    Created using <a href="http://sphinx.pocoo.org/">Sphinx</a> 1.5.6. &nbsp;
+    Last built 05 Jul 2017. <br/>
+  </p>
+</footer>
+  </body>
+</html>

@@ -1,0 +1,383 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <head>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    
+    <title>astropy.nddata.decorators &#8212; Astropy v3.0.dev19489</title>
+    
+    <link rel="stylesheet" href="../../../_static/bootstrap-astropy.css" type="text/css" />
+    <link rel="stylesheet" href="../../../_static/pygments.css" type="text/css" />
+    <link rel="stylesheet" href="../../../_static/gallery.css" type="text/css" />
+    
+    <script type="text/javascript">
+      var DOCUMENTATION_OPTIONS = {
+        URL_ROOT:    '../../../',
+        VERSION:     '3.0.dev19489',
+        COLLAPSE_INDEX: false,
+        FILE_SUFFIX: '.html',
+        HAS_SOURCE:  true,
+        SOURCELINK_SUFFIX: '.txt'
+      };
+    </script>
+    <script type="text/javascript" src="../../../_static/jquery.js"></script>
+    <script type="text/javascript" src="../../../_static/underscore.js"></script>
+    <script type="text/javascript" src="../../../_static/doctools.js"></script>
+    <script type="text/javascript" src="../../../_static/sidebar.js"></script>
+    <link rel="shortcut icon" href="../../../_static/astropy_logo.ico"/>
+    <link rel="index" title="Index" href="../../../genindex.html" />
+    <link rel="search" title="Search" href="../../../search.html" />
+<link href='https://fonts.googleapis.com/css?family=Source+Sans+Pro:200,600' rel='stylesheet' type='text/css'/>
+<script type="text/javascript" src="../../../_static/copybutton.js"></script>
+
+
+  </head>
+  <body role="document">
+<div class="topbar">
+  <a class="brand" title="Documentation Home" href="../../../index.html"><span id="logotext1">astro</span><span id="logotext2">py</span><span id="logotext3">:docs</span></a>
+  <ul>
+    <li><a class="homelink" title="Astropy Homepage" href="http://www.astropy.org"></a></li>
+    <li><a title="General Index" href="../../../genindex.html">Index</a></li>
+    <li><a title="Module Index" href="../../../py-modindex.html">Modules</a></li>
+    <li>
+      
+      
+<form action="../../../search.html" method="get">
+  <input type="text" name="q" placeholder="Search" />
+  <input type="hidden" name="check_keywords" value="yes" />
+  <input type="hidden" name="area" value="default" />
+</form>
+      
+    </li>
+  </ul>
+</div>
+
+<div class="related">
+    <h3>Navigation</h3>
+    <ul>
+      <li>
+	<a href="../../../index.html">Astropy v3.0.dev19489</a>
+	 &#187;
+      </li>
+      <li><a href="../../index.html" >Module code</a> &#187;</li>
+      <li><a href="../../astropy.html" >astropy</a> &#187;</li>
+      <li><a href="../nddata.html" accesskey="U">astropy.nddata</a> &#187;</li>
+      
+       
+    </ul>
+</div>
+  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          <div class="body" role="main">
+            
+  <h1>Source code for astropy.nddata.decorators</h1><div class="highlight"><pre>
+<span></span><span class="c1"># Licensed under a 3-clause BSD style license - see LICENSE.rst</span>
+
+<span class="kn">from</span> <span class="nn">__future__</span> <span class="k">import</span> <span class="p">(</span><span class="n">absolute_import</span><span class="p">,</span> <span class="n">division</span><span class="p">,</span> <span class="n">print_function</span><span class="p">,</span>
+                        <span class="n">unicode_literals</span><span class="p">)</span>
+
+<span class="kn">from</span> <span class="nn">copy</span> <span class="k">import</span> <span class="n">deepcopy</span>
+<span class="kn">from</span> <span class="nn">itertools</span> <span class="k">import</span> <span class="n">islice</span>
+<span class="kn">import</span> <span class="nn">warnings</span>
+
+<span class="kn">from</span> <span class="nn">..utils</span> <span class="k">import</span> <span class="n">wraps</span>
+<span class="kn">from</span> <span class="nn">..utils.exceptions</span> <span class="k">import</span> <span class="n">AstropyUserWarning</span>
+<span class="kn">from</span> <span class="nn">..utils.compat.funcsigs</span> <span class="k">import</span> <span class="n">signature</span>
+<span class="kn">from</span> <span class="nn">..extern</span> <span class="k">import</span> <span class="n">six</span>
+<span class="kn">from</span> <span class="nn">..extern.six.moves</span> <span class="k">import</span> <span class="nb">zip</span>
+
+<span class="kn">from</span> <span class="nn">.nddata</span> <span class="k">import</span> <span class="n">NDData</span>
+
+<span class="n">__all__</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;support_nddata&#39;</span><span class="p">]</span>
+
+
+<span class="c1"># All supported properties are optional except &quot;data&quot; which is mandatory!</span>
+<span class="n">SUPPORTED_PROPERTIES</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;data&#39;</span><span class="p">,</span> <span class="s1">&#39;uncertainty&#39;</span><span class="p">,</span> <span class="s1">&#39;mask&#39;</span><span class="p">,</span> <span class="s1">&#39;meta&#39;</span><span class="p">,</span> <span class="s1">&#39;unit&#39;</span><span class="p">,</span> <span class="s1">&#39;wcs&#39;</span><span class="p">,</span>
+                        <span class="s1">&#39;flags&#39;</span><span class="p">]</span>
+
+
+<div class="viewcode-block" id="support_nddata"><a class="viewcode-back" href="../../../api/astropy.nddata.support_nddata.html#astropy.nddata.support_nddata">[docs]</a><span class="k">def</span> <span class="nf">support_nddata</span><span class="p">(</span><span class="n">_func</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">accepts</span><span class="o">=</span><span class="n">NDData</span><span class="p">,</span>
+                   <span class="n">repack</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="n">returns</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">keeps</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+                   <span class="o">**</span><span class="n">attribute_argument_mapping</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;Decorator to wrap functions that could accept an NDData instance with</span>
+<span class="sd">    its properties passed as function arguments.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    _func : callable, None, optional</span>
+<span class="sd">        The function to decorate or ``None`` if used as factory. The first</span>
+<span class="sd">        positional argument should be ``data`` and take a numpy array. It is</span>
+<span class="sd">        possible to overwrite the name, see ``attribute_argument_mapping``</span>
+<span class="sd">        argument.</span>
+<span class="sd">        Default is ``None``.</span>
+
+<span class="sd">    accepts : cls, optional</span>
+<span class="sd">        The class or subclass of ``NDData`` that should be unpacked before</span>
+<span class="sd">        calling the function.</span>
+<span class="sd">        Default is ``NDData``</span>
+
+<span class="sd">    repack : bool, optional</span>
+<span class="sd">        Should be ``True`` if the return should be converted to the input</span>
+<span class="sd">        class again after the wrapped function call.</span>
+<span class="sd">        Default is ``False``.</span>
+
+<span class="sd">        .. note::</span>
+<span class="sd">           Must be ``True`` if either one of ``returns`` or ``keeps``</span>
+<span class="sd">           is specified.</span>
+
+<span class="sd">    returns : iterable, None, optional</span>
+<span class="sd">        An iterable containing strings which returned value should be set</span>
+<span class="sd">        on the class. For example if a function returns data and mask, this</span>
+<span class="sd">        should be ``[&#39;data&#39;, &#39;mask&#39;]``. If ``None`` assume the function only</span>
+<span class="sd">        returns one argument: ``&#39;data&#39;``.</span>
+<span class="sd">        Default is ``None``.</span>
+
+<span class="sd">        .. note::</span>
+<span class="sd">           Must be ``None`` if ``repack=False``.</span>
+
+<span class="sd">    keeps : iterable. None, optional</span>
+<span class="sd">        An iterable containing strings that indicate which values should be</span>
+<span class="sd">        copied from the original input to the returned class. If ``None``</span>
+<span class="sd">        assume that no attributes are copied.</span>
+<span class="sd">        Default is ``None``.</span>
+
+<span class="sd">        .. note::</span>
+<span class="sd">           Must be ``None`` if ``repack=False``.</span>
+
+<span class="sd">    attribute_argument_mapping :</span>
+<span class="sd">        Keyword parameters that optionally indicate which function argument</span>
+<span class="sd">        should be interpreted as which attribute on the input. By default</span>
+<span class="sd">        it assumes the function takes a ``data`` argument as first argument,</span>
+<span class="sd">        but if the first argument is called ``input`` one should pass</span>
+<span class="sd">        ``support_nddata(..., data=&#39;input&#39;)`` to the function.</span>
+
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+<span class="sd">    decorator_factory or decorated_function : callable</span>
+<span class="sd">        If ``_func=None`` this returns a decorator, otherwise it returns the</span>
+<span class="sd">        decorated ``_func``.</span>
+
+<span class="sd">    Notes</span>
+<span class="sd">    -----</span>
+<span class="sd">    If properties of ``NDData`` are set but have no corresponding function</span>
+<span class="sd">    argument a Warning is shown.</span>
+
+<span class="sd">    If a property is set of the ``NDData`` are set and an explicit argument is</span>
+<span class="sd">    given, the explicitly given argument is used and a Warning is shown.</span>
+
+<span class="sd">    The supported properties are:</span>
+
+<span class="sd">    - ``mask``</span>
+<span class="sd">    - ``unit``</span>
+<span class="sd">    - ``wcs``</span>
+<span class="sd">    - ``meta``</span>
+<span class="sd">    - ``uncertainty``</span>
+<span class="sd">    - ``flags``</span>
+
+<span class="sd">    Examples</span>
+<span class="sd">    --------</span>
+
+<span class="sd">    This function takes a Numpy array for the data, and some WCS information</span>
+<span class="sd">    with the ``wcs`` keyword argument::</span>
+
+<span class="sd">        def downsample(data, wcs=None):</span>
+<span class="sd">            # downsample data and optionally WCS here</span>
+<span class="sd">            pass</span>
+
+<span class="sd">    However, you might have an NDData instance that has the ``wcs`` property</span>
+<span class="sd">    set and you would like to be able to call the function with</span>
+<span class="sd">    ``downsample(my_nddata)`` and have the WCS information, if present,</span>
+<span class="sd">    automatically be passed to the ``wcs`` keyword argument.</span>
+
+<span class="sd">    This decorator can be used to make this possible::</span>
+
+<span class="sd">        @support_nddata</span>
+<span class="sd">        def downsample(data, wcs=None):</span>
+<span class="sd">            # downsample data and optionally WCS here</span>
+<span class="sd">            pass</span>
+
+<span class="sd">    This function can now either be called as before, specifying the data and</span>
+<span class="sd">    WCS separately, or an NDData instance can be passed to the ``data``</span>
+<span class="sd">    argument.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">if</span> <span class="p">(</span><span class="n">returns</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="ow">or</span> <span class="n">keeps</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">)</span> <span class="ow">and</span> <span class="ow">not</span> <span class="n">repack</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s1">&#39;returns or keeps should only be set if repack=True.&#39;</span><span class="p">)</span>
+    <span class="k">elif</span> <span class="n">returns</span> <span class="ow">is</span> <span class="kc">None</span> <span class="ow">and</span> <span class="n">repack</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s1">&#39;returns should be set if repack=True.&#39;</span><span class="p">)</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="c1"># Use empty lists for returns and keeps so we don&#39;t need to check</span>
+        <span class="c1"># if any of those is None later on.</span>
+        <span class="k">if</span> <span class="n">returns</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">returns</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="k">if</span> <span class="n">keeps</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">keeps</span> <span class="o">=</span> <span class="p">[]</span>
+
+    <span class="c1"># Short version to avoid the long variable name later.</span>
+    <span class="n">attr_arg_map</span> <span class="o">=</span> <span class="n">attribute_argument_mapping</span>
+    <span class="k">if</span> <span class="nb">any</span><span class="p">(</span><span class="n">keep</span> <span class="ow">in</span> <span class="n">returns</span> <span class="k">for</span> <span class="n">keep</span> <span class="ow">in</span> <span class="n">keeps</span><span class="p">):</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;cannot specify the same attribute in `returns` and &quot;</span>
+                         <span class="s2">&quot;`keeps`.&quot;</span><span class="p">)</span>
+    <span class="n">all_returns</span> <span class="o">=</span> <span class="n">returns</span> <span class="o">+</span> <span class="n">keeps</span>
+
+    <span class="k">def</span> <span class="nf">support_nddata_decorator</span><span class="p">(</span><span class="n">func</span><span class="p">):</span>
+        <span class="c1"># Find out args and kwargs</span>
+        <span class="n">func_args</span><span class="p">,</span> <span class="n">func_kwargs</span> <span class="o">=</span> <span class="p">[],</span> <span class="p">[]</span>
+        <span class="n">sig</span> <span class="o">=</span> <span class="n">signature</span><span class="p">(</span><span class="n">func</span><span class="p">)</span><span class="o">.</span><span class="n">parameters</span>
+        <span class="k">for</span> <span class="n">param_name</span><span class="p">,</span> <span class="n">param</span> <span class="ow">in</span> <span class="n">six</span><span class="o">.</span><span class="n">iteritems</span><span class="p">(</span><span class="n">sig</span><span class="p">):</span>
+            <span class="k">if</span> <span class="n">param</span><span class="o">.</span><span class="n">kind</span> <span class="ow">in</span> <span class="p">(</span><span class="n">param</span><span class="o">.</span><span class="n">VAR_POSITIONAL</span><span class="p">,</span> <span class="n">param</span><span class="o">.</span><span class="n">VAR_KEYWORD</span><span class="p">):</span>
+                <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;func may not have *args or **kwargs.&quot;</span><span class="p">)</span>
+            <span class="k">try</span><span class="p">:</span>
+                <span class="k">if</span> <span class="n">param</span><span class="o">.</span><span class="n">default</span> <span class="o">==</span> <span class="n">param</span><span class="o">.</span><span class="n">empty</span><span class="p">:</span>
+                    <span class="n">func_args</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">param_name</span><span class="p">)</span>
+                <span class="k">else</span><span class="p">:</span>
+                    <span class="n">func_kwargs</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">param_name</span><span class="p">)</span>
+            <span class="c1"># The comparison to param.empty may fail if the default is a</span>
+            <span class="c1"># numpy array or something similar. So if the comparison fails then</span>
+            <span class="c1"># it&#39;s quite obvious that there was a default and it should be</span>
+            <span class="c1"># appended to the &quot;func_kwargs&quot;.</span>
+            <span class="k">except</span> <span class="ne">ValueError</span> <span class="k">as</span> <span class="n">exc</span><span class="p">:</span>
+                <span class="k">if</span> <span class="p">(</span><span class="s1">&#39;The truth value of an array with more than one element &#39;</span>
+                        <span class="s1">&#39;is ambiguous.&#39;</span><span class="p">)</span> <span class="ow">in</span> <span class="nb">str</span><span class="p">(</span><span class="n">exc</span><span class="p">):</span>
+                    <span class="n">func_kwargs</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">param_name</span><span class="p">)</span>
+                <span class="k">else</span><span class="p">:</span>
+                    <span class="k">raise</span>
+
+        <span class="c1"># First argument should be data</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">func_args</span> <span class="ow">or</span> <span class="n">func_args</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">!=</span> <span class="n">attr_arg_map</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;data&#39;</span><span class="p">,</span> <span class="s1">&#39;data&#39;</span><span class="p">):</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;Can only wrap functions whose first positional &quot;</span>
+                             <span class="s2">&quot;argument is `</span><span class="si">{0}</span><span class="s2">`&quot;</span>
+                             <span class="s2">&quot;&quot;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">attr_arg_map</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;data&#39;</span><span class="p">,</span> <span class="s1">&#39;data&#39;</span><span class="p">)))</span>
+
+        <span class="nd">@wraps</span><span class="p">(</span><span class="n">func</span><span class="p">)</span>
+        <span class="k">def</span> <span class="nf">wrapper</span><span class="p">(</span><span class="n">data</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+            <span class="n">unpack</span> <span class="o">=</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">data</span><span class="p">,</span> <span class="n">accepts</span><span class="p">)</span>
+            <span class="n">input_data</span> <span class="o">=</span> <span class="n">data</span>
+            <span class="n">ignored</span> <span class="o">=</span> <span class="p">[]</span>
+            <span class="k">if</span> <span class="ow">not</span> <span class="n">unpack</span> <span class="ow">and</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">data</span><span class="p">,</span> <span class="n">NDData</span><span class="p">):</span>
+                <span class="k">raise</span> <span class="ne">TypeError</span><span class="p">(</span><span class="s2">&quot;Only NDData sub-classes that inherit from </span><span class="si">{0}</span><span class="s2">&quot;</span>
+                                <span class="s2">&quot; can be used by this function&quot;</span>
+                                <span class="s2">&quot;&quot;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">accepts</span><span class="o">.</span><span class="n">__name__</span><span class="p">))</span>
+
+            <span class="c1"># If data is an NDData instance, we can try and find properties</span>
+            <span class="c1"># that can be passed as kwargs.</span>
+            <span class="k">if</span> <span class="n">unpack</span><span class="p">:</span>
+                <span class="c1"># We loop over a list of pre-defined properties</span>
+                <span class="k">for</span> <span class="n">prop</span> <span class="ow">in</span> <span class="n">islice</span><span class="p">(</span><span class="n">SUPPORTED_PROPERTIES</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="kc">None</span><span class="p">):</span>
+                    <span class="c1"># We only need to do something if the property exists on</span>
+                    <span class="c1"># the NDData object</span>
+                    <span class="k">try</span><span class="p">:</span>
+                        <span class="n">value</span> <span class="o">=</span> <span class="nb">getattr</span><span class="p">(</span><span class="n">data</span><span class="p">,</span> <span class="n">prop</span><span class="p">)</span>
+                    <span class="k">except</span> <span class="ne">AttributeError</span><span class="p">:</span>
+                        <span class="k">continue</span>
+                    <span class="c1"># Skip if the property exists but is None or empty.</span>
+                    <span class="k">if</span> <span class="n">prop</span> <span class="o">==</span> <span class="s1">&#39;meta&#39;</span> <span class="ow">and</span> <span class="ow">not</span> <span class="n">value</span><span class="p">:</span>
+                        <span class="k">continue</span>
+                    <span class="k">elif</span> <span class="n">value</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+                        <span class="k">continue</span>
+                    <span class="c1"># Warn if the property is set but not used by the function.</span>
+                    <span class="n">propmatch</span> <span class="o">=</span> <span class="n">attr_arg_map</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">prop</span><span class="p">,</span> <span class="n">prop</span><span class="p">)</span>
+                    <span class="k">if</span> <span class="n">propmatch</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">func_kwargs</span><span class="p">:</span>
+                        <span class="n">ignored</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">prop</span><span class="p">)</span>
+                        <span class="k">continue</span>
+
+                    <span class="c1"># Check if the property was explicitly given and issue a</span>
+                    <span class="c1"># Warning if it is.</span>
+                    <span class="k">if</span> <span class="n">propmatch</span> <span class="ow">in</span> <span class="n">kwargs</span><span class="p">:</span>
+                        <span class="c1"># If it&#39;s in the func_args it&#39;s trivial but if it was</span>
+                        <span class="c1"># in the func_kwargs we need to compare it to the</span>
+                        <span class="c1"># default.</span>
+                        <span class="c1"># Comparison to the default is done by comparing their</span>
+                        <span class="c1"># identity, this works because defaults in function</span>
+                        <span class="c1"># signatures are only created once and always reference</span>
+                        <span class="c1"># the same item.</span>
+                        <span class="c1"># FIXME: Python interns some values, for example the</span>
+                        <span class="c1"># integers from -5 to 255 (any maybe some other types</span>
+                        <span class="c1"># as well). In that case the default is</span>
+                        <span class="c1"># indistinguishable from an explicitly passed kwarg</span>
+                        <span class="c1"># and it won&#39;t notice that and use the attribute of the</span>
+                        <span class="c1"># NDData.</span>
+                        <span class="k">if</span> <span class="p">(</span><span class="n">propmatch</span> <span class="ow">in</span> <span class="n">func_args</span> <span class="ow">or</span>
+                                <span class="p">(</span><span class="n">propmatch</span> <span class="ow">in</span> <span class="n">func_kwargs</span> <span class="ow">and</span>
+                                 <span class="p">(</span><span class="n">kwargs</span><span class="p">[</span><span class="n">propmatch</span><span class="p">]</span> <span class="ow">is</span> <span class="ow">not</span>
+                                  <span class="n">sig</span><span class="p">[</span><span class="n">propmatch</span><span class="p">]</span><span class="o">.</span><span class="n">default</span><span class="p">))):</span>
+                            <span class="n">warnings</span><span class="o">.</span><span class="n">warn</span><span class="p">(</span>
+                                <span class="s2">&quot;Property </span><span class="si">{0}</span><span class="s2"> has been passed explicitly and &quot;</span>
+                                <span class="s2">&quot;as an NDData property</span><span class="si">{1}</span><span class="s2">, using explicitly &quot;</span>
+                                <span class="s2">&quot;specified value&quot;</span>
+                                <span class="s2">&quot;&quot;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">propmatch</span><span class="p">,</span> <span class="s1">&#39;&#39;</span> <span class="k">if</span> <span class="n">prop</span> <span class="o">==</span> <span class="n">propmatch</span>
+                                          <span class="k">else</span> <span class="s1">&#39; &#39;</span> <span class="o">+</span> <span class="n">prop</span><span class="p">),</span>
+                                <span class="n">AstropyUserWarning</span><span class="p">)</span>
+                            <span class="k">continue</span>
+                    <span class="c1"># Otherwise use the property as input for the function.</span>
+                    <span class="n">kwargs</span><span class="p">[</span><span class="n">propmatch</span><span class="p">]</span> <span class="o">=</span> <span class="n">value</span>
+                <span class="c1"># Finally, replace data by the data attribute</span>
+                <span class="n">data</span> <span class="o">=</span> <span class="n">data</span><span class="o">.</span><span class="n">data</span>
+
+                <span class="k">if</span> <span class="n">ignored</span><span class="p">:</span>
+                    <span class="n">warnings</span><span class="o">.</span><span class="n">warn</span><span class="p">(</span><span class="s2">&quot;The following attributes were set on the &quot;</span>
+                                  <span class="s2">&quot;data object, but will be ignored by the &quot;</span>
+                                  <span class="s2">&quot;function: &quot;</span> <span class="o">+</span> <span class="s2">&quot;, &quot;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">ignored</span><span class="p">),</span>
+                                  <span class="n">AstropyUserWarning</span><span class="p">)</span>
+
+            <span class="n">result</span> <span class="o">=</span> <span class="n">func</span><span class="p">(</span><span class="n">data</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
+
+            <span class="k">if</span> <span class="n">unpack</span> <span class="ow">and</span> <span class="n">repack</span><span class="p">:</span>
+                <span class="c1"># If there are multiple required returned arguments make sure</span>
+                <span class="c1"># the result is a tuple (because we don&#39;t want to unpack</span>
+                <span class="c1"># numpy arrays or compare their length, never!) and has the</span>
+                <span class="c1"># same length.</span>
+                <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">returns</span><span class="p">)</span> <span class="o">&gt;</span> <span class="mi">1</span><span class="p">:</span>
+                    <span class="k">if</span> <span class="p">(</span><span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">result</span><span class="p">,</span> <span class="nb">tuple</span><span class="p">)</span> <span class="ow">or</span>
+                            <span class="nb">len</span><span class="p">(</span><span class="n">returns</span><span class="p">)</span> <span class="o">!=</span> <span class="nb">len</span><span class="p">(</span><span class="n">result</span><span class="p">)):</span>
+                        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;Function did not return the &quot;</span>
+                                         <span class="s2">&quot;expected number of arguments.&quot;</span><span class="p">)</span>
+                <span class="k">elif</span> <span class="nb">len</span><span class="p">(</span><span class="n">returns</span><span class="p">)</span> <span class="o">==</span> <span class="mi">1</span><span class="p">:</span>
+                    <span class="n">result</span> <span class="o">=</span> <span class="p">[</span><span class="n">result</span><span class="p">]</span>
+                <span class="k">if</span> <span class="n">keeps</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+                    <span class="k">for</span> <span class="n">keep</span> <span class="ow">in</span> <span class="n">keeps</span><span class="p">:</span>
+                        <span class="n">result</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">deepcopy</span><span class="p">(</span><span class="nb">getattr</span><span class="p">(</span><span class="n">input_data</span><span class="p">,</span> <span class="n">keep</span><span class="p">)))</span>
+                <span class="n">resultdata</span> <span class="o">=</span> <span class="n">result</span><span class="p">[</span><span class="n">all_returns</span><span class="o">.</span><span class="n">index</span><span class="p">(</span><span class="s1">&#39;data&#39;</span><span class="p">)]</span>
+                <span class="n">resultkwargs</span> <span class="o">=</span> <span class="p">{</span><span class="n">ret</span><span class="p">:</span> <span class="n">res</span>
+                                <span class="k">for</span> <span class="n">ret</span><span class="p">,</span> <span class="n">res</span> <span class="ow">in</span> <span class="nb">zip</span><span class="p">(</span><span class="n">all_returns</span><span class="p">,</span> <span class="n">result</span><span class="p">)</span>
+                                <span class="k">if</span> <span class="n">ret</span> <span class="o">!=</span> <span class="s1">&#39;data&#39;</span><span class="p">}</span>
+                <span class="k">return</span> <span class="n">input_data</span><span class="o">.</span><span class="n">__class__</span><span class="p">(</span><span class="n">resultdata</span><span class="p">,</span> <span class="o">**</span><span class="n">resultkwargs</span><span class="p">)</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="k">return</span> <span class="n">result</span>
+        <span class="k">return</span> <span class="n">wrapper</span>
+
+    <span class="c1"># If _func is set, this means that the decorator was used without</span>
+    <span class="c1"># parameters so we have to return the result of the</span>
+    <span class="c1"># support_nddata_decorator decorator rather than the decorator itself</span>
+    <span class="k">if</span> <span class="n">_func</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="k">return</span> <span class="n">support_nddata_decorator</span><span class="p">(</span><span class="n">_func</span><span class="p">)</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="k">return</span> <span class="n">support_nddata_decorator</span></div>
+</pre></div>
+
+          </div>
+        </div>
+      </div>
+      <div class="sphinxsidebar" role="navigation" aria-label="main navigation">
+        <div class="sphinxsidebarwrapper"><h3>Page Contents</h3>
+
+
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+<footer class="footer">
+  <p class="pull-right"> &nbsp;
+    <a href="#">Back to Top</a></p>
+  <p>
+    &copy; Copyright 2011-2016, The Astropy Developers.<br/>
+    Created using <a href="http://sphinx.pocoo.org/">Sphinx</a> 1.5.6. &nbsp;
+    Last built 05 Jul 2017. <br/>
+  </p>
+</footer>
+  </body>
+</html>

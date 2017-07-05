@@ -1,0 +1,144 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <head>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    
+    <title>Table implementation details &#8212; Astropy v3.0.dev19489</title>
+    
+    <link rel="stylesheet" href="../_static/bootstrap-astropy.css" type="text/css" />
+    <link rel="stylesheet" href="../_static/pygments.css" type="text/css" />
+    <link rel="stylesheet" href="../_static/gallery.css" type="text/css" />
+    
+    <script type="text/javascript">
+      var DOCUMENTATION_OPTIONS = {
+        URL_ROOT:    '../',
+        VERSION:     '3.0.dev19489',
+        COLLAPSE_INDEX: false,
+        FILE_SUFFIX: '.html',
+        HAS_SOURCE:  true,
+        SOURCELINK_SUFFIX: '.txt'
+      };
+    </script>
+    <script type="text/javascript" src="../_static/jquery.js"></script>
+    <script type="text/javascript" src="../_static/underscore.js"></script>
+    <script type="text/javascript" src="../_static/doctools.js"></script>
+    <script type="text/javascript" src="../_static/sidebar.js"></script>
+    <link rel="shortcut icon" href="../_static/astropy_logo.ico"/>
+    <link rel="index" title="Index" href="../genindex.html" />
+    <link rel="search" title="Search" href="../search.html" />
+    <link rel="next" title="hstack" href="../api/astropy.table.hstack.html" />
+    <link rel="prev" title="Mixin columns" href="mixin_columns.html" />
+<link href='https://fonts.googleapis.com/css?family=Source+Sans+Pro:200,600' rel='stylesheet' type='text/css'/>
+<script type="text/javascript" src="../_static/copybutton.js"></script>
+
+
+  </head>
+  <body role="document">
+<div class="topbar">
+  <a class="brand" title="Documentation Home" href="../index.html"><span id="logotext1">astro</span><span id="logotext2">py</span><span id="logotext3">:docs</span></a>
+  <ul>
+    <li><a class="homelink" title="Astropy Homepage" href="http://www.astropy.org"></a></li>
+    <li><a title="General Index" href="../genindex.html">Index</a></li>
+    <li><a title="Module Index" href="../py-modindex.html">Modules</a></li>
+    <li>
+      
+      
+<form action="../search.html" method="get">
+  <input type="text" name="q" placeholder="Search" />
+  <input type="hidden" name="check_keywords" value="yes" />
+  <input type="hidden" name="area" value="default" />
+</form>
+      
+    </li>
+  </ul>
+</div>
+
+<div class="related">
+    <h3>Navigation</h3>
+    <ul>
+      <li class="right">
+	<a href="../api/astropy.table.hstack.html" title="hstack">
+	  next &raquo;
+	</a>
+      </li>
+      <li class="right">
+	<a href="mixin_columns.html" title="Mixin columns">
+	  &laquo; previous
+	</a>
+	 |
+      </li>
+      <li>
+	<a href="../index.html">Astropy v3.0.dev19489</a>
+	 &#187;
+      </li>
+      <li><a href="index.html" accesskey="U">Data Tables (<code class="docutils literal"><span class="pre">astropy.table</span></code>)</a> &#187;</li>
+      
+      <li>Table implementation details</li> 
+    </ul>
+</div>
+  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          <div class="body" role="main">
+            
+  <div class="section" id="table-implementation-details">
+<span id="id1"></span><h1>Table implementation details<a class="headerlink" href="#table-implementation-details" title="Permalink to this headline">¶</a></h1>
+<p>This page provides a brief overview of the <a class="reference internal" href="../api/astropy.table.Table.html#astropy.table.Table" title="astropy.table.Table"><code class="xref py py-class docutils literal"><span class="pre">Table</span></code></a> class implementation, in
+particular highlighting the internal data storage architecture.  This is aimed
+at developers and/or users who are interested in optimal use of the <a class="reference internal" href="../api/astropy.table.Table.html#astropy.table.Table" title="astropy.table.Table"><code class="xref py py-class docutils literal"><span class="pre">Table</span></code></a>
+class.  Note that this applies to astropy version 1.0 and later.</p>
+<p>The image below illustrates the basic architecture of the <a class="reference internal" href="../api/astropy.table.Table.html#astropy.table.Table" title="astropy.table.Table"><code class="xref py py-class docutils literal"><span class="pre">Table</span></code></a> class.
+The fundamental data container is an ordered dictionary of individual column
+objects maintained as the <code class="docutils literal"><span class="pre">columns</span></code> attribute.  It is via this container
+that columns are managed and accessed.</p>
+<a class="reference internal image-reference" href="../_images/table_architecture.png"><img alt="../_images/table_architecture.png" src="../_images/table_architecture.png" style="width: 45%;" /></a>
+<p>Each <a class="reference internal" href="../api/astropy.table.Column.html#astropy.table.Column" title="astropy.table.Column"><code class="xref py py-class docutils literal"><span class="pre">Column</span></code></a> (or <a class="reference internal" href="../api/astropy.table.MaskedColumn.html#astropy.table.MaskedColumn" title="astropy.table.MaskedColumn"><code class="xref py py-class docutils literal"><span class="pre">MaskedColumn</span></code></a>) object is an <a class="reference external" href="https://docs.scipy.org/doc/numpy/reference/generated/numpy.ndarray.html#numpy.ndarray" title="(in NumPy v1.13)"><code class="xref py py-obj docutils literal"><span class="pre">ndarray</span></code></a> subclass and is
+the sole owner of its data.  Maintaining the table as separate columns
+simplifies table management considerably.  It also makes operations like adding
+or removing columns much faster in comparison to implementations using a numpy
+structured array container.</p>
+<p>As shown below, a <a class="reference internal" href="../api/astropy.table.Row.html#astropy.table.Row" title="astropy.table.Row"><code class="xref py py-class docutils literal"><span class="pre">Row</span></code></a> object corresponds to a single row in the table.  The
+<a class="reference internal" href="../api/astropy.table.Row.html#astropy.table.Row" title="astropy.table.Row"><code class="xref py py-class docutils literal"><span class="pre">Row</span></code></a> object does not create a view of the full row at any point.  Instead it
+manages access (e.g. <code class="docutils literal"><span class="pre">row['a']</span></code>) dynamically by referencing the appropriate
+elements of the parent table.</p>
+<a class="reference internal image-reference" href="../_images/table_row.png"><img alt="../_images/table_row.png" src="../_images/table_row.png" style="width: 83%;" /></a>
+<p>In some cases it is desirable to have a static copy of the full row.  This is
+available via the <a class="reference internal" href="../api/astropy.table.Row.html#astropy.table.Row.as_void" title="astropy.table.Row.as_void"><code class="xref py py-obj docutils literal"><span class="pre">as_void()</span></code></a> method, which creates and
+returns a <code class="docutils literal"><span class="pre">numpy.void</span></code> or <code class="docutils literal"><span class="pre">numpy.ma.mvoid</span></code> object with a copy of the
+original data.</p>
+</div>
+
+
+          </div>
+        </div>
+      </div>
+      <div class="sphinxsidebar" role="navigation" aria-label="main navigation">
+        <div class="sphinxsidebarwrapper"><h3>Page Contents</h3>
+<ul>
+<li><a class="reference internal" href="#">Table implementation details</a></li>
+</ul>
+
+
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+<footer class="footer">
+  <p class="pull-right">
+    <a href="http://github.com/astropy/astropy/tree/master/docs/table/implementation_details.rst">Edit This Page on Github</a> &nbsp;
+    <a href="../_sources/table/implementation_details.rst.txt"
+       rel="nofollow">Page Source</a> &nbsp;
+    <a href="#">Back to Top</a></p>
+  <p>
+    &copy; Copyright 2011-2016, The Astropy Developers.<br/>
+    Created using <a href="http://sphinx.pocoo.org/">Sphinx</a> 1.5.6. &nbsp;
+    Last built 05 Jul 2017. <br/>
+  </p>
+</footer>
+  </body>
+</html>

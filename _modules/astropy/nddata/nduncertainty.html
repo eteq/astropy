@@ -1,0 +1,759 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <head>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    
+    <title>astropy.nddata.nduncertainty &#8212; Astropy v3.0.dev19489</title>
+    
+    <link rel="stylesheet" href="../../../_static/bootstrap-astropy.css" type="text/css" />
+    <link rel="stylesheet" href="../../../_static/pygments.css" type="text/css" />
+    <link rel="stylesheet" href="../../../_static/gallery.css" type="text/css" />
+    
+    <script type="text/javascript">
+      var DOCUMENTATION_OPTIONS = {
+        URL_ROOT:    '../../../',
+        VERSION:     '3.0.dev19489',
+        COLLAPSE_INDEX: false,
+        FILE_SUFFIX: '.html',
+        HAS_SOURCE:  true,
+        SOURCELINK_SUFFIX: '.txt'
+      };
+    </script>
+    <script type="text/javascript" src="../../../_static/jquery.js"></script>
+    <script type="text/javascript" src="../../../_static/underscore.js"></script>
+    <script type="text/javascript" src="../../../_static/doctools.js"></script>
+    <script type="text/javascript" src="../../../_static/sidebar.js"></script>
+    <link rel="shortcut icon" href="../../../_static/astropy_logo.ico"/>
+    <link rel="index" title="Index" href="../../../genindex.html" />
+    <link rel="search" title="Search" href="../../../search.html" />
+<link href='https://fonts.googleapis.com/css?family=Source+Sans+Pro:200,600' rel='stylesheet' type='text/css'/>
+<script type="text/javascript" src="../../../_static/copybutton.js"></script>
+
+
+  </head>
+  <body role="document">
+<div class="topbar">
+  <a class="brand" title="Documentation Home" href="../../../index.html"><span id="logotext1">astro</span><span id="logotext2">py</span><span id="logotext3">:docs</span></a>
+  <ul>
+    <li><a class="homelink" title="Astropy Homepage" href="http://www.astropy.org"></a></li>
+    <li><a title="General Index" href="../../../genindex.html">Index</a></li>
+    <li><a title="Module Index" href="../../../py-modindex.html">Modules</a></li>
+    <li>
+      
+      
+<form action="../../../search.html" method="get">
+  <input type="text" name="q" placeholder="Search" />
+  <input type="hidden" name="check_keywords" value="yes" />
+  <input type="hidden" name="area" value="default" />
+</form>
+      
+    </li>
+  </ul>
+</div>
+
+<div class="related">
+    <h3>Navigation</h3>
+    <ul>
+      <li>
+	<a href="../../../index.html">Astropy v3.0.dev19489</a>
+	 &#187;
+      </li>
+      <li><a href="../../index.html" >Module code</a> &#187;</li>
+      <li><a href="../../astropy.html" >astropy</a> &#187;</li>
+      <li><a href="../nddata.html" accesskey="U">astropy.nddata</a> &#187;</li>
+      
+       
+    </ul>
+</div>
+  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          <div class="body" role="main">
+            
+  <h1>Source code for astropy.nddata.nduncertainty</h1><div class="highlight"><pre>
+<span></span><span class="c1"># Licensed under a 3-clause BSD style license - see LICENSE.rst</span>
+
+<span class="kn">from</span> <span class="nn">__future__</span> <span class="k">import</span> <span class="p">(</span><span class="n">absolute_import</span><span class="p">,</span> <span class="n">division</span><span class="p">,</span> <span class="n">print_function</span><span class="p">,</span>
+                        <span class="n">unicode_literals</span><span class="p">)</span>
+
+<span class="kn">import</span> <span class="nn">numpy</span> <span class="k">as</span> <span class="nn">np</span>
+<span class="kn">from</span> <span class="nn">abc</span> <span class="k">import</span> <span class="n">ABCMeta</span><span class="p">,</span> <span class="n">abstractproperty</span><span class="p">,</span> <span class="n">abstractmethod</span>
+<span class="kn">from</span> <span class="nn">copy</span> <span class="k">import</span> <span class="n">deepcopy</span>
+<span class="kn">import</span> <span class="nn">weakref</span>
+
+<span class="c1"># from ..utils.compat import ignored</span>
+<span class="kn">from</span> <span class="nn">..</span> <span class="k">import</span> <span class="n">log</span>
+<span class="kn">from</span> <span class="nn">..units</span> <span class="k">import</span> <span class="n">Unit</span><span class="p">,</span> <span class="n">Quantity</span>
+<span class="kn">from</span> <span class="nn">..extern</span> <span class="k">import</span> <span class="n">six</span>
+
+<span class="n">__all__</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;MissingDataAssociationException&#39;</span><span class="p">,</span>
+           <span class="s1">&#39;IncompatibleUncertaintiesException&#39;</span><span class="p">,</span> <span class="s1">&#39;NDUncertainty&#39;</span><span class="p">,</span>
+           <span class="s1">&#39;StdDevUncertainty&#39;</span><span class="p">,</span> <span class="s1">&#39;UnknownUncertainty&#39;</span><span class="p">]</span>
+
+
+<div class="viewcode-block" id="IncompatibleUncertaintiesException"><a class="viewcode-back" href="../../../api/astropy.nddata.IncompatibleUncertaintiesException.html#astropy.nddata.IncompatibleUncertaintiesException">[docs]</a><span class="k">class</span> <span class="nc">IncompatibleUncertaintiesException</span><span class="p">(</span><span class="ne">Exception</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;This exception should be used to indicate cases in which uncertainties</span>
+<span class="sd">    with two different classes can not be propagated.</span>
+<span class="sd">    &quot;&quot;&quot;</span></div>
+
+
+<div class="viewcode-block" id="MissingDataAssociationException"><a class="viewcode-back" href="../../../api/astropy.nddata.MissingDataAssociationException.html#astropy.nddata.MissingDataAssociationException">[docs]</a><span class="k">class</span> <span class="nc">MissingDataAssociationException</span><span class="p">(</span><span class="ne">Exception</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;This exception should be used to indicate that an uncertainty instance</span>
+<span class="sd">    has not been associated with a parent `~astropy.nddata.NDData` object.</span>
+<span class="sd">    &quot;&quot;&quot;</span></div>
+
+
+<span class="nd">@six</span><span class="o">.</span><span class="n">add_metaclass</span><span class="p">(</span><span class="n">ABCMeta</span><span class="p">)</span>
+<div class="viewcode-block" id="NDUncertainty"><a class="viewcode-back" href="../../../api/astropy.nddata.NDUncertainty.html#astropy.nddata.NDUncertainty">[docs]</a><span class="k">class</span> <span class="nc">NDUncertainty</span><span class="p">(</span><span class="nb">object</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;This is the metaclass for uncertainty classes used with `NDData`.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    array : any type, optional</span>
+<span class="sd">        The array or value (the parameter name is due to historical reasons) of</span>
+<span class="sd">        the uncertainty. `numpy.ndarray`, `~astropy.units.Quantity` or</span>
+<span class="sd">        `NDUncertainty` subclasses are recommended.</span>
+<span class="sd">        If the `array` is `list`-like or `numpy.ndarray`-like it will be cast</span>
+<span class="sd">        to a plain `numpy.ndarray`.</span>
+<span class="sd">        Default is ``None``.</span>
+
+<span class="sd">    unit : `~astropy.units.Unit` or str, optional</span>
+<span class="sd">        Unit for the uncertainty ``array``. Strings that can be converted to a</span>
+<span class="sd">        `~astropy.units.Unit` are allowed.</span>
+<span class="sd">        Default is ``None``.</span>
+
+<span class="sd">    copy : `bool`, optional</span>
+<span class="sd">        Indicates whether to save the `array` as a copy. ``True`` copies it</span>
+<span class="sd">        before saving, while ``False`` tries to save every parameter as</span>
+<span class="sd">        reference. Note however that it is not always possible to save the</span>
+<span class="sd">        input as reference.</span>
+<span class="sd">        Default is ``True``.</span>
+
+<span class="sd">    Raises</span>
+<span class="sd">    ------</span>
+<span class="sd">    IncompatibleUncertaintiesException</span>
+<span class="sd">        If given another `NDUncertainty`-like class as ``array`` if their</span>
+<span class="sd">        ``uncertainty_type`` is different.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">array</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">copy</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">unit</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+        <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">array</span><span class="p">,</span> <span class="n">NDUncertainty</span><span class="p">):</span>
+            <span class="c1"># Given an NDUncertainty class or subclass check that the type</span>
+            <span class="c1"># is the same.</span>
+            <span class="k">if</span> <span class="n">array</span><span class="o">.</span><span class="n">uncertainty_type</span> <span class="o">!=</span> <span class="bp">self</span><span class="o">.</span><span class="n">uncertainty_type</span><span class="p">:</span>
+                <span class="k">raise</span> <span class="n">IncompatibleUncertaintiesException</span>
+            <span class="c1"># Check if two units are given and take the explicit one then.</span>
+            <span class="k">if</span> <span class="p">(</span><span class="n">unit</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="ow">and</span> <span class="n">unit</span> <span class="o">!=</span> <span class="n">array</span><span class="o">.</span><span class="n">_unit</span><span class="p">):</span>
+                <span class="c1"># TODO : Clarify it (see NDData.init for same problem)?</span>
+                <span class="n">log</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s2">&quot;overwriting Uncertainty&#39;s current &quot;</span>
+                         <span class="s2">&quot;unit with specified unit.&quot;</span><span class="p">)</span>
+            <span class="k">elif</span> <span class="n">array</span><span class="o">.</span><span class="n">_unit</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+                <span class="n">unit</span> <span class="o">=</span> <span class="n">array</span><span class="o">.</span><span class="n">unit</span>
+            <span class="n">array</span> <span class="o">=</span> <span class="n">array</span><span class="o">.</span><span class="n">array</span>
+
+        <span class="k">elif</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">array</span><span class="p">,</span> <span class="n">Quantity</span><span class="p">):</span>
+            <span class="c1"># Check if two units are given and take the explicit one then.</span>
+            <span class="k">if</span> <span class="p">(</span><span class="n">unit</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="ow">and</span> <span class="n">array</span><span class="o">.</span><span class="n">unit</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="ow">and</span>
+                    <span class="n">unit</span> <span class="o">!=</span> <span class="n">array</span><span class="o">.</span><span class="n">unit</span><span class="p">):</span>
+                <span class="n">log</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s2">&quot;overwriting Quantity&#39;s current &quot;</span>
+                         <span class="s2">&quot;unit with specified unit.&quot;</span><span class="p">)</span>
+            <span class="k">elif</span> <span class="n">array</span><span class="o">.</span><span class="n">unit</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+                <span class="n">unit</span> <span class="o">=</span> <span class="n">array</span><span class="o">.</span><span class="n">unit</span>
+            <span class="n">array</span> <span class="o">=</span> <span class="n">array</span><span class="o">.</span><span class="n">value</span>
+
+        <span class="k">if</span> <span class="n">unit</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_unit</span> <span class="o">=</span> <span class="kc">None</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_unit</span> <span class="o">=</span> <span class="n">Unit</span><span class="p">(</span><span class="n">unit</span><span class="p">)</span>
+
+        <span class="k">if</span> <span class="n">copy</span><span class="p">:</span>
+            <span class="n">array</span> <span class="o">=</span> <span class="n">deepcopy</span><span class="p">(</span><span class="n">array</span><span class="p">)</span>
+            <span class="n">unit</span> <span class="o">=</span> <span class="n">deepcopy</span><span class="p">(</span><span class="n">unit</span><span class="p">)</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">array</span> <span class="o">=</span> <span class="n">array</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">parent_nddata</span> <span class="o">=</span> <span class="kc">None</span>  <span class="c1"># no associated NDData - until it is set!</span>
+
+    <span class="nd">@abstractproperty</span>
+    <span class="k">def</span> <span class="nf">uncertainty_type</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;`str` : Short description of the type of uncertainty.</span>
+
+<span class="sd">        Defined as abstract property so subclasses *have* to override this.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="kc">None</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">supports_correlated</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;`bool` : Supports uncertainty propagation with correlated \</span>
+<span class="sd">                 uncertainties?</span>
+
+<span class="sd">        .. versionadded:: 1.2</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="kc">False</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">array</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;`numpy.ndarray` : the uncertainty&#39;s value.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_array</span>
+
+    <span class="nd">@array</span><span class="o">.</span><span class="n">setter</span>
+    <span class="k">def</span> <span class="nf">array</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">value</span><span class="p">):</span>
+        <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">value</span><span class="p">,</span> <span class="p">(</span><span class="nb">list</span><span class="p">,</span> <span class="n">np</span><span class="o">.</span><span class="n">ndarray</span><span class="p">)):</span>
+            <span class="n">value</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">(</span><span class="n">value</span><span class="p">,</span> <span class="n">subok</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="n">copy</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_array</span> <span class="o">=</span> <span class="n">value</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">unit</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;`~astropy.units.Unit` : The unit of the uncertainty, if any.</span>
+
+<span class="sd">        Even though it is not enforced the unit should be convertible to the</span>
+<span class="sd">        ``parent_nddata`` unit. Otherwise uncertainty propagation might give</span>
+<span class="sd">        wrong results.</span>
+
+<span class="sd">        If the unit is not set the unit of the parent will be returned.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_unit</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="k">if</span> <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_parent_nddata</span> <span class="ow">is</span> <span class="kc">None</span> <span class="ow">or</span>
+                    <span class="bp">self</span><span class="o">.</span><span class="n">parent_nddata</span><span class="o">.</span><span class="n">unit</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">):</span>
+                <span class="k">return</span> <span class="kc">None</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">parent_nddata</span><span class="o">.</span><span class="n">unit</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_unit</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">parent_nddata</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;`NDData` : reference to `NDData` instance with this uncertainty.</span>
+
+<span class="sd">        In case the reference is not set uncertainty propagation will not be</span>
+<span class="sd">        possible since propagation might need the uncertain data besides the</span>
+<span class="sd">        uncertainty.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">message</span> <span class="o">=</span> <span class="s2">&quot;uncertainty is not associated with an NDData object&quot;</span>
+        <span class="k">try</span><span class="p">:</span>
+            <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_parent_nddata</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+                <span class="k">raise</span> <span class="n">MissingDataAssociationException</span><span class="p">(</span><span class="n">message</span><span class="p">)</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="c1"># The NDData is saved as weak reference so we must call it</span>
+                <span class="c1"># to get the object the reference points to.</span>
+                <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_parent_nddata</span><span class="p">,</span> <span class="n">weakref</span><span class="o">.</span><span class="n">ref</span><span class="p">):</span>
+                    <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_parent_nddata</span><span class="p">()</span>
+                <span class="k">else</span><span class="p">:</span>
+                    <span class="n">log</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s2">&quot;parent_nddata should be a weakref to an NDData &quot;</span>
+                             <span class="s2">&quot;object.&quot;</span><span class="p">)</span>
+                    <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_parent_nddata</span>
+        <span class="k">except</span> <span class="ne">AttributeError</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="n">MissingDataAssociationException</span><span class="p">(</span><span class="n">message</span><span class="p">)</span>
+
+    <span class="nd">@parent_nddata</span><span class="o">.</span><span class="n">setter</span>
+    <span class="k">def</span> <span class="nf">parent_nddata</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">value</span><span class="p">):</span>
+        <span class="k">if</span> <span class="n">value</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="ow">and</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">value</span><span class="p">,</span> <span class="n">weakref</span><span class="o">.</span><span class="n">ref</span><span class="p">):</span>
+            <span class="c1"># Save a weak reference on the uncertainty that points to this</span>
+            <span class="c1"># instance of NDData. Direct references should NOT be used:</span>
+            <span class="c1"># https://github.com/astropy/astropy/pull/4799#discussion_r61236832</span>
+            <span class="n">value</span> <span class="o">=</span> <span class="n">weakref</span><span class="o">.</span><span class="n">ref</span><span class="p">(</span><span class="n">value</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_parent_nddata</span> <span class="o">=</span> <span class="n">value</span>
+
+    <span class="k">def</span> <span class="nf">__repr__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="n">prefix</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">__class__</span><span class="o">.</span><span class="n">__name__</span> <span class="o">+</span> <span class="s1">&#39;(&#39;</span>
+        <span class="k">try</span><span class="p">:</span>
+            <span class="n">body</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array2string</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">array</span><span class="p">,</span> <span class="n">separator</span><span class="o">=</span><span class="s1">&#39;, &#39;</span><span class="p">,</span> <span class="n">prefix</span><span class="o">=</span><span class="n">prefix</span><span class="p">)</span>
+        <span class="k">except</span> <span class="ne">AttributeError</span><span class="p">:</span>
+            <span class="c1"># In case it wasn&#39;t possible to use array2string</span>
+            <span class="n">body</span> <span class="o">=</span> <span class="nb">str</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">array</span><span class="p">)</span>
+        <span class="k">return</span> <span class="s1">&#39;&#39;</span><span class="o">.</span><span class="n">join</span><span class="p">([</span><span class="n">prefix</span><span class="p">,</span> <span class="n">body</span><span class="p">,</span> <span class="s1">&#39;)&#39;</span><span class="p">])</span>
+
+    <span class="k">def</span> <span class="nf">__getitem__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">item</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Normal slicing on the array, keep the unit and return a reference.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">__class__</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">array</span><span class="p">[</span><span class="n">item</span><span class="p">],</span> <span class="n">unit</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">unit</span><span class="p">,</span> <span class="n">copy</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
+
+<div class="viewcode-block" id="NDUncertainty.propagate"><a class="viewcode-back" href="../../../api/astropy.nddata.NDUncertainty.html#astropy.nddata.NDUncertainty.propagate">[docs]</a>    <span class="k">def</span> <span class="nf">propagate</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">operation</span><span class="p">,</span> <span class="n">other_nddata</span><span class="p">,</span> <span class="n">result_data</span><span class="p">,</span> <span class="n">correlation</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Calculate the resulting uncertainty given an operation on the data.</span>
+
+<span class="sd">        .. versionadded:: 1.2</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        operation : callable</span>
+<span class="sd">            The operation that is performed on the `NDData`. Supported are</span>
+<span class="sd">            `numpy.add`, `numpy.subtract`, `numpy.multiply` and</span>
+<span class="sd">            `numpy.true_divide` (or `numpy.divide`).</span>
+
+<span class="sd">        other_nddata : `NDData` instance</span>
+<span class="sd">            The second operand in the arithmetic operation.</span>
+
+<span class="sd">        result_data : `~astropy.units.Quantity` or `numpy.ndarray`</span>
+<span class="sd">            The result of the arithmetic operations on the data.</span>
+
+<span class="sd">        correlation : `numpy.ndarray` or number</span>
+<span class="sd">            The correlation (rho) is defined between the uncertainties in</span>
+<span class="sd">            sigma_AB = sigma_A * sigma_B * rho. A value of ``0`` means</span>
+<span class="sd">            uncorrelated operands.</span>
+
+<span class="sd">        Returns</span>
+<span class="sd">        -------</span>
+<span class="sd">        resulting_uncertainty : `NDUncertainty` instance</span>
+<span class="sd">            Another instance of the same `NDUncertainty` subclass containing</span>
+<span class="sd">            the uncertainty of the result.</span>
+
+<span class="sd">        Raises</span>
+<span class="sd">        ------</span>
+<span class="sd">        ValueError</span>
+<span class="sd">            If the ``operation`` is not supported or if correlation is not zero</span>
+<span class="sd">            but the subclass does not support correlated uncertainties.</span>
+
+<span class="sd">        Notes</span>
+<span class="sd">        -----</span>
+<span class="sd">        First this method checks if a correlation is given and the subclass</span>
+<span class="sd">        implements propagation with correlated uncertainties.</span>
+<span class="sd">        Then the second uncertainty is converted (or an Exception is raised)</span>
+<span class="sd">        to the same class in order to do the propagation.</span>
+<span class="sd">        Then the appropriate propagation method is invoked and the result is</span>
+<span class="sd">        returned.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="c1"># Check if the subclass supports correlation</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="bp">self</span><span class="o">.</span><span class="n">supports_correlated</span><span class="p">:</span>
+            <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">correlation</span><span class="p">,</span> <span class="n">np</span><span class="o">.</span><span class="n">ndarray</span><span class="p">)</span> <span class="ow">or</span> <span class="n">correlation</span> <span class="o">!=</span> <span class="mi">0</span><span class="p">:</span>
+                <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;</span><span class="si">{0}</span><span class="s2"> does not support uncertainty propagation&quot;</span>
+                                 <span class="s2">&quot; with correlation.&quot;</span>
+                                 <span class="s2">&quot;&quot;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">__class__</span><span class="o">.</span><span class="n">__name__</span><span class="p">))</span>
+
+        <span class="c1"># Get the other uncertainty (and convert it to a matching one)</span>
+        <span class="n">other_uncert</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_convert_uncertainty</span><span class="p">(</span><span class="n">other_nddata</span><span class="o">.</span><span class="n">uncertainty</span><span class="p">)</span>
+
+        <span class="k">if</span> <span class="n">operation</span><span class="o">.</span><span class="n">__name__</span> <span class="o">==</span> <span class="s1">&#39;add&#39;</span><span class="p">:</span>
+            <span class="n">result</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_propagate_add</span><span class="p">(</span><span class="n">other_uncert</span><span class="p">,</span> <span class="n">result_data</span><span class="p">,</span>
+                                         <span class="n">correlation</span><span class="p">)</span>
+        <span class="k">elif</span> <span class="n">operation</span><span class="o">.</span><span class="n">__name__</span> <span class="o">==</span> <span class="s1">&#39;subtract&#39;</span><span class="p">:</span>
+            <span class="n">result</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_propagate_subtract</span><span class="p">(</span><span class="n">other_uncert</span><span class="p">,</span> <span class="n">result_data</span><span class="p">,</span>
+                                              <span class="n">correlation</span><span class="p">)</span>
+        <span class="k">elif</span> <span class="n">operation</span><span class="o">.</span><span class="n">__name__</span> <span class="o">==</span> <span class="s1">&#39;multiply&#39;</span><span class="p">:</span>
+            <span class="n">result</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_propagate_multiply</span><span class="p">(</span><span class="n">other_uncert</span><span class="p">,</span> <span class="n">result_data</span><span class="p">,</span>
+                                              <span class="n">correlation</span><span class="p">)</span>
+        <span class="k">elif</span> <span class="n">operation</span><span class="o">.</span><span class="n">__name__</span> <span class="ow">in</span> <span class="p">[</span><span class="s1">&#39;true_divide&#39;</span><span class="p">,</span> <span class="s1">&#39;divide&#39;</span><span class="p">]:</span>
+            <span class="n">result</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_propagate_divide</span><span class="p">(</span><span class="n">other_uncert</span><span class="p">,</span> <span class="n">result_data</span><span class="p">,</span>
+                                            <span class="n">correlation</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s1">&#39;unsupported operation&#39;</span><span class="p">)</span>
+
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">__class__</span><span class="p">(</span><span class="n">result</span><span class="p">,</span> <span class="n">copy</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span></div>
+
+    <span class="k">def</span> <span class="nf">_convert_uncertainty</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">other_uncert</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Checks if the uncertainties are compatible for propagation.</span>
+
+<span class="sd">        Checks if the other uncertainty is `NDUncertainty`-like and if so</span>
+<span class="sd">        verify that the uncertainty_type is equal. If the latter is not the</span>
+<span class="sd">        case try returning ``self.__class__(other_uncert)``.</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        other_uncert : `NDUncertainty` subclass</span>
+<span class="sd">            The other uncertainty.</span>
+
+<span class="sd">        Returns</span>
+<span class="sd">        -------</span>
+<span class="sd">        other_uncert : `NDUncertainty` subclass</span>
+<span class="sd">            but converted to a compatible `NDUncertainty` subclass if</span>
+<span class="sd">            possible and necessary.</span>
+
+<span class="sd">        Raises</span>
+<span class="sd">        ------</span>
+<span class="sd">        IncompatibleUncertaintiesException:</span>
+<span class="sd">            If the other uncertainty cannot be converted to a compatible</span>
+<span class="sd">            `NDUncertainty` subclass.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">other_uncert</span><span class="p">,</span> <span class="n">NDUncertainty</span><span class="p">):</span>
+            <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">uncertainty_type</span> <span class="o">==</span> <span class="n">other_uncert</span><span class="o">.</span><span class="n">uncertainty_type</span><span class="p">:</span>
+                <span class="k">return</span> <span class="n">other_uncert</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">__class__</span><span class="p">(</span><span class="n">other_uncert</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="n">IncompatibleUncertaintiesException</span>
+
+    <span class="nd">@abstractmethod</span>
+    <span class="k">def</span> <span class="nf">_propagate_add</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">other_uncert</span><span class="p">,</span> <span class="n">result_data</span><span class="p">,</span> <span class="n">correlation</span><span class="p">):</span>
+        <span class="k">return</span> <span class="kc">None</span>
+
+    <span class="nd">@abstractmethod</span>
+    <span class="k">def</span> <span class="nf">_propagate_subtract</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">other_uncert</span><span class="p">,</span> <span class="n">result_data</span><span class="p">,</span> <span class="n">correlation</span><span class="p">):</span>
+        <span class="k">return</span> <span class="kc">None</span>
+
+    <span class="nd">@abstractmethod</span>
+    <span class="k">def</span> <span class="nf">_propagate_multiply</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">other_uncert</span><span class="p">,</span> <span class="n">result_data</span><span class="p">,</span> <span class="n">correlation</span><span class="p">):</span>
+        <span class="k">return</span> <span class="kc">None</span>
+
+    <span class="nd">@abstractmethod</span>
+    <span class="k">def</span> <span class="nf">_propagate_divide</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">other_uncert</span><span class="p">,</span> <span class="n">result_data</span><span class="p">,</span> <span class="n">correlation</span><span class="p">):</span>
+        <span class="k">return</span> <span class="kc">None</span></div>
+
+
+<div class="viewcode-block" id="UnknownUncertainty"><a class="viewcode-back" href="../../../api/astropy.nddata.UnknownUncertainty.html#astropy.nddata.UnknownUncertainty">[docs]</a><span class="k">class</span> <span class="nc">UnknownUncertainty</span><span class="p">(</span><span class="n">NDUncertainty</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;This class implements any unknown uncertainty type.</span>
+
+<span class="sd">    The main purpose of having an unknown uncertainty class is to prevent</span>
+<span class="sd">    uncertainty propagation.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    args, kwargs :</span>
+<span class="sd">        see `NDUncertainty`</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">supports_correlated</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;`False` : Uncertainty propagation is *not* possible for this class.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="kc">False</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">uncertainty_type</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;``&quot;unknown&quot;`` : `UnknownUncertainty` implements any unknown \</span>
+<span class="sd">                           uncertainty type.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="s1">&#39;unknown&#39;</span>
+
+    <span class="k">def</span> <span class="nf">_convert_uncertainty</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">other_uncert</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Raise an Exception because unknown uncertainty types cannot</span>
+<span class="sd">        implement propagation.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">msg</span> <span class="o">=</span> <span class="s2">&quot;Uncertainties of unknown type cannot be propagated.&quot;</span>
+        <span class="k">raise</span> <span class="n">IncompatibleUncertaintiesException</span><span class="p">(</span><span class="n">msg</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">_propagate_add</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">other_uncert</span><span class="p">,</span> <span class="n">result_data</span><span class="p">,</span> <span class="n">correlation</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Not possible for unknown uncertainty types.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="kc">None</span>
+
+    <span class="k">def</span> <span class="nf">_propagate_subtract</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">other_uncert</span><span class="p">,</span> <span class="n">result_data</span><span class="p">,</span> <span class="n">correlation</span><span class="p">):</span>
+        <span class="k">return</span> <span class="kc">None</span>
+
+    <span class="k">def</span> <span class="nf">_propagate_multiply</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">other_uncert</span><span class="p">,</span> <span class="n">result_data</span><span class="p">,</span> <span class="n">correlation</span><span class="p">):</span>
+        <span class="k">return</span> <span class="kc">None</span>
+
+    <span class="k">def</span> <span class="nf">_propagate_divide</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">other_uncert</span><span class="p">,</span> <span class="n">result_data</span><span class="p">,</span> <span class="n">correlation</span><span class="p">):</span>
+        <span class="k">return</span> <span class="kc">None</span></div>
+
+
+<div class="viewcode-block" id="StdDevUncertainty"><a class="viewcode-back" href="../../../api/astropy.nddata.StdDevUncertainty.html#astropy.nddata.StdDevUncertainty">[docs]</a><span class="k">class</span> <span class="nc">StdDevUncertainty</span><span class="p">(</span><span class="n">NDUncertainty</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;Standard deviation uncertainty assuming first order gaussian error</span>
+<span class="sd">    propagation.</span>
+
+<span class="sd">    This class implements uncertainty propagation for ``addition``,</span>
+<span class="sd">    ``subtraction``, ``multiplication`` and ``division`` with other instances</span>
+<span class="sd">    of `StdDevUncertainty`. The class can handle if the uncertainty has a</span>
+<span class="sd">    unit that differs from (but is convertible to) the parents `NDData` unit.</span>
+<span class="sd">    The unit of the resulting uncertainty will have the same unit as the</span>
+<span class="sd">    resulting data. Also support for correlation is possible but requires the</span>
+<span class="sd">    correlation as input. It cannot handle correlation determination itself.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    args, kwargs :</span>
+<span class="sd">        see `NDUncertainty`</span>
+
+<span class="sd">    Examples</span>
+<span class="sd">    --------</span>
+<span class="sd">    `StdDevUncertainty` should always be associated with an `NDData`-like</span>
+<span class="sd">    instance, either by creating it during initialization::</span>
+
+<span class="sd">        &gt;&gt;&gt; from astropy.nddata import NDData, StdDevUncertainty</span>
+<span class="sd">        &gt;&gt;&gt; ndd = NDData([1,2,3],</span>
+<span class="sd">        ...              uncertainty=StdDevUncertainty([0.1, 0.1, 0.1]))</span>
+<span class="sd">        &gt;&gt;&gt; ndd.uncertainty</span>
+<span class="sd">        StdDevUncertainty([ 0.1,  0.1,  0.1])</span>
+
+<span class="sd">    or by setting it manually on the `NDData` instance::</span>
+
+<span class="sd">        &gt;&gt;&gt; ndd.uncertainty = StdDevUncertainty([0.2], unit=&#39;m&#39;, copy=True)</span>
+<span class="sd">        &gt;&gt;&gt; ndd.uncertainty</span>
+<span class="sd">        StdDevUncertainty([ 0.2])</span>
+
+<span class="sd">    the uncertainty ``array`` can also be set directly::</span>
+
+<span class="sd">        &gt;&gt;&gt; ndd.uncertainty.array = 2</span>
+<span class="sd">        &gt;&gt;&gt; ndd.uncertainty</span>
+<span class="sd">        StdDevUncertainty(2)</span>
+
+<span class="sd">    .. note::</span>
+<span class="sd">        The unit will not be displayed.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">supports_correlated</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;`True` : `StdDevUncertainty` allows to propagate correlated \</span>
+<span class="sd">                    uncertainties.</span>
+
+<span class="sd">        ``correlation`` must be given, this class does not implement computing</span>
+<span class="sd">        it by itself.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="kc">True</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">uncertainty_type</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;``&quot;std&quot;`` : `StdDevUncertainty` implements standard deviation.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="s1">&#39;std&#39;</span>
+
+    <span class="k">def</span> <span class="nf">_convert_uncertainty</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">other_uncert</span><span class="p">):</span>
+        <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">other_uncert</span><span class="p">,</span> <span class="n">StdDevUncertainty</span><span class="p">):</span>
+            <span class="k">return</span> <span class="n">other_uncert</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="n">IncompatibleUncertaintiesException</span>
+
+    <span class="k">def</span> <span class="nf">_propagate_add</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">other_uncert</span><span class="p">,</span> <span class="n">result_data</span><span class="p">,</span> <span class="n">correlation</span><span class="p">):</span>
+
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">array</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="c1"># Formula: sigma = dB</span>
+
+            <span class="k">if</span> <span class="n">other_uncert</span><span class="o">.</span><span class="n">unit</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="ow">and</span> <span class="p">(</span>
+                        <span class="n">result_data</span><span class="o">.</span><span class="n">unit</span> <span class="o">!=</span> <span class="n">other_uncert</span><span class="o">.</span><span class="n">unit</span><span class="p">):</span>
+                <span class="c1"># If the other uncertainty has a unit and this unit differs</span>
+                <span class="c1"># from the unit of the result convert it to the results unit</span>
+                <span class="k">return</span> <span class="p">(</span><span class="n">other_uncert</span><span class="o">.</span><span class="n">array</span> <span class="o">*</span> <span class="n">other_uncert</span><span class="o">.</span><span class="n">unit</span><span class="p">)</span><span class="o">.</span><span class="n">to</span><span class="p">(</span>
+                            <span class="n">result_data</span><span class="o">.</span><span class="n">unit</span><span class="p">)</span><span class="o">.</span><span class="n">value</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="c1"># Copy the result because _propagate will not copy it but for</span>
+                <span class="c1"># arithmetic operations users will expect copies.</span>
+                <span class="k">return</span> <span class="n">deepcopy</span><span class="p">(</span><span class="n">other_uncert</span><span class="o">.</span><span class="n">array</span><span class="p">)</span>
+
+        <span class="k">elif</span> <span class="n">other_uncert</span><span class="o">.</span><span class="n">array</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="c1"># Formula: sigma = dA</span>
+
+            <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">unit</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="ow">and</span> <span class="bp">self</span><span class="o">.</span><span class="n">unit</span> <span class="o">!=</span> <span class="bp">self</span><span class="o">.</span><span class="n">parent_nddata</span><span class="o">.</span><span class="n">unit</span><span class="p">:</span>
+                <span class="c1"># If the uncertainty has a different unit than the result we</span>
+                <span class="c1"># need to convert it to the results unit.</span>
+                <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">unit</span><span class="o">.</span><span class="n">to</span><span class="p">(</span><span class="n">result_data</span><span class="o">.</span><span class="n">unit</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">array</span><span class="p">)</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="c1"># Copy the result because _propagate will not copy it but for</span>
+                <span class="c1"># arithmetic operations users will expect copies.</span>
+                <span class="k">return</span> <span class="n">deepcopy</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">array</span><span class="p">)</span>
+
+        <span class="k">else</span><span class="p">:</span>
+            <span class="c1"># Formula: sigma = sqrt(dA**2 + dB**2 + 2*cor*dA*dB)</span>
+
+            <span class="c1"># Calculate: dA (this) and dB (other)</span>
+            <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">unit</span> <span class="o">!=</span> <span class="n">other_uncert</span><span class="o">.</span><span class="n">unit</span><span class="p">:</span>
+                <span class="c1"># In case the two uncertainties (or data) have different units</span>
+                <span class="c1"># we need to use quantity operations. The case where only one</span>
+                <span class="c1"># has a unit and the other doesn&#39;t is not possible with</span>
+                <span class="c1"># addition and would have raised an exception in the data</span>
+                <span class="c1"># computation</span>
+                <span class="n">this</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">array</span> <span class="o">*</span> <span class="bp">self</span><span class="o">.</span><span class="n">unit</span>
+                <span class="n">other</span> <span class="o">=</span> <span class="n">other_uncert</span><span class="o">.</span><span class="n">array</span> <span class="o">*</span> <span class="n">other_uncert</span><span class="o">.</span><span class="n">unit</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="c1"># Since both units are the same or None we can just use</span>
+                <span class="c1"># numpy operations</span>
+                <span class="n">this</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">array</span>
+                <span class="n">other</span> <span class="o">=</span> <span class="n">other_uncert</span><span class="o">.</span><span class="n">array</span>
+
+            <span class="c1"># Determine the result depending on the correlation</span>
+            <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">correlation</span><span class="p">,</span> <span class="n">np</span><span class="o">.</span><span class="n">ndarray</span><span class="p">)</span> <span class="ow">or</span> <span class="n">correlation</span> <span class="o">!=</span> <span class="mi">0</span><span class="p">:</span>
+                <span class="n">corr</span> <span class="o">=</span> <span class="mi">2</span> <span class="o">*</span> <span class="n">correlation</span> <span class="o">*</span> <span class="n">this</span> <span class="o">*</span> <span class="n">other</span>
+                <span class="n">result</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">sqrt</span><span class="p">(</span><span class="n">this</span><span class="o">**</span><span class="mi">2</span> <span class="o">+</span> <span class="n">other</span><span class="o">**</span><span class="mi">2</span> <span class="o">+</span> <span class="n">corr</span><span class="p">)</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="n">result</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">sqrt</span><span class="p">(</span><span class="n">this</span><span class="o">**</span><span class="mi">2</span> <span class="o">+</span> <span class="n">other</span><span class="o">**</span><span class="mi">2</span><span class="p">)</span>
+
+            <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">result</span><span class="p">,</span> <span class="n">Quantity</span><span class="p">):</span>
+                <span class="c1"># In case we worked with quantities we need to return the</span>
+                <span class="c1"># uncertainty that has the same unit as the resulting data.</span>
+                <span class="c1"># Note that this call is fast if the units are the same.</span>
+                <span class="k">return</span> <span class="n">result</span><span class="o">.</span><span class="n">to_value</span><span class="p">(</span><span class="n">result_data</span><span class="o">.</span><span class="n">unit</span><span class="p">)</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="k">return</span> <span class="n">result</span>
+
+    <span class="k">def</span> <span class="nf">_propagate_subtract</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">other_uncert</span><span class="p">,</span> <span class="n">result_data</span><span class="p">,</span> <span class="n">correlation</span><span class="p">):</span>
+        <span class="c1"># Since the formulas are equivalent to addition you should look at the</span>
+        <span class="c1"># explanations provided in _propagate_add</span>
+
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">array</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="k">if</span> <span class="n">other_uncert</span><span class="o">.</span><span class="n">unit</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="ow">and</span> <span class="p">(</span>
+                        <span class="n">result_data</span><span class="o">.</span><span class="n">unit</span> <span class="o">!=</span> <span class="n">other_uncert</span><span class="o">.</span><span class="n">unit</span><span class="p">):</span>
+                <span class="k">return</span> <span class="p">(</span><span class="n">other_uncert</span><span class="o">.</span><span class="n">array</span> <span class="o">*</span> <span class="n">other_uncert</span><span class="o">.</span><span class="n">unit</span><span class="p">)</span><span class="o">.</span><span class="n">to</span><span class="p">(</span>
+                            <span class="n">result_data</span><span class="o">.</span><span class="n">unit</span><span class="p">)</span><span class="o">.</span><span class="n">value</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="k">return</span> <span class="n">deepcopy</span><span class="p">(</span><span class="n">other_uncert</span><span class="o">.</span><span class="n">array</span><span class="p">)</span>
+        <span class="k">elif</span> <span class="n">other_uncert</span><span class="o">.</span><span class="n">array</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">unit</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="ow">and</span> <span class="bp">self</span><span class="o">.</span><span class="n">unit</span> <span class="o">!=</span> <span class="bp">self</span><span class="o">.</span><span class="n">parent_nddata</span><span class="o">.</span><span class="n">unit</span><span class="p">:</span>
+                <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">unit</span><span class="o">.</span><span class="n">to</span><span class="p">(</span><span class="n">result_data</span><span class="o">.</span><span class="n">unit</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">array</span><span class="p">)</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="k">return</span> <span class="n">deepcopy</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">array</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="c1"># Formula: sigma = sqrt(dA**2 + dB**2 - 2*cor*dA*dB)</span>
+            <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">unit</span> <span class="o">!=</span> <span class="n">other_uncert</span><span class="o">.</span><span class="n">unit</span><span class="p">:</span>
+                <span class="n">this</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">array</span> <span class="o">*</span> <span class="bp">self</span><span class="o">.</span><span class="n">unit</span>
+                <span class="n">other</span> <span class="o">=</span> <span class="n">other_uncert</span><span class="o">.</span><span class="n">array</span> <span class="o">*</span> <span class="n">other_uncert</span><span class="o">.</span><span class="n">unit</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="n">this</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">array</span>
+                <span class="n">other</span> <span class="o">=</span> <span class="n">other_uncert</span><span class="o">.</span><span class="n">array</span>
+            <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">correlation</span><span class="p">,</span> <span class="n">np</span><span class="o">.</span><span class="n">ndarray</span><span class="p">)</span> <span class="ow">or</span> <span class="n">correlation</span> <span class="o">!=</span> <span class="mi">0</span><span class="p">:</span>
+                <span class="n">corr</span> <span class="o">=</span> <span class="mi">2</span> <span class="o">*</span> <span class="n">correlation</span> <span class="o">*</span> <span class="n">this</span> <span class="o">*</span> <span class="n">other</span>
+                <span class="c1"># The only difference to addition is that the correlation is</span>
+                <span class="c1"># subtracted.</span>
+                <span class="n">result</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">sqrt</span><span class="p">(</span><span class="n">this</span><span class="o">**</span><span class="mi">2</span> <span class="o">+</span> <span class="n">other</span><span class="o">**</span><span class="mi">2</span> <span class="o">-</span> <span class="n">corr</span><span class="p">)</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="n">result</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">sqrt</span><span class="p">(</span><span class="n">this</span><span class="o">**</span><span class="mi">2</span> <span class="o">+</span> <span class="n">other</span><span class="o">**</span><span class="mi">2</span><span class="p">)</span>
+            <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">result</span><span class="p">,</span> <span class="n">Quantity</span><span class="p">):</span>
+                <span class="k">return</span> <span class="n">result</span><span class="o">.</span><span class="n">to_value</span><span class="p">(</span><span class="n">result_data</span><span class="o">.</span><span class="n">unit</span><span class="p">)</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="k">return</span> <span class="n">result</span>
+
+    <span class="k">def</span> <span class="nf">_propagate_multiply</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">other_uncert</span><span class="p">,</span> <span class="n">result_data</span><span class="p">,</span> <span class="n">correlation</span><span class="p">):</span>
+
+        <span class="c1"># For multiplication we don&#39;t need the result as quantity</span>
+        <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">result_data</span><span class="p">,</span> <span class="n">Quantity</span><span class="p">):</span>
+            <span class="n">result_data</span> <span class="o">=</span> <span class="n">result_data</span><span class="o">.</span><span class="n">value</span>
+
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">array</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="c1"># Formula: sigma = |A| * dB</span>
+
+            <span class="c1"># We want the result to have the same unit as the parent, so we</span>
+            <span class="c1"># only need to convert the unit of the other uncertainty if it is</span>
+            <span class="c1"># different from its data&#39;s unit.</span>
+            <span class="k">if</span> <span class="n">other_uncert</span><span class="o">.</span><span class="n">unit</span> <span class="o">!=</span> <span class="n">other_uncert</span><span class="o">.</span><span class="n">parent_nddata</span><span class="o">.</span><span class="n">unit</span><span class="p">:</span>
+                <span class="n">other</span> <span class="o">=</span> <span class="p">(</span><span class="n">other_uncert</span><span class="o">.</span><span class="n">array</span> <span class="o">*</span> <span class="n">other_uncert</span><span class="o">.</span><span class="n">unit</span><span class="p">)</span><span class="o">.</span><span class="n">to</span><span class="p">(</span>
+                            <span class="n">other_uncert</span><span class="o">.</span><span class="n">parent_nddata</span><span class="o">.</span><span class="n">unit</span><span class="p">)</span><span class="o">.</span><span class="n">value</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="n">other</span> <span class="o">=</span> <span class="n">other_uncert</span><span class="o">.</span><span class="n">array</span>
+            <span class="k">return</span> <span class="n">np</span><span class="o">.</span><span class="n">abs</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">parent_nddata</span><span class="o">.</span><span class="n">data</span> <span class="o">*</span> <span class="n">other</span><span class="p">)</span>
+
+        <span class="k">elif</span> <span class="n">other_uncert</span><span class="o">.</span><span class="n">array</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="c1"># Formula: sigma = dA * |B|</span>
+
+            <span class="c1"># Just the reversed case</span>
+            <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">unit</span> <span class="o">!=</span> <span class="bp">self</span><span class="o">.</span><span class="n">parent_nddata</span><span class="o">.</span><span class="n">unit</span><span class="p">:</span>
+                <span class="n">this</span> <span class="o">=</span> <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">array</span> <span class="o">*</span> <span class="bp">self</span><span class="o">.</span><span class="n">unit</span><span class="p">)</span><span class="o">.</span><span class="n">to</span><span class="p">(</span>
+                                            <span class="bp">self</span><span class="o">.</span><span class="n">parent_nddata</span><span class="o">.</span><span class="n">unit</span><span class="p">)</span><span class="o">.</span><span class="n">value</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="n">this</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">array</span>
+            <span class="k">return</span> <span class="n">np</span><span class="o">.</span><span class="n">abs</span><span class="p">(</span><span class="n">other_uncert</span><span class="o">.</span><span class="n">parent_nddata</span><span class="o">.</span><span class="n">data</span> <span class="o">*</span> <span class="n">this</span><span class="p">)</span>
+
+        <span class="k">else</span><span class="p">:</span>
+            <span class="c1"># Formula: sigma = |AB|*sqrt((dA/A)**2+(dB/B)**2+2*dA/A*dB/B*cor)</span>
+
+            <span class="c1"># This formula is not very handy since it generates NaNs for every</span>
+            <span class="c1"># zero in A and B. So we rewrite it:</span>
+
+            <span class="c1"># Formula: sigma = sqrt((dA*B)**2 + (dB*A)**2 + (2 * cor * ABdAdB))</span>
+
+            <span class="c1"># Calculate: dA * B (left)</span>
+            <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">unit</span> <span class="o">!=</span> <span class="bp">self</span><span class="o">.</span><span class="n">parent_nddata</span><span class="o">.</span><span class="n">unit</span><span class="p">:</span>
+                <span class="c1"># To get the unit right we need to convert the unit of</span>
+                <span class="c1"># each uncertainty to the same unit as it&#39;s parent</span>
+                <span class="n">left</span> <span class="o">=</span> <span class="p">((</span><span class="bp">self</span><span class="o">.</span><span class="n">array</span> <span class="o">*</span> <span class="bp">self</span><span class="o">.</span><span class="n">unit</span><span class="p">)</span><span class="o">.</span><span class="n">to</span><span class="p">(</span>
+                        <span class="bp">self</span><span class="o">.</span><span class="n">parent_nddata</span><span class="o">.</span><span class="n">unit</span><span class="p">)</span><span class="o">.</span><span class="n">value</span> <span class="o">*</span>
+                        <span class="n">other_uncert</span><span class="o">.</span><span class="n">parent_nddata</span><span class="o">.</span><span class="n">data</span><span class="p">)</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="n">left</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">array</span> <span class="o">*</span> <span class="n">other_uncert</span><span class="o">.</span><span class="n">parent_nddata</span><span class="o">.</span><span class="n">data</span>
+
+            <span class="c1"># Calculate: dB * A (right)</span>
+            <span class="k">if</span> <span class="n">other_uncert</span><span class="o">.</span><span class="n">unit</span> <span class="o">!=</span> <span class="n">other_uncert</span><span class="o">.</span><span class="n">parent_nddata</span><span class="o">.</span><span class="n">unit</span><span class="p">:</span>
+                <span class="n">right</span> <span class="o">=</span> <span class="p">((</span><span class="n">other_uncert</span><span class="o">.</span><span class="n">array</span> <span class="o">*</span> <span class="n">other_uncert</span><span class="o">.</span><span class="n">unit</span><span class="p">)</span><span class="o">.</span><span class="n">to</span><span class="p">(</span>
+                        <span class="n">other_uncert</span><span class="o">.</span><span class="n">parent_nddata</span><span class="o">.</span><span class="n">unit</span><span class="p">)</span><span class="o">.</span><span class="n">value</span> <span class="o">*</span>
+                        <span class="bp">self</span><span class="o">.</span><span class="n">parent_nddata</span><span class="o">.</span><span class="n">data</span><span class="p">)</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="n">right</span> <span class="o">=</span> <span class="n">other_uncert</span><span class="o">.</span><span class="n">array</span> <span class="o">*</span> <span class="bp">self</span><span class="o">.</span><span class="n">parent_nddata</span><span class="o">.</span><span class="n">data</span>
+
+            <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">correlation</span><span class="p">,</span> <span class="n">np</span><span class="o">.</span><span class="n">ndarray</span><span class="p">)</span> <span class="ow">or</span> <span class="n">correlation</span> <span class="o">!=</span> <span class="mi">0</span><span class="p">:</span>
+                <span class="n">corr</span> <span class="o">=</span> <span class="p">(</span><span class="mi">2</span> <span class="o">*</span> <span class="n">correlation</span> <span class="o">*</span> <span class="n">left</span> <span class="o">*</span> <span class="n">right</span><span class="p">)</span>
+                <span class="k">return</span> <span class="n">np</span><span class="o">.</span><span class="n">sqrt</span><span class="p">(</span><span class="n">left</span><span class="o">**</span><span class="mi">2</span> <span class="o">+</span> <span class="n">right</span><span class="o">**</span><span class="mi">2</span> <span class="o">+</span> <span class="n">corr</span><span class="p">)</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="k">return</span> <span class="n">np</span><span class="o">.</span><span class="n">sqrt</span><span class="p">(</span><span class="n">left</span><span class="o">**</span><span class="mi">2</span> <span class="o">+</span> <span class="n">right</span><span class="o">**</span><span class="mi">2</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">_propagate_divide</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">other_uncert</span><span class="p">,</span> <span class="n">result_data</span><span class="p">,</span> <span class="n">correlation</span><span class="p">):</span>
+
+        <span class="c1"># For division we don&#39;t need the result as quantity</span>
+        <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">result_data</span><span class="p">,</span> <span class="n">Quantity</span><span class="p">):</span>
+            <span class="n">result_data</span> <span class="o">=</span> <span class="n">result_data</span><span class="o">.</span><span class="n">value</span>
+
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">array</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="c1"># Formula: sigma = |(A / B) * (dB / B)|</span>
+
+            <span class="c1"># Calculate: dB / B (right)</span>
+            <span class="k">if</span> <span class="n">other_uncert</span><span class="o">.</span><span class="n">unit</span> <span class="o">!=</span> <span class="n">other_uncert</span><span class="o">.</span><span class="n">parent_nddata</span><span class="o">.</span><span class="n">unit</span><span class="p">:</span>
+                <span class="c1"># We need (dB / B) to be dimensionless so we convert</span>
+                <span class="c1"># (if necessary) dB to the same unit as B</span>
+                <span class="n">right</span> <span class="o">=</span> <span class="p">((</span><span class="n">other_uncert</span><span class="o">.</span><span class="n">array</span> <span class="o">*</span> <span class="n">other_uncert</span><span class="o">.</span><span class="n">unit</span><span class="p">)</span><span class="o">.</span><span class="n">to</span><span class="p">(</span>
+                    <span class="n">other_uncert</span><span class="o">.</span><span class="n">parent_nddata</span><span class="o">.</span><span class="n">unit</span><span class="p">)</span><span class="o">.</span><span class="n">value</span> <span class="o">/</span>
+                    <span class="n">other_uncert</span><span class="o">.</span><span class="n">parent_nddata</span><span class="o">.</span><span class="n">data</span><span class="p">)</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="n">right</span> <span class="o">=</span> <span class="p">(</span><span class="n">other_uncert</span><span class="o">.</span><span class="n">array</span> <span class="o">/</span> <span class="n">other_uncert</span><span class="o">.</span><span class="n">parent_nddata</span><span class="o">.</span><span class="n">data</span><span class="p">)</span>
+            <span class="k">return</span> <span class="n">np</span><span class="o">.</span><span class="n">abs</span><span class="p">(</span><span class="n">result_data</span> <span class="o">*</span> <span class="n">right</span><span class="p">)</span>
+
+        <span class="k">elif</span> <span class="n">other_uncert</span><span class="o">.</span><span class="n">array</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="c1"># Formula: sigma = dA / |B|.</span>
+
+            <span class="c1"># Calculate: dA</span>
+            <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">unit</span> <span class="o">!=</span> <span class="bp">self</span><span class="o">.</span><span class="n">parent_nddata</span><span class="o">.</span><span class="n">unit</span><span class="p">:</span>
+                <span class="c1"># We need to convert dA to the unit of A to have a result that</span>
+                <span class="c1"># matches the resulting data&#39;s unit.</span>
+                <span class="n">left</span> <span class="o">=</span> <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">array</span> <span class="o">*</span> <span class="bp">self</span><span class="o">.</span><span class="n">unit</span><span class="p">)</span><span class="o">.</span><span class="n">to</span><span class="p">(</span>
+                        <span class="bp">self</span><span class="o">.</span><span class="n">parent_nddata</span><span class="o">.</span><span class="n">unit</span><span class="p">)</span><span class="o">.</span><span class="n">value</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="n">left</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">array</span>
+
+            <span class="k">return</span> <span class="n">np</span><span class="o">.</span><span class="n">abs</span><span class="p">(</span><span class="n">left</span> <span class="o">/</span> <span class="n">other_uncert</span><span class="o">.</span><span class="n">parent_nddata</span><span class="o">.</span><span class="n">data</span><span class="p">)</span>
+
+        <span class="k">else</span><span class="p">:</span>
+            <span class="c1"># Formula: sigma = |A/B|*sqrt((dA/A)**2+(dB/B)**2-2*dA/A*dB/B*cor)</span>
+
+            <span class="c1"># As with multiplication this formula creates NaNs where A is zero.</span>
+            <span class="c1"># So I&#39;ll rewrite it again:</span>
+            <span class="c1"># =&gt; sigma = sqrt((dA/B)**2 + (AdB/B**2)**2 - 2*cor*AdAdB/B**3)</span>
+
+            <span class="c1"># So we need to calculate dA/B in the same units as the result</span>
+            <span class="c1"># and the dimensionless dB/B to get a resulting uncertainty with</span>
+            <span class="c1"># the same unit as the data.</span>
+
+            <span class="c1"># Calculate: dA/B (left)</span>
+            <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">unit</span> <span class="o">!=</span> <span class="bp">self</span><span class="o">.</span><span class="n">parent_nddata</span><span class="o">.</span><span class="n">unit</span><span class="p">:</span>
+                <span class="n">left</span> <span class="o">=</span> <span class="p">((</span><span class="bp">self</span><span class="o">.</span><span class="n">array</span> <span class="o">*</span> <span class="bp">self</span><span class="o">.</span><span class="n">unit</span><span class="p">)</span><span class="o">.</span><span class="n">to</span><span class="p">(</span>
+                        <span class="bp">self</span><span class="o">.</span><span class="n">parent_nddata</span><span class="o">.</span><span class="n">unit</span><span class="p">)</span><span class="o">.</span><span class="n">value</span> <span class="o">/</span>
+                        <span class="n">other_uncert</span><span class="o">.</span><span class="n">parent_nddata</span><span class="o">.</span><span class="n">data</span><span class="p">)</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="n">left</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">array</span> <span class="o">/</span> <span class="n">other_uncert</span><span class="o">.</span><span class="n">parent_nddata</span><span class="o">.</span><span class="n">data</span>
+
+            <span class="c1"># Calculate: dB/B (right)</span>
+            <span class="k">if</span> <span class="n">other_uncert</span><span class="o">.</span><span class="n">unit</span> <span class="o">!=</span> <span class="n">other_uncert</span><span class="o">.</span><span class="n">parent_nddata</span><span class="o">.</span><span class="n">unit</span><span class="p">:</span>
+                <span class="n">right</span> <span class="o">=</span> <span class="p">((</span><span class="n">other_uncert</span><span class="o">.</span><span class="n">array</span> <span class="o">*</span> <span class="n">other_uncert</span><span class="o">.</span><span class="n">unit</span><span class="p">)</span><span class="o">.</span><span class="n">to</span><span class="p">(</span>
+                    <span class="n">other_uncert</span><span class="o">.</span><span class="n">parent_nddata</span><span class="o">.</span><span class="n">unit</span><span class="p">)</span><span class="o">.</span><span class="n">value</span> <span class="o">/</span>
+                    <span class="n">other_uncert</span><span class="o">.</span><span class="n">parent_nddata</span><span class="o">.</span><span class="n">data</span><span class="p">)</span> <span class="o">*</span> <span class="n">result_data</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="n">right</span> <span class="o">=</span> <span class="p">(</span><span class="n">result_data</span> <span class="o">*</span> <span class="n">other_uncert</span><span class="o">.</span><span class="n">array</span> <span class="o">/</span>
+                         <span class="n">other_uncert</span><span class="o">.</span><span class="n">parent_nddata</span><span class="o">.</span><span class="n">data</span><span class="p">)</span>
+
+            <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">correlation</span><span class="p">,</span> <span class="n">np</span><span class="o">.</span><span class="n">ndarray</span><span class="p">)</span> <span class="ow">or</span> <span class="n">correlation</span> <span class="o">!=</span> <span class="mi">0</span><span class="p">:</span>
+                <span class="n">corr</span> <span class="o">=</span> <span class="mi">2</span> <span class="o">*</span> <span class="n">correlation</span> <span class="o">*</span> <span class="n">left</span> <span class="o">*</span> <span class="n">right</span>
+                <span class="c1"># This differs from multiplication because the correlation</span>
+                <span class="c1"># term needs to be subtracted</span>
+                <span class="k">return</span> <span class="n">np</span><span class="o">.</span><span class="n">sqrt</span><span class="p">(</span><span class="n">left</span><span class="o">**</span><span class="mi">2</span> <span class="o">+</span> <span class="n">right</span><span class="o">**</span><span class="mi">2</span> <span class="o">-</span> <span class="n">corr</span><span class="p">)</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="k">return</span> <span class="n">np</span><span class="o">.</span><span class="n">sqrt</span><span class="p">(</span><span class="n">left</span><span class="o">**</span><span class="mi">2</span> <span class="o">+</span> <span class="n">right</span><span class="o">**</span><span class="mi">2</span><span class="p">)</span></div>
+</pre></div>
+
+          </div>
+        </div>
+      </div>
+      <div class="sphinxsidebar" role="navigation" aria-label="main navigation">
+        <div class="sphinxsidebarwrapper"><h3>Page Contents</h3>
+
+
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+<footer class="footer">
+  <p class="pull-right"> &nbsp;
+    <a href="#">Back to Top</a></p>
+  <p>
+    &copy; Copyright 2011-2016, The Astropy Developers.<br/>
+    Created using <a href="http://sphinx.pocoo.org/">Sphinx</a> 1.5.6. &nbsp;
+    Last built 05 Jul 2017. <br/>
+  </p>
+</footer>
+  </body>
+</html>

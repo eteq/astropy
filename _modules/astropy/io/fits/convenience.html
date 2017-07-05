@@ -1,0 +1,1159 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <head>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    
+    <title>astropy.io.fits.convenience &#8212; Astropy v3.0.dev19489</title>
+    
+    <link rel="stylesheet" href="../../../../_static/bootstrap-astropy.css" type="text/css" />
+    <link rel="stylesheet" href="../../../../_static/pygments.css" type="text/css" />
+    <link rel="stylesheet" href="../../../../_static/gallery.css" type="text/css" />
+    
+    <script type="text/javascript">
+      var DOCUMENTATION_OPTIONS = {
+        URL_ROOT:    '../../../../',
+        VERSION:     '3.0.dev19489',
+        COLLAPSE_INDEX: false,
+        FILE_SUFFIX: '.html',
+        HAS_SOURCE:  true,
+        SOURCELINK_SUFFIX: '.txt'
+      };
+    </script>
+    <script type="text/javascript" src="../../../../_static/jquery.js"></script>
+    <script type="text/javascript" src="../../../../_static/underscore.js"></script>
+    <script type="text/javascript" src="../../../../_static/doctools.js"></script>
+    <script type="text/javascript" src="../../../../_static/sidebar.js"></script>
+    <link rel="shortcut icon" href="../../../../_static/astropy_logo.ico"/>
+    <link rel="index" title="Index" href="../../../../genindex.html" />
+    <link rel="search" title="Search" href="../../../../search.html" />
+<link href='https://fonts.googleapis.com/css?family=Source+Sans+Pro:200,600' rel='stylesheet' type='text/css'/>
+<script type="text/javascript" src="../../../../_static/copybutton.js"></script>
+
+
+  </head>
+  <body role="document">
+<div class="topbar">
+  <a class="brand" title="Documentation Home" href="../../../../index.html"><span id="logotext1">astro</span><span id="logotext2">py</span><span id="logotext3">:docs</span></a>
+  <ul>
+    <li><a class="homelink" title="Astropy Homepage" href="http://www.astropy.org"></a></li>
+    <li><a title="General Index" href="../../../../genindex.html">Index</a></li>
+    <li><a title="Module Index" href="../../../../py-modindex.html">Modules</a></li>
+    <li>
+      
+      
+<form action="../../../../search.html" method="get">
+  <input type="text" name="q" placeholder="Search" />
+  <input type="hidden" name="check_keywords" value="yes" />
+  <input type="hidden" name="area" value="default" />
+</form>
+      
+    </li>
+  </ul>
+</div>
+
+<div class="related">
+    <h3>Navigation</h3>
+    <ul>
+      <li>
+	<a href="../../../../index.html">Astropy v3.0.dev19489</a>
+	 &#187;
+      </li>
+      <li><a href="../../../index.html" >Module code</a> &#187;</li>
+      <li><a href="../../../astropy.html" accesskey="U">astropy</a> &#187;</li>
+      
+       
+    </ul>
+</div>
+  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          <div class="body" role="main">
+            
+  <h1>Source code for astropy.io.fits.convenience</h1><div class="highlight"><pre>
+<span></span><span class="c1"># Licensed under a 3-clause BSD style license - see PYFITS.rst</span>
+
+<span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">Convenience functions</span>
+<span class="sd">=====================</span>
+
+<span class="sd">The functions in this module provide shortcuts for some of the most basic</span>
+<span class="sd">operations on FITS files, such as reading and updating the header.  They are</span>
+<span class="sd">included directly in the &#39;astropy.io.fits&#39; namespace so that they can be used</span>
+<span class="sd">like::</span>
+
+<span class="sd">    astropy.io.fits.getheader(...)</span>
+
+<span class="sd">These functions are primarily for convenience when working with FITS files in</span>
+<span class="sd">the command-line interpreter.  If performing several operations on the same</span>
+<span class="sd">file, such as in a script, it is better to *not* use these functions, as each</span>
+<span class="sd">one must open and re-parse the file.  In such cases it is better to use</span>
+<span class="sd">:func:`astropy.io.fits.open` and work directly with the</span>
+<span class="sd">:class:`astropy.io.fits.HDUList` object and underlying HDU objects.</span>
+
+<span class="sd">Several of the convenience functions, such as `getheader` and `getdata` support</span>
+<span class="sd">special arguments for selecting which extension HDU to use when working with a</span>
+<span class="sd">multi-extension FITS file.  There are a few supported argument formats for</span>
+<span class="sd">selecting the extension.  See the documentation for `getdata` for an</span>
+<span class="sd">explanation of all the different formats.</span>
+
+<span class="sd">.. warning::</span>
+<span class="sd">    All arguments to convenience functions other than the filename that are</span>
+<span class="sd">    *not* for selecting the extension HDU should be passed in as keyword</span>
+<span class="sd">    arguments.  This is to avoid ambiguity and conflicts with the</span>
+<span class="sd">    extension arguments.  For example, to set NAXIS=1 on the Primary HDU:</span>
+
+<span class="sd">    Wrong::</span>
+
+<span class="sd">        astropy.io.fits.setval(&#39;myimage.fits&#39;, &#39;NAXIS&#39;, 1)</span>
+
+<span class="sd">    The above example will try to set the NAXIS value on the first extension</span>
+<span class="sd">    HDU to blank.  That is, the argument &#39;1&#39; is assumed to specify an extension</span>
+<span class="sd">    HDU.</span>
+
+<span class="sd">    Right::</span>
+
+<span class="sd">        astropy.io.fits.setval(&#39;myimage.fits&#39;, &#39;NAXIS&#39;, value=1)</span>
+
+<span class="sd">    This will set the NAXIS keyword to 1 on the primary HDU (the default).  To</span>
+<span class="sd">    specify the first extension HDU use::</span>
+
+<span class="sd">        astropy.io.fits.setval(&#39;myimage.fits&#39;, &#39;NAXIS&#39;, value=1, ext=1)</span>
+
+<span class="sd">    This complexity arises out of the attempt to simultaneously support</span>
+<span class="sd">    multiple argument formats that were used in past versions of PyFITS.</span>
+<span class="sd">    Unfortunately, it is not possible to support all formats without</span>
+<span class="sd">    introducing some ambiguity.  A future Astropy release may standardize</span>
+<span class="sd">    around a single format and officially deprecate the other formats.</span>
+<span class="sd">&quot;&quot;&quot;</span>
+
+
+<span class="kn">import</span> <span class="nn">operator</span>
+<span class="kn">import</span> <span class="nn">os</span>
+<span class="kn">import</span> <span class="nn">warnings</span>
+
+<span class="kn">import</span> <span class="nn">numpy</span> <span class="k">as</span> <span class="nn">np</span>
+
+<span class="kn">from</span> <span class="nn">.diff</span> <span class="k">import</span> <span class="n">FITSDiff</span><span class="p">,</span> <span class="n">HDUDiff</span>
+<span class="kn">from</span> <span class="nn">.file</span> <span class="k">import</span> <span class="n">FILE_MODES</span><span class="p">,</span> <span class="n">_File</span>
+<span class="kn">from</span> <span class="nn">.hdu.base</span> <span class="k">import</span> <span class="n">_BaseHDU</span><span class="p">,</span> <span class="n">_ValidHDU</span>
+<span class="kn">from</span> <span class="nn">.hdu.hdulist</span> <span class="k">import</span> <span class="n">fitsopen</span><span class="p">,</span> <span class="n">HDUList</span>
+<span class="kn">from</span> <span class="nn">.hdu.image</span> <span class="k">import</span> <span class="n">PrimaryHDU</span><span class="p">,</span> <span class="n">ImageHDU</span>
+<span class="kn">from</span> <span class="nn">.hdu.table</span> <span class="k">import</span> <span class="n">BinTableHDU</span>
+<span class="kn">from</span> <span class="nn">.header</span> <span class="k">import</span> <span class="n">Header</span>
+<span class="kn">from</span> <span class="nn">.util</span> <span class="k">import</span> <span class="n">fileobj_closed</span><span class="p">,</span> <span class="n">fileobj_name</span><span class="p">,</span> <span class="n">fileobj_mode</span><span class="p">,</span> <span class="n">_is_int</span>
+<span class="kn">from</span> <span class="nn">...units</span> <span class="k">import</span> <span class="n">Unit</span>
+<span class="kn">from</span> <span class="nn">...units.format.fits</span> <span class="k">import</span> <span class="n">UnitScaleError</span>
+<span class="kn">from</span> <span class="nn">...units</span> <span class="k">import</span> <span class="n">Quantity</span>
+<span class="kn">from</span> <span class="nn">...extern</span> <span class="k">import</span> <span class="n">six</span>
+<span class="kn">from</span> <span class="nn">...extern.six</span> <span class="k">import</span> <span class="n">string_types</span>
+<span class="kn">from</span> <span class="nn">...utils.exceptions</span> <span class="k">import</span> <span class="n">AstropyUserWarning</span>
+<span class="kn">from</span> <span class="nn">...utils.decorators</span> <span class="k">import</span> <span class="n">deprecated_renamed_argument</span>
+
+
+<span class="n">__all__</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;getheader&#39;</span><span class="p">,</span> <span class="s1">&#39;getdata&#39;</span><span class="p">,</span> <span class="s1">&#39;getval&#39;</span><span class="p">,</span> <span class="s1">&#39;setval&#39;</span><span class="p">,</span> <span class="s1">&#39;delval&#39;</span><span class="p">,</span> <span class="s1">&#39;writeto&#39;</span><span class="p">,</span>
+           <span class="s1">&#39;append&#39;</span><span class="p">,</span> <span class="s1">&#39;update&#39;</span><span class="p">,</span> <span class="s1">&#39;info&#39;</span><span class="p">,</span> <span class="s1">&#39;tabledump&#39;</span><span class="p">,</span> <span class="s1">&#39;tableload&#39;</span><span class="p">,</span>
+           <span class="s1">&#39;table_to_hdu&#39;</span><span class="p">,</span> <span class="s1">&#39;printdiff&#39;</span><span class="p">]</span>
+
+
+<div class="viewcode-block" id="getheader"><a class="viewcode-back" href="../../../../io/fits/api/files.html#astropy.io.fits.getheader">[docs]</a><span class="k">def</span> <span class="nf">getheader</span><span class="p">(</span><span class="n">filename</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Get the header from an extension of a FITS file.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    filename : file path, file object, or file like object</span>
+<span class="sd">        File to get header from.  If an opened file object, its mode</span>
+<span class="sd">        must be one of the following rb, rb+, or ab+).</span>
+
+<span class="sd">    ext, extname, extver</span>
+<span class="sd">        The rest of the arguments are for extension specification.  See the</span>
+<span class="sd">        `getdata` documentation for explanations/examples.</span>
+
+<span class="sd">    kwargs</span>
+<span class="sd">        Any additional keyword arguments to be passed to</span>
+<span class="sd">        `astropy.io.fits.open`.</span>
+
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+<span class="sd">    header : `Header` object</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="n">mode</span><span class="p">,</span> <span class="n">closed</span> <span class="o">=</span> <span class="n">_get_file_mode</span><span class="p">(</span><span class="n">filename</span><span class="p">)</span>
+    <span class="n">hdulist</span><span class="p">,</span> <span class="n">extidx</span> <span class="o">=</span> <span class="n">_getext</span><span class="p">(</span><span class="n">filename</span><span class="p">,</span> <span class="n">mode</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
+    <span class="k">try</span><span class="p">:</span>
+        <span class="n">hdu</span> <span class="o">=</span> <span class="n">hdulist</span><span class="p">[</span><span class="n">extidx</span><span class="p">]</span>
+        <span class="n">header</span> <span class="o">=</span> <span class="n">hdu</span><span class="o">.</span><span class="n">header</span>
+    <span class="k">finally</span><span class="p">:</span>
+        <span class="n">hdulist</span><span class="o">.</span><span class="n">close</span><span class="p">(</span><span class="n">closed</span><span class="o">=</span><span class="n">closed</span><span class="p">)</span>
+
+    <span class="k">return</span> <span class="n">header</span></div>
+
+
+<div class="viewcode-block" id="getdata"><a class="viewcode-back" href="../../../../io/fits/api/files.html#astropy.io.fits.getdata">[docs]</a><span class="k">def</span> <span class="nf">getdata</span><span class="p">(</span><span class="n">filename</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Get the data from an extension of a FITS file (and optionally the</span>
+<span class="sd">    header).</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    filename : file path, file object, or file like object</span>
+<span class="sd">        File to get data from.  If opened, mode must be one of the</span>
+<span class="sd">        following rb, rb+, or ab+.</span>
+
+<span class="sd">    ext</span>
+<span class="sd">        The rest of the arguments are for extension specification.</span>
+<span class="sd">        They are flexible and are best illustrated by examples.</span>
+
+<span class="sd">        No extra arguments implies the primary header::</span>
+
+<span class="sd">            getdata(&#39;in.fits&#39;)</span>
+
+<span class="sd">        By extension number::</span>
+
+<span class="sd">            getdata(&#39;in.fits&#39;, 0)      # the primary header</span>
+<span class="sd">            getdata(&#39;in.fits&#39;, 2)      # the second extension</span>
+<span class="sd">            getdata(&#39;in.fits&#39;, ext=2)  # the second extension</span>
+
+<span class="sd">        By name, i.e., ``EXTNAME`` value (if unique)::</span>
+
+<span class="sd">            getdata(&#39;in.fits&#39;, &#39;sci&#39;)</span>
+<span class="sd">            getdata(&#39;in.fits&#39;, extname=&#39;sci&#39;)  # equivalent</span>
+
+<span class="sd">        Note ``EXTNAME`` values are not case sensitive</span>
+
+<span class="sd">        By combination of ``EXTNAME`` and EXTVER`` as separate</span>
+<span class="sd">        arguments or as a tuple::</span>
+
+<span class="sd">            getdata(&#39;in.fits&#39;, &#39;sci&#39;, 2)  # EXTNAME=&#39;SCI&#39; &amp; EXTVER=2</span>
+<span class="sd">            getdata(&#39;in.fits&#39;, extname=&#39;sci&#39;, extver=2)  # equivalent</span>
+<span class="sd">            getdata(&#39;in.fits&#39;, (&#39;sci&#39;, 2))  # equivalent</span>
+
+<span class="sd">        Ambiguous or conflicting specifications will raise an exception::</span>
+
+<span class="sd">            getdata(&#39;in.fits&#39;, ext=(&#39;sci&#39;,1), extname=&#39;err&#39;, extver=2)</span>
+
+<span class="sd">    header : bool, optional</span>
+<span class="sd">        If `True`, return the data and the header of the specified HDU as a</span>
+<span class="sd">        tuple.</span>
+
+<span class="sd">    lower, upper : bool, optional</span>
+<span class="sd">        If ``lower`` or ``upper`` are `True`, the field names in the</span>
+<span class="sd">        returned data object will be converted to lower or upper case,</span>
+<span class="sd">        respectively.</span>
+
+<span class="sd">    view : ndarray, optional</span>
+<span class="sd">        When given, the data will be returned wrapped in the given ndarray</span>
+<span class="sd">        subclass by calling::</span>
+
+<span class="sd">           data.view(view)</span>
+
+<span class="sd">    kwargs</span>
+<span class="sd">        Any additional keyword arguments to be passed to</span>
+<span class="sd">        `astropy.io.fits.open`.</span>
+
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+<span class="sd">    array : array, record array or groups data object</span>
+<span class="sd">        Type depends on the type of the extension being referenced.</span>
+
+<span class="sd">        If the optional keyword ``header`` is set to `True`, this</span>
+<span class="sd">        function will return a (``data``, ``header``) tuple.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="n">mode</span><span class="p">,</span> <span class="n">closed</span> <span class="o">=</span> <span class="n">_get_file_mode</span><span class="p">(</span><span class="n">filename</span><span class="p">)</span>
+    <span class="n">header</span> <span class="o">=</span> <span class="n">kwargs</span><span class="o">.</span><span class="n">pop</span><span class="p">(</span><span class="s1">&#39;header&#39;</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span>
+    <span class="n">lower</span> <span class="o">=</span> <span class="n">kwargs</span><span class="o">.</span><span class="n">pop</span><span class="p">(</span><span class="s1">&#39;lower&#39;</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span>
+    <span class="n">upper</span> <span class="o">=</span> <span class="n">kwargs</span><span class="o">.</span><span class="n">pop</span><span class="p">(</span><span class="s1">&#39;upper&#39;</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span>
+    <span class="n">view</span> <span class="o">=</span> <span class="n">kwargs</span><span class="o">.</span><span class="n">pop</span><span class="p">(</span><span class="s1">&#39;view&#39;</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span>
+
+    <span class="n">hdulist</span><span class="p">,</span> <span class="n">extidx</span> <span class="o">=</span> <span class="n">_getext</span><span class="p">(</span><span class="n">filename</span><span class="p">,</span> <span class="n">mode</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
+    <span class="k">try</span><span class="p">:</span>
+        <span class="n">hdu</span> <span class="o">=</span> <span class="n">hdulist</span><span class="p">[</span><span class="n">extidx</span><span class="p">]</span>
+        <span class="n">data</span> <span class="o">=</span> <span class="n">hdu</span><span class="o">.</span><span class="n">data</span>
+        <span class="k">if</span> <span class="n">data</span> <span class="ow">is</span> <span class="kc">None</span> <span class="ow">and</span> <span class="n">extidx</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
+            <span class="k">try</span><span class="p">:</span>
+                <span class="n">hdu</span> <span class="o">=</span> <span class="n">hdulist</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span>
+                <span class="n">data</span> <span class="o">=</span> <span class="n">hdu</span><span class="o">.</span><span class="n">data</span>
+            <span class="k">except</span> <span class="ne">IndexError</span><span class="p">:</span>
+                <span class="k">raise</span> <span class="ne">IndexError</span><span class="p">(</span><span class="s1">&#39;No data in this HDU.&#39;</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">data</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">IndexError</span><span class="p">(</span><span class="s1">&#39;No data in this HDU.&#39;</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">header</span><span class="p">:</span>
+            <span class="n">hdr</span> <span class="o">=</span> <span class="n">hdu</span><span class="o">.</span><span class="n">header</span>
+    <span class="k">finally</span><span class="p">:</span>
+        <span class="n">hdulist</span><span class="o">.</span><span class="n">close</span><span class="p">(</span><span class="n">closed</span><span class="o">=</span><span class="n">closed</span><span class="p">)</span>
+
+    <span class="c1"># Change case of names if requested</span>
+    <span class="n">trans</span> <span class="o">=</span> <span class="kc">None</span>
+    <span class="k">if</span> <span class="n">lower</span><span class="p">:</span>
+        <span class="n">trans</span> <span class="o">=</span> <span class="n">operator</span><span class="o">.</span><span class="n">methodcaller</span><span class="p">(</span><span class="s1">&#39;lower&#39;</span><span class="p">)</span>
+    <span class="k">elif</span> <span class="n">upper</span><span class="p">:</span>
+        <span class="n">trans</span> <span class="o">=</span> <span class="n">operator</span><span class="o">.</span><span class="n">methodcaller</span><span class="p">(</span><span class="s1">&#39;upper&#39;</span><span class="p">)</span>
+    <span class="k">if</span> <span class="n">trans</span><span class="p">:</span>
+        <span class="k">if</span> <span class="n">data</span><span class="o">.</span><span class="n">dtype</span><span class="o">.</span><span class="n">names</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="c1"># this data does not have fields</span>
+            <span class="k">return</span>
+        <span class="k">if</span> <span class="n">data</span><span class="o">.</span><span class="n">dtype</span><span class="o">.</span><span class="n">descr</span><span class="p">[</span><span class="mi">0</span><span class="p">][</span><span class="mi">0</span><span class="p">]</span> <span class="o">==</span> <span class="s1">&#39;&#39;</span><span class="p">:</span>
+            <span class="c1"># this data does not have fields</span>
+            <span class="k">return</span>
+        <span class="n">data</span><span class="o">.</span><span class="n">dtype</span><span class="o">.</span><span class="n">names</span> <span class="o">=</span> <span class="p">[</span><span class="n">trans</span><span class="p">(</span><span class="n">n</span><span class="p">)</span> <span class="k">for</span> <span class="n">n</span> <span class="ow">in</span> <span class="n">data</span><span class="o">.</span><span class="n">dtype</span><span class="o">.</span><span class="n">names</span><span class="p">]</span>
+
+    <span class="c1"># allow different views into the underlying ndarray.  Keep the original</span>
+    <span class="c1"># view just in case there is a problem</span>
+    <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">view</span><span class="p">,</span> <span class="nb">type</span><span class="p">)</span> <span class="ow">and</span> <span class="nb">issubclass</span><span class="p">(</span><span class="n">view</span><span class="p">,</span> <span class="n">np</span><span class="o">.</span><span class="n">ndarray</span><span class="p">):</span>
+        <span class="n">data</span> <span class="o">=</span> <span class="n">data</span><span class="o">.</span><span class="n">view</span><span class="p">(</span><span class="n">view</span><span class="p">)</span>
+
+    <span class="k">if</span> <span class="n">header</span><span class="p">:</span>
+        <span class="k">return</span> <span class="n">data</span><span class="p">,</span> <span class="n">hdr</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="k">return</span> <span class="n">data</span></div>
+
+
+<div class="viewcode-block" id="getval"><a class="viewcode-back" href="../../../../io/fits/api/files.html#astropy.io.fits.getval">[docs]</a><span class="k">def</span> <span class="nf">getval</span><span class="p">(</span><span class="n">filename</span><span class="p">,</span> <span class="n">keyword</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Get a keyword&#39;s value from a header in a FITS file.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    filename : file path, file object, or file like object</span>
+<span class="sd">        Name of the FITS file, or file object (if opened, mode must be</span>
+<span class="sd">        one of the following rb, rb+, or ab+).</span>
+
+<span class="sd">    keyword : str</span>
+<span class="sd">        Keyword name</span>
+
+<span class="sd">    ext, extname, extver</span>
+<span class="sd">        The rest of the arguments are for extension specification.</span>
+<span class="sd">        See `getdata` for explanations/examples.</span>
+
+<span class="sd">    kwargs</span>
+<span class="sd">        Any additional keyword arguments to be passed to</span>
+<span class="sd">        `astropy.io.fits.open`.</span>
+<span class="sd">        *Note:* This function automatically specifies ``do_not_scale_image_data</span>
+<span class="sd">        = True`` when opening the file so that values can be retrieved from the</span>
+<span class="sd">        unmodified header.</span>
+
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+<span class="sd">    keyword value : str, int, or float</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="k">if</span> <span class="s1">&#39;do_not_scale_image_data&#39;</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">kwargs</span><span class="p">:</span>
+        <span class="n">kwargs</span><span class="p">[</span><span class="s1">&#39;do_not_scale_image_data&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="kc">True</span>
+
+    <span class="n">hdr</span> <span class="o">=</span> <span class="n">getheader</span><span class="p">(</span><span class="n">filename</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">hdr</span><span class="p">[</span><span class="n">keyword</span><span class="p">]</span></div>
+
+
+<div class="viewcode-block" id="setval"><a class="viewcode-back" href="../../../../io/fits/api/files.html#astropy.io.fits.setval">[docs]</a><span class="k">def</span> <span class="nf">setval</span><span class="p">(</span><span class="n">filename</span><span class="p">,</span> <span class="n">keyword</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Set a keyword&#39;s value from a header in a FITS file.</span>
+
+<span class="sd">    If the keyword already exists, it&#39;s value/comment will be updated.</span>
+<span class="sd">    If it does not exist, a new card will be created and it will be</span>
+<span class="sd">    placed before or after the specified location.  If no ``before`` or</span>
+<span class="sd">    ``after`` is specified, it will be appended at the end.</span>
+
+<span class="sd">    When updating more than one keyword in a file, this convenience</span>
+<span class="sd">    function is a much less efficient approach compared with opening</span>
+<span class="sd">    the file for update, modifying the header, and closing the file.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    filename : file path, file object, or file like object</span>
+<span class="sd">        Name of the FITS file, or file object If opened, mode must be update</span>
+<span class="sd">        (rb+).  An opened file object or `~gzip.GzipFile` object will be closed</span>
+<span class="sd">        upon return.</span>
+
+<span class="sd">    keyword : str</span>
+<span class="sd">        Keyword name</span>
+
+<span class="sd">    value : str, int, float, optional</span>
+<span class="sd">        Keyword value (default: `None`, meaning don&#39;t modify)</span>
+
+<span class="sd">    comment : str, optional</span>
+<span class="sd">        Keyword comment, (default: `None`, meaning don&#39;t modify)</span>
+
+<span class="sd">    before : str, int, optional</span>
+<span class="sd">        Name of the keyword, or index of the card before which the new card</span>
+<span class="sd">        will be placed.  The argument ``before`` takes precedence over</span>
+<span class="sd">        ``after`` if both are specified (default: `None`).</span>
+
+<span class="sd">    after : str, int, optional</span>
+<span class="sd">        Name of the keyword, or index of the card after which the new card will</span>
+<span class="sd">        be placed. (default: `None`).</span>
+
+<span class="sd">    savecomment : bool, optional</span>
+<span class="sd">        When `True`, preserve the current comment for an existing keyword.  The</span>
+<span class="sd">        argument ``savecomment`` takes precedence over ``comment`` if both</span>
+<span class="sd">        specified.  If ``comment`` is not specified then the current comment</span>
+<span class="sd">        will automatically be preserved  (default: `False`).</span>
+
+<span class="sd">    ext, extname, extver</span>
+<span class="sd">        The rest of the arguments are for extension specification.</span>
+<span class="sd">        See `getdata` for explanations/examples.</span>
+
+<span class="sd">    kwargs</span>
+<span class="sd">        Any additional keyword arguments to be passed to</span>
+<span class="sd">        `astropy.io.fits.open`.</span>
+<span class="sd">        *Note:* This function automatically specifies ``do_not_scale_image_data</span>
+<span class="sd">        = True`` when opening the file so that values can be retrieved from the</span>
+<span class="sd">        unmodified header.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="k">if</span> <span class="s1">&#39;do_not_scale_image_data&#39;</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">kwargs</span><span class="p">:</span>
+        <span class="n">kwargs</span><span class="p">[</span><span class="s1">&#39;do_not_scale_image_data&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="kc">True</span>
+
+    <span class="n">value</span> <span class="o">=</span> <span class="n">kwargs</span><span class="o">.</span><span class="n">pop</span><span class="p">(</span><span class="s1">&#39;value&#39;</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span>
+    <span class="n">comment</span> <span class="o">=</span> <span class="n">kwargs</span><span class="o">.</span><span class="n">pop</span><span class="p">(</span><span class="s1">&#39;comment&#39;</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span>
+    <span class="n">before</span> <span class="o">=</span> <span class="n">kwargs</span><span class="o">.</span><span class="n">pop</span><span class="p">(</span><span class="s1">&#39;before&#39;</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span>
+    <span class="n">after</span> <span class="o">=</span> <span class="n">kwargs</span><span class="o">.</span><span class="n">pop</span><span class="p">(</span><span class="s1">&#39;after&#39;</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span>
+    <span class="n">savecomment</span> <span class="o">=</span> <span class="n">kwargs</span><span class="o">.</span><span class="n">pop</span><span class="p">(</span><span class="s1">&#39;savecomment&#39;</span><span class="p">,</span> <span class="kc">False</span><span class="p">)</span>
+
+    <span class="n">closed</span> <span class="o">=</span> <span class="n">fileobj_closed</span><span class="p">(</span><span class="n">filename</span><span class="p">)</span>
+    <span class="n">hdulist</span><span class="p">,</span> <span class="n">extidx</span> <span class="o">=</span> <span class="n">_getext</span><span class="p">(</span><span class="n">filename</span><span class="p">,</span> <span class="s1">&#39;update&#39;</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
+    <span class="k">try</span><span class="p">:</span>
+        <span class="k">if</span> <span class="n">keyword</span> <span class="ow">in</span> <span class="n">hdulist</span><span class="p">[</span><span class="n">extidx</span><span class="p">]</span><span class="o">.</span><span class="n">header</span> <span class="ow">and</span> <span class="n">savecomment</span><span class="p">:</span>
+            <span class="n">comment</span> <span class="o">=</span> <span class="kc">None</span>
+        <span class="n">hdulist</span><span class="p">[</span><span class="n">extidx</span><span class="p">]</span><span class="o">.</span><span class="n">header</span><span class="o">.</span><span class="n">set</span><span class="p">(</span><span class="n">keyword</span><span class="p">,</span> <span class="n">value</span><span class="p">,</span> <span class="n">comment</span><span class="p">,</span> <span class="n">before</span><span class="p">,</span> <span class="n">after</span><span class="p">)</span>
+    <span class="k">finally</span><span class="p">:</span>
+        <span class="n">hdulist</span><span class="o">.</span><span class="n">close</span><span class="p">(</span><span class="n">closed</span><span class="o">=</span><span class="n">closed</span><span class="p">)</span></div>
+
+
+<div class="viewcode-block" id="delval"><a class="viewcode-back" href="../../../../io/fits/api/files.html#astropy.io.fits.delval">[docs]</a><span class="k">def</span> <span class="nf">delval</span><span class="p">(</span><span class="n">filename</span><span class="p">,</span> <span class="n">keyword</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Delete all instances of keyword from a header in a FITS file.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+
+<span class="sd">    filename : file path, file object, or file like object</span>
+<span class="sd">        Name of the FITS file, or file object If opened, mode must be update</span>
+<span class="sd">        (rb+).  An opened file object or `~gzip.GzipFile` object will be closed</span>
+<span class="sd">        upon return.</span>
+
+<span class="sd">    keyword : str, int</span>
+<span class="sd">        Keyword name or index</span>
+
+<span class="sd">    ext, extname, extver</span>
+<span class="sd">        The rest of the arguments are for extension specification.</span>
+<span class="sd">        See `getdata` for explanations/examples.</span>
+
+<span class="sd">    kwargs</span>
+<span class="sd">        Any additional keyword arguments to be passed to</span>
+<span class="sd">        `astropy.io.fits.open`.</span>
+<span class="sd">        *Note:* This function automatically specifies ``do_not_scale_image_data</span>
+<span class="sd">        = True`` when opening the file so that values can be retrieved from the</span>
+<span class="sd">        unmodified header.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="k">if</span> <span class="s1">&#39;do_not_scale_image_data&#39;</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">kwargs</span><span class="p">:</span>
+        <span class="n">kwargs</span><span class="p">[</span><span class="s1">&#39;do_not_scale_image_data&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="kc">True</span>
+
+    <span class="n">closed</span> <span class="o">=</span> <span class="n">fileobj_closed</span><span class="p">(</span><span class="n">filename</span><span class="p">)</span>
+    <span class="n">hdulist</span><span class="p">,</span> <span class="n">extidx</span> <span class="o">=</span> <span class="n">_getext</span><span class="p">(</span><span class="n">filename</span><span class="p">,</span> <span class="s1">&#39;update&#39;</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
+    <span class="k">try</span><span class="p">:</span>
+        <span class="k">del</span> <span class="n">hdulist</span><span class="p">[</span><span class="n">extidx</span><span class="p">]</span><span class="o">.</span><span class="n">header</span><span class="p">[</span><span class="n">keyword</span><span class="p">]</span>
+    <span class="k">finally</span><span class="p">:</span>
+        <span class="n">hdulist</span><span class="o">.</span><span class="n">close</span><span class="p">(</span><span class="n">closed</span><span class="o">=</span><span class="n">closed</span><span class="p">)</span></div>
+
+
+<span class="nd">@deprecated_renamed_argument</span><span class="p">(</span><span class="s1">&#39;clobber&#39;</span><span class="p">,</span> <span class="s1">&#39;overwrite&#39;</span><span class="p">,</span> <span class="s1">&#39;2.0&#39;</span><span class="p">)</span>
+<div class="viewcode-block" id="writeto"><a class="viewcode-back" href="../../../../io/fits/api/files.html#astropy.io.fits.writeto">[docs]</a><span class="k">def</span> <span class="nf">writeto</span><span class="p">(</span><span class="n">filename</span><span class="p">,</span> <span class="n">data</span><span class="p">,</span> <span class="n">header</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">output_verify</span><span class="o">=</span><span class="s1">&#39;exception&#39;</span><span class="p">,</span>
+            <span class="n">overwrite</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="n">checksum</span><span class="o">=</span><span class="kc">False</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Create a new FITS file using the supplied data/header.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    filename : file path, file object, or file like object</span>
+<span class="sd">        File to write to.  If opened, must be opened in a writeable binary</span>
+<span class="sd">        mode such as &#39;wb&#39; or &#39;ab+&#39;.</span>
+
+<span class="sd">    data : array, record array, or groups data object</span>
+<span class="sd">        data to write to the new file</span>
+
+<span class="sd">    header : `Header` object, optional</span>
+<span class="sd">        the header associated with ``data``. If `None`, a header</span>
+<span class="sd">        of the appropriate type is created for the supplied data. This</span>
+<span class="sd">        argument is optional.</span>
+
+<span class="sd">    output_verify : str</span>
+<span class="sd">        Output verification option.  Must be one of ``&quot;fix&quot;``, ``&quot;silentfix&quot;``,</span>
+<span class="sd">        ``&quot;ignore&quot;``, ``&quot;warn&quot;``, or ``&quot;exception&quot;``.  May also be any</span>
+<span class="sd">        combination of ``&quot;fix&quot;`` or ``&quot;silentfix&quot;`` with ``&quot;+ignore&quot;``,</span>
+<span class="sd">        ``+warn``, or ``+exception&quot; (e.g. ``&quot;fix+warn&quot;``).  See :ref:`verify`</span>
+<span class="sd">        for more info.</span>
+
+<span class="sd">    overwrite : bool, optional</span>
+<span class="sd">        If ``True``, overwrite the output file if it exists. Raises an</span>
+<span class="sd">        ``OSError`` (``IOError`` for Python 2) if ``False`` and the</span>
+<span class="sd">        output file exists. Default is ``False``.</span>
+
+<span class="sd">        .. versionchanged:: 1.3</span>
+<span class="sd">           ``overwrite`` replaces the deprecated ``clobber`` argument.</span>
+
+<span class="sd">    checksum : bool, optional</span>
+<span class="sd">        If `True`, adds both ``DATASUM`` and ``CHECKSUM`` cards to the</span>
+<span class="sd">        headers of all HDU&#39;s written to the file.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="n">hdu</span> <span class="o">=</span> <span class="n">_makehdu</span><span class="p">(</span><span class="n">data</span><span class="p">,</span> <span class="n">header</span><span class="p">)</span>
+    <span class="k">if</span> <span class="n">hdu</span><span class="o">.</span><span class="n">is_image</span> <span class="ow">and</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">hdu</span><span class="p">,</span> <span class="n">PrimaryHDU</span><span class="p">):</span>
+        <span class="n">hdu</span> <span class="o">=</span> <span class="n">PrimaryHDU</span><span class="p">(</span><span class="n">data</span><span class="p">,</span> <span class="n">header</span><span class="o">=</span><span class="n">header</span><span class="p">)</span>
+    <span class="n">hdu</span><span class="o">.</span><span class="n">writeto</span><span class="p">(</span><span class="n">filename</span><span class="p">,</span> <span class="n">overwrite</span><span class="o">=</span><span class="n">overwrite</span><span class="p">,</span> <span class="n">output_verify</span><span class="o">=</span><span class="n">output_verify</span><span class="p">,</span>
+                <span class="n">checksum</span><span class="o">=</span><span class="n">checksum</span><span class="p">)</span></div>
+
+
+<div class="viewcode-block" id="table_to_hdu"><a class="viewcode-back" href="../../../../io/fits/api/tables.html#astropy.io.fits.table_to_hdu">[docs]</a><span class="k">def</span> <span class="nf">table_to_hdu</span><span class="p">(</span><span class="n">table</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Convert an `~astropy.table.Table` object to a FITS</span>
+<span class="sd">    `~astropy.io.fits.BinTableHDU`.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    table : astropy.table.Table</span>
+<span class="sd">        The table to convert.</span>
+
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+<span class="sd">    table_hdu : `~astropy.io.fits.BinTableHDU`</span>
+<span class="sd">        The FITS binary table HDU.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="c1"># Avoid circular imports</span>
+    <span class="kn">from</span> <span class="nn">.connect</span> <span class="k">import</span> <span class="n">is_column_keyword</span><span class="p">,</span> <span class="n">REMOVE_KEYWORDS</span>
+
+    <span class="c1"># Not all tables with mixin columns are supported</span>
+    <span class="k">if</span> <span class="n">table</span><span class="o">.</span><span class="n">has_mixin_columns</span><span class="p">:</span>
+        <span class="c1"># Import is done here, in order to avoid it at build time as erfa is not</span>
+        <span class="c1"># yet available then.</span>
+        <span class="kn">from</span> <span class="nn">...table.column</span> <span class="k">import</span> <span class="n">BaseColumn</span>
+
+        <span class="c1"># Only those columns which are instances of BaseColumn or Quantity can be written</span>
+        <span class="n">unsupported_cols</span> <span class="o">=</span> <span class="n">table</span><span class="o">.</span><span class="n">columns</span><span class="o">.</span><span class="n">not_isinstance</span><span class="p">((</span><span class="n">BaseColumn</span><span class="p">,</span> <span class="n">Quantity</span><span class="p">))</span>
+        <span class="k">if</span> <span class="n">unsupported_cols</span><span class="p">:</span>
+            <span class="n">unsupported_names</span> <span class="o">=</span> <span class="p">[</span><span class="n">col</span><span class="o">.</span><span class="n">info</span><span class="o">.</span><span class="n">name</span> <span class="k">for</span> <span class="n">col</span> <span class="ow">in</span> <span class="n">unsupported_cols</span><span class="p">]</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s1">&#39;cannot write table with mixin column(s) </span><span class="si">{0}</span><span class="s1">&#39;</span>
+                         <span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">unsupported_names</span><span class="p">))</span>
+
+    <span class="c1"># Create a new HDU object</span>
+    <span class="k">if</span> <span class="n">table</span><span class="o">.</span><span class="n">masked</span><span class="p">:</span>
+        <span class="c1"># float column&#39;s default mask value needs to be Nan</span>
+        <span class="k">for</span> <span class="n">column</span> <span class="ow">in</span> <span class="n">six</span><span class="o">.</span><span class="n">itervalues</span><span class="p">(</span><span class="n">table</span><span class="o">.</span><span class="n">columns</span><span class="p">):</span>
+            <span class="n">fill_value</span> <span class="o">=</span> <span class="n">column</span><span class="o">.</span><span class="n">get_fill_value</span><span class="p">()</span>
+            <span class="k">if</span> <span class="n">column</span><span class="o">.</span><span class="n">dtype</span><span class="o">.</span><span class="n">kind</span> <span class="o">==</span> <span class="s1">&#39;f&#39;</span> <span class="ow">and</span> <span class="n">np</span><span class="o">.</span><span class="n">allclose</span><span class="p">(</span><span class="n">fill_value</span><span class="p">,</span> <span class="mi">1</span><span class="n">e20</span><span class="p">):</span>
+                <span class="n">column</span><span class="o">.</span><span class="n">set_fill_value</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">nan</span><span class="p">)</span>
+
+        <span class="n">table_hdu</span> <span class="o">=</span> <span class="n">BinTableHDU</span><span class="o">.</span><span class="n">from_columns</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">(</span><span class="n">table</span><span class="o">.</span><span class="n">filled</span><span class="p">()))</span>
+        <span class="k">for</span> <span class="n">col</span> <span class="ow">in</span> <span class="n">table_hdu</span><span class="o">.</span><span class="n">columns</span><span class="p">:</span>
+            <span class="c1"># Binary FITS tables support TNULL *only* for integer data columns</span>
+            <span class="c1"># TODO: Determine a schema for handling non-integer masked columns</span>
+            <span class="c1"># in FITS (if at all possible)</span>
+            <span class="n">int_formats</span> <span class="o">=</span> <span class="p">(</span><span class="s1">&#39;B&#39;</span><span class="p">,</span> <span class="s1">&#39;I&#39;</span><span class="p">,</span> <span class="s1">&#39;J&#39;</span><span class="p">,</span> <span class="s1">&#39;K&#39;</span><span class="p">)</span>
+            <span class="k">if</span> <span class="ow">not</span> <span class="p">(</span><span class="n">col</span><span class="o">.</span><span class="n">format</span> <span class="ow">in</span> <span class="n">int_formats</span> <span class="ow">or</span>
+                    <span class="n">col</span><span class="o">.</span><span class="n">format</span><span class="o">.</span><span class="n">p_format</span> <span class="ow">in</span> <span class="n">int_formats</span><span class="p">):</span>
+                <span class="k">continue</span>
+
+            <span class="c1"># The astype is necessary because if the string column is less</span>
+            <span class="c1"># than one character, the fill value will be N/A by default which</span>
+            <span class="c1"># is too long, and so no values will get masked.</span>
+            <span class="n">fill_value</span> <span class="o">=</span> <span class="n">table</span><span class="p">[</span><span class="n">col</span><span class="o">.</span><span class="n">name</span><span class="p">]</span><span class="o">.</span><span class="n">get_fill_value</span><span class="p">()</span>
+
+            <span class="n">col</span><span class="o">.</span><span class="n">null</span> <span class="o">=</span> <span class="n">fill_value</span><span class="o">.</span><span class="n">astype</span><span class="p">(</span><span class="n">table</span><span class="p">[</span><span class="n">col</span><span class="o">.</span><span class="n">name</span><span class="p">]</span><span class="o">.</span><span class="n">dtype</span><span class="p">)</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="n">table_hdu</span> <span class="o">=</span> <span class="n">BinTableHDU</span><span class="o">.</span><span class="n">from_columns</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">(</span><span class="n">table</span><span class="o">.</span><span class="n">filled</span><span class="p">()))</span>
+
+    <span class="c1"># Set units for output HDU</span>
+    <span class="k">for</span> <span class="n">col</span> <span class="ow">in</span> <span class="n">table_hdu</span><span class="o">.</span><span class="n">columns</span><span class="p">:</span>
+        <span class="n">unit</span> <span class="o">=</span> <span class="n">table</span><span class="p">[</span><span class="n">col</span><span class="o">.</span><span class="n">name</span><span class="p">]</span><span class="o">.</span><span class="n">unit</span>
+        <span class="k">if</span> <span class="n">unit</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="k">try</span><span class="p">:</span>
+                <span class="n">col</span><span class="o">.</span><span class="n">unit</span> <span class="o">=</span> <span class="n">unit</span><span class="o">.</span><span class="n">to_string</span><span class="p">(</span><span class="nb">format</span><span class="o">=</span><span class="s1">&#39;fits&#39;</span><span class="p">)</span>
+            <span class="k">except</span> <span class="n">UnitScaleError</span><span class="p">:</span>
+                <span class="n">scale</span> <span class="o">=</span> <span class="n">unit</span><span class="o">.</span><span class="n">scale</span>
+                <span class="k">raise</span> <span class="n">UnitScaleError</span><span class="p">(</span>
+                    <span class="s2">&quot;The column &#39;</span><span class="si">{0}</span><span class="s2">&#39; could not be stored in FITS format &quot;</span>
+                    <span class="s2">&quot;because it has a scale &#39;(</span><span class="si">{1}</span><span class="s2">)&#39; that &quot;</span>
+                    <span class="s2">&quot;is not recognized by the FITS standard. Either scale &quot;</span>
+                    <span class="s2">&quot;the data or change the units.&quot;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">col</span><span class="o">.</span><span class="n">name</span><span class="p">,</span> <span class="nb">str</span><span class="p">(</span><span class="n">scale</span><span class="p">)))</span>
+            <span class="k">except</span> <span class="ne">ValueError</span><span class="p">:</span>
+                <span class="n">warnings</span><span class="o">.</span><span class="n">warn</span><span class="p">(</span>
+                    <span class="s2">&quot;The unit &#39;</span><span class="si">{0}</span><span class="s2">&#39; could not be saved to FITS format&quot;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span>
+                        <span class="n">unit</span><span class="o">.</span><span class="n">to_string</span><span class="p">()),</span> <span class="n">AstropyUserWarning</span><span class="p">)</span>
+
+            <span class="c1"># Try creating a Unit to issue a warning if the unit is not FITS compliant</span>
+            <span class="n">Unit</span><span class="p">(</span><span class="n">col</span><span class="o">.</span><span class="n">unit</span><span class="p">,</span> <span class="nb">format</span><span class="o">=</span><span class="s1">&#39;fits&#39;</span><span class="p">,</span> <span class="n">parse_strict</span><span class="o">=</span><span class="s1">&#39;warn&#39;</span><span class="p">)</span>
+
+    <span class="k">for</span> <span class="n">key</span><span class="p">,</span> <span class="n">value</span> <span class="ow">in</span> <span class="n">table</span><span class="o">.</span><span class="n">meta</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
+        <span class="k">if</span> <span class="n">is_column_keyword</span><span class="p">(</span><span class="n">key</span><span class="o">.</span><span class="n">upper</span><span class="p">())</span> <span class="ow">or</span> <span class="n">key</span><span class="o">.</span><span class="n">upper</span><span class="p">()</span> <span class="ow">in</span> <span class="n">REMOVE_KEYWORDS</span><span class="p">:</span>
+            <span class="n">warnings</span><span class="o">.</span><span class="n">warn</span><span class="p">(</span>
+                <span class="s2">&quot;Meta-data keyword </span><span class="si">{0}</span><span class="s2"> will be ignored since it conflicts &quot;</span>
+                <span class="s2">&quot;with a FITS reserved keyword&quot;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">key</span><span class="p">),</span> <span class="n">AstropyUserWarning</span><span class="p">)</span>
+
+        <span class="c1"># Convert to FITS format</span>
+        <span class="k">if</span> <span class="n">key</span> <span class="o">==</span> <span class="s1">&#39;comments&#39;</span><span class="p">:</span>
+            <span class="n">key</span> <span class="o">=</span> <span class="s1">&#39;comment&#39;</span>
+
+        <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">value</span><span class="p">,</span> <span class="nb">list</span><span class="p">):</span>
+            <span class="k">for</span> <span class="n">item</span> <span class="ow">in</span> <span class="n">value</span><span class="p">:</span>
+                <span class="k">try</span><span class="p">:</span>
+                    <span class="n">table_hdu</span><span class="o">.</span><span class="n">header</span><span class="o">.</span><span class="n">append</span><span class="p">((</span><span class="n">key</span><span class="p">,</span> <span class="n">item</span><span class="p">))</span>
+                <span class="k">except</span> <span class="ne">ValueError</span><span class="p">:</span>
+                    <span class="n">warnings</span><span class="o">.</span><span class="n">warn</span><span class="p">(</span>
+                        <span class="s2">&quot;Attribute `</span><span class="si">{0}</span><span class="s2">` of type </span><span class="si">{1}</span><span class="s2"> cannot be added to &quot;</span>
+                        <span class="s2">&quot;FITS Header - skipping&quot;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">key</span><span class="p">,</span> <span class="nb">type</span><span class="p">(</span><span class="n">value</span><span class="p">)),</span>
+                        <span class="n">AstropyUserWarning</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">try</span><span class="p">:</span>
+                <span class="n">table_hdu</span><span class="o">.</span><span class="n">header</span><span class="p">[</span><span class="n">key</span><span class="p">]</span> <span class="o">=</span> <span class="n">value</span>
+            <span class="k">except</span> <span class="ne">ValueError</span><span class="p">:</span>
+                <span class="n">warnings</span><span class="o">.</span><span class="n">warn</span><span class="p">(</span>
+                    <span class="s2">&quot;Attribute `</span><span class="si">{0}</span><span class="s2">` of type </span><span class="si">{1}</span><span class="s2"> cannot be added to FITS &quot;</span>
+                    <span class="s2">&quot;Header - skipping&quot;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">key</span><span class="p">,</span> <span class="nb">type</span><span class="p">(</span><span class="n">value</span><span class="p">)),</span>
+                    <span class="n">AstropyUserWarning</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">table_hdu</span></div>
+
+
+<div class="viewcode-block" id="append"><a class="viewcode-back" href="../../../../io/fits/api/files.html#astropy.io.fits.append">[docs]</a><span class="k">def</span> <span class="nf">append</span><span class="p">(</span><span class="n">filename</span><span class="p">,</span> <span class="n">data</span><span class="p">,</span> <span class="n">header</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">checksum</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="n">verify</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Append the header/data to FITS file if filename exists, create if not.</span>
+
+<span class="sd">    If only ``data`` is supplied, a minimal header is created.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    filename : file path, file object, or file like object</span>
+<span class="sd">        File to write to.  If opened, must be opened for update (rb+) unless it</span>
+<span class="sd">        is a new file, then it must be opened for append (ab+).  A file or</span>
+<span class="sd">        `~gzip.GzipFile` object opened for update will be closed after return.</span>
+
+<span class="sd">    data : array, table, or group data object</span>
+<span class="sd">        the new data used for appending</span>
+
+<span class="sd">    header : `Header` object, optional</span>
+<span class="sd">        The header associated with ``data``.  If `None`, an appropriate header</span>
+<span class="sd">        will be created for the data object supplied.</span>
+
+<span class="sd">    checksum : bool, optional</span>
+<span class="sd">        When `True` adds both ``DATASUM`` and ``CHECKSUM`` cards to the header</span>
+<span class="sd">        of the HDU when written to the file.</span>
+
+<span class="sd">    verify : bool, optional</span>
+<span class="sd">        When `True`, the existing FITS file will be read in to verify it for</span>
+<span class="sd">        correctness before appending.  When `False`, content is simply appended</span>
+<span class="sd">        to the end of the file.  Setting ``verify`` to `False` can be much</span>
+<span class="sd">        faster.</span>
+
+<span class="sd">    kwargs</span>
+<span class="sd">        Any additional keyword arguments to be passed to</span>
+<span class="sd">        `astropy.io.fits.open`.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="n">name</span><span class="p">,</span> <span class="n">closed</span><span class="p">,</span> <span class="n">noexist_or_empty</span> <span class="o">=</span> <span class="n">_stat_filename_or_fileobj</span><span class="p">(</span><span class="n">filename</span><span class="p">)</span>
+
+    <span class="k">if</span> <span class="n">noexist_or_empty</span><span class="p">:</span>
+        <span class="c1">#</span>
+        <span class="c1"># The input file or file like object either doesn&#39;t exits or is</span>
+        <span class="c1"># empty.  Use the writeto convenience function to write the</span>
+        <span class="c1"># output to the empty object.</span>
+        <span class="c1">#</span>
+        <span class="n">writeto</span><span class="p">(</span><span class="n">filename</span><span class="p">,</span> <span class="n">data</span><span class="p">,</span> <span class="n">header</span><span class="p">,</span> <span class="n">checksum</span><span class="o">=</span><span class="n">checksum</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="n">hdu</span> <span class="o">=</span> <span class="n">_makehdu</span><span class="p">(</span><span class="n">data</span><span class="p">,</span> <span class="n">header</span><span class="p">)</span>
+
+        <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">hdu</span><span class="p">,</span> <span class="n">PrimaryHDU</span><span class="p">):</span>
+            <span class="n">hdu</span> <span class="o">=</span> <span class="n">ImageHDU</span><span class="p">(</span><span class="n">data</span><span class="p">,</span> <span class="n">header</span><span class="p">)</span>
+
+        <span class="k">if</span> <span class="n">verify</span> <span class="ow">or</span> <span class="ow">not</span> <span class="n">closed</span><span class="p">:</span>
+            <span class="n">f</span> <span class="o">=</span> <span class="n">fitsopen</span><span class="p">(</span><span class="n">filename</span><span class="p">,</span> <span class="n">mode</span><span class="o">=</span><span class="s1">&#39;append&#39;</span><span class="p">)</span>
+            <span class="k">try</span><span class="p">:</span>
+                <span class="n">f</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">hdu</span><span class="p">)</span>
+
+                <span class="c1"># Set a flag in the HDU so that only this HDU gets a checksum</span>
+                <span class="c1"># when writing the file.</span>
+                <span class="n">hdu</span><span class="o">.</span><span class="n">_output_checksum</span> <span class="o">=</span> <span class="n">checksum</span>
+            <span class="k">finally</span><span class="p">:</span>
+                <span class="n">f</span><span class="o">.</span><span class="n">close</span><span class="p">(</span><span class="n">closed</span><span class="o">=</span><span class="n">closed</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">f</span> <span class="o">=</span> <span class="n">_File</span><span class="p">(</span><span class="n">filename</span><span class="p">,</span> <span class="n">mode</span><span class="o">=</span><span class="s1">&#39;append&#39;</span><span class="p">)</span>
+            <span class="k">try</span><span class="p">:</span>
+                <span class="n">hdu</span><span class="o">.</span><span class="n">_output_checksum</span> <span class="o">=</span> <span class="n">checksum</span>
+                <span class="n">hdu</span><span class="o">.</span><span class="n">_writeto</span><span class="p">(</span><span class="n">f</span><span class="p">)</span>
+            <span class="k">finally</span><span class="p">:</span>
+                <span class="n">f</span><span class="o">.</span><span class="n">close</span><span class="p">()</span></div>
+
+
+<div class="viewcode-block" id="update"><a class="viewcode-back" href="../../../../io/fits/api/files.html#astropy.io.fits.update">[docs]</a><span class="k">def</span> <span class="nf">update</span><span class="p">(</span><span class="n">filename</span><span class="p">,</span> <span class="n">data</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Update the specified extension with the input data/header.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    filename : file path, file object, or file like object</span>
+<span class="sd">        File to update.  If opened, mode must be update (rb+).  An opened file</span>
+<span class="sd">        object or `~gzip.GzipFile` object will be closed upon return.</span>
+
+<span class="sd">    data : array, table, or group data object</span>
+<span class="sd">        the new data used for updating</span>
+
+<span class="sd">    header : `Header` object, optional</span>
+<span class="sd">        The header associated with ``data``.  If `None`, an appropriate header</span>
+<span class="sd">        will be created for the data object supplied.</span>
+
+<span class="sd">    ext, extname, extver</span>
+<span class="sd">        The rest of the arguments are flexible: the 3rd argument can be the</span>
+<span class="sd">        header associated with the data.  If the 3rd argument is not a</span>
+<span class="sd">        `Header`, it (and other positional arguments) are assumed to be the</span>
+<span class="sd">        extension specification(s).  Header and extension specs can also be</span>
+<span class="sd">        keyword arguments.  For example::</span>
+
+<span class="sd">            update(file, dat, hdr, &#39;sci&#39;)  # update the &#39;sci&#39; extension</span>
+<span class="sd">            update(file, dat, 3)  # update the 3rd extension</span>
+<span class="sd">            update(file, dat, hdr, 3)  # update the 3rd extension</span>
+<span class="sd">            update(file, dat, &#39;sci&#39;, 2)  # update the 2nd SCI extension</span>
+<span class="sd">            update(file, dat, 3, header=hdr)  # update the 3rd extension</span>
+<span class="sd">            update(file, dat, header=hdr, ext=5)  # update the 5th extension</span>
+
+<span class="sd">    kwargs</span>
+<span class="sd">        Any additional keyword arguments to be passed to</span>
+<span class="sd">        `astropy.io.fits.open`.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="c1"># The arguments to this function are a bit trickier to deal with than others</span>
+    <span class="c1"># in this module, since the documentation has promised that the header</span>
+    <span class="c1"># argument can be an optional positional argument.</span>
+    <span class="k">if</span> <span class="n">args</span> <span class="ow">and</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">args</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="n">Header</span><span class="p">):</span>
+        <span class="n">header</span> <span class="o">=</span> <span class="n">args</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+        <span class="n">args</span> <span class="o">=</span> <span class="n">args</span><span class="p">[</span><span class="mi">1</span><span class="p">:]</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="n">header</span> <span class="o">=</span> <span class="kc">None</span>
+    <span class="c1"># The header can also be a keyword argument--if both are provided the</span>
+    <span class="c1"># keyword takes precedence</span>
+    <span class="n">header</span> <span class="o">=</span> <span class="n">kwargs</span><span class="o">.</span><span class="n">pop</span><span class="p">(</span><span class="s1">&#39;header&#39;</span><span class="p">,</span> <span class="n">header</span><span class="p">)</span>
+
+    <span class="n">new_hdu</span> <span class="o">=</span> <span class="n">_makehdu</span><span class="p">(</span><span class="n">data</span><span class="p">,</span> <span class="n">header</span><span class="p">)</span>
+
+    <span class="n">closed</span> <span class="o">=</span> <span class="n">fileobj_closed</span><span class="p">(</span><span class="n">filename</span><span class="p">)</span>
+
+    <span class="n">hdulist</span><span class="p">,</span> <span class="n">_ext</span> <span class="o">=</span> <span class="n">_getext</span><span class="p">(</span><span class="n">filename</span><span class="p">,</span> <span class="s1">&#39;update&#39;</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
+    <span class="k">try</span><span class="p">:</span>
+        <span class="n">hdulist</span><span class="p">[</span><span class="n">_ext</span><span class="p">]</span> <span class="o">=</span> <span class="n">new_hdu</span>
+    <span class="k">finally</span><span class="p">:</span>
+        <span class="n">hdulist</span><span class="o">.</span><span class="n">close</span><span class="p">(</span><span class="n">closed</span><span class="o">=</span><span class="n">closed</span><span class="p">)</span></div>
+
+
+<div class="viewcode-block" id="info"><a class="viewcode-back" href="../../../../io/fits/api/files.html#astropy.io.fits.info">[docs]</a><span class="k">def</span> <span class="nf">info</span><span class="p">(</span><span class="n">filename</span><span class="p">,</span> <span class="n">output</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Print the summary information on a FITS file.</span>
+
+<span class="sd">    This includes the name, type, length of header, data shape and type</span>
+<span class="sd">    for each extension.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    filename : file path, file object, or file like object</span>
+<span class="sd">        FITS file to obtain info from.  If opened, mode must be one of</span>
+<span class="sd">        the following: rb, rb+, or ab+ (i.e. the file must be readable).</span>
+
+<span class="sd">    output : file, bool, optional</span>
+<span class="sd">        A file-like object to write the output to.  If ``False``, does not</span>
+<span class="sd">        output to a file and instead returns a list of tuples representing the</span>
+<span class="sd">        HDU info.  Writes to ``sys.stdout`` by default.</span>
+
+<span class="sd">    kwargs</span>
+<span class="sd">        Any additional keyword arguments to be passed to</span>
+<span class="sd">        `astropy.io.fits.open`.</span>
+<span class="sd">        *Note:* This function sets ``ignore_missing_end=True`` by default.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="n">mode</span><span class="p">,</span> <span class="n">closed</span> <span class="o">=</span> <span class="n">_get_file_mode</span><span class="p">(</span><span class="n">filename</span><span class="p">,</span> <span class="n">default</span><span class="o">=</span><span class="s1">&#39;readonly&#39;</span><span class="p">)</span>
+    <span class="c1"># Set the default value for the ignore_missing_end parameter</span>
+    <span class="k">if</span> <span class="s1">&#39;ignore_missing_end&#39;</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">kwargs</span><span class="p">:</span>
+        <span class="n">kwargs</span><span class="p">[</span><span class="s1">&#39;ignore_missing_end&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="kc">True</span>
+
+    <span class="n">f</span> <span class="o">=</span> <span class="n">fitsopen</span><span class="p">(</span><span class="n">filename</span><span class="p">,</span> <span class="n">mode</span><span class="o">=</span><span class="n">mode</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
+    <span class="k">try</span><span class="p">:</span>
+        <span class="n">ret</span> <span class="o">=</span> <span class="n">f</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="n">output</span><span class="o">=</span><span class="n">output</span><span class="p">)</span>
+    <span class="k">finally</span><span class="p">:</span>
+        <span class="k">if</span> <span class="n">closed</span><span class="p">:</span>
+            <span class="n">f</span><span class="o">.</span><span class="n">close</span><span class="p">()</span>
+
+    <span class="k">return</span> <span class="n">ret</span></div>
+
+
+<div class="viewcode-block" id="printdiff"><a class="viewcode-back" href="../../../../io/fits/api/files.html#astropy.io.fits.printdiff">[docs]</a><span class="k">def</span> <span class="nf">printdiff</span><span class="p">(</span><span class="n">inputa</span><span class="p">,</span> <span class="n">inputb</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Compare two parts of a FITS file, including entire FITS files,</span>
+<span class="sd">    FITS `HDUList` objects and FITS ``HDU`` objects.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    inputa : str, `HDUList` object, or ``HDU`` object</span>
+<span class="sd">        The filename of a FITS file, `HDUList`, or ``HDU``</span>
+<span class="sd">        object to compare to ``inputb``.</span>
+
+<span class="sd">    inputb : str, `HDUList` object, or ``HDU`` object</span>
+<span class="sd">        The filename of a FITS file, `HDUList`, or ``HDU``</span>
+<span class="sd">        object to compare to ``inputa``.</span>
+
+<span class="sd">    ext, extname, extver</span>
+<span class="sd">        Additional positional arguments are for extension specification if your</span>
+<span class="sd">        inputs are string filenames (will not work if</span>
+<span class="sd">        ``inputa`` and ``inputb`` are ``HDU`` objects or `HDUList` objects).</span>
+<span class="sd">        They are flexible and are best illustrated by examples.  In addition</span>
+<span class="sd">        to using these arguments positionally you can directly call the</span>
+<span class="sd">        keyword parameters ``ext``, ``extname``.</span>
+
+<span class="sd">        By extension number::</span>
+
+<span class="sd">            printdiff(&#39;inA.fits&#39;, &#39;inB.fits&#39;, 0)      # the primary HDU</span>
+<span class="sd">            printdiff(&#39;inA.fits&#39;, &#39;inB.fits&#39;, 2)      # the second extension</span>
+<span class="sd">            printdiff(&#39;inA.fits&#39;, &#39;inB.fits&#39;, ext=2)  # the second extension</span>
+
+<span class="sd">        By name, i.e., ``EXTNAME`` value (if unique). ``EXTNAME`` values are</span>
+<span class="sd">        not case sensitive:</span>
+
+<span class="sd">            printdiff(&#39;inA.fits&#39;, &#39;inB.fits&#39;, &#39;sci&#39;)</span>
+<span class="sd">            printdiff(&#39;inA.fits&#39;, &#39;inB.fits&#39;, extname=&#39;sci&#39;)  # equivalent</span>
+
+<span class="sd">        By combination of ``EXTNAME`` and ``EXTVER`` as separate</span>
+<span class="sd">        arguments or as a tuple::</span>
+
+<span class="sd">            printdiff(&#39;inA.fits&#39;, &#39;inB.fits&#39;, &#39;sci&#39;, 2)    # EXTNAME=&#39;SCI&#39;</span>
+<span class="sd">                                                           # &amp; EXTVER=2</span>
+<span class="sd">            printdiff(&#39;inA.fits&#39;, &#39;inB.fits&#39;, extname=&#39;sci&#39;, extver=2)</span>
+<span class="sd">                                                           # equivalent</span>
+<span class="sd">            printdiff(&#39;inA.fits&#39;, &#39;inB.fits&#39;, (&#39;sci&#39;, 2))  # equivalent</span>
+
+<span class="sd">        Ambiguous or conflicting specifications will raise an exception::</span>
+
+<span class="sd">            printdiff(&#39;inA.fits&#39;, &#39;inB.fits&#39;,</span>
+<span class="sd">                      ext=(&#39;sci&#39;, 1), extname=&#39;err&#39;, extver=2)</span>
+
+<span class="sd">    kwargs</span>
+<span class="sd">        Any additional keyword arguments to be passed to</span>
+<span class="sd">        `~astropy.io.fits.FITSDiff`.</span>
+
+<span class="sd">    Notes</span>
+<span class="sd">    -----</span>
+<span class="sd">    The primary use for the `printdiff` function is to allow quick print out</span>
+<span class="sd">    of a FITS difference report and will write to ``sys.stdout``.</span>
+<span class="sd">    To save the diff report to a file please use `~astropy.io.fits.FITSDiff`</span>
+<span class="sd">    directly.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="c1"># Pop extension keywords</span>
+    <span class="n">extension</span> <span class="o">=</span> <span class="p">{</span><span class="n">key</span><span class="p">:</span> <span class="n">kwargs</span><span class="o">.</span><span class="n">pop</span><span class="p">(</span><span class="n">key</span><span class="p">)</span> <span class="k">for</span> <span class="n">key</span> <span class="ow">in</span> <span class="p">[</span><span class="s1">&#39;ext&#39;</span><span class="p">,</span> <span class="s1">&#39;extname&#39;</span><span class="p">,</span> <span class="s1">&#39;extver&#39;</span><span class="p">]</span>
+                 <span class="k">if</span> <span class="n">key</span> <span class="ow">in</span> <span class="n">kwargs</span><span class="p">}</span>
+    <span class="n">has_extensions</span> <span class="o">=</span> <span class="n">args</span> <span class="ow">or</span> <span class="n">extension</span>
+
+    <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">inputa</span><span class="p">,</span> <span class="n">string_types</span><span class="p">)</span> <span class="ow">and</span> <span class="n">has_extensions</span><span class="p">:</span>
+        <span class="c1"># Use handy _getext to interpret any ext keywords, but</span>
+        <span class="c1"># will need to close a if  fails</span>
+        <span class="n">modea</span><span class="p">,</span> <span class="n">closeda</span> <span class="o">=</span> <span class="n">_get_file_mode</span><span class="p">(</span><span class="n">inputa</span><span class="p">)</span>
+        <span class="n">modeb</span><span class="p">,</span> <span class="n">closedb</span> <span class="o">=</span> <span class="n">_get_file_mode</span><span class="p">(</span><span class="n">inputb</span><span class="p">)</span>
+
+        <span class="n">hdulista</span><span class="p">,</span> <span class="n">extidxa</span> <span class="o">=</span> <span class="n">_getext</span><span class="p">(</span><span class="n">inputa</span><span class="p">,</span> <span class="n">modea</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">extension</span><span class="p">)</span>
+        <span class="c1"># Have to close a if b doesn&#39;t make it</span>
+        <span class="k">try</span><span class="p">:</span>
+            <span class="n">hdulistb</span><span class="p">,</span> <span class="n">extidxb</span> <span class="o">=</span> <span class="n">_getext</span><span class="p">(</span><span class="n">inputb</span><span class="p">,</span> <span class="n">modeb</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">extension</span><span class="p">)</span>
+        <span class="k">except</span> <span class="ne">Exception</span><span class="p">:</span>
+            <span class="n">hdulista</span><span class="o">.</span><span class="n">close</span><span class="p">(</span><span class="n">closed</span><span class="o">=</span><span class="n">closeda</span><span class="p">)</span>
+            <span class="k">raise</span>
+
+        <span class="k">try</span><span class="p">:</span>
+            <span class="n">hdua</span> <span class="o">=</span> <span class="n">hdulista</span><span class="p">[</span><span class="n">extidxa</span><span class="p">]</span>
+            <span class="n">hdub</span> <span class="o">=</span> <span class="n">hdulistb</span><span class="p">[</span><span class="n">extidxb</span><span class="p">]</span>
+            <span class="c1"># See below print for note</span>
+            <span class="nb">print</span><span class="p">(</span><span class="n">HDUDiff</span><span class="p">(</span><span class="n">hdua</span><span class="p">,</span> <span class="n">hdub</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span><span class="o">.</span><span class="n">report</span><span class="p">())</span>
+
+        <span class="k">finally</span><span class="p">:</span>
+            <span class="n">hdulista</span><span class="o">.</span><span class="n">close</span><span class="p">(</span><span class="n">closed</span><span class="o">=</span><span class="n">closeda</span><span class="p">)</span>
+            <span class="n">hdulistb</span><span class="o">.</span><span class="n">close</span><span class="p">(</span><span class="n">closed</span><span class="o">=</span><span class="n">closedb</span><span class="p">)</span>
+
+    <span class="c1"># If input is not a string, can feed HDU objects or HDUList directly,</span>
+    <span class="c1"># but can&#39;t currently handle extensions</span>
+    <span class="k">elif</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">inputa</span><span class="p">,</span> <span class="n">_ValidHDU</span><span class="p">)</span> <span class="ow">and</span> <span class="n">has_extensions</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;Cannot use extension keywords when providing an &quot;</span>
+                         <span class="s2">&quot;HDU object.&quot;</span><span class="p">)</span>
+
+    <span class="k">elif</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">inputa</span><span class="p">,</span> <span class="n">_ValidHDU</span><span class="p">)</span> <span class="ow">and</span> <span class="ow">not</span> <span class="n">has_extensions</span><span class="p">:</span>
+        <span class="nb">print</span><span class="p">(</span><span class="n">HDUDiff</span><span class="p">(</span><span class="n">inputa</span><span class="p">,</span> <span class="n">inputb</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span><span class="o">.</span><span class="n">report</span><span class="p">())</span>
+
+    <span class="k">elif</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">inputa</span><span class="p">,</span> <span class="n">HDUList</span><span class="p">)</span> <span class="ow">and</span> <span class="n">has_extensions</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="ne">NotImplementedError</span><span class="p">(</span><span class="s2">&quot;Extension specification with HDUList &quot;</span>
+                                  <span class="s2">&quot;objects not implemented.&quot;</span><span class="p">)</span>
+
+    <span class="c1"># This function is EXCLUSIVELY for printing the diff report to screen</span>
+    <span class="c1"># in a one-liner call, hence the use of print instead of logging</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="nb">print</span><span class="p">(</span><span class="n">FITSDiff</span><span class="p">(</span><span class="n">inputa</span><span class="p">,</span> <span class="n">inputb</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span><span class="o">.</span><span class="n">report</span><span class="p">())</span></div>
+
+
+<span class="nd">@deprecated_renamed_argument</span><span class="p">(</span><span class="s1">&#39;clobber&#39;</span><span class="p">,</span> <span class="s1">&#39;overwrite&#39;</span><span class="p">,</span> <span class="s1">&#39;2.0&#39;</span><span class="p">)</span>
+<div class="viewcode-block" id="tabledump"><a class="viewcode-back" href="../../../../io/fits/api/tables.html#astropy.io.fits.tabledump">[docs]</a><span class="k">def</span> <span class="nf">tabledump</span><span class="p">(</span><span class="n">filename</span><span class="p">,</span> <span class="n">datafile</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">cdfile</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">hfile</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">ext</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span>
+              <span class="n">overwrite</span><span class="o">=</span><span class="kc">False</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Dump a table HDU to a file in ASCII format.  The table may be</span>
+<span class="sd">    dumped in three separate files, one containing column definitions,</span>
+<span class="sd">    one containing header parameters, and one for table data.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    filename : file path, file object or file-like object</span>
+<span class="sd">        Input fits file.</span>
+
+<span class="sd">    datafile : file path, file object or file-like object, optional</span>
+<span class="sd">        Output data file.  The default is the root name of the input</span>
+<span class="sd">        fits file appended with an underscore, followed by the</span>
+<span class="sd">        extension number (ext), followed by the extension ``.txt``.</span>
+
+<span class="sd">    cdfile : file path, file object or file-like object, optional</span>
+<span class="sd">        Output column definitions file.  The default is `None`,</span>
+<span class="sd">        no column definitions output is produced.</span>
+
+<span class="sd">    hfile : file path, file object or file-like object, optional</span>
+<span class="sd">        Output header parameters file.  The default is `None`,</span>
+<span class="sd">        no header parameters output is produced.</span>
+
+<span class="sd">    ext : int</span>
+<span class="sd">        The number of the extension containing the table HDU to be</span>
+<span class="sd">        dumped.</span>
+
+<span class="sd">    overwrite : bool, optional</span>
+<span class="sd">        If ``True``, overwrite the output file if it exists. Raises an</span>
+<span class="sd">        ``OSError`` (``IOError`` for Python 2) if ``False`` and the</span>
+<span class="sd">        output file exists. Default is ``False``.</span>
+
+<span class="sd">        .. versionchanged:: 1.3</span>
+<span class="sd">           ``overwrite`` replaces the deprecated ``clobber`` argument.</span>
+
+<span class="sd">    Notes</span>
+<span class="sd">    -----</span>
+<span class="sd">    The primary use for the `tabledump` function is to allow editing in a</span>
+<span class="sd">    standard text editor of the table data and parameters.  The</span>
+<span class="sd">    `tableload` function can be used to reassemble the table from the</span>
+<span class="sd">    three ASCII files.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="c1"># allow file object to already be opened in any of the valid modes</span>
+    <span class="c1"># and leave the file in the same state (opened or closed) as when</span>
+    <span class="c1"># the function was called</span>
+
+    <span class="n">mode</span><span class="p">,</span> <span class="n">closed</span> <span class="o">=</span> <span class="n">_get_file_mode</span><span class="p">(</span><span class="n">filename</span><span class="p">,</span> <span class="n">default</span><span class="o">=</span><span class="s1">&#39;readonly&#39;</span><span class="p">)</span>
+    <span class="n">f</span> <span class="o">=</span> <span class="n">fitsopen</span><span class="p">(</span><span class="n">filename</span><span class="p">,</span> <span class="n">mode</span><span class="o">=</span><span class="n">mode</span><span class="p">)</span>
+
+    <span class="c1"># Create the default data file name if one was not provided</span>
+    <span class="k">try</span><span class="p">:</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">datafile</span><span class="p">:</span>
+            <span class="c1"># TODO: Really need to provide a better way to access the name of</span>
+            <span class="c1"># any files underlying an HDU</span>
+            <span class="n">root</span><span class="p">,</span> <span class="n">tail</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">splitext</span><span class="p">(</span><span class="n">f</span><span class="o">.</span><span class="n">_HDUList__file</span><span class="o">.</span><span class="n">name</span><span class="p">)</span>
+            <span class="n">datafile</span> <span class="o">=</span> <span class="n">root</span> <span class="o">+</span> <span class="s1">&#39;_&#39;</span> <span class="o">+</span> <span class="nb">repr</span><span class="p">(</span><span class="n">ext</span><span class="p">)</span> <span class="o">+</span> <span class="s1">&#39;.txt&#39;</span>
+
+        <span class="c1"># Dump the data from the HDU to the files</span>
+        <span class="n">f</span><span class="p">[</span><span class="n">ext</span><span class="p">]</span><span class="o">.</span><span class="n">dump</span><span class="p">(</span><span class="n">datafile</span><span class="p">,</span> <span class="n">cdfile</span><span class="p">,</span> <span class="n">hfile</span><span class="p">,</span> <span class="n">overwrite</span><span class="p">)</span>
+    <span class="k">finally</span><span class="p">:</span>
+        <span class="k">if</span> <span class="n">closed</span><span class="p">:</span>
+            <span class="n">f</span><span class="o">.</span><span class="n">close</span><span class="p">()</span></div>
+
+
+<span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">tabledump</span><span class="o">.</span><span class="n">__doc__</span><span class="p">,</span> <span class="n">string_types</span><span class="p">):</span>
+    <span class="n">tabledump</span><span class="o">.</span><span class="n">__doc__</span> <span class="o">+=</span> <span class="n">BinTableHDU</span><span class="o">.</span><span class="n">_tdump_file_format</span><span class="o">.</span><span class="n">replace</span><span class="p">(</span><span class="s1">&#39;</span><span class="se">\n</span><span class="s1">&#39;</span><span class="p">,</span> <span class="s1">&#39;</span><span class="se">\n</span><span class="s1">    &#39;</span><span class="p">)</span>
+
+
+<div class="viewcode-block" id="tableload"><a class="viewcode-back" href="../../../../io/fits/api/tables.html#astropy.io.fits.tableload">[docs]</a><span class="k">def</span> <span class="nf">tableload</span><span class="p">(</span><span class="n">datafile</span><span class="p">,</span> <span class="n">cdfile</span><span class="p">,</span> <span class="n">hfile</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Create a table from the input ASCII files.  The input is from up</span>
+<span class="sd">    to three separate files, one containing column definitions, one</span>
+<span class="sd">    containing header parameters, and one containing column data.  The</span>
+<span class="sd">    header parameters file is not required.  When the header</span>
+<span class="sd">    parameters file is absent a minimal header is constructed.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    datafile : file path, file object or file-like object</span>
+<span class="sd">        Input data file containing the table data in ASCII format.</span>
+
+<span class="sd">    cdfile : file path, file object or file-like object</span>
+<span class="sd">        Input column definition file containing the names, formats,</span>
+<span class="sd">        display formats, physical units, multidimensional array</span>
+<span class="sd">        dimensions, undefined values, scale factors, and offsets</span>
+<span class="sd">        associated with the columns in the table.</span>
+
+<span class="sd">    hfile : file path, file object or file-like object, optional</span>
+<span class="sd">        Input parameter definition file containing the header</span>
+<span class="sd">        parameter definitions to be associated with the table.</span>
+<span class="sd">        If `None`, a minimal header is constructed.</span>
+
+<span class="sd">    Notes</span>
+<span class="sd">    -----</span>
+<span class="sd">    The primary use for the `tableload` function is to allow the input of</span>
+<span class="sd">    ASCII data that was edited in a standard text editor of the table</span>
+<span class="sd">    data and parameters.  The tabledump function can be used to create the</span>
+<span class="sd">    initial ASCII files.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="k">return</span> <span class="n">BinTableHDU</span><span class="o">.</span><span class="n">load</span><span class="p">(</span><span class="n">datafile</span><span class="p">,</span> <span class="n">cdfile</span><span class="p">,</span> <span class="n">hfile</span><span class="p">,</span> <span class="n">replace</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span></div>
+
+
+<span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">tableload</span><span class="o">.</span><span class="n">__doc__</span><span class="p">,</span> <span class="n">string_types</span><span class="p">):</span>
+    <span class="n">tableload</span><span class="o">.</span><span class="n">__doc__</span> <span class="o">+=</span> <span class="n">BinTableHDU</span><span class="o">.</span><span class="n">_tdump_file_format</span><span class="o">.</span><span class="n">replace</span><span class="p">(</span><span class="s1">&#39;</span><span class="se">\n</span><span class="s1">&#39;</span><span class="p">,</span> <span class="s1">&#39;</span><span class="se">\n</span><span class="s1">    &#39;</span><span class="p">)</span>
+
+
+<span class="k">def</span> <span class="nf">_getext</span><span class="p">(</span><span class="n">filename</span><span class="p">,</span> <span class="n">mode</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Open the input file, return the `HDUList` and the extension.</span>
+
+<span class="sd">    This supports several different styles of extension selection.  See the</span>
+<span class="sd">    :func:`getdata()` documentation for the different possibilities.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="n">ext</span> <span class="o">=</span> <span class="n">kwargs</span><span class="o">.</span><span class="n">pop</span><span class="p">(</span><span class="s1">&#39;ext&#39;</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span>
+    <span class="n">extname</span> <span class="o">=</span> <span class="n">kwargs</span><span class="o">.</span><span class="n">pop</span><span class="p">(</span><span class="s1">&#39;extname&#39;</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span>
+    <span class="n">extver</span> <span class="o">=</span> <span class="n">kwargs</span><span class="o">.</span><span class="n">pop</span><span class="p">(</span><span class="s1">&#39;extver&#39;</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span>
+
+    <span class="n">err_msg</span> <span class="o">=</span> <span class="p">(</span><span class="s1">&#39;Redundant/conflicting extension arguments(s): </span><span class="si">{}</span><span class="s1">&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span>
+            <span class="p">{</span><span class="s1">&#39;args&#39;</span><span class="p">:</span> <span class="n">args</span><span class="p">,</span> <span class="s1">&#39;ext&#39;</span><span class="p">:</span> <span class="n">ext</span><span class="p">,</span> <span class="s1">&#39;extname&#39;</span><span class="p">:</span> <span class="n">extname</span><span class="p">,</span>
+             <span class="s1">&#39;extver&#39;</span><span class="p">:</span> <span class="n">extver</span><span class="p">}))</span>
+
+    <span class="c1"># This code would be much simpler if just one way of specifying an</span>
+    <span class="c1"># extension were picked.  But now we need to support all possible ways for</span>
+    <span class="c1"># the time being.</span>
+    <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">args</span><span class="p">)</span> <span class="o">==</span> <span class="mi">1</span><span class="p">:</span>
+        <span class="c1"># Must be either an extension number, an extension name, or an</span>
+        <span class="c1"># (extname, extver) tuple</span>
+        <span class="k">if</span> <span class="n">_is_int</span><span class="p">(</span><span class="n">args</span><span class="p">[</span><span class="mi">0</span><span class="p">])</span> <span class="ow">or</span> <span class="p">(</span><span class="nb">isinstance</span><span class="p">(</span><span class="n">ext</span><span class="p">,</span> <span class="nb">tuple</span><span class="p">)</span> <span class="ow">and</span> <span class="nb">len</span><span class="p">(</span><span class="n">ext</span><span class="p">)</span> <span class="o">==</span> <span class="mi">2</span><span class="p">):</span>
+            <span class="k">if</span> <span class="n">ext</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="ow">or</span> <span class="n">extname</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="ow">or</span> <span class="n">extver</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+                <span class="k">raise</span> <span class="ne">TypeError</span><span class="p">(</span><span class="n">err_msg</span><span class="p">)</span>
+            <span class="n">ext</span> <span class="o">=</span> <span class="n">args</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+        <span class="k">elif</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">args</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="n">string_types</span><span class="p">):</span>
+            <span class="c1"># The first arg is an extension name; it could still be valid</span>
+            <span class="c1"># to provide an extver kwarg</span>
+            <span class="k">if</span> <span class="n">ext</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="ow">or</span> <span class="n">extname</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+                <span class="k">raise</span> <span class="ne">TypeError</span><span class="p">(</span><span class="n">err_msg</span><span class="p">)</span>
+            <span class="n">extname</span> <span class="o">=</span> <span class="n">args</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="c1"># Take whatever we have as the ext argument; we&#39;ll validate it</span>
+            <span class="c1"># below</span>
+            <span class="n">ext</span> <span class="o">=</span> <span class="n">args</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+    <span class="k">elif</span> <span class="nb">len</span><span class="p">(</span><span class="n">args</span><span class="p">)</span> <span class="o">==</span> <span class="mi">2</span><span class="p">:</span>
+        <span class="c1"># Must be an extname and extver</span>
+        <span class="k">if</span> <span class="n">ext</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="ow">or</span> <span class="n">extname</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="ow">or</span> <span class="n">extver</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">TypeError</span><span class="p">(</span><span class="n">err_msg</span><span class="p">)</span>
+        <span class="n">extname</span> <span class="o">=</span> <span class="n">args</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+        <span class="n">extver</span> <span class="o">=</span> <span class="n">args</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span>
+    <span class="k">elif</span> <span class="nb">len</span><span class="p">(</span><span class="n">args</span><span class="p">)</span> <span class="o">&gt;</span> <span class="mi">2</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="ne">TypeError</span><span class="p">(</span><span class="s1">&#39;Too many positional arguments.&#39;</span><span class="p">)</span>
+
+    <span class="k">if</span> <span class="p">(</span><span class="n">ext</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="ow">and</span>
+            <span class="ow">not</span> <span class="p">(</span><span class="n">_is_int</span><span class="p">(</span><span class="n">ext</span><span class="p">)</span> <span class="ow">or</span>
+                 <span class="p">(</span><span class="nb">isinstance</span><span class="p">(</span><span class="n">ext</span><span class="p">,</span> <span class="nb">tuple</span><span class="p">)</span> <span class="ow">and</span> <span class="nb">len</span><span class="p">(</span><span class="n">ext</span><span class="p">)</span> <span class="o">==</span> <span class="mi">2</span> <span class="ow">and</span>
+                  <span class="nb">isinstance</span><span class="p">(</span><span class="n">ext</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="n">string_types</span><span class="p">)</span> <span class="ow">and</span> <span class="n">_is_int</span><span class="p">(</span><span class="n">ext</span><span class="p">[</span><span class="mi">1</span><span class="p">])))):</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
+            <span class="s1">&#39;The ext keyword must be either an extension number &#39;</span>
+            <span class="s1">&#39;(zero-indexed) or a (extname, extver) tuple.&#39;</span><span class="p">)</span>
+    <span class="k">if</span> <span class="n">extname</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="ow">and</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">extname</span><span class="p">,</span> <span class="n">string_types</span><span class="p">):</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s1">&#39;The extname argument must be a string.&#39;</span><span class="p">)</span>
+    <span class="k">if</span> <span class="n">extver</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="ow">and</span> <span class="ow">not</span> <span class="n">_is_int</span><span class="p">(</span><span class="n">extver</span><span class="p">):</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s1">&#39;The extver argument must be an integer.&#39;</span><span class="p">)</span>
+
+    <span class="k">if</span> <span class="n">ext</span> <span class="ow">is</span> <span class="kc">None</span> <span class="ow">and</span> <span class="n">extname</span> <span class="ow">is</span> <span class="kc">None</span> <span class="ow">and</span> <span class="n">extver</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="n">ext</span> <span class="o">=</span> <span class="mi">0</span>
+    <span class="k">elif</span> <span class="n">ext</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="ow">and</span> <span class="p">(</span><span class="n">extname</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="ow">or</span> <span class="n">extver</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">):</span>
+        <span class="k">raise</span> <span class="ne">TypeError</span><span class="p">(</span><span class="n">err_msg</span><span class="p">)</span>
+    <span class="k">elif</span> <span class="n">extname</span><span class="p">:</span>
+        <span class="k">if</span> <span class="n">extver</span><span class="p">:</span>
+            <span class="n">ext</span> <span class="o">=</span> <span class="p">(</span><span class="n">extname</span><span class="p">,</span> <span class="n">extver</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">ext</span> <span class="o">=</span> <span class="p">(</span><span class="n">extname</span><span class="p">,</span> <span class="mi">1</span><span class="p">)</span>
+    <span class="k">elif</span> <span class="n">extver</span> <span class="ow">and</span> <span class="n">extname</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="ne">TypeError</span><span class="p">(</span><span class="s1">&#39;extver alone cannot specify an extension.&#39;</span><span class="p">)</span>
+
+    <span class="n">hdulist</span> <span class="o">=</span> <span class="n">fitsopen</span><span class="p">(</span><span class="n">filename</span><span class="p">,</span> <span class="n">mode</span><span class="o">=</span><span class="n">mode</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
+
+    <span class="k">return</span> <span class="n">hdulist</span><span class="p">,</span> <span class="n">ext</span>
+
+
+<span class="k">def</span> <span class="nf">_makehdu</span><span class="p">(</span><span class="n">data</span><span class="p">,</span> <span class="n">header</span><span class="p">):</span>
+    <span class="k">if</span> <span class="n">header</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="n">header</span> <span class="o">=</span> <span class="n">Header</span><span class="p">()</span>
+    <span class="n">hdu</span> <span class="o">=</span> <span class="n">_BaseHDU</span><span class="p">(</span><span class="n">data</span><span class="p">,</span> <span class="n">header</span><span class="p">)</span>
+    <span class="k">if</span> <span class="n">hdu</span><span class="o">.</span><span class="n">__class__</span> <span class="ow">in</span> <span class="p">(</span><span class="n">_BaseHDU</span><span class="p">,</span> <span class="n">_ValidHDU</span><span class="p">):</span>
+        <span class="c1"># The HDU type was unrecognized, possibly due to a</span>
+        <span class="c1"># nonexistent/incomplete header</span>
+        <span class="k">if</span> <span class="p">((</span><span class="nb">isinstance</span><span class="p">(</span><span class="n">data</span><span class="p">,</span> <span class="n">np</span><span class="o">.</span><span class="n">ndarray</span><span class="p">)</span> <span class="ow">and</span> <span class="n">data</span><span class="o">.</span><span class="n">dtype</span><span class="o">.</span><span class="n">fields</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">)</span> <span class="ow">or</span>
+                <span class="nb">isinstance</span><span class="p">(</span><span class="n">data</span><span class="p">,</span> <span class="n">np</span><span class="o">.</span><span class="n">recarray</span><span class="p">)):</span>
+            <span class="n">hdu</span> <span class="o">=</span> <span class="n">BinTableHDU</span><span class="p">(</span><span class="n">data</span><span class="p">,</span> <span class="n">header</span><span class="o">=</span><span class="n">header</span><span class="p">)</span>
+        <span class="k">elif</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">data</span><span class="p">,</span> <span class="n">np</span><span class="o">.</span><span class="n">ndarray</span><span class="p">):</span>
+            <span class="n">hdu</span> <span class="o">=</span> <span class="n">ImageHDU</span><span class="p">(</span><span class="n">data</span><span class="p">,</span> <span class="n">header</span><span class="o">=</span><span class="n">header</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">KeyError</span><span class="p">(</span><span class="s1">&#39;Data must be a numpy array.&#39;</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">hdu</span>
+
+
+<span class="k">def</span> <span class="nf">_stat_filename_or_fileobj</span><span class="p">(</span><span class="n">filename</span><span class="p">):</span>
+    <span class="n">closed</span> <span class="o">=</span> <span class="n">fileobj_closed</span><span class="p">(</span><span class="n">filename</span><span class="p">)</span>
+    <span class="n">name</span> <span class="o">=</span> <span class="n">fileobj_name</span><span class="p">(</span><span class="n">filename</span><span class="p">)</span> <span class="ow">or</span> <span class="s1">&#39;&#39;</span>
+
+    <span class="k">try</span><span class="p">:</span>
+        <span class="n">loc</span> <span class="o">=</span> <span class="n">filename</span><span class="o">.</span><span class="n">tell</span><span class="p">()</span>
+    <span class="k">except</span> <span class="ne">AttributeError</span><span class="p">:</span>
+        <span class="n">loc</span> <span class="o">=</span> <span class="mi">0</span>
+
+    <span class="n">noexist_or_empty</span> <span class="o">=</span> <span class="p">((</span><span class="n">name</span> <span class="ow">and</span>
+                         <span class="p">(</span><span class="ow">not</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">exists</span><span class="p">(</span><span class="n">name</span><span class="p">)</span> <span class="ow">or</span>
+                          <span class="p">(</span><span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">getsize</span><span class="p">(</span><span class="n">name</span><span class="p">)</span> <span class="o">==</span> <span class="mi">0</span><span class="p">)))</span>
+                         <span class="ow">or</span> <span class="p">(</span><span class="ow">not</span> <span class="n">name</span> <span class="ow">and</span> <span class="n">loc</span> <span class="o">==</span> <span class="mi">0</span><span class="p">))</span>
+
+    <span class="k">return</span> <span class="n">name</span><span class="p">,</span> <span class="n">closed</span><span class="p">,</span> <span class="n">noexist_or_empty</span>
+
+
+<span class="k">def</span> <span class="nf">_get_file_mode</span><span class="p">(</span><span class="n">filename</span><span class="p">,</span> <span class="n">default</span><span class="o">=</span><span class="s1">&#39;readonly&#39;</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Allow file object to already be opened in any of the valid modes and</span>
+<span class="sd">    and leave the file in the same state (opened or closed) as when</span>
+<span class="sd">    the function was called.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="n">mode</span> <span class="o">=</span> <span class="n">default</span>
+    <span class="n">closed</span> <span class="o">=</span> <span class="n">fileobj_closed</span><span class="p">(</span><span class="n">filename</span><span class="p">)</span>
+
+    <span class="n">fmode</span> <span class="o">=</span> <span class="n">fileobj_mode</span><span class="p">(</span><span class="n">filename</span><span class="p">)</span>
+    <span class="k">if</span> <span class="n">fmode</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="n">mode</span> <span class="o">=</span> <span class="n">FILE_MODES</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">fmode</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">mode</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">IOError</span><span class="p">(</span>
+                <span class="s2">&quot;File mode of the input file object (</span><span class="si">{!r}</span><span class="s2">) cannot be used to &quot;</span>
+                <span class="s2">&quot;read/write FITS files.&quot;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">fmode</span><span class="p">))</span>
+
+    <span class="k">return</span> <span class="n">mode</span><span class="p">,</span> <span class="n">closed</span>
+</pre></div>
+
+          </div>
+        </div>
+      </div>
+      <div class="sphinxsidebar" role="navigation" aria-label="main navigation">
+        <div class="sphinxsidebarwrapper"><h3>Page Contents</h3>
+
+
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+<footer class="footer">
+  <p class="pull-right"> &nbsp;
+    <a href="#">Back to Top</a></p>
+  <p>
+    &copy; Copyright 2011-2016, The Astropy Developers.<br/>
+    Created using <a href="http://sphinx.pocoo.org/">Sphinx</a> 1.5.6. &nbsp;
+    Last built 05 Jul 2017. <br/>
+  </p>
+</footer>
+  </body>
+</html>

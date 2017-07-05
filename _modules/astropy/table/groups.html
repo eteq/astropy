@@ -1,0 +1,508 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <head>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    
+    <title>astropy.table.groups &#8212; Astropy v3.0.dev19489</title>
+    
+    <link rel="stylesheet" href="../../../_static/bootstrap-astropy.css" type="text/css" />
+    <link rel="stylesheet" href="../../../_static/pygments.css" type="text/css" />
+    <link rel="stylesheet" href="../../../_static/gallery.css" type="text/css" />
+    
+    <script type="text/javascript">
+      var DOCUMENTATION_OPTIONS = {
+        URL_ROOT:    '../../../',
+        VERSION:     '3.0.dev19489',
+        COLLAPSE_INDEX: false,
+        FILE_SUFFIX: '.html',
+        HAS_SOURCE:  true,
+        SOURCELINK_SUFFIX: '.txt'
+      };
+    </script>
+    <script type="text/javascript" src="../../../_static/jquery.js"></script>
+    <script type="text/javascript" src="../../../_static/underscore.js"></script>
+    <script type="text/javascript" src="../../../_static/doctools.js"></script>
+    <script type="text/javascript" src="../../../_static/sidebar.js"></script>
+    <link rel="shortcut icon" href="../../../_static/astropy_logo.ico"/>
+    <link rel="index" title="Index" href="../../../genindex.html" />
+    <link rel="search" title="Search" href="../../../search.html" />
+<link href='https://fonts.googleapis.com/css?family=Source+Sans+Pro:200,600' rel='stylesheet' type='text/css'/>
+<script type="text/javascript" src="../../../_static/copybutton.js"></script>
+
+
+  </head>
+  <body role="document">
+<div class="topbar">
+  <a class="brand" title="Documentation Home" href="../../../index.html"><span id="logotext1">astro</span><span id="logotext2">py</span><span id="logotext3">:docs</span></a>
+  <ul>
+    <li><a class="homelink" title="Astropy Homepage" href="http://www.astropy.org"></a></li>
+    <li><a title="General Index" href="../../../genindex.html">Index</a></li>
+    <li><a title="Module Index" href="../../../py-modindex.html">Modules</a></li>
+    <li>
+      
+      
+<form action="../../../search.html" method="get">
+  <input type="text" name="q" placeholder="Search" />
+  <input type="hidden" name="check_keywords" value="yes" />
+  <input type="hidden" name="area" value="default" />
+</form>
+      
+    </li>
+  </ul>
+</div>
+
+<div class="related">
+    <h3>Navigation</h3>
+    <ul>
+      <li>
+	<a href="../../../index.html">Astropy v3.0.dev19489</a>
+	 &#187;
+      </li>
+      <li><a href="../../index.html" >Module code</a> &#187;</li>
+      <li><a href="../../astropy.html" >astropy</a> &#187;</li>
+      <li><a href="../table.html" accesskey="U">astropy.table</a> &#187;</li>
+      
+       
+    </ul>
+</div>
+  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          <div class="body" role="main">
+            
+  <h1>Source code for astropy.table.groups</h1><div class="highlight"><pre>
+<span></span><span class="c1"># Licensed under a 3-clause BSD style license - see LICENSE.rst</span>
+<span class="kn">from</span> <span class="nn">__future__</span> <span class="k">import</span> <span class="p">(</span><span class="n">absolute_import</span><span class="p">,</span> <span class="n">division</span><span class="p">,</span> <span class="n">print_function</span><span class="p">,</span>
+                        <span class="n">unicode_literals</span><span class="p">)</span>
+<span class="kn">from</span> <span class="nn">..extern</span> <span class="k">import</span> <span class="n">six</span>
+<span class="kn">from</span> <span class="nn">..extern.six.moves</span> <span class="k">import</span> <span class="nb">zip</span>
+
+<span class="kn">import</span> <span class="nn">platform</span>
+<span class="kn">import</span> <span class="nn">warnings</span>
+
+<span class="kn">import</span> <span class="nn">numpy</span> <span class="k">as</span> <span class="nn">np</span>
+<span class="kn">from</span> <span class="nn">.index</span> <span class="k">import</span> <span class="n">get_index</span>
+
+<span class="kn">from</span> <span class="nn">..utils.exceptions</span> <span class="k">import</span> <span class="n">AstropyUserWarning</span>
+
+
+<span class="n">__all__</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;TableGroups&#39;</span><span class="p">,</span> <span class="s1">&#39;ColumnGroups&#39;</span><span class="p">]</span>
+
+
+<span class="k">def</span> <span class="nf">table_group_by</span><span class="p">(</span><span class="n">table</span><span class="p">,</span> <span class="n">keys</span><span class="p">):</span>
+    <span class="c1"># index copies are unnecessary and slow down _table_group_by</span>
+    <span class="k">with</span> <span class="n">table</span><span class="o">.</span><span class="n">index_mode</span><span class="p">(</span><span class="s1">&#39;discard_on_copy&#39;</span><span class="p">):</span>
+        <span class="k">return</span> <span class="n">_table_group_by</span><span class="p">(</span><span class="n">table</span><span class="p">,</span> <span class="n">keys</span><span class="p">)</span>
+
+
+<span class="k">def</span> <span class="nf">_table_group_by</span><span class="p">(</span><span class="n">table</span><span class="p">,</span> <span class="n">keys</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Get groups for ``table`` on specified ``keys``.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    table : `Table`</span>
+<span class="sd">        Table to group</span>
+<span class="sd">    keys : str, list of str, `Table`, or Numpy array</span>
+<span class="sd">        Grouping key specifier</span>
+
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+<span class="sd">    grouped_table : Table object with groups attr set accordingly</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="kn">from</span> <span class="nn">.table</span> <span class="k">import</span> <span class="n">Table</span>
+    <span class="c1"># Pre-convert string to tuple of strings, or Table to the underlying structured array</span>
+    <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">keys</span><span class="p">,</span> <span class="n">six</span><span class="o">.</span><span class="n">string_types</span><span class="p">):</span>
+        <span class="n">keys</span> <span class="o">=</span> <span class="p">(</span><span class="n">keys</span><span class="p">,)</span>
+
+    <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">keys</span><span class="p">,</span> <span class="p">(</span><span class="nb">list</span><span class="p">,</span> <span class="nb">tuple</span><span class="p">)):</span>
+        <span class="k">for</span> <span class="n">name</span> <span class="ow">in</span> <span class="n">keys</span><span class="p">:</span>
+            <span class="k">if</span> <span class="n">name</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">table</span><span class="o">.</span><span class="n">colnames</span><span class="p">:</span>
+                <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s1">&#39;Table does not have key column </span><span class="si">{0!r}</span><span class="s1">&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">name</span><span class="p">))</span>
+            <span class="k">if</span> <span class="n">table</span><span class="o">.</span><span class="n">masked</span> <span class="ow">and</span> <span class="n">np</span><span class="o">.</span><span class="n">any</span><span class="p">(</span><span class="n">table</span><span class="p">[</span><span class="n">name</span><span class="p">]</span><span class="o">.</span><span class="n">mask</span><span class="p">):</span>
+                <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s1">&#39;Missing values in key column </span><span class="si">{0!r}</span><span class="s1"> are not allowed&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">name</span><span class="p">))</span>
+
+        <span class="n">keys</span> <span class="o">=</span> <span class="nb">tuple</span><span class="p">(</span><span class="n">keys</span><span class="p">)</span>
+        <span class="n">table_keys</span> <span class="o">=</span> <span class="n">table</span><span class="p">[</span><span class="n">keys</span><span class="p">]</span>
+        <span class="n">grouped_by_table_cols</span> <span class="o">=</span> <span class="kc">True</span>  <span class="c1"># Grouping keys are columns from the table being grouped</span>
+
+    <span class="k">elif</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">keys</span><span class="p">,</span> <span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">ndarray</span><span class="p">,</span> <span class="n">Table</span><span class="p">)):</span>
+        <span class="n">table_keys</span> <span class="o">=</span> <span class="n">keys</span>
+        <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">table_keys</span><span class="p">)</span> <span class="o">!=</span> <span class="nb">len</span><span class="p">(</span><span class="n">table</span><span class="p">):</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s1">&#39;Input keys array length </span><span class="si">{0}</span><span class="s1"> does not match table length </span><span class="si">{1}</span><span class="s1">&#39;</span>
+                             <span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">table_keys</span><span class="p">),</span> <span class="nb">len</span><span class="p">(</span><span class="n">table</span><span class="p">)))</span>
+        <span class="n">grouped_by_table_cols</span> <span class="o">=</span> <span class="kc">False</span>  <span class="c1"># Grouping key(s) are external</span>
+
+    <span class="k">else</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="ne">TypeError</span><span class="p">(</span><span class="s1">&#39;Keys input must be string, list, tuple or numpy array, but got </span><span class="si">{0}</span><span class="s1">&#39;</span>
+                        <span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="nb">type</span><span class="p">(</span><span class="n">keys</span><span class="p">)))</span>
+
+    <span class="k">try</span><span class="p">:</span>
+        <span class="c1"># take advantage of index internal sort if possible</span>
+        <span class="n">table_index</span> <span class="o">=</span> <span class="n">get_index</span><span class="p">(</span><span class="n">table</span><span class="p">,</span> <span class="n">table_keys</span><span class="p">)</span> <span class="k">if</span> \
+                      <span class="nb">isinstance</span><span class="p">(</span><span class="n">table_keys</span><span class="p">,</span> <span class="n">Table</span><span class="p">)</span> <span class="k">else</span> <span class="kc">None</span>
+        <span class="k">if</span> <span class="n">table_index</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">idx_sort</span> <span class="o">=</span> <span class="n">table_index</span><span class="o">.</span><span class="n">sorted_data</span><span class="p">()</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">idx_sort</span> <span class="o">=</span> <span class="n">table_keys</span><span class="o">.</span><span class="n">argsort</span><span class="p">(</span><span class="n">kind</span><span class="o">=</span><span class="s1">&#39;mergesort&#39;</span><span class="p">)</span>
+        <span class="n">stable_sort</span> <span class="o">=</span> <span class="kc">True</span>
+    <span class="k">except</span> <span class="ne">TypeError</span><span class="p">:</span>
+        <span class="c1"># Some versions (likely 1.6 and earlier) of numpy don&#39;t support</span>
+        <span class="c1"># &#39;mergesort&#39; for all data types.  MacOSX (Darwin) doesn&#39;t have a stable</span>
+        <span class="c1"># sort by default, nor does Windows, while Linux does (or appears to).</span>
+        <span class="n">idx_sort</span> <span class="o">=</span> <span class="n">table_keys</span><span class="o">.</span><span class="n">argsort</span><span class="p">()</span>
+        <span class="n">stable_sort</span> <span class="o">=</span> <span class="n">platform</span><span class="o">.</span><span class="n">system</span><span class="p">()</span> <span class="ow">not</span> <span class="ow">in</span> <span class="p">(</span><span class="s1">&#39;Darwin&#39;</span><span class="p">,</span> <span class="s1">&#39;Windows&#39;</span><span class="p">)</span>
+    <span class="n">table_keys</span> <span class="o">=</span> <span class="n">table_keys</span><span class="p">[</span><span class="n">idx_sort</span><span class="p">]</span>
+
+    <span class="c1"># Get all keys</span>
+    <span class="n">diffs</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">concatenate</span><span class="p">(([</span><span class="kc">True</span><span class="p">],</span> <span class="n">table_keys</span><span class="p">[</span><span class="mi">1</span><span class="p">:]</span> <span class="o">!=</span> <span class="n">table_keys</span><span class="p">[:</span><span class="o">-</span><span class="mi">1</span><span class="p">],</span> <span class="p">[</span><span class="kc">True</span><span class="p">]))</span>
+    <span class="n">indices</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">flatnonzero</span><span class="p">(</span><span class="n">diffs</span><span class="p">)</span>
+
+    <span class="c1"># If the sort is not stable (preserves original table order) then sort idx_sort in</span>
+    <span class="c1"># place within each group.</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="n">stable_sort</span><span class="p">:</span>
+        <span class="k">for</span> <span class="n">i0</span><span class="p">,</span> <span class="n">i1</span> <span class="ow">in</span> <span class="nb">zip</span><span class="p">(</span><span class="n">indices</span><span class="p">[:</span><span class="o">-</span><span class="mi">1</span><span class="p">],</span> <span class="n">indices</span><span class="p">[</span><span class="mi">1</span><span class="p">:]):</span>
+            <span class="n">idx_sort</span><span class="p">[</span><span class="n">i0</span><span class="p">:</span><span class="n">i1</span><span class="p">]</span><span class="o">.</span><span class="n">sort</span><span class="p">()</span>
+
+    <span class="c1"># Make a new table and set the _groups to the appropriate TableGroups object.</span>
+    <span class="c1"># Take the subset of the original keys at the indices values (group boundaries).</span>
+    <span class="n">out</span> <span class="o">=</span> <span class="n">table</span><span class="o">.</span><span class="n">__class__</span><span class="p">(</span><span class="n">table</span><span class="p">[</span><span class="n">idx_sort</span><span class="p">])</span>
+    <span class="n">out_keys</span> <span class="o">=</span> <span class="n">table_keys</span><span class="p">[</span><span class="n">indices</span><span class="p">[:</span><span class="o">-</span><span class="mi">1</span><span class="p">]]</span>
+    <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">out_keys</span><span class="p">,</span> <span class="n">Table</span><span class="p">):</span>
+        <span class="n">out_keys</span><span class="o">.</span><span class="n">meta</span><span class="p">[</span><span class="s1">&#39;grouped_by_table_cols&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">grouped_by_table_cols</span>
+    <span class="n">out</span><span class="o">.</span><span class="n">_groups</span> <span class="o">=</span> <span class="n">TableGroups</span><span class="p">(</span><span class="n">out</span><span class="p">,</span> <span class="n">indices</span><span class="o">=</span><span class="n">indices</span><span class="p">,</span> <span class="n">keys</span><span class="o">=</span><span class="n">out_keys</span><span class="p">)</span>
+
+    <span class="k">return</span> <span class="n">out</span>
+
+
+<span class="k">def</span> <span class="nf">column_group_by</span><span class="p">(</span><span class="n">column</span><span class="p">,</span> <span class="n">keys</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Get groups for ``column`` on specified ``keys``</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    column : Column object</span>
+<span class="sd">        Column to group</span>
+<span class="sd">    keys : Table or Numpy array of same length as col</span>
+<span class="sd">        Grouping key specifier</span>
+
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+<span class="sd">    grouped_column : Column object with groups attr set accordingly</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="kn">from</span> <span class="nn">.table</span> <span class="k">import</span> <span class="n">Table</span>
+
+    <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">keys</span><span class="p">,</span> <span class="n">Table</span><span class="p">):</span>
+        <span class="n">keys</span> <span class="o">=</span> <span class="n">keys</span><span class="o">.</span><span class="n">as_array</span><span class="p">()</span>
+
+    <span class="k">if</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">keys</span><span class="p">,</span> <span class="n">np</span><span class="o">.</span><span class="n">ndarray</span><span class="p">):</span>
+        <span class="k">raise</span> <span class="ne">TypeError</span><span class="p">(</span><span class="s1">&#39;Keys input must be numpy array, but got </span><span class="si">{0}</span><span class="s1">&#39;</span>
+                        <span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="nb">type</span><span class="p">(</span><span class="n">keys</span><span class="p">)))</span>
+
+    <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">keys</span><span class="p">)</span> <span class="o">!=</span> <span class="nb">len</span><span class="p">(</span><span class="n">column</span><span class="p">):</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s1">&#39;Input keys array length </span><span class="si">{0}</span><span class="s1"> does not match column length </span><span class="si">{1}</span><span class="s1">&#39;</span>
+                         <span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">keys</span><span class="p">),</span> <span class="nb">len</span><span class="p">(</span><span class="n">column</span><span class="p">)))</span>
+
+    <span class="c1"># take advantage of table or column indices, if possible</span>
+    <span class="n">index</span> <span class="o">=</span> <span class="kc">None</span>
+    <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">keys</span><span class="p">,</span> <span class="n">Table</span><span class="p">):</span>
+        <span class="n">index</span> <span class="o">=</span> <span class="n">get_index</span><span class="p">(</span><span class="n">keys</span><span class="p">)</span>
+    <span class="k">elif</span> <span class="nb">hasattr</span><span class="p">(</span><span class="n">keys</span><span class="p">,</span> <span class="s1">&#39;indices&#39;</span><span class="p">)</span> <span class="ow">and</span> <span class="n">keys</span><span class="o">.</span><span class="n">indices</span><span class="p">:</span>
+        <span class="n">index</span> <span class="o">=</span> <span class="n">keys</span><span class="o">.</span><span class="n">indices</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+
+    <span class="k">if</span> <span class="n">index</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="n">idx_sort</span> <span class="o">=</span> <span class="n">index</span><span class="o">.</span><span class="n">sorted_data</span><span class="p">()</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="n">idx_sort</span> <span class="o">=</span> <span class="n">keys</span><span class="o">.</span><span class="n">argsort</span><span class="p">()</span>
+    <span class="n">keys</span> <span class="o">=</span> <span class="n">keys</span><span class="p">[</span><span class="n">idx_sort</span><span class="p">]</span>
+
+    <span class="c1"># Get all keys</span>
+    <span class="n">diffs</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">concatenate</span><span class="p">(([</span><span class="kc">True</span><span class="p">],</span> <span class="n">keys</span><span class="p">[</span><span class="mi">1</span><span class="p">:]</span> <span class="o">!=</span> <span class="n">keys</span><span class="p">[:</span><span class="o">-</span><span class="mi">1</span><span class="p">],</span> <span class="p">[</span><span class="kc">True</span><span class="p">]))</span>
+    <span class="n">indices</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">flatnonzero</span><span class="p">(</span><span class="n">diffs</span><span class="p">)</span>
+
+    <span class="c1"># Make a new column and set the _groups to the appropriate ColumnGroups object.</span>
+    <span class="c1"># Take the subset of the original keys at the indices values (group boundaries).</span>
+    <span class="n">out</span> <span class="o">=</span> <span class="n">column</span><span class="o">.</span><span class="n">__class__</span><span class="p">(</span><span class="n">column</span><span class="p">[</span><span class="n">idx_sort</span><span class="p">])</span>
+    <span class="n">out</span><span class="o">.</span><span class="n">_groups</span> <span class="o">=</span> <span class="n">ColumnGroups</span><span class="p">(</span><span class="n">out</span><span class="p">,</span> <span class="n">indices</span><span class="o">=</span><span class="n">indices</span><span class="p">,</span> <span class="n">keys</span><span class="o">=</span><span class="n">keys</span><span class="p">[</span><span class="n">indices</span><span class="p">[:</span><span class="o">-</span><span class="mi">1</span><span class="p">]])</span>
+
+    <span class="k">return</span> <span class="n">out</span>
+
+
+<span class="k">class</span> <span class="nc">BaseGroups</span><span class="p">(</span><span class="nb">object</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    A class to represent groups within a table of heterogeneous data.</span>
+
+<span class="sd">      - ``keys``: key values corresponding to each group</span>
+<span class="sd">      - ``indices``: index values in parent table or column corresponding to group boundaries</span>
+<span class="sd">      - ``aggregate()``: method to create new table by aggregating within groups</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">parent</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">parent_column</span> <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">ColumnGroups</span><span class="p">)</span> <span class="k">else</span> <span class="bp">self</span><span class="o">.</span><span class="n">parent_table</span>
+
+    <span class="k">def</span> <span class="nf">__iter__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_iter_index</span> <span class="o">=</span> <span class="mi">0</span>
+        <span class="k">return</span> <span class="bp">self</span>
+
+    <span class="k">def</span> <span class="nf">next</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="n">ii</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_iter_index</span>
+        <span class="k">if</span> <span class="n">ii</span> <span class="o">&lt;</span> <span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">indices</span><span class="p">)</span> <span class="o">-</span> <span class="mi">1</span><span class="p">:</span>
+            <span class="n">i0</span><span class="p">,</span> <span class="n">i1</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">indices</span><span class="p">[</span><span class="n">ii</span><span class="p">],</span> <span class="bp">self</span><span class="o">.</span><span class="n">indices</span><span class="p">[</span><span class="n">ii</span> <span class="o">+</span> <span class="mi">1</span><span class="p">]</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_iter_index</span> <span class="o">+=</span> <span class="mi">1</span>
+            <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">parent</span><span class="p">[</span><span class="n">i0</span><span class="p">:</span><span class="n">i1</span><span class="p">]</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">StopIteration</span>
+    <span class="n">__next__</span> <span class="o">=</span> <span class="nb">next</span>
+
+    <span class="k">def</span> <span class="nf">__getitem__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">item</span><span class="p">):</span>
+        <span class="n">parent</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">parent</span>
+
+        <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">item</span><span class="p">,</span> <span class="p">(</span><span class="nb">int</span><span class="p">,</span> <span class="n">np</span><span class="o">.</span><span class="n">integer</span><span class="p">)):</span>
+            <span class="n">i0</span><span class="p">,</span> <span class="n">i1</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">indices</span><span class="p">[</span><span class="n">item</span><span class="p">],</span> <span class="bp">self</span><span class="o">.</span><span class="n">indices</span><span class="p">[</span><span class="n">item</span> <span class="o">+</span> <span class="mi">1</span><span class="p">]</span>
+            <span class="n">out</span> <span class="o">=</span> <span class="n">parent</span><span class="p">[</span><span class="n">i0</span><span class="p">:</span><span class="n">i1</span><span class="p">]</span>
+            <span class="n">out</span><span class="o">.</span><span class="n">groups</span><span class="o">.</span><span class="n">_keys</span> <span class="o">=</span> <span class="n">parent</span><span class="o">.</span><span class="n">groups</span><span class="o">.</span><span class="n">keys</span><span class="p">[</span><span class="n">item</span><span class="p">]</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">indices0</span><span class="p">,</span> <span class="n">indices1</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">indices</span><span class="p">[:</span><span class="o">-</span><span class="mi">1</span><span class="p">],</span> <span class="bp">self</span><span class="o">.</span><span class="n">indices</span><span class="p">[</span><span class="mi">1</span><span class="p">:]</span>
+            <span class="k">try</span><span class="p">:</span>
+                <span class="n">i0s</span><span class="p">,</span> <span class="n">i1s</span> <span class="o">=</span> <span class="n">indices0</span><span class="p">[</span><span class="n">item</span><span class="p">],</span> <span class="n">indices1</span><span class="p">[</span><span class="n">item</span><span class="p">]</span>
+            <span class="k">except</span> <span class="ne">Exception</span><span class="p">:</span>
+                <span class="k">raise</span> <span class="ne">TypeError</span><span class="p">(</span><span class="s1">&#39;Index item for groups attribute must be a slice, &#39;</span>
+                                <span class="s1">&#39;numpy mask or int array&#39;</span><span class="p">)</span>
+            <span class="n">mask</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">zeros</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">parent</span><span class="p">),</span> <span class="n">dtype</span><span class="o">=</span><span class="n">np</span><span class="o">.</span><span class="n">bool</span><span class="p">)</span>
+            <span class="c1"># Is there a way to vectorize this in numpy?</span>
+            <span class="k">for</span> <span class="n">i0</span><span class="p">,</span> <span class="n">i1</span> <span class="ow">in</span> <span class="nb">zip</span><span class="p">(</span><span class="n">i0s</span><span class="p">,</span> <span class="n">i1s</span><span class="p">):</span>
+                <span class="n">mask</span><span class="p">[</span><span class="n">i0</span><span class="p">:</span><span class="n">i1</span><span class="p">]</span> <span class="o">=</span> <span class="kc">True</span>
+            <span class="n">out</span> <span class="o">=</span> <span class="n">parent</span><span class="p">[</span><span class="n">mask</span><span class="p">]</span>
+            <span class="n">out</span><span class="o">.</span><span class="n">groups</span><span class="o">.</span><span class="n">_keys</span> <span class="o">=</span> <span class="n">parent</span><span class="o">.</span><span class="n">groups</span><span class="o">.</span><span class="n">keys</span><span class="p">[</span><span class="n">item</span><span class="p">]</span>
+            <span class="n">out</span><span class="o">.</span><span class="n">groups</span><span class="o">.</span><span class="n">_indices</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">concatenate</span><span class="p">([[</span><span class="mi">0</span><span class="p">],</span> <span class="n">np</span><span class="o">.</span><span class="n">cumsum</span><span class="p">(</span><span class="n">i1s</span> <span class="o">-</span> <span class="n">i0s</span><span class="p">)])</span>
+
+        <span class="k">return</span> <span class="n">out</span>
+
+    <span class="k">def</span> <span class="nf">__repr__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="s1">&#39;&lt;</span><span class="si">{0}</span><span class="s1"> indices=</span><span class="si">{1}</span><span class="s1">&gt;&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">__class__</span><span class="o">.</span><span class="n">__name__</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">indices</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">__len__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">indices</span><span class="p">)</span> <span class="o">-</span> <span class="mi">1</span>
+
+
+<div class="viewcode-block" id="ColumnGroups"><a class="viewcode-back" href="../../../api/astropy.table.ColumnGroups.html#astropy.table.ColumnGroups">[docs]</a><span class="k">class</span> <span class="nc">ColumnGroups</span><span class="p">(</span><span class="n">BaseGroups</span><span class="p">):</span>
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">parent_column</span><span class="p">,</span> <span class="n">indices</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">keys</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">parent_column</span> <span class="o">=</span> <span class="n">parent_column</span>  <span class="c1"># parent Column</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">parent_table</span> <span class="o">=</span> <span class="n">parent_column</span><span class="o">.</span><span class="n">parent_table</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_indices</span> <span class="o">=</span> <span class="n">indices</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_keys</span> <span class="o">=</span> <span class="n">keys</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">indices</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="c1"># If the parent column is in a table then use group indices from table</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">parent_table</span><span class="p">:</span>
+            <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">parent_table</span><span class="o">.</span><span class="n">groups</span><span class="o">.</span><span class="n">indices</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_indices</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+                <span class="k">return</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">([</span><span class="mi">0</span><span class="p">,</span> <span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">parent_column</span><span class="p">)])</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_indices</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">keys</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="c1"># If the parent column is in a table then use group indices from table</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">parent_table</span><span class="p">:</span>
+            <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">parent_table</span><span class="o">.</span><span class="n">groups</span><span class="o">.</span><span class="n">keys</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_keys</span>
+
+<div class="viewcode-block" id="ColumnGroups.aggregate"><a class="viewcode-back" href="../../../api/astropy.table.ColumnGroups.html#astropy.table.ColumnGroups.aggregate">[docs]</a>    <span class="k">def</span> <span class="nf">aggregate</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">func</span><span class="p">):</span>
+        <span class="kn">from</span> <span class="nn">.column</span> <span class="k">import</span> <span class="n">MaskedColumn</span>
+
+        <span class="n">i0s</span><span class="p">,</span> <span class="n">i1s</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">indices</span><span class="p">[:</span><span class="o">-</span><span class="mi">1</span><span class="p">],</span> <span class="bp">self</span><span class="o">.</span><span class="n">indices</span><span class="p">[</span><span class="mi">1</span><span class="p">:]</span>
+        <span class="n">par_col</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">parent_column</span>
+        <span class="n">masked</span> <span class="o">=</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">par_col</span><span class="p">,</span> <span class="n">MaskedColumn</span><span class="p">)</span>
+        <span class="n">reduceat</span> <span class="o">=</span> <span class="nb">hasattr</span><span class="p">(</span><span class="n">func</span><span class="p">,</span> <span class="s1">&#39;reduceat&#39;</span><span class="p">)</span>
+        <span class="n">sum_case</span> <span class="o">=</span> <span class="n">func</span> <span class="ow">is</span> <span class="n">np</span><span class="o">.</span><span class="n">sum</span>
+        <span class="n">mean_case</span> <span class="o">=</span> <span class="n">func</span> <span class="ow">is</span> <span class="n">np</span><span class="o">.</span><span class="n">mean</span>
+        <span class="k">try</span><span class="p">:</span>
+            <span class="k">if</span> <span class="ow">not</span> <span class="n">masked</span> <span class="ow">and</span> <span class="p">(</span><span class="n">reduceat</span> <span class="ow">or</span> <span class="n">sum_case</span> <span class="ow">or</span> <span class="n">mean_case</span><span class="p">):</span>
+                <span class="k">if</span> <span class="n">mean_case</span><span class="p">:</span>
+                    <span class="n">vals</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">add</span><span class="o">.</span><span class="n">reduceat</span><span class="p">(</span><span class="n">par_col</span><span class="p">,</span> <span class="n">i0s</span><span class="p">)</span> <span class="o">/</span> <span class="n">np</span><span class="o">.</span><span class="n">diff</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">indices</span><span class="p">)</span>
+                <span class="k">else</span><span class="p">:</span>
+                    <span class="k">if</span> <span class="n">sum_case</span><span class="p">:</span>
+                        <span class="n">func</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">add</span>
+                    <span class="n">vals</span> <span class="o">=</span> <span class="n">func</span><span class="o">.</span><span class="n">reduceat</span><span class="p">(</span><span class="n">par_col</span><span class="p">,</span> <span class="n">i0s</span><span class="p">)</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="n">vals</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">([</span><span class="n">func</span><span class="p">(</span><span class="n">par_col</span><span class="p">[</span><span class="n">i0</span><span class="p">:</span> <span class="n">i1</span><span class="p">])</span> <span class="k">for</span> <span class="n">i0</span><span class="p">,</span> <span class="n">i1</span> <span class="ow">in</span> <span class="nb">zip</span><span class="p">(</span><span class="n">i0s</span><span class="p">,</span> <span class="n">i1s</span><span class="p">)])</span>
+        <span class="k">except</span> <span class="ne">Exception</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">TypeError</span><span class="p">(</span><span class="s2">&quot;Cannot aggregate column &#39;</span><span class="si">{0}</span><span class="s2">&#39; with type &#39;</span><span class="si">{1}</span><span class="s2">&#39;&quot;</span>
+                            <span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">par_col</span><span class="o">.</span><span class="n">info</span><span class="o">.</span><span class="n">name</span><span class="p">,</span>
+                                    <span class="n">par_col</span><span class="o">.</span><span class="n">info</span><span class="o">.</span><span class="n">dtype</span><span class="p">))</span>
+
+        <span class="n">out</span> <span class="o">=</span> <span class="n">par_col</span><span class="o">.</span><span class="n">__class__</span><span class="p">(</span><span class="n">data</span><span class="o">=</span><span class="n">vals</span><span class="p">,</span>
+                                <span class="n">name</span><span class="o">=</span><span class="n">par_col</span><span class="o">.</span><span class="n">info</span><span class="o">.</span><span class="n">name</span><span class="p">,</span>
+                                <span class="n">description</span><span class="o">=</span><span class="n">par_col</span><span class="o">.</span><span class="n">info</span><span class="o">.</span><span class="n">description</span><span class="p">,</span>
+                                <span class="n">unit</span><span class="o">=</span><span class="n">par_col</span><span class="o">.</span><span class="n">info</span><span class="o">.</span><span class="n">unit</span><span class="p">,</span>
+                                <span class="nb">format</span><span class="o">=</span><span class="n">par_col</span><span class="o">.</span><span class="n">info</span><span class="o">.</span><span class="n">format</span><span class="p">,</span>
+                                <span class="n">meta</span><span class="o">=</span><span class="n">par_col</span><span class="o">.</span><span class="n">info</span><span class="o">.</span><span class="n">meta</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">out</span></div>
+
+<div class="viewcode-block" id="ColumnGroups.filter"><a class="viewcode-back" href="../../../api/astropy.table.ColumnGroups.html#astropy.table.ColumnGroups.filter">[docs]</a>    <span class="k">def</span> <span class="nf">filter</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">func</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Filter groups in the Column based on evaluating function ``func`` on each</span>
+<span class="sd">        group sub-table.</span>
+
+<span class="sd">        The function which is passed to this method must accept one argument:</span>
+
+<span class="sd">        - ``column`` : `Column` object</span>
+
+<span class="sd">        It must then return either `True` or `False`.  As an example, the following</span>
+<span class="sd">        will select all column groups with only positive values::</span>
+
+<span class="sd">          def all_positive(column):</span>
+<span class="sd">              if np.any(column &lt; 0):</span>
+<span class="sd">                  return False</span>
+<span class="sd">              return True</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        func : function</span>
+<span class="sd">            Filter function</span>
+
+<span class="sd">        Returns</span>
+<span class="sd">        -------</span>
+<span class="sd">        out : Column</span>
+<span class="sd">            New column with the aggregated rows.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">mask</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">empty</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="p">),</span> <span class="n">dtype</span><span class="o">=</span><span class="n">np</span><span class="o">.</span><span class="n">bool</span><span class="p">)</span>
+        <span class="k">for</span> <span class="n">i</span><span class="p">,</span> <span class="n">group_column</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+            <span class="n">mask</span><span class="p">[</span><span class="n">i</span><span class="p">]</span> <span class="o">=</span> <span class="n">func</span><span class="p">(</span><span class="n">group_column</span><span class="p">)</span>
+
+        <span class="k">return</span> <span class="bp">self</span><span class="p">[</span><span class="n">mask</span><span class="p">]</span></div></div>
+
+
+<div class="viewcode-block" id="TableGroups"><a class="viewcode-back" href="../../../api/astropy.table.TableGroups.html#astropy.table.TableGroups">[docs]</a><span class="k">class</span> <span class="nc">TableGroups</span><span class="p">(</span><span class="n">BaseGroups</span><span class="p">):</span>
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">parent_table</span><span class="p">,</span> <span class="n">indices</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">keys</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">parent_table</span> <span class="o">=</span> <span class="n">parent_table</span>  <span class="c1"># parent Table</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_indices</span> <span class="o">=</span> <span class="n">indices</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_keys</span> <span class="o">=</span> <span class="n">keys</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">key_colnames</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Return the names of columns in the parent table that were used for grouping.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="c1"># If the table was grouped by key columns *in* the table then treat those columns</span>
+        <span class="c1"># differently in aggregation.  In this case keys will be a Table with</span>
+        <span class="c1"># keys.meta[&#39;grouped_by_table_cols&#39;] == True.  Keys might not be a Table so we</span>
+        <span class="c1"># need to handle this.</span>
+        <span class="n">grouped_by_table_cols</span> <span class="o">=</span> <span class="nb">getattr</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">keys</span><span class="p">,</span> <span class="s1">&#39;meta&#39;</span><span class="p">,</span> <span class="p">{})</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;grouped_by_table_cols&#39;</span><span class="p">,</span> <span class="kc">False</span><span class="p">)</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">keys</span><span class="o">.</span><span class="n">colnames</span> <span class="k">if</span> <span class="n">grouped_by_table_cols</span> <span class="k">else</span> <span class="p">()</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">indices</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_indices</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="k">return</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">([</span><span class="mi">0</span><span class="p">,</span> <span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">parent_table</span><span class="p">)])</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_indices</span>
+
+<div class="viewcode-block" id="TableGroups.aggregate"><a class="viewcode-back" href="../../../api/astropy.table.TableGroups.html#astropy.table.TableGroups.aggregate">[docs]</a>    <span class="k">def</span> <span class="nf">aggregate</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">func</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Aggregate each group in the Table into a single row by applying the reduction</span>
+<span class="sd">        function ``func`` to group values in each column.</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        func : function</span>
+<span class="sd">            Function that reduces an array of values to a single value</span>
+
+<span class="sd">        Returns</span>
+<span class="sd">        -------</span>
+<span class="sd">        out : Table</span>
+<span class="sd">            New table with the aggregated rows.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+
+        <span class="n">i0s</span><span class="p">,</span> <span class="n">i1s</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">indices</span><span class="p">[:</span><span class="o">-</span><span class="mi">1</span><span class="p">],</span> <span class="bp">self</span><span class="o">.</span><span class="n">indices</span><span class="p">[</span><span class="mi">1</span><span class="p">:]</span>
+        <span class="n">out_cols</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="n">parent_table</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">parent_table</span>
+
+        <span class="k">for</span> <span class="n">col</span> <span class="ow">in</span> <span class="n">six</span><span class="o">.</span><span class="n">itervalues</span><span class="p">(</span><span class="n">parent_table</span><span class="o">.</span><span class="n">columns</span><span class="p">):</span>
+            <span class="c1"># For key columns just pick off first in each group since they are identical</span>
+            <span class="k">if</span> <span class="n">col</span><span class="o">.</span><span class="n">info</span><span class="o">.</span><span class="n">name</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">key_colnames</span><span class="p">:</span>
+                <span class="n">new_col</span> <span class="o">=</span> <span class="n">col</span><span class="o">.</span><span class="n">take</span><span class="p">(</span><span class="n">i0s</span><span class="p">)</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="k">try</span><span class="p">:</span>
+                    <span class="n">new_col</span> <span class="o">=</span> <span class="n">col</span><span class="o">.</span><span class="n">groups</span><span class="o">.</span><span class="n">aggregate</span><span class="p">(</span><span class="n">func</span><span class="p">)</span>
+                <span class="k">except</span> <span class="ne">TypeError</span> <span class="k">as</span> <span class="n">err</span><span class="p">:</span>
+                    <span class="n">warnings</span><span class="o">.</span><span class="n">warn</span><span class="p">(</span><span class="n">six</span><span class="o">.</span><span class="n">text_type</span><span class="p">(</span><span class="n">err</span><span class="p">),</span> <span class="n">AstropyUserWarning</span><span class="p">)</span>
+                    <span class="k">continue</span>
+
+            <span class="n">out_cols</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">new_col</span><span class="p">)</span>
+
+        <span class="k">return</span> <span class="n">parent_table</span><span class="o">.</span><span class="n">__class__</span><span class="p">(</span><span class="n">out_cols</span><span class="p">,</span> <span class="n">meta</span><span class="o">=</span><span class="n">parent_table</span><span class="o">.</span><span class="n">meta</span><span class="p">)</span></div>
+
+<div class="viewcode-block" id="TableGroups.filter"><a class="viewcode-back" href="../../../api/astropy.table.TableGroups.html#astropy.table.TableGroups.filter">[docs]</a>    <span class="k">def</span> <span class="nf">filter</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">func</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Filter groups in the Table based on evaluating function ``func`` on each</span>
+<span class="sd">        group sub-table.</span>
+
+<span class="sd">        The function which is passed to this method must accept two arguments:</span>
+
+<span class="sd">        - ``table`` : `Table` object</span>
+<span class="sd">        - ``key_colnames`` : tuple of column names in ``table`` used as keys for grouping</span>
+
+<span class="sd">        It must then return either `True` or `False`.  As an example, the following</span>
+<span class="sd">        will select all table groups with only positive values in the non-key columns::</span>
+
+<span class="sd">          def all_positive(table, key_colnames):</span>
+<span class="sd">              colnames = [name for name in table.colnames if name not in key_colnames]</span>
+<span class="sd">              for colname in colnames:</span>
+<span class="sd">                  if np.any(table[colname] &lt; 0):</span>
+<span class="sd">                      return False</span>
+<span class="sd">              return True</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        func : function</span>
+<span class="sd">            Filter function</span>
+
+<span class="sd">        Returns</span>
+<span class="sd">        -------</span>
+<span class="sd">        out : Table</span>
+<span class="sd">            New table with the aggregated rows.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">mask</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">empty</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="p">),</span> <span class="n">dtype</span><span class="o">=</span><span class="n">np</span><span class="o">.</span><span class="n">bool</span><span class="p">)</span>
+        <span class="n">key_colnames</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">key_colnames</span>
+        <span class="k">for</span> <span class="n">i</span><span class="p">,</span> <span class="n">group_table</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+            <span class="n">mask</span><span class="p">[</span><span class="n">i</span><span class="p">]</span> <span class="o">=</span> <span class="n">func</span><span class="p">(</span><span class="n">group_table</span><span class="p">,</span> <span class="n">key_colnames</span><span class="p">)</span>
+
+        <span class="k">return</span> <span class="bp">self</span><span class="p">[</span><span class="n">mask</span><span class="p">]</span></div>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">keys</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_keys</span></div>
+</pre></div>
+
+          </div>
+        </div>
+      </div>
+      <div class="sphinxsidebar" role="navigation" aria-label="main navigation">
+        <div class="sphinxsidebarwrapper"><h3>Page Contents</h3>
+
+
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+<footer class="footer">
+  <p class="pull-right"> &nbsp;
+    <a href="#">Back to Top</a></p>
+  <p>
+    &copy; Copyright 2011-2016, The Astropy Developers.<br/>
+    Created using <a href="http://sphinx.pocoo.org/">Sphinx</a> 1.5.6. &nbsp;
+    Last built 05 Jul 2017. <br/>
+  </p>
+</footer>
+  </body>
+</html>

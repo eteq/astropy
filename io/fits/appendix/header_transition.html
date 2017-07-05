@@ -1,0 +1,528 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <head>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    
+    <title>Header Interface Transition Guide &#8212; Astropy v3.0.dev19489</title>
+    
+    <link rel="stylesheet" href="../../../_static/bootstrap-astropy.css" type="text/css" />
+    <link rel="stylesheet" href="../../../_static/pygments.css" type="text/css" />
+    <link rel="stylesheet" href="../../../_static/gallery.css" type="text/css" />
+    
+    <script type="text/javascript">
+      var DOCUMENTATION_OPTIONS = {
+        URL_ROOT:    '../../../',
+        VERSION:     '3.0.dev19489',
+        COLLAPSE_INDEX: false,
+        FILE_SUFFIX: '.html',
+        HAS_SOURCE:  true,
+        SOURCELINK_SUFFIX: '.txt'
+      };
+    </script>
+    <script type="text/javascript" src="../../../_static/jquery.js"></script>
+    <script type="text/javascript" src="../../../_static/underscore.js"></script>
+    <script type="text/javascript" src="../../../_static/doctools.js"></script>
+    <script type="text/javascript" src="../../../_static/sidebar.js"></script>
+    <link rel="shortcut icon" href="../../../_static/astropy_logo.ico"/>
+    <link rel="index" title="Index" href="../../../genindex.html" />
+    <link rel="search" title="Search" href="../../../search.html" />
+    <link rel="next" title="astropy.io.fits History" href="history.html" />
+    <link rel="prev" title="astropy.io.fits FAQ" href="faq.html" />
+<link href='https://fonts.googleapis.com/css?family=Source+Sans+Pro:200,600' rel='stylesheet' type='text/css'/>
+<script type="text/javascript" src="../../../_static/copybutton.js"></script>
+
+
+  </head>
+  <body role="document">
+<div class="topbar">
+  <a class="brand" title="Documentation Home" href="../../../index.html"><span id="logotext1">astro</span><span id="logotext2">py</span><span id="logotext3">:docs</span></a>
+  <ul>
+    <li><a class="homelink" title="Astropy Homepage" href="http://www.astropy.org"></a></li>
+    <li><a title="General Index" href="../../../genindex.html">Index</a></li>
+    <li><a title="Module Index" href="../../../py-modindex.html">Modules</a></li>
+    <li>
+      
+      
+<form action="../../../search.html" method="get">
+  <input type="text" name="q" placeholder="Search" />
+  <input type="hidden" name="check_keywords" value="yes" />
+  <input type="hidden" name="area" value="default" />
+</form>
+      
+    </li>
+  </ul>
+</div>
+
+<div class="related">
+    <h3>Navigation</h3>
+    <ul>
+      <li class="right">
+	<a href="history.html" title="astropy.io.fits History">
+	  next &raquo;
+	</a>
+      </li>
+      <li class="right">
+	<a href="faq.html" title="astropy.io.fits FAQ">
+	  &laquo; previous
+	</a>
+	 |
+      </li>
+      <li>
+	<a href="../../../index.html">Astropy v3.0.dev19489</a>
+	 &#187;
+      </li>
+      <li><a href="../index.html" accesskey="U">FITS File handling (<code class="docutils literal"><span class="pre">astropy.io.fits</span></code>)</a> &#187;</li>
+      
+      <li>Header Interface Transition Guide</li> 
+    </ul>
+</div>
+  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          <div class="body" role="main">
+            
+  <div class="section" id="header-interface-transition-guide">
+<span id="header-transition-guide"></span><h1>Header Interface Transition Guide<a class="headerlink" href="#header-interface-transition-guide" title="Permalink to this headline">¶</a></h1>
+<div class="admonition note">
+<p class="first admonition-title">Note</p>
+<p class="last">This guide was originally included with the release of PyFITS 3.1, and
+still references PyFITS in many places, though the examples have been
+updated for <code class="docutils literal"><span class="pre">astropy.io.fits</span></code>.  It is still useful here for informational
+purposes, though Astropy has always used the PyFITS 3.1 Header interface.</p>
+</div>
+<p>PyFITS v3.1 included an almost complete rewrite of the <a class="reference internal" href="../api/headers.html#astropy.io.fits.Header" title="astropy.io.fits.Header"><code class="xref py py-class docutils literal"><span class="pre">Header</span></code></a>
+interface.  Although the new interface is largely compatible with the old
+interface (whether due to similarities in the design, or backwards-compatibility
+support), there are enough differences that a full explanation of the new
+interface is merited.</p>
+<p>The Trac ticket discussing the initial motivation and changes to be made to the
+<a class="reference internal" href="../api/headers.html#astropy.io.fits.Header" title="astropy.io.fits.Header"><code class="xref py py-class docutils literal"><span class="pre">Header</span></code></a> class is <a class="reference external" href="https://aeon.stsci.edu/ssb/trac/pyfits/ticket/64">#64</a>.  It may be worth reading for some of the
+background to this work, though this document contains a more complete
+description of the &#8220;final&#8221; product (which will continue to evolve).</p>
+<div class="section" id="background">
+<h2>Background<a class="headerlink" href="#background" title="Permalink to this headline">¶</a></h2>
+<p>Prior to 3.1, PyFITS users interacted with FITS headers by way of three
+different classes: <a class="reference internal" href="../api/cards.html#astropy.io.fits.Card" title="astropy.io.fits.Card"><code class="xref py py-class docutils literal"><span class="pre">Card</span></code></a>, <code class="docutils literal"><span class="pre">CardList</span></code>, and <a class="reference internal" href="../api/headers.html#astropy.io.fits.Header" title="astropy.io.fits.Header"><code class="xref py py-class docutils literal"><span class="pre">Header</span></code></a>.</p>
+<p>The Card class represents a single header card with a keyword, value, and
+comment.  It also contains all the machinery for parsing FITS header cards,
+given the 80 character string, or &#8220;card image&#8221; read from the header.</p>
+<p>The CardList class is actually a subclass of Python&#8217;s <a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#list" title="(in Python v3.6)"><code class="xref py py-obj docutils literal"><span class="pre">list</span></code></a> built-in.  It was
+meant to represent the actual list of cards that make up a header.  That is, it
+represents an ordered list of cards in the physical order that they appear in
+the header.  It supports the usual list methods for inserting and appending new
+cards into the list.  It also supports <a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#dict" title="(in Python v3.6)"><code class="xref py py-obj docutils literal"><span class="pre">dict</span></code></a>-like keyword access, where
+<code class="docutils literal"><span class="pre">cardlist['KEYWORD']</span></code> would return the first card in the list with the given
+keyword.</p>
+<p>A lot of the functionality for manipulating headers was actually buried in the
+CardList class.  The Header class was more of a wrapper around CardList that
+added a little bit of abstraction.  It also implemented a partial dict-like
+interface, though for Headers a keyword lookup returned the header value
+associated with that keyword, and not the Card object.  Though almost every
+method on the Header class was just performing some operations on the
+underlying CardList.</p>
+<p>The problem is that there were certain things one could <em>only</em> do by directly
+accessing the CardList, such as look up the comments on a card, or access cards
+that have duplicate keywords, such as HISTORY.  Another long-standing
+misfeature that slicing a Header object actually returned a CardList object,
+rather than a new Header.  For all but the most simple use cases, working with
+CardList objects was largely unavoidable.</p>
+<p>But it was realized that CardList is really an implementation detail
+not representing any element of a FITS file distinct from the header itself.
+Users familiar with the FITS format know what a header is, but it&#8217;s not clear
+how a &#8220;card list&#8221; is distinct from that, or why operations go through the
+Header object, while some have to be performed through the CardList.</p>
+<p>So the primary goal of this redesign was eliminate the <code class="docutils literal"><span class="pre">CardList</span></code> class
+altogether, and make it possible for users to perform all header manipulations
+directly through <a class="reference internal" href="../api/headers.html#astropy.io.fits.Header" title="astropy.io.fits.Header"><code class="xref py py-class docutils literal"><span class="pre">Header</span></code></a> objects.  It also tries to present headers as
+similar as possible to more a more familiar data structure&#8211;an ordered mapping
+(or <a class="reference external" href="https://docs.python.org/3/library/collections.html#collections.OrderedDict" title="(in Python v3.6)"><code class="xref py py-class docutils literal"><span class="pre">OrderedDict</span></code></a> in Python) for ease of use by new users
+less familiar with the FITS format.  Though there are still many added
+complexities for dealing with the idiosyncrasies of the FITS format.</p>
+</div>
+<div class="section" id="deprecation-warnings">
+<h2>Deprecation Warnings<a class="headerlink" href="#deprecation-warnings" title="Permalink to this headline">¶</a></h2>
+<p>A few old methods on the <a class="reference internal" href="../api/headers.html#astropy.io.fits.Header" title="astropy.io.fits.Header"><code class="xref py py-class docutils literal"><span class="pre">Header</span></code></a> class have been marked as deprecated,
+either because they have been renamed to a more <a class="reference external" href="http://www.python.org/dev/peps/pep-0008/">PEP 8</a>-compliant name, or
+because have become redundant due to new features.  To check if your code is
+using any deprecated methods or features, run your code with <code class="docutils literal"><span class="pre">python</span> <span class="pre">-Wd</span></code>.
+This will output any deprecation warnings to the console.</p>
+<p>Two of the most common deprecation warnings related to Headers are for:</p>
+<ul class="simple">
+<li><code class="docutils literal"><span class="pre">Header.has_key</span></code>&#8211;this has actually been deprecated since PyFITS 3.0,
+just as Python&#8217;s <a class="reference external" href="http://docs.python.org/2/library/stdtypes.html#dict.has_key" title="(in Python v3.5)"><code class="xref py py-obj docutils literal"><span class="pre">dict.has_key</span></code></a> is deprecated.  For checking a key&#8217;s presence
+in a mapping object like <a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#dict" title="(in Python v3.6)"><code class="xref py py-obj docutils literal"><span class="pre">dict</span></code></a> or <a class="reference internal" href="../api/headers.html#astropy.io.fits.Header" title="astropy.io.fits.Header"><code class="xref py py-class docutils literal"><span class="pre">Header</span></code></a>, use the <code class="docutils literal"><span class="pre">key</span> <span class="pre">in</span> <span class="pre">d</span></code>
+syntax.  This has long been the preference in Python.</li>
+<li><code class="docutils literal"><span class="pre">Header.ascardlist</span></code> and <code class="docutils literal"><span class="pre">Header.ascard</span></code>&#8211;these were used to
+access the <code class="docutils literal"><span class="pre">CardList</span></code> object underlying a header.  They should still
+work, and return a skeleton CardList implementation that should support most
+of the old CardList functionality.  But try removing as much of this as
+possible.  If direct access to the <a class="reference internal" href="../api/cards.html#astropy.io.fits.Card" title="astropy.io.fits.Card"><code class="xref py py-class docutils literal"><span class="pre">Card</span></code></a> objects making up a header
+is necessary, use <a class="reference internal" href="../api/headers.html#astropy.io.fits.Header.cards" title="astropy.io.fits.Header.cards"><code class="xref py py-attr docutils literal"><span class="pre">Header.cards</span></code></a>, which returns an iterator over the
+cards.  More on that below.</li>
+</ul>
+</div>
+<div class="section" id="new-header-design">
+<h2>New Header Design<a class="headerlink" href="#new-header-design" title="Permalink to this headline">¶</a></h2>
+<p>The new <a class="reference internal" href="../api/headers.html#astropy.io.fits.Header" title="astropy.io.fits.Header"><code class="xref py py-class docutils literal"><span class="pre">Header</span></code></a> class is designed to work as a drop-in replacement for
+a <a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#dict" title="(in Python v3.6)"><code class="xref py py-obj docutils literal"><span class="pre">dict</span></code></a> via <a class="reference external" href="http://en.wikipedia.org/wiki/Duck_typing">duck typing</a>.  That is, although it is not a subclass of <a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#dict" title="(in Python v3.6)"><code class="xref py py-obj docutils literal"><span class="pre">dict</span></code></a>,
+it implements all the same methods and interfaces.  In particular, it is
+similar to an <a class="reference external" href="https://docs.python.org/3/library/collections.html#collections.OrderedDict" title="(in Python v3.6)"><code class="xref py py-class docutils literal"><span class="pre">OrderedDict</span></code></a> in that the order of insertions
+is preserved.  However, Header also supports many additional features and
+behaviors specific to the FITS format.  It should also be noted that while the
+old Header implementation also had a dict-like interface, it did not implement
+the <em>entire</em> dict interface as the new Header does.</p>
+<p>Although the new Header is used like a dict/mapping in most cases, it also
+supports a <a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#list" title="(in Python v3.6)"><code class="xref py py-obj docutils literal"><span class="pre">list</span></code></a> interface.  The list-like interface is a bit idiosyncratic in
+that in some contexts the Header acts like a list of values, in some like a
+list of keywords, and in a few contexts like a list of <a class="reference internal" href="../api/cards.html#astropy.io.fits.Card" title="astropy.io.fits.Card"><code class="xref py py-class docutils literal"><span class="pre">Card</span></code></a> objects. This
+may be the most difficult aspect of the new design, but there is logic to it.</p>
+<p>As with the old Header implementation, integer index access is supported:
+<code class="docutils literal"><span class="pre">header[0]</span></code> returns the value of the first keyword.  However, the
+<a class="reference internal" href="../api/headers.html#astropy.io.fits.Header.index" title="astropy.io.fits.Header.index"><code class="xref py py-meth docutils literal"><span class="pre">Header.index()</span></code></a> method treats the header as though it&#8217;s a list of
+keywords, and returns the index of a given keyword.  For example:</p>
+<div class="highlight-default"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="n">header</span><span class="o">.</span><span class="n">index</span><span class="p">(</span><span class="s1">&#39;BITPIX&#39;</span><span class="p">)</span>
+<span class="go">2</span>
+</pre></div>
+</div>
+<p><a class="reference internal" href="../api/headers.html#astropy.io.fits.Header.count" title="astropy.io.fits.Header.count"><code class="xref py py-meth docutils literal"><span class="pre">Header.count()</span></code></a> is similar to <code class="xref py py-obj docutils literal"><span class="pre">list.count</span></code>, and also takes a keyword as
+its argument:</p>
+<div class="highlight-default"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="n">header</span><span class="o">.</span><span class="n">count</span><span class="p">(</span><span class="s1">&#39;HISTORY&#39;</span><span class="p">)</span>
+<span class="go">20</span>
+</pre></div>
+</div>
+<p>A good rule of thumb is that any item access using square brackets <code class="docutils literal"><span class="pre">[]</span></code> returns
+<em>value</em> in the header, whether using keyword or index lookup.  Methods like
+<a class="reference internal" href="../api/headers.html#astropy.io.fits.Header.index" title="astropy.io.fits.Header.index"><code class="xref py py-meth docutils literal"><span class="pre">index()</span></code></a> and <a class="reference internal" href="../api/headers.html#astropy.io.fits.Header.count" title="astropy.io.fits.Header.count"><code class="xref py py-meth docutils literal"><span class="pre">count()</span></code></a> that deal with the order and
+quantity of items in the Header generally work on keywords.  Finally, methods
+like <a class="reference internal" href="../api/headers.html#astropy.io.fits.Header.insert" title="astropy.io.fits.Header.insert"><code class="xref py py-meth docutils literal"><span class="pre">insert()</span></code></a> and <a class="reference internal" href="../api/headers.html#astropy.io.fits.Header.append" title="astropy.io.fits.Header.append"><code class="xref py py-meth docutils literal"><span class="pre">append()</span></code></a> that add new items to
+the header work on cards.</p>
+<p>Aside from the list-like methods, the new Header class works very similarly to
+the old implementation for most basic use cases and should not present too many
+surprises.  There are differences, however:</p>
+<ul>
+<li><p class="first">As before, the Header() initializer can take a list of <a class="reference internal" href="../api/cards.html#astropy.io.fits.Card" title="astropy.io.fits.Card"><code class="xref py py-class docutils literal"><span class="pre">Card</span></code></a> objects
+with which to fill the header.  However, now any iterable may be used.  It is
+also important to note that <em>any</em> Header method that accepts <a class="reference internal" href="../api/cards.html#astropy.io.fits.Card" title="astropy.io.fits.Card"><code class="xref py py-class docutils literal"><span class="pre">Card</span></code></a>
+objects can also accept 2-tuples or 3-tuples in place of Cards.  That is,
+either a <code class="docutils literal"><span class="pre">(keyword,</span> <span class="pre">value,</span> <span class="pre">comment)</span></code> tuple or a <code class="docutils literal"><span class="pre">(keyword,</span> <span class="pre">value)</span></code> tuple
+(comment is assumed blank) may be used anywhere in place of a Card object.
+This is even preferred, as it simply involves less typing.  For example:</p>
+<div class="highlight-default"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="kn">from</span> <span class="nn">astropy.io</span> <span class="k">import</span> <span class="n">fits</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">header</span> <span class="o">=</span> <span class="n">fits</span><span class="o">.</span><span class="n">Header</span><span class="p">([(</span><span class="s1">&#39;A&#39;</span><span class="p">,</span> <span class="mi">1</span><span class="p">),</span> <span class="p">(</span><span class="s1">&#39;B&#39;</span><span class="p">,</span> <span class="mi">2</span><span class="p">),</span> <span class="p">(</span><span class="s1">&#39;C&#39;</span><span class="p">,</span> <span class="mi">3</span><span class="p">,</span> <span class="s1">&#39;A comment&#39;</span><span class="p">)])</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">header</span>
+<span class="go">A       =                    1</span>
+<span class="go">B       =                    2</span>
+<span class="go">C       =                    3 / A comment</span>
+</pre></div>
+</div>
+</li>
+<li><p class="first">As demonstrated in the previous example, the <code class="docutils literal"><span class="pre">repr()</span></code> for a Header, that is
+the text that is displayed when entering a Header object in the Python
+console as an expression, shows the header as it would appear in a FITS file.
+This inserts newlines after each card so that it is easily readable
+regardless of terminal width.  It is <em>not</em> necessary to use <code class="docutils literal"><span class="pre">print</span> <span class="pre">header</span></code>
+to view this.  Simply entering <code class="docutils literal"><span class="pre">header</span></code> displays the header contents as it
+would appear in the file (sans the END card).</p>
+</li>
+<li><p class="first"><code class="docutils literal"><span class="pre">len(header)</span></code> is now supported (previously it was necessary to do
+<code class="docutils literal"><span class="pre">len(header.ascard)</span></code>.  This returns the total number of cards in the
+header, including blank cards, but excluding the END card.</p>
+</li>
+<li><p class="first">FITS supports having duplicate keywords, although they are generally in error
+except for commentary keywords like COMMENT and HISTORY.  PyFITS now supports
+reading, updating, and deleting duplicate keywords: Instead of using the
+keyword by itself, use a <code class="docutils literal"><span class="pre">(keyword,</span> <span class="pre">index)</span></code> tuple.  For example
+<code class="docutils literal"><span class="pre">('HISTORY',</span> <span class="pre">0)</span></code> represents the first HISTORY card, <code class="docutils literal"><span class="pre">('HISTORY',</span> <span class="pre">1)</span></code>
+represents the second HISTORY card, and so on.  In fact, when a keyword is
+used by itself, it&#8217;s really just shorthand for <code class="docutils literal"><span class="pre">(keyword,</span> <span class="pre">0)</span></code>.  Its is now
+possible to delete an accidental duplicate like so:</p>
+<div class="highlight-default"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="k">del</span> <span class="n">header</span><span class="p">[(</span><span class="s1">&#39;NAXIS&#39;</span><span class="p">,</span> <span class="mi">1</span><span class="p">)]</span>
+</pre></div>
+</div>
+<p>This will remove an accidental duplicate NAXIS card from the header.</p>
+</li>
+<li><p class="first">Even if there are duplicate keywords, keyword lookups like
+<code class="docutils literal"><span class="pre">header['NAXIS']</span></code> will always return the value associated with the first
+copy of that keyword, with one exception:  Commentary keywords like COMMENT
+and HISTORY are expected to have duplicates.  So <code class="docutils literal"><span class="pre">header['HISTORY']</span></code>, for
+example, returns the whole sequence of HISTORY values in the correct order.
+This list of values can be sliced arbitrarily.  For example, to view the last
+3 history entries in a header:</p>
+<div class="highlight-default"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="n">hdulist</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">header</span><span class="p">[</span><span class="s1">&#39;HISTORY&#39;</span><span class="p">][</span><span class="o">-</span><span class="mi">3</span><span class="p">:]</span>
+<span class="go">  reference table oref$laf13367o_pct.fits</span>
+<span class="go">  reference table oref$laf13369o_apt.fits</span>
+<span class="go">Heliocentric correction = 16.225 km/s</span>
+</pre></div>
+</div>
+</li>
+<li><p class="first">Subscript assignment can now be used to add new keywords to the header.  Just
+as with a normal <a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#dict" title="(in Python v3.6)"><code class="xref py py-obj docutils literal"><span class="pre">dict</span></code></a>, <code class="docutils literal"><span class="pre">header['NAXIS']</span> <span class="pre">=</span> <span class="pre">1</span></code> will either update the NAXIS
+keyword if it already exists, or add a new NAXIS keyword with a value of
+<code class="docutils literal"><span class="pre">1</span></code> if it does not exist.  In the old interface this would return a
+<a class="reference external" href="https://docs.python.org/3/library/exceptions.html#KeyError" title="(in Python v3.6)"><code class="xref py py-obj docutils literal"><span class="pre">KeyError</span></code></a> if NAXIS did not exist, and the only way to add a new
+keyword was through the update() method.</p>
+<p>By default, new keywords added in this manner are added to the end of the
+header, with a few FITS-specific exceptions:</p>
+<ul>
+<li><p class="first">If the header contains extra blank cards at the end, new keywords are added
+before the blanks.</p>
+</li>
+<li><p class="first">If the header ends with a list of commentary cards&#8211;for example a sequence
+of HISTORY cards&#8211;those are kept at the end, and new keywords are inserted
+before the commentary cards.</p>
+</li>
+<li><p class="first">If the keyword is a commentary keyword like COMMENT or HISTORY (or an empty
+string for blank keywords), a <em>new</em> commentary keyword is always added, and
+appended to the last commentary keyword of the same type.  For example,
+HISTORY keywords are always placed after the last history keyword:</p>
+<div class="highlight-default"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="n">header</span> <span class="o">=</span> <span class="n">fits</span><span class="o">.</span><span class="n">Header</span><span class="p">()</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">header</span><span class="p">[</span><span class="s1">&#39;COMMENT&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="s1">&#39;Comment 1&#39;</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">header</span><span class="p">[</span><span class="s1">&#39;HISTORY&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="s1">&#39;History 1&#39;</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">header</span><span class="p">[</span><span class="s1">&#39;COMMENT&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="s1">&#39;Comment 2&#39;</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">header</span><span class="p">[</span><span class="s1">&#39;HISTORY&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="s1">&#39;History 2&#39;</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">header</span>
+<span class="go">COMMENT Comment 1</span>
+<span class="go">COMMENT Comment 2</span>
+<span class="go">HISTORY History 1</span>
+<span class="go">HISTORY History 2</span>
+</pre></div>
+</div>
+</li>
+</ul>
+<p>These behaviors represent a sensible default behavior for keyword assignment,
+and represents the same behavior as <a class="reference internal" href="../api/headers.html#astropy.io.fits.Header.update" title="astropy.io.fits.Header.update"><code class="xref py py-meth docutils literal"><span class="pre">update()</span></code></a> in the old Header
+implementation.  The default behaviors may still be bypassed through the use
+of other assignment methods like <a class="reference internal" href="../api/headers.html#astropy.io.fits.Header.set" title="astropy.io.fits.Header.set"><code class="xref py py-meth docutils literal"><span class="pre">Header.set()</span></code></a> and <a class="reference internal" href="../api/headers.html#astropy.io.fits.Header.append" title="astropy.io.fits.Header.append"><code class="xref py py-meth docutils literal"><span class="pre">Header.append()</span></code></a>
+described later.</p>
+</li>
+<li><p class="first">It is now also possible to assign a value and a comment to a keyword
+simultaneously using a tuple:</p>
+<div class="highlight-default"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="n">header</span><span class="p">[</span><span class="s1">&#39;NAXIS&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="p">(</span><span class="mi">2</span><span class="p">,</span> <span class="s1">&#39;Number of axis&#39;</span><span class="p">)</span>
+</pre></div>
+</div>
+<p>This will update the value and comment of an existing keyword, or add a new
+keyword with the given value and comment.</p>
+</li>
+<li><p class="first">There is a new <a class="reference internal" href="../api/headers.html#astropy.io.fits.Header.comments" title="astropy.io.fits.Header.comments"><code class="xref py py-attr docutils literal"><span class="pre">Header.comments</span></code></a> attribute which lists all the comments
+associated with keywords in the header (not to be confused with COMMENT
+cards).  This allows viewing and updating the comments on specific cards:</p>
+<div class="highlight-default"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="n">header</span><span class="o">.</span><span class="n">comments</span><span class="p">[</span><span class="s1">&#39;NAXIS&#39;</span><span class="p">]</span>
+<span class="go">Number of axis</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">header</span><span class="o">.</span><span class="n">comments</span><span class="p">[</span><span class="s1">&#39;NAXIS&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="s1">&#39;Number of axes&#39;</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">header</span><span class="o">.</span><span class="n">comments</span><span class="p">[</span><span class="s1">&#39;NAXIS&#39;</span><span class="p">]</span>
+<span class="go">Number of axes</span>
+</pre></div>
+</div>
+</li>
+<li><p class="first">When deleting a keyword from a header, don&#8217;t assume that the keyword already
+exists.  In the old Header implementation this would just silently do
+nothing.  For backwards-compatibility it is still okay to delete a
+non-existent keyword, but a warning will be raised.  In the future this
+<em>will</em> be changed so that trying to delete a non-existent keyword raises a
+<a class="reference external" href="https://docs.python.org/3/library/exceptions.html#KeyError" title="(in Python v3.6)"><code class="xref py py-obj docutils literal"><span class="pre">KeyError</span></code></a>.  This is for consistency with the behavior of Python dicts.  So
+unless you know for certain that a keyword exists before deleting it, it&#8217;s
+best to do something like:</p>
+<div class="highlight-default"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="k">try</span><span class="p">:</span>
+<span class="gp">... </span>    <span class="k">del</span> <span class="n">header</span><span class="p">[</span><span class="s1">&#39;BITPIX&#39;</span><span class="p">]</span>
+<span class="gp">... </span><span class="k">except</span> <span class="ne">KeyError</span><span class="p">:</span>
+<span class="gp">... </span>    <span class="k">pass</span>
+</pre></div>
+</div>
+<p>Or if you prefer to look before you leap:</p>
+<div class="highlight-default"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="k">if</span> <span class="s1">&#39;BITPIX&#39;</span> <span class="ow">in</span> <span class="n">header</span><span class="p">:</span>
+<span class="gp">... </span>    <span class="k">del</span> <span class="n">header</span><span class="p">[</span><span class="s1">&#39;BITPIX&#39;</span><span class="p">]</span>
+</pre></div>
+</div>
+</li>
+<li><p class="first"><code class="docutils literal"><span class="pre">del</span> <span class="pre">header</span></code> now supports slices.  For example, to delete the last three
+keywords from a header:</p>
+<div class="highlight-default"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="k">del</span> <span class="n">header</span><span class="p">[</span><span class="o">-</span><span class="mi">3</span><span class="p">:]</span>
+</pre></div>
+</div>
+</li>
+<li><p class="first">Two headers can now be compared for equality&#8211;previously no two Header
+objects were the same.  Now they compare as equal if they contain the exact
+same content.  That is, this requires strict equality.</p>
+</li>
+<li><p class="first">Two headers can now be added with the &#8216;+&#8217; operator, which returns a copy of
+the left header extended by the right header with <a class="reference internal" href="../api/headers.html#astropy.io.fits.Header.extend" title="astropy.io.fits.Header.extend"><code class="xref py py-meth docutils literal"><span class="pre">extend()</span></code></a>.
+Assignment addition is also possible.</p>
+</li>
+<li><p class="first">The Header.update() method used commonly with the old Header API has been
+renamed to <a class="reference internal" href="../api/headers.html#astropy.io.fits.Header.set" title="astropy.io.fits.Header.set"><code class="xref py py-meth docutils literal"><span class="pre">Header.set()</span></code></a>.  The primary reason for this change is very
+simple:  Header implements the <a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#dict" title="(in Python v3.6)"><code class="xref py py-obj docutils literal"><span class="pre">dict</span></code></a> interface, which already has a method
+called update(), but that behaves differently from the old Header.update().</p>
+<p>The details of the new update() can be read in the API docs, but it is very
+similar to <a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#dict.update" title="(in Python v3.6)"><code class="xref py py-obj docutils literal"><span class="pre">dict.update</span></code></a>.  It also supports backwards compatibility with the
+old update() by analysis of the arguments passed to it, so existing code will
+not break immediately.  However, this <em>will</em> cause a deprecation warning to
+be output if they&#8217;re enabled.  It is best, for starters, to replace all
+update() calls with set().  Recall, also, that direct assignment is now
+possible for adding new keywords to a header.  So by and large the only
+reason to prefer using <a class="reference internal" href="../api/headers.html#astropy.io.fits.Header.set" title="astropy.io.fits.Header.set"><code class="xref py py-meth docutils literal"><span class="pre">Header.set()</span></code></a> is its capability of inserting or
+moving a keyword to a specific location using the <code class="docutils literal"><span class="pre">before</span></code> or <code class="docutils literal"><span class="pre">after</span></code>
+arguments.</p>
+</li>
+<li><p class="first">Slicing a Header with a slice index returns a new Header containing only
+those cards contained in the slice.  As mentioned earlier, it used to be that
+slicing a Header returned a card list&#8211;something of a misfeature.  In
+general, objects that support slicing ought to return an object of the same
+type when you slice them.</p>
+<p>Likewise, wildcard keywords used to return a CardList object.  Now they
+return a new Header&#8211;similarly to a slice.  For example:</p>
+<div class="highlight-default"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="n">header</span><span class="p">[</span><span class="s1">&#39;NAXIS*&#39;</span><span class="p">]</span>
+</pre></div>
+</div>
+<p>returns a new header containing only the NAXIS and NAXISn cards from the
+original header.</p>
+</li>
+</ul>
+</div>
+<div class="section" id="transition-tips">
+<h2>Transition Tips<a class="headerlink" href="#transition-tips" title="Permalink to this headline">¶</a></h2>
+<p>The above may seem like a lot, but the majority of existing code using PyFITS
+to manipulate headers should not need to be updated, at least not immediately.
+The most common operations still work the same.</p>
+<p>As mentioned above, it would be helpful to run your code with <code class="docutils literal"><span class="pre">python</span> <span class="pre">-Wd</span></code> to
+enable deprecation warnings&#8211;that should be a good idea of where to look to
+update your code.</p>
+<p>If your code needs to be able to support older versions of PyFITS
+simultaneously with PyFITS 3.1, things are slightly trickier, but not by
+much&#8211;the deprecated interfaces will not be removed for several more versions
+because of this.</p>
+<ul>
+<li><p class="first">The first change worth making, which is supported by any PyFITS version in
+the last several years, is remove any use of <code class="docutils literal"><span class="pre">Header.has_key</span></code> and
+replace it with <code class="docutils literal"><span class="pre">keyword</span> <span class="pre">in</span> <span class="pre">header</span></code> syntax.  It&#8217;s worth making this change
+for any dict as well, since <a class="reference external" href="http://docs.python.org/2/library/stdtypes.html#dict.has_key" title="(in Python v3.5)"><code class="xref py py-obj docutils literal"><span class="pre">dict.has_key</span></code></a> is deprecated.  Running the
+following regular expression over your code may help with most (but not all)
+cases:</p>
+<div class="highlight-default"><div class="highlight"><pre><span></span><span class="n">s</span><span class="o">/</span><span class="p">([</span><span class="o">^</span> <span class="p">]</span><span class="o">+</span><span class="p">)</span>\<span class="o">.</span><span class="n">has_key</span>\<span class="p">(([</span><span class="o">^</span><span class="p">)]</span><span class="o">+</span><span class="p">)</span>\<span class="p">)</span><span class="o">/</span>\<span class="mi">2</span> <span class="ow">in</span> \<span class="mi">1</span><span class="o">/</span>
+</pre></div>
+</div>
+</li>
+<li><p class="first">If possible, replace any calls to Header.update() with Header.set() (though
+don&#8217;t bother with this if you need to support older PyFITS versions).  Also,
+if you have any calls to Header.update() that can be replaced with simple
+subscript assignments (eg. <code class="docutils literal"><span class="pre">header['NAXIS']</span> <span class="pre">=</span> <span class="pre">(2,</span> <span class="pre">'Number</span> <span class="pre">of</span> <span class="pre">axes')</span></code>) do
+that too, if possible.</p>
+</li>
+<li><p class="first">Find any code that uses <code class="docutils literal"><span class="pre">header.ascard</span></code> or <code class="docutils literal"><span class="pre">header.ascardlist()</span></code>.  First
+ascertain whether that code really needs to work directly on Card objects.
+If that is definitely the case, go ahead and replace those with
+<code class="docutils literal"><span class="pre">header.cards</span></code>&#8211;that should work without too much fuss.  If you do need to
+support older versions, you may keep using <code class="docutils literal"><span class="pre">header.ascard</span></code> for now.</p>
+</li>
+<li><p class="first">In the off chance that you have any code that slices a header, it&#8217;s best to
+take the result of that and create a new Header object from it.  For
+example:</p>
+<div class="highlight-default"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="n">new_header</span> <span class="o">=</span> <span class="n">fits</span><span class="o">.</span><span class="n">Header</span><span class="p">(</span><span class="n">old_header</span><span class="p">[</span><span class="mi">2</span><span class="p">:])</span>
+</pre></div>
+</div>
+<p>This avoids the problem that in PyFITS &lt;= 3.0 slicing a Header returns a
+CardList by using the result to initialize a new Header object.  This will
+work in both cases (in PyFITS 3.1, initializing a Header with an existing
+Header just copies it, a la <a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#list" title="(in Python v3.6)"><code class="xref py py-obj docutils literal"><span class="pre">list</span></code></a>).</p>
+</li>
+<li><p class="first">As mentioned earlier, locate any code that deletes keywords with <code class="docutils literal"><span class="pre">del</span></code>, and
+make sure they either look before they leap (<code class="docutils literal"><span class="pre">if</span> <span class="pre">keyword</span> <span class="pre">in</span> <span class="pre">header:</span></code>) or
+ask forgiveness (<code class="docutils literal"><span class="pre">try/except</span> <span class="pre">KeyError:</span></code>).</p>
+</li>
+</ul>
+<div class="section" id="other-gotchas">
+<h3>Other Gotchas<a class="headerlink" href="#other-gotchas" title="Permalink to this headline">¶</a></h3>
+<ul>
+<li><p class="first">As mentioned above it is not necessary to enter <code class="docutils literal"><span class="pre">print</span> <span class="pre">header</span></code> to display
+a header in an interactive Python prompt.  Simply entering <code class="docutils literal"><span class="pre">&gt;&gt;&gt;</span> <span class="pre">header</span></code>
+by itself is sufficient.  Using <code class="docutils literal"><span class="pre">print</span></code> usually will <em>not</em> display the
+header readably, because it does not include line-breaks between the header
+cards.  The reason is that Python has two types of string representations:
+One is returned when one calls <code class="docutils literal"><span class="pre">str(header)</span></code> which happens automatically
+when you <code class="docutils literal"><span class="pre">print</span></code> a variable.  In the case of the Header class this actually
+returns the string value of the header as it is written literally in the
+FITS file, which includes no line breaks.</p>
+<p>The other type of string representation happens when one calls
+<code class="docutils literal"><span class="pre">repr(header)</span></code>.  The <a class="reference external" href="https://docs.python.org/3/library/functions.html#repr" title="(in Python v3.6)"><code class="xref py py-obj docutils literal"><span class="pre">repr</span></code></a> of an object is just meant to be a useful
+string &#8220;representation&#8221; of the object; in this case the contents of the
+header but with linebreaks between the cards and with the END card and
+padding trailing padding stripped off.  This happens automatically when
+one enters a variable at the Python prompt by itself without a <code class="docutils literal"><span class="pre">print</span></code>
+call.</p>
+</li>
+<li><p class="first">The current version of the FITS Standard (3.0) states in section 4.2.1
+that trailing spaces in string values in headers are not significant and
+should be ignored.  PyFITS &lt; 3.1 <em>did</em> treat treat trailing spaces as
+significant.  For example if a header contained:</p>
+<blockquote>
+<div><p>KEYWORD1= &#8216;Value    &#8216;</p>
+</div></blockquote>
+<p>then <code class="docutils literal"><span class="pre">header['KEYWORD1']</span></code> would return the string <code class="docutils literal"><span class="pre">'Value</span>&#160;&#160;&#160; <span class="pre">'</span></code> exactly,
+with the trailing spaces intact.  The new Header interface fixes this by
+automatically stripping trailing spaces, so that <code class="docutils literal"><span class="pre">header['KEYWORD1']</span></code> would
+return just <code class="docutils literal"><span class="pre">'Value'</span></code>.</p>
+<p>There is, however, one convention used by the IRAF ccdmosaic task for
+representing its <a class="reference external" href="http://iraf.noao.edu/projects/ccdmosaic/tnx.html">TNX World Coordinate System</a> and <a class="reference external" href="http://iraf.noao.edu/projects/ccdmosaic/zpx.html">ZPX World
+Coordinate System</a>
+non-standard WCS&#8217; that uses a series of keywords in the form <code class="docutils literal"><span class="pre">WATj_nnn</span></code>
+which store a text description of coefficients for a non-linear distortion
+projection.  It uses its own microformat for listing the coefficients as a
+string, but the string is long, and thus broken up into several of these
+<code class="docutils literal"><span class="pre">WATj_nnn</span></code> keywords.  Correct recombination of these keywords requires
+treating all whitespace literally.  This convention either overlooked or
+predated the prescribed treatment of whitespace in the FITS standard.</p>
+<p>To get around this issue a global variable <code class="docutils literal"><span class="pre">fits.STRIP_HEADER_WHITESPACE</span></code>
+was introduced.  Temporarily setting
+<code class="docutils literal"><span class="pre">fits.STRIP_HEADER_WHITESPACE.set(False)</span></code> before reading keywords affected
+by this issue will return their values with all trailing whitespace intact.</p>
+<p>A future version of PyFITS may be able to detect use of conventions like this
+contextually and behave according to the convention, but in most cases the
+default behavior of PyFITS is to behave according to the FITS Standard.</p>
+</li>
+</ul>
+</div>
+</div>
+</div>
+
+
+          </div>
+        </div>
+      </div>
+      <div class="sphinxsidebar" role="navigation" aria-label="main navigation">
+        <div class="sphinxsidebarwrapper"><h3>Page Contents</h3>
+<ul>
+<li><a class="reference internal" href="#">Header Interface Transition Guide</a><ul>
+<li><a class="reference internal" href="#background">Background</a></li>
+<li><a class="reference internal" href="#deprecation-warnings">Deprecation Warnings</a></li>
+<li><a class="reference internal" href="#new-header-design">New Header Design</a></li>
+<li><a class="reference internal" href="#transition-tips">Transition Tips</a><ul>
+<li><a class="reference internal" href="#other-gotchas">Other Gotchas</a></li>
+</ul>
+</li>
+</ul>
+</li>
+</ul>
+
+
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+<footer class="footer">
+  <p class="pull-right">
+    <a href="http://github.com/astropy/astropy/tree/master/docs/io/fits/appendix/header_transition.rst">Edit This Page on Github</a> &nbsp;
+    <a href="../../../_sources/io/fits/appendix/header_transition.rst.txt"
+       rel="nofollow">Page Source</a> &nbsp;
+    <a href="#">Back to Top</a></p>
+  <p>
+    &copy; Copyright 2011-2016, The Astropy Developers.<br/>
+    Created using <a href="http://sphinx.pocoo.org/">Sphinx</a> 1.5.6. &nbsp;
+    Last built 05 Jul 2017. <br/>
+  </p>
+</footer>
+  </body>
+</html>

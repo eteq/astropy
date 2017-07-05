@@ -1,0 +1,402 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <head>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    
+    <title>astropy.convolution.utils &#8212; Astropy v3.0.dev19489</title>
+    
+    <link rel="stylesheet" href="../../../_static/bootstrap-astropy.css" type="text/css" />
+    <link rel="stylesheet" href="../../../_static/pygments.css" type="text/css" />
+    <link rel="stylesheet" href="../../../_static/gallery.css" type="text/css" />
+    
+    <script type="text/javascript">
+      var DOCUMENTATION_OPTIONS = {
+        URL_ROOT:    '../../../',
+        VERSION:     '3.0.dev19489',
+        COLLAPSE_INDEX: false,
+        FILE_SUFFIX: '.html',
+        HAS_SOURCE:  true,
+        SOURCELINK_SUFFIX: '.txt'
+      };
+    </script>
+    <script type="text/javascript" src="../../../_static/jquery.js"></script>
+    <script type="text/javascript" src="../../../_static/underscore.js"></script>
+    <script type="text/javascript" src="../../../_static/doctools.js"></script>
+    <script type="text/javascript" src="../../../_static/sidebar.js"></script>
+    <link rel="shortcut icon" href="../../../_static/astropy_logo.ico"/>
+    <link rel="index" title="Index" href="../../../genindex.html" />
+    <link rel="search" title="Search" href="../../../search.html" />
+<link href='https://fonts.googleapis.com/css?family=Source+Sans+Pro:200,600' rel='stylesheet' type='text/css'/>
+<script type="text/javascript" src="../../../_static/copybutton.js"></script>
+
+
+  </head>
+  <body role="document">
+<div class="topbar">
+  <a class="brand" title="Documentation Home" href="../../../index.html"><span id="logotext1">astro</span><span id="logotext2">py</span><span id="logotext3">:docs</span></a>
+  <ul>
+    <li><a class="homelink" title="Astropy Homepage" href="http://www.astropy.org"></a></li>
+    <li><a title="General Index" href="../../../genindex.html">Index</a></li>
+    <li><a title="Module Index" href="../../../py-modindex.html">Modules</a></li>
+    <li>
+      
+      
+<form action="../../../search.html" method="get">
+  <input type="text" name="q" placeholder="Search" />
+  <input type="hidden" name="check_keywords" value="yes" />
+  <input type="hidden" name="area" value="default" />
+</form>
+      
+    </li>
+  </ul>
+</div>
+
+<div class="related">
+    <h3>Navigation</h3>
+    <ul>
+      <li>
+	<a href="../../../index.html">Astropy v3.0.dev19489</a>
+	 &#187;
+      </li>
+      <li><a href="../../index.html" >Module code</a> &#187;</li>
+      <li><a href="../../astropy.html" accesskey="U">astropy</a> &#187;</li>
+      
+       
+    </ul>
+</div>
+  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          <div class="body" role="main">
+            
+  <h1>Source code for astropy.convolution.utils</h1><div class="highlight"><pre>
+<span></span><span class="c1"># Licensed under a 3-clause BSD style license - see LICENSE.rst</span>
+<span class="kn">from</span> <span class="nn">__future__</span> <span class="k">import</span> <span class="p">(</span><span class="n">absolute_import</span><span class="p">,</span> <span class="n">division</span><span class="p">,</span> <span class="n">print_function</span><span class="p">,</span>
+                        <span class="n">unicode_literals</span><span class="p">)</span>
+
+<span class="kn">import</span> <span class="nn">numpy</span> <span class="k">as</span> <span class="nn">np</span>
+
+<span class="kn">from</span> <span class="nn">..modeling.core</span> <span class="k">import</span> <span class="n">FittableModel</span><span class="p">,</span> <span class="n">custom_model</span>
+<span class="kn">from</span> <span class="nn">..extern.six.moves</span> <span class="k">import</span> <span class="nb">range</span>
+
+<span class="n">__all__</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;discretize_model&#39;</span><span class="p">]</span>
+
+
+<span class="k">class</span> <span class="nc">DiscretizationError</span><span class="p">(</span><span class="ne">Exception</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Called when discretization of models goes wrong.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+
+<span class="k">class</span> <span class="nc">KernelSizeError</span><span class="p">(</span><span class="ne">Exception</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Called when size of kernels is even.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+
+<span class="k">def</span> <span class="nf">add_kernel_arrays_1D</span><span class="p">(</span><span class="n">array_1</span><span class="p">,</span> <span class="n">array_2</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Add two 1D kernel arrays of different size.</span>
+
+<span class="sd">    The arrays are added with the centers lying upon each other.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">if</span> <span class="n">array_1</span><span class="o">.</span><span class="n">size</span> <span class="o">&gt;</span> <span class="n">array_2</span><span class="o">.</span><span class="n">size</span><span class="p">:</span>
+        <span class="n">new_array</span> <span class="o">=</span> <span class="n">array_1</span><span class="o">.</span><span class="n">copy</span><span class="p">()</span>
+        <span class="n">center</span> <span class="o">=</span> <span class="n">array_1</span><span class="o">.</span><span class="n">size</span> <span class="o">//</span> <span class="mi">2</span>
+        <span class="n">slice_</span> <span class="o">=</span> <span class="nb">slice</span><span class="p">(</span><span class="n">center</span> <span class="o">-</span> <span class="n">array_2</span><span class="o">.</span><span class="n">size</span> <span class="o">//</span> <span class="mi">2</span><span class="p">,</span>
+                       <span class="n">center</span> <span class="o">+</span> <span class="n">array_2</span><span class="o">.</span><span class="n">size</span> <span class="o">//</span> <span class="mi">2</span> <span class="o">+</span> <span class="mi">1</span><span class="p">)</span>
+        <span class="n">new_array</span><span class="p">[</span><span class="n">slice_</span><span class="p">]</span> <span class="o">+=</span> <span class="n">array_2</span>
+        <span class="k">return</span> <span class="n">new_array</span>
+    <span class="k">elif</span> <span class="n">array_2</span><span class="o">.</span><span class="n">size</span> <span class="o">&gt;</span> <span class="n">array_1</span><span class="o">.</span><span class="n">size</span><span class="p">:</span>
+        <span class="n">new_array</span> <span class="o">=</span> <span class="n">array_2</span><span class="o">.</span><span class="n">copy</span><span class="p">()</span>
+        <span class="n">center</span> <span class="o">=</span> <span class="n">array_2</span><span class="o">.</span><span class="n">size</span> <span class="o">//</span> <span class="mi">2</span>
+        <span class="n">slice_</span> <span class="o">=</span> <span class="nb">slice</span><span class="p">(</span><span class="n">center</span> <span class="o">-</span> <span class="n">array_1</span><span class="o">.</span><span class="n">size</span> <span class="o">//</span> <span class="mi">2</span><span class="p">,</span>
+                       <span class="n">center</span> <span class="o">+</span> <span class="n">array_1</span><span class="o">.</span><span class="n">size</span> <span class="o">//</span> <span class="mi">2</span> <span class="o">+</span> <span class="mi">1</span><span class="p">)</span>
+        <span class="n">new_array</span><span class="p">[</span><span class="n">slice_</span><span class="p">]</span> <span class="o">+=</span> <span class="n">array_1</span>
+        <span class="k">return</span> <span class="n">new_array</span>
+    <span class="k">return</span> <span class="n">array_2</span> <span class="o">+</span> <span class="n">array_1</span>
+
+
+<span class="k">def</span> <span class="nf">add_kernel_arrays_2D</span><span class="p">(</span><span class="n">array_1</span><span class="p">,</span> <span class="n">array_2</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Add two 2D kernel arrays of different size.</span>
+
+<span class="sd">    The arrays are added with the centers lying upon each other.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">if</span> <span class="n">array_1</span><span class="o">.</span><span class="n">size</span> <span class="o">&gt;</span> <span class="n">array_2</span><span class="o">.</span><span class="n">size</span><span class="p">:</span>
+        <span class="n">new_array</span> <span class="o">=</span> <span class="n">array_1</span><span class="o">.</span><span class="n">copy</span><span class="p">()</span>
+        <span class="n">center</span> <span class="o">=</span> <span class="p">[</span><span class="n">axes_size</span> <span class="o">//</span> <span class="mi">2</span> <span class="k">for</span> <span class="n">axes_size</span> <span class="ow">in</span> <span class="n">array_1</span><span class="o">.</span><span class="n">shape</span><span class="p">]</span>
+        <span class="n">slice_x</span> <span class="o">=</span> <span class="nb">slice</span><span class="p">(</span><span class="n">center</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span> <span class="o">-</span> <span class="n">array_2</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span> <span class="o">//</span> <span class="mi">2</span><span class="p">,</span>
+                        <span class="n">center</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span> <span class="o">+</span> <span class="n">array_2</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span> <span class="o">//</span> <span class="mi">2</span> <span class="o">+</span> <span class="mi">1</span><span class="p">)</span>
+        <span class="n">slice_y</span> <span class="o">=</span> <span class="nb">slice</span><span class="p">(</span><span class="n">center</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">-</span> <span class="n">array_2</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">//</span> <span class="mi">2</span><span class="p">,</span>
+                        <span class="n">center</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">+</span> <span class="n">array_2</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">//</span> <span class="mi">2</span> <span class="o">+</span> <span class="mi">1</span><span class="p">)</span>
+        <span class="n">new_array</span><span class="p">[</span><span class="n">slice_y</span><span class="p">,</span> <span class="n">slice_x</span><span class="p">]</span> <span class="o">+=</span> <span class="n">array_2</span>
+        <span class="k">return</span> <span class="n">new_array</span>
+    <span class="k">elif</span> <span class="n">array_2</span><span class="o">.</span><span class="n">size</span> <span class="o">&gt;</span> <span class="n">array_1</span><span class="o">.</span><span class="n">size</span><span class="p">:</span>
+        <span class="n">new_array</span> <span class="o">=</span> <span class="n">array_2</span><span class="o">.</span><span class="n">copy</span><span class="p">()</span>
+        <span class="n">center</span> <span class="o">=</span> <span class="p">[</span><span class="n">axes_size</span> <span class="o">//</span> <span class="mi">2</span> <span class="k">for</span> <span class="n">axes_size</span> <span class="ow">in</span> <span class="n">array_2</span><span class="o">.</span><span class="n">shape</span><span class="p">]</span>
+        <span class="n">slice_x</span> <span class="o">=</span> <span class="nb">slice</span><span class="p">(</span><span class="n">center</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span> <span class="o">-</span> <span class="n">array_1</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span> <span class="o">//</span> <span class="mi">2</span><span class="p">,</span>
+                        <span class="n">center</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span> <span class="o">+</span> <span class="n">array_1</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span> <span class="o">//</span> <span class="mi">2</span> <span class="o">+</span> <span class="mi">1</span><span class="p">)</span>
+        <span class="n">slice_y</span> <span class="o">=</span> <span class="nb">slice</span><span class="p">(</span><span class="n">center</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">-</span> <span class="n">array_1</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">//</span> <span class="mi">2</span><span class="p">,</span>
+                        <span class="n">center</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">+</span> <span class="n">array_1</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">//</span> <span class="mi">2</span> <span class="o">+</span> <span class="mi">1</span><span class="p">)</span>
+        <span class="n">new_array</span><span class="p">[</span><span class="n">slice_y</span><span class="p">,</span> <span class="n">slice_x</span><span class="p">]</span> <span class="o">+=</span> <span class="n">array_1</span>
+        <span class="k">return</span> <span class="n">new_array</span>
+    <span class="k">return</span> <span class="n">array_2</span> <span class="o">+</span> <span class="n">array_1</span>
+
+
+<div class="viewcode-block" id="discretize_model"><a class="viewcode-back" href="../../../api/astropy.convolution.discretize_model.html#astropy.convolution.discretize_model">[docs]</a><span class="k">def</span> <span class="nf">discretize_model</span><span class="p">(</span><span class="n">model</span><span class="p">,</span> <span class="n">x_range</span><span class="p">,</span> <span class="n">y_range</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">mode</span><span class="o">=</span><span class="s1">&#39;center&#39;</span><span class="p">,</span> <span class="n">factor</span><span class="o">=</span><span class="mi">10</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Function to evaluate analytical model functions on a grid.</span>
+
+<span class="sd">    So far the function can only deal with pixel coordinates.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    model : `~astropy.modeling.FittableModel` or callable.</span>
+<span class="sd">        Analytic model function to be discretized. Callables, which are not an</span>
+<span class="sd">        instances of `~astropy.modeling.FittableModel` are passed to</span>
+<span class="sd">        `~astropy.modeling.custom_model` and then evaluated.</span>
+<span class="sd">    x_range : tuple</span>
+<span class="sd">        x range in which the model is evaluated. The difference between the</span>
+<span class="sd">        upper an lower limit must be a whole number, so that the output array</span>
+<span class="sd">        size is well defined.</span>
+<span class="sd">    y_range : tuple, optional</span>
+<span class="sd">        y range in which the model is evaluated. The difference between the</span>
+<span class="sd">        upper an lower limit must be a whole number, so that the output array</span>
+<span class="sd">        size is well defined. Necessary only for 2D models.</span>
+<span class="sd">    mode : str, optional</span>
+<span class="sd">        One of the following modes:</span>
+<span class="sd">            * ``&#39;center&#39;`` (default)</span>
+<span class="sd">                Discretize model by taking the value</span>
+<span class="sd">                at the center of the bin.</span>
+<span class="sd">            * ``&#39;linear_interp&#39;``</span>
+<span class="sd">                Discretize model by linearly interpolating</span>
+<span class="sd">                between the values at the corners of the bin.</span>
+<span class="sd">                For 2D models interpolation is bilinear.</span>
+<span class="sd">            * ``&#39;oversample&#39;``</span>
+<span class="sd">                Discretize model by taking the average</span>
+<span class="sd">                on an oversampled grid.</span>
+<span class="sd">            * ``&#39;integrate&#39;``</span>
+<span class="sd">                Discretize model by integrating the model</span>
+<span class="sd">                over the bin using `scipy.integrate.quad`.</span>
+<span class="sd">                Very slow.</span>
+<span class="sd">    factor : float or int</span>
+<span class="sd">        Factor of oversampling. Default = 10.</span>
+
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+<span class="sd">    array : `numpy.array`</span>
+<span class="sd">        Model value array</span>
+
+<span class="sd">    Notes</span>
+<span class="sd">    -----</span>
+<span class="sd">    The ``oversample`` mode allows to conserve the integral on a subpixel</span>
+<span class="sd">    scale. Here is the example of a normalized Gaussian1D:</span>
+
+<span class="sd">    .. plot::</span>
+<span class="sd">        :include-source:</span>
+
+<span class="sd">        import matplotlib.pyplot as plt</span>
+<span class="sd">        import numpy as np</span>
+<span class="sd">        from astropy.modeling.models import Gaussian1D</span>
+<span class="sd">        from astropy.convolution.utils import discretize_model</span>
+<span class="sd">        gauss_1D = Gaussian1D(1 / (0.5 * np.sqrt(2 * np.pi)), 0, 0.5)</span>
+<span class="sd">        y_center = discretize_model(gauss_1D, (-2, 3), mode=&#39;center&#39;)</span>
+<span class="sd">        y_corner = discretize_model(gauss_1D, (-2, 3), mode=&#39;linear_interp&#39;)</span>
+<span class="sd">        y_oversample = discretize_model(gauss_1D, (-2, 3), mode=&#39;oversample&#39;)</span>
+<span class="sd">        plt.plot(y_center, label=&#39;center sum = {0:3f}&#39;.format(y_center.sum()))</span>
+<span class="sd">        plt.plot(y_corner, label=&#39;linear_interp sum = {0:3f}&#39;.format(y_corner.sum()))</span>
+<span class="sd">        plt.plot(y_oversample, label=&#39;oversample sum = {0:3f}&#39;.format(y_oversample.sum()))</span>
+<span class="sd">        plt.xlabel(&#39;pixels&#39;)</span>
+<span class="sd">        plt.ylabel(&#39;value&#39;)</span>
+<span class="sd">        plt.legend()</span>
+<span class="sd">        plt.show()</span>
+
+
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="n">callable</span><span class="p">(</span><span class="n">model</span><span class="p">):</span>
+        <span class="k">raise</span> <span class="ne">TypeError</span><span class="p">(</span><span class="s1">&#39;Model must be callable.&#39;</span><span class="p">)</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">model</span><span class="p">,</span> <span class="n">FittableModel</span><span class="p">):</span>
+        <span class="n">model</span> <span class="o">=</span> <span class="n">custom_model</span><span class="p">(</span><span class="n">model</span><span class="p">)()</span>
+    <span class="n">ndim</span> <span class="o">=</span> <span class="n">model</span><span class="o">.</span><span class="n">n_inputs</span>
+    <span class="k">if</span> <span class="n">ndim</span> <span class="o">&gt;</span> <span class="mi">2</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s1">&#39;discretize_model only supports 1-d and 2-d models.&#39;</span><span class="p">)</span>
+
+    <span class="k">if</span> <span class="ow">not</span> <span class="nb">float</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">diff</span><span class="p">(</span><span class="n">x_range</span><span class="p">))</span><span class="o">.</span><span class="n">is_integer</span><span class="p">():</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;The difference between the upper an lower limit of&quot;</span>
+                         <span class="s2">&quot; &#39;x_range&#39; must be a whole number.&quot;</span><span class="p">)</span>
+
+    <span class="k">if</span> <span class="n">y_range</span><span class="p">:</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="nb">float</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">diff</span><span class="p">(</span><span class="n">y_range</span><span class="p">))</span><span class="o">.</span><span class="n">is_integer</span><span class="p">():</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;The difference between the upper an lower limit of&quot;</span>
+                             <span class="s2">&quot; &#39;y_range&#39; must be a whole number.&quot;</span><span class="p">)</span>
+
+    <span class="k">if</span> <span class="n">ndim</span> <span class="o">==</span> <span class="mi">2</span> <span class="ow">and</span> <span class="n">y_range</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;y range not specified, but model is 2-d&quot;</span><span class="p">)</span>
+    <span class="k">if</span> <span class="n">ndim</span> <span class="o">==</span> <span class="mi">1</span> <span class="ow">and</span> <span class="n">y_range</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;y range specified, but model is only 1-d.&quot;</span><span class="p">)</span>
+    <span class="k">if</span> <span class="n">mode</span> <span class="o">==</span> <span class="s2">&quot;center&quot;</span><span class="p">:</span>
+        <span class="k">if</span> <span class="n">ndim</span> <span class="o">==</span> <span class="mi">1</span><span class="p">:</span>
+            <span class="k">return</span> <span class="n">discretize_center_1D</span><span class="p">(</span><span class="n">model</span><span class="p">,</span> <span class="n">x_range</span><span class="p">)</span>
+        <span class="k">elif</span> <span class="n">ndim</span> <span class="o">==</span> <span class="mi">2</span><span class="p">:</span>
+            <span class="k">return</span> <span class="n">discretize_center_2D</span><span class="p">(</span><span class="n">model</span><span class="p">,</span> <span class="n">x_range</span><span class="p">,</span> <span class="n">y_range</span><span class="p">)</span>
+    <span class="k">elif</span> <span class="n">mode</span> <span class="o">==</span> <span class="s2">&quot;linear_interp&quot;</span><span class="p">:</span>
+        <span class="k">if</span> <span class="n">ndim</span> <span class="o">==</span> <span class="mi">1</span><span class="p">:</span>
+            <span class="k">return</span> <span class="n">discretize_linear_1D</span><span class="p">(</span><span class="n">model</span><span class="p">,</span> <span class="n">x_range</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">ndim</span> <span class="o">==</span> <span class="mi">2</span><span class="p">:</span>
+            <span class="k">return</span> <span class="n">discretize_bilinear_2D</span><span class="p">(</span><span class="n">model</span><span class="p">,</span> <span class="n">x_range</span><span class="p">,</span> <span class="n">y_range</span><span class="p">)</span>
+    <span class="k">elif</span> <span class="n">mode</span> <span class="o">==</span> <span class="s2">&quot;oversample&quot;</span><span class="p">:</span>
+        <span class="k">if</span> <span class="n">ndim</span> <span class="o">==</span> <span class="mi">1</span><span class="p">:</span>
+            <span class="k">return</span> <span class="n">discretize_oversample_1D</span><span class="p">(</span><span class="n">model</span><span class="p">,</span> <span class="n">x_range</span><span class="p">,</span> <span class="n">factor</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">ndim</span> <span class="o">==</span> <span class="mi">2</span><span class="p">:</span>
+            <span class="k">return</span> <span class="n">discretize_oversample_2D</span><span class="p">(</span><span class="n">model</span><span class="p">,</span> <span class="n">x_range</span><span class="p">,</span> <span class="n">y_range</span><span class="p">,</span> <span class="n">factor</span><span class="p">)</span>
+    <span class="k">elif</span> <span class="n">mode</span> <span class="o">==</span> <span class="s2">&quot;integrate&quot;</span><span class="p">:</span>
+        <span class="k">if</span> <span class="n">ndim</span> <span class="o">==</span> <span class="mi">1</span><span class="p">:</span>
+            <span class="k">return</span> <span class="n">discretize_integrate_1D</span><span class="p">(</span><span class="n">model</span><span class="p">,</span> <span class="n">x_range</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">ndim</span> <span class="o">==</span> <span class="mi">2</span><span class="p">:</span>
+            <span class="k">return</span> <span class="n">discretize_integrate_2D</span><span class="p">(</span><span class="n">model</span><span class="p">,</span> <span class="n">x_range</span><span class="p">,</span> <span class="n">y_range</span><span class="p">)</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="n">DiscretizationError</span><span class="p">(</span><span class="s1">&#39;Invalid mode.&#39;</span><span class="p">)</span></div>
+
+
+<span class="k">def</span> <span class="nf">discretize_center_1D</span><span class="p">(</span><span class="n">model</span><span class="p">,</span> <span class="n">x_range</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Discretize model by taking the value at the center of the bin.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">x</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">arange</span><span class="p">(</span><span class="o">*</span><span class="n">x_range</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">model</span><span class="p">(</span><span class="n">x</span><span class="p">)</span>
+
+
+<span class="k">def</span> <span class="nf">discretize_center_2D</span><span class="p">(</span><span class="n">model</span><span class="p">,</span> <span class="n">x_range</span><span class="p">,</span> <span class="n">y_range</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Discretize model by taking the value at the center of the pixel.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">x</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">arange</span><span class="p">(</span><span class="o">*</span><span class="n">x_range</span><span class="p">)</span>
+    <span class="n">y</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">arange</span><span class="p">(</span><span class="o">*</span><span class="n">y_range</span><span class="p">)</span>
+    <span class="n">x</span><span class="p">,</span> <span class="n">y</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">meshgrid</span><span class="p">(</span><span class="n">x</span><span class="p">,</span> <span class="n">y</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">model</span><span class="p">(</span><span class="n">x</span><span class="p">,</span> <span class="n">y</span><span class="p">)</span>
+
+
+<span class="k">def</span> <span class="nf">discretize_linear_1D</span><span class="p">(</span><span class="n">model</span><span class="p">,</span> <span class="n">x_range</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Discretize model by performing a linear interpolation.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="c1"># Evaluate model 0.5 pixel outside the boundaries</span>
+    <span class="n">x</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">arange</span><span class="p">(</span><span class="n">x_range</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">-</span> <span class="mf">0.5</span><span class="p">,</span> <span class="n">x_range</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span> <span class="o">+</span> <span class="mf">0.5</span><span class="p">)</span>
+    <span class="n">values_intermediate_grid</span> <span class="o">=</span> <span class="n">model</span><span class="p">(</span><span class="n">x</span><span class="p">)</span>
+    <span class="k">return</span> <span class="mf">0.5</span> <span class="o">*</span> <span class="p">(</span><span class="n">values_intermediate_grid</span><span class="p">[</span><span class="mi">1</span><span class="p">:]</span> <span class="o">+</span> <span class="n">values_intermediate_grid</span><span class="p">[:</span><span class="o">-</span><span class="mi">1</span><span class="p">])</span>
+
+
+<span class="k">def</span> <span class="nf">discretize_bilinear_2D</span><span class="p">(</span><span class="n">model</span><span class="p">,</span> <span class="n">x_range</span><span class="p">,</span> <span class="n">y_range</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Discretize model by performing a bilinear interpolation.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="c1"># Evaluate model 0.5 pixel outside the boundaries</span>
+    <span class="n">x</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">arange</span><span class="p">(</span><span class="n">x_range</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">-</span> <span class="mf">0.5</span><span class="p">,</span> <span class="n">x_range</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span> <span class="o">+</span> <span class="mf">0.5</span><span class="p">)</span>
+    <span class="n">y</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">arange</span><span class="p">(</span><span class="n">y_range</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">-</span> <span class="mf">0.5</span><span class="p">,</span> <span class="n">y_range</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span> <span class="o">+</span> <span class="mf">0.5</span><span class="p">)</span>
+    <span class="n">x</span><span class="p">,</span> <span class="n">y</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">meshgrid</span><span class="p">(</span><span class="n">x</span><span class="p">,</span> <span class="n">y</span><span class="p">)</span>
+    <span class="n">values_intermediate_grid</span> <span class="o">=</span> <span class="n">model</span><span class="p">(</span><span class="n">x</span><span class="p">,</span> <span class="n">y</span><span class="p">)</span>
+
+    <span class="c1"># Mean in y direction</span>
+    <span class="n">values</span> <span class="o">=</span> <span class="mf">0.5</span> <span class="o">*</span> <span class="p">(</span><span class="n">values_intermediate_grid</span><span class="p">[</span><span class="mi">1</span><span class="p">:,</span> <span class="p">:]</span>
+                    <span class="o">+</span> <span class="n">values_intermediate_grid</span><span class="p">[:</span><span class="o">-</span><span class="mi">1</span><span class="p">,</span> <span class="p">:])</span>
+    <span class="c1"># Mean in x direction</span>
+    <span class="n">values</span> <span class="o">=</span> <span class="mf">0.5</span> <span class="o">*</span> <span class="p">(</span><span class="n">values</span><span class="p">[:,</span> <span class="mi">1</span><span class="p">:]</span>
+                    <span class="o">+</span> <span class="n">values</span><span class="p">[:,</span> <span class="p">:</span><span class="o">-</span><span class="mi">1</span><span class="p">])</span>
+    <span class="k">return</span> <span class="n">values</span>
+
+
+<span class="k">def</span> <span class="nf">discretize_oversample_1D</span><span class="p">(</span><span class="n">model</span><span class="p">,</span> <span class="n">x_range</span><span class="p">,</span> <span class="n">factor</span><span class="o">=</span><span class="mi">10</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Discretize model by taking the average on an oversampled grid.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="c1"># Evaluate model on oversampled grid</span>
+    <span class="n">x</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">arange</span><span class="p">(</span><span class="n">x_range</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">-</span> <span class="mf">0.5</span> <span class="o">*</span> <span class="p">(</span><span class="mi">1</span> <span class="o">-</span> <span class="mi">1</span> <span class="o">/</span> <span class="n">factor</span><span class="p">),</span>
+                  <span class="n">x_range</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span> <span class="o">+</span> <span class="mf">0.5</span> <span class="o">*</span> <span class="p">(</span><span class="mi">1</span> <span class="o">+</span> <span class="mi">1</span> <span class="o">/</span> <span class="n">factor</span><span class="p">),</span> <span class="mf">1.</span> <span class="o">/</span> <span class="n">factor</span><span class="p">)</span>
+
+    <span class="n">values</span> <span class="o">=</span> <span class="n">model</span><span class="p">(</span><span class="n">x</span><span class="p">)</span>
+
+    <span class="c1"># Reshape and compute mean</span>
+    <span class="n">values</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">reshape</span><span class="p">(</span><span class="n">values</span><span class="p">,</span> <span class="p">(</span><span class="n">x</span><span class="o">.</span><span class="n">size</span> <span class="o">//</span> <span class="n">factor</span><span class="p">,</span> <span class="n">factor</span><span class="p">))</span>
+    <span class="k">return</span> <span class="n">values</span><span class="o">.</span><span class="n">mean</span><span class="p">(</span><span class="n">axis</span><span class="o">=</span><span class="mi">1</span><span class="p">)[:</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span>
+
+
+<span class="k">def</span> <span class="nf">discretize_oversample_2D</span><span class="p">(</span><span class="n">model</span><span class="p">,</span> <span class="n">x_range</span><span class="p">,</span> <span class="n">y_range</span><span class="p">,</span> <span class="n">factor</span><span class="o">=</span><span class="mi">10</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Discretize model by taking the average on an oversampled grid.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="c1"># Evaluate model on oversampled grid</span>
+    <span class="n">x</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">arange</span><span class="p">(</span><span class="n">x_range</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">-</span> <span class="mf">0.5</span> <span class="o">*</span> <span class="p">(</span><span class="mi">1</span> <span class="o">-</span> <span class="mi">1</span> <span class="o">/</span> <span class="n">factor</span><span class="p">),</span>
+                  <span class="n">x_range</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span> <span class="o">+</span> <span class="mf">0.5</span> <span class="o">*</span> <span class="p">(</span><span class="mi">1</span> <span class="o">+</span> <span class="mi">1</span> <span class="o">/</span> <span class="n">factor</span><span class="p">),</span> <span class="mf">1.</span> <span class="o">/</span> <span class="n">factor</span><span class="p">)</span>
+
+    <span class="n">y</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">arange</span><span class="p">(</span><span class="n">y_range</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">-</span> <span class="mf">0.5</span> <span class="o">*</span> <span class="p">(</span><span class="mi">1</span> <span class="o">-</span> <span class="mi">1</span> <span class="o">/</span> <span class="n">factor</span><span class="p">),</span>
+                  <span class="n">y_range</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span> <span class="o">+</span> <span class="mf">0.5</span> <span class="o">*</span> <span class="p">(</span><span class="mi">1</span> <span class="o">+</span> <span class="mi">1</span> <span class="o">/</span> <span class="n">factor</span><span class="p">),</span> <span class="mf">1.</span> <span class="o">/</span> <span class="n">factor</span><span class="p">)</span>
+    <span class="n">x_grid</span><span class="p">,</span> <span class="n">y_grid</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">meshgrid</span><span class="p">(</span><span class="n">x</span><span class="p">,</span> <span class="n">y</span><span class="p">)</span>
+    <span class="n">values</span> <span class="o">=</span> <span class="n">model</span><span class="p">(</span><span class="n">x_grid</span><span class="p">,</span> <span class="n">y_grid</span><span class="p">)</span>
+
+    <span class="c1"># Reshape and compute mean</span>
+    <span class="n">shape</span> <span class="o">=</span> <span class="p">(</span><span class="n">y</span><span class="o">.</span><span class="n">size</span> <span class="o">//</span> <span class="n">factor</span><span class="p">,</span> <span class="n">factor</span><span class="p">,</span> <span class="n">x</span><span class="o">.</span><span class="n">size</span> <span class="o">//</span> <span class="n">factor</span><span class="p">,</span> <span class="n">factor</span><span class="p">)</span>
+    <span class="n">values</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">reshape</span><span class="p">(</span><span class="n">values</span><span class="p">,</span> <span class="n">shape</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">values</span><span class="o">.</span><span class="n">mean</span><span class="p">(</span><span class="n">axis</span><span class="o">=</span><span class="mi">3</span><span class="p">)</span><span class="o">.</span><span class="n">mean</span><span class="p">(</span><span class="n">axis</span><span class="o">=</span><span class="mi">1</span><span class="p">)[:</span><span class="o">-</span><span class="mi">1</span><span class="p">,</span> <span class="p">:</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span>
+
+
+<span class="k">def</span> <span class="nf">discretize_integrate_1D</span><span class="p">(</span><span class="n">model</span><span class="p">,</span> <span class="n">x_range</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Discretize model by integrating numerically the model over the bin.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="kn">from</span> <span class="nn">scipy.integrate</span> <span class="k">import</span> <span class="n">quad</span>
+    <span class="c1"># Set up grid</span>
+    <span class="n">x</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">arange</span><span class="p">(</span><span class="n">x_range</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">-</span> <span class="mf">0.5</span><span class="p">,</span> <span class="n">x_range</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span> <span class="o">+</span> <span class="mf">0.5</span><span class="p">)</span>
+    <span class="n">values</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">([])</span>
+
+    <span class="c1"># Integrate over all bins</span>
+    <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">x</span><span class="o">.</span><span class="n">size</span> <span class="o">-</span> <span class="mi">1</span><span class="p">):</span>
+        <span class="n">values</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">values</span><span class="p">,</span> <span class="n">quad</span><span class="p">(</span><span class="n">model</span><span class="p">,</span> <span class="n">x</span><span class="p">[</span><span class="n">i</span><span class="p">],</span> <span class="n">x</span><span class="p">[</span><span class="n">i</span> <span class="o">+</span> <span class="mi">1</span><span class="p">])[</span><span class="mi">0</span><span class="p">])</span>
+    <span class="k">return</span> <span class="n">values</span>
+
+
+<span class="k">def</span> <span class="nf">discretize_integrate_2D</span><span class="p">(</span><span class="n">model</span><span class="p">,</span> <span class="n">x_range</span><span class="p">,</span> <span class="n">y_range</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Discretize model by integrating the model over the pixel.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="kn">from</span> <span class="nn">scipy.integrate</span> <span class="k">import</span> <span class="n">dblquad</span>
+    <span class="c1"># Set up grid</span>
+    <span class="n">x</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">arange</span><span class="p">(</span><span class="n">x_range</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">-</span> <span class="mf">0.5</span><span class="p">,</span> <span class="n">x_range</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span> <span class="o">+</span> <span class="mf">0.5</span><span class="p">)</span>
+    <span class="n">y</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">arange</span><span class="p">(</span><span class="n">y_range</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">-</span> <span class="mf">0.5</span><span class="p">,</span> <span class="n">y_range</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span> <span class="o">+</span> <span class="mf">0.5</span><span class="p">)</span>
+    <span class="n">values</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">empty</span><span class="p">((</span><span class="n">y</span><span class="o">.</span><span class="n">size</span> <span class="o">-</span> <span class="mi">1</span><span class="p">,</span> <span class="n">x</span><span class="o">.</span><span class="n">size</span> <span class="o">-</span> <span class="mi">1</span><span class="p">))</span>
+
+    <span class="c1"># Integrate over all pixels</span>
+    <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">x</span><span class="o">.</span><span class="n">size</span> <span class="o">-</span> <span class="mi">1</span><span class="p">):</span>
+        <span class="k">for</span> <span class="n">j</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">y</span><span class="o">.</span><span class="n">size</span> <span class="o">-</span> <span class="mi">1</span><span class="p">):</span>
+            <span class="n">values</span><span class="p">[</span><span class="n">j</span><span class="p">,</span> <span class="n">i</span><span class="p">]</span> <span class="o">=</span> <span class="n">dblquad</span><span class="p">(</span><span class="k">lambda</span> <span class="n">y</span><span class="p">,</span> <span class="n">x</span><span class="p">:</span> <span class="n">model</span><span class="p">(</span><span class="n">x</span><span class="p">,</span> <span class="n">y</span><span class="p">),</span> <span class="n">x</span><span class="p">[</span><span class="n">i</span><span class="p">],</span> <span class="n">x</span><span class="p">[</span><span class="n">i</span> <span class="o">+</span> <span class="mi">1</span><span class="p">],</span>
+                                   <span class="k">lambda</span> <span class="n">x</span><span class="p">:</span> <span class="n">y</span><span class="p">[</span><span class="n">j</span><span class="p">],</span> <span class="k">lambda</span> <span class="n">x</span><span class="p">:</span> <span class="n">y</span><span class="p">[</span><span class="n">j</span> <span class="o">+</span> <span class="mi">1</span><span class="p">])[</span><span class="mi">0</span><span class="p">]</span>
+    <span class="k">return</span> <span class="n">values</span>
+</pre></div>
+
+          </div>
+        </div>
+      </div>
+      <div class="sphinxsidebar" role="navigation" aria-label="main navigation">
+        <div class="sphinxsidebarwrapper"><h3>Page Contents</h3>
+
+
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+<footer class="footer">
+  <p class="pull-right"> &nbsp;
+    <a href="#">Back to Top</a></p>
+  <p>
+    &copy; Copyright 2011-2016, The Astropy Developers.<br/>
+    Created using <a href="http://sphinx.pocoo.org/">Sphinx</a> 1.5.6. &nbsp;
+    Last built 05 Jul 2017. <br/>
+  </p>
+</footer>
+  </body>
+</html>
