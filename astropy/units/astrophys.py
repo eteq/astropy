@@ -31,14 +31,14 @@ def_unit((['AU', 'au'], ['astronomical_unit']), _si.au, namespace=_ns, prefixes=
 def_unit(['pc', 'parsec'], _si.pc, namespace=_ns, prefixes=True,
          doc="parsec: approximately 3.26 light-years.")
 
-def_unit(['solRad', 'R_sun', 'Rsun'], _si.R_sun, namespace=_ns,
+def_unit(['solRad', 'R_sun', 'Rsun', 'R⊙'], _si.R_sun, namespace=_ns,
          doc="Solar radius", prefixes=False,
          format={'latex': r'R_{\odot}', 'unicode': 'R⊙'})
-def_unit(['jupiterRad', 'R_jup', 'Rjup', 'R_jupiter', 'Rjupiter'],
+def_unit(['jupiterRad', 'R_jup', 'Rjup', 'R_jupiter', 'Rjupiter', 'R♃'],
          _si.R_jup, namespace=_ns, prefixes=False, doc="Jupiter radius",
          # LaTeX jupiter symbol requires wasysym
          format={'latex': r'R_{\rm J}', 'unicode': 'R♃'})
-def_unit(['earthRad', 'R_earth', 'Rearth'], _si.R_earth, namespace=_ns,
+def_unit(['earthRad', 'R_earth', 'Rearth', 'R⊕'], _si.R_earth, namespace=_ns,
          prefixes=False, doc="Earth radius",
          # LaTeX earth symbol requires wasysym
          format={'latex': r'R_{\oplus}', 'unicode': 'R⊕'})
@@ -64,14 +64,14 @@ def_unit(['cycle', 'cy'], 2.0 * _numpy.pi * si.rad,
 ###########################################################################
 # MASS
 
-def_unit(['solMass', 'M_sun', 'Msun'], _si.M_sun, namespace=_ns,
+def_unit(['solMass', 'M_sun', 'Msun', 'M⊙'], _si.M_sun, namespace=_ns,
          prefixes=False, doc="Solar mass",
          format={'latex': r'M_{\odot}', 'unicode': 'M⊙'})
-def_unit(['jupiterMass', 'M_jup', 'Mjup', 'M_jupiter', 'Mjupiter'],
+def_unit(['jupiterMass', 'M_jup', 'Mjup', 'M_jupiter', 'Mjupiter', 'M♃'],
          _si.M_jup, namespace=_ns, prefixes=False, doc="Jupiter mass",
          # LaTeX jupiter symbol requires wasysym
          format={'latex': r'M_{\rm J}', 'unicode': 'M♃'})
-def_unit(['earthMass', 'M_earth', 'Mearth'], _si.M_earth, namespace=_ns,
+def_unit(['earthMass', 'M_earth', 'Mearth', 'M⊕'], _si.M_earth, namespace=_ns,
          prefixes=False, doc="Earth mass",
          # LaTeX earth symbol requires wasysym
          format={'latex': r'M_{\oplus}', 'unicode': 'M⊕'})
@@ -102,7 +102,7 @@ def_unit(['Ry', 'rydberg'],
 ###########################################################################
 # ILLUMINATION
 
-def_unit(['solLum', 'L_sun', 'Lsun'], _si.L_sun, namespace=_ns,
+def_unit(['solLum', 'L_sun', 'Lsun', 'L⊙'], _si.L_sun, namespace=_ns,
          prefixes=False, doc="Solar luminance",
          format={'latex': r'L_{\odot}', 'unicode': 'L⊙'})
 

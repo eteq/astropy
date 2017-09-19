@@ -30,11 +30,11 @@ def_unit(['percent', 'pct'], Unit(0.01), namespace=_ns, prefixes=False,
 def_unit(['m', 'meter'], namespace=_ns, prefixes=True,
          doc="meter: base unit of length in SI")
 
-def_unit(['micron'], um, namespace=_ns,
+def_unit(['micron', 'μm'], um, namespace=_ns,
          doc="micron: alias for micrometer (um)",
          format={'latex': r'\mu m', 'unicode': 'μm'})
 
-def_unit(['Angstrom', 'AA', 'angstrom'], 0.1 * nm, namespace=_ns,
+def_unit(['Angstrom', 'AA', 'angstrom', 'Å'], 0.1 * nm, namespace=_ns,
          doc="ångström: 10 ** -10 m",
          format={'latex': r'\mathring{A}', 'unicode': 'Å',
                  'vounit': 'Angstrom'})
@@ -54,7 +54,7 @@ def_unit((['l', 'L'], ['liter']), 1000 * cm ** 3.0, namespace=_ns, prefixes=True
 def_unit(['rad', 'radian'], namespace=_ns, prefixes=True,
          doc="radian: angular measurement of the ratio between the length "
          "on an arc and its radius")
-def_unit(['deg', 'degree'], _numpy.pi / 180.0 * rad, namespace=_ns,
+def_unit(['deg', 'degree', '°'], _numpy.pi / 180.0 * rad, namespace=_ns,
          prefixes=True,
          doc="degree: angular measurement 1/360 of full rotation",
          format={'latex': r'{}^{\circ}', 'unicode': '°'})
@@ -72,7 +72,7 @@ def_unit(['arcsec', 'arcsecond'], 1.0 / 3600.0 * deg, namespace=_ns,
 arcsec._format = {'latex': r'{}^{\prime\prime}', 'unicode': '″'}
 def_unit(['mas'], 0.001 * arcsec, namespace=_ns,
          doc="milli arc second: angular measurement")
-def_unit(['uas'], 0.000001 * arcsec, namespace=_ns,
+def_unit(['μas', 'uas'], 0.000001 * arcsec, namespace=_ns,
          doc="micro arc second: angular measurement",
          format={'latex': r'\mu as', 'unicode': 'μas'})
 
@@ -135,7 +135,7 @@ def_unit(
     ['K', 'Kelvin'], namespace=_ns, prefixes=True,
     doc="Kelvin: temperature with a null point at absolute zero.")
 def_unit(
-    ['deg_C', 'Celsius'], namespace=_ns, doc='Degrees Celsius',
+    ['deg_C', 'Celsius', '°C'], namespace=_ns, doc='Degrees Celsius',
     format={'latex': r'{}^{\circ}C', 'unicode': '°C'})
 
 
