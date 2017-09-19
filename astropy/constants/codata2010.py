@@ -19,9 +19,9 @@ class CODATA2010(Constant):
     _has_incompatible_units = set()
 
     def __new__(cls, abbrev, name, value, unit, uncertainty,
-                reference=default_reference, system=None):
+                reference=default_reference, system=None, ascii_abbrev=None):
         return(super(CODATA2010, cls).__new__(cls, abbrev, name, value, unit,
-                        uncertainty, reference, system))
+                        uncertainty, reference, system, ascii_abbrev))
 
 
 class EMCODATA2010(CODATA2010, EMConstant):
@@ -31,10 +31,10 @@ class EMCODATA2010(CODATA2010, EMConstant):
 h = CODATA2010('h', "Planck constant", 6.62606957e-34, 'J s',
                     0.00000029e-34, system='si')
 
-hbar = CODATA2010('hbar', "Reduced Planck constant",
+ℏ = CODATA2010('ℏ', "Reduced Planck constant",
                     h.value * 0.5 / np.pi, 'J s',
                     h.uncertainty * 0.5 / np.pi,
-                    h.reference, system='si')
+                    h.reference, system='si', ascii_abbrev='hbar')
 
 k_B = CODATA2010('k_B', "Boltzmann constant", 1.3806488e-23, 'J / (K)',
                  0.0000013e-23, system='si')
@@ -60,14 +60,15 @@ m_e = CODATA2010('m_e', "Electron mass", 9.10938291e-31, 'kg', 0.00000040e-31,
 u = CODATA2010('u', "Atomic mass", 1.660538921e-27, 'kg', 0.000000073e-27,
                system='si')
 
-sigma_sb = CODATA2010('sigma_sb', "Stefan-Boltzmann constant", 5.670373e-8,
-                      'W / (K4 m2)', 0.000021e-8, system='si')
+σ_sb = CODATA2010('σ_sb', "Stefan-Boltzmann constant", 5.670373e-8,
+                  'W / (K4 m2)', 0.000021e-8, system='si',
+                  ascii_abbrev='sigma_sb')
 
 e = EMCODATA2010('e', 'Electron charge', 1.602176565e-19, 'C', 0.000000035e-19,
                  system='si')
 
-eps0 = EMCODATA2010('eps0', 'Electric constant', 8.854187817e-12, 'F/m', 0.0,
-                    system='si')
+ε0 = EMCODATA2010('ε0', 'Electric constant', 8.854187817e-12, 'F/m', 0.0,
+                  system='si', ascii_abbrev='eps0')
 
 N_A = CODATA2010('N_A', "Avogadro's number", 6.02214129e23, '1 / (mol)',
                  0.00000027e23, system='si')
@@ -81,20 +82,21 @@ Ryd = CODATA2010('Ryd', 'Rydberg constant', 10973731.568539, '1 / (m)',
 a0 = CODATA2010('a0', "Bohr radius", 0.52917721092e-10, 'm', 0.00000000017e-10,
                 system='si')
 
-muB = CODATA2010('muB', "Bohr magneton", 927.400968e-26, 'J/T', 0.00002e-26,
-                 system='si')
+μB = CODATA2010('μB', "Bohr magneton", 927.400968e-26, 'J/T', 0.00002e-26,
+                 system='si', ascii_abbrev='muB')
 
-alpha = CODATA2010('alpha', "Fine-structure constant", 7.2973525698e-3,
-                    '', 0.0000000024e-3, system='si')
+α = CODATA2010('α', "Fine-structure constant", 7.2973525698e-3,
+               '', 0.0000000024e-3, system='si', ascii_abbrev='alpha')
 
 atm = CODATA2010('atm', "Standard atmosphere", 101325, 'Pa', 0.0,
                  system='si')
 
-mu0 = CODATA2010('mu0', "Magnetic constant", 4.0e-7 * np.pi, 'N/A2', 0.0,
-                 system='si')
+μ0 = CODATA2010('μ0', "Magnetic constant", 4.0e-7 * np.pi, 'N/A2', 0.0,
+                 system='si', ascii_abbrev='mu0')
 
-sigma_T = CODATA2010('sigma_T', "Thomson scattering cross-section",
-                     0.6652458734e-28, 'm2', 0.0000000013e-28, system='si')
+σ_T = CODATA2010('σ_T', "Thomson scattering cross-section",
+                 0.6652458734e-28, 'm2', 0.0000000013e-28, system='si',
+                 ascii_abbrev='sigma_T')
 
 b_wien = Constant('b_wien', 'Wien wavelength displacement law constant',
                   2.8977721e-3, 'm K', 0.0000026e-3, 'CODATA 2010', system='si')

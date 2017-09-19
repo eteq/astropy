@@ -87,7 +87,7 @@ class Constant(Quantity):
     _has_incompatible_units = set()
 
     def __new__(cls, abbrev, name, value, unit, uncertainty,
-                reference=None, system=None):
+                reference=None, system=None, ascii_abbrev=None):
         if reference is None:
             reference = getattr(cls, 'default_reference', None)
             if reference is None:
@@ -117,6 +117,7 @@ class Constant(Quantity):
         inst._uncertainty = uncertainty
         inst._reference = reference
         inst._system = system
+        inst._ascii_abbrev = ascii_abbrev
 
         inst._checked_units = False
         return inst
@@ -150,11 +151,20 @@ class Constant(Quantity):
 
     @property
     def abbrev(self):
-        """A typical ASCII text abbreviation of the constant, also generally
+        """A typical unicode text abbreviation of the constant, also generally
         the same as the Python variable used for this constant.
         """
 
         return self._abbrev
+
+    @property
+    def ascii_abbrev(self):
+        """A typical ASCII text abbreviation of the constant.  Used to define a
+        standard ascii variable name (mainly for backwards-compatibility with
+        earlier versions that do not support unicode)
+        """
+
+        return self._ascii_abbrev
 
     @property
     def name(self):
