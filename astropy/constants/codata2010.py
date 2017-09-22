@@ -112,3 +112,7 @@ e_emu = EMCODATA2010(e.abbrev, e.name, e.value / 10, 'abC',
 
 e_gauss = EMCODATA2010(e.abbrev, e.name, e.value * c.value * 10.0,
                      'Fr', e.uncertainty * c.value * 10.0, system='gauss')
+
+for _nm, _c in dict(locals()).items():
+    if isinstance(_c, Constant) and _c.ascii_abbrev is not None:
+        locals()[_c.ascii_abbrev] = _c

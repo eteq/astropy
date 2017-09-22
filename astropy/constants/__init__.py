@@ -16,6 +16,7 @@ A typical use case might be::
 from __future__ import (absolute_import, division, print_function,
                         unicode_literals)
 
+import copy
 import itertools
 
 # Hack to make circular imports with units work
@@ -40,10 +41,12 @@ _lines = [
 
 for _nm, _c in itertools.chain(sorted(vars(codata2014).items()),
                                sorted(vars(iau2015).items())):
-    if isinstance(_c, Constant) and _c.abbrev not in locals():
-        locals()[_c.abbrev] = _c.__class__(_c.abbrev, _c.name, _c.value,
-                                           _c._unit_string, _c.uncertainty,
-                                           _c.reference)
+    if isinstance(_c, Constant):
+        if _nm not in locals():
+            locals()[_nm] = _c
+            # locals()[_nm] = _c.__class__(_c.abbrev, _c.name, _c.value,
+            #                                _c._unit_string, _c.uncertainty,
+            #                                _c.reference, _c.ascii_abbrev)
 
         _lines.append('{0:^10} {1:^14.9g} {2:^16} {3}'.format(
             _c.abbrev, _c.value, _c._unit_string, _c.name))

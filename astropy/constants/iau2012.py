@@ -76,3 +76,7 @@ M_earth = IAU2012('M_earth', "Earth mass", 5.9742e24, 'kg', 0.00005e24,
 R_earth = IAU2012('R_earth', "Earth equatorial radius", 6.378136e6, 'm',
                    0.0000005e6, "Allen's Astrophysical Quantities 4th Ed.",
                    system='si')
+
+for _nm, _c in dict(locals()).items():
+    if isinstance(_c, Constant) and _c.ascii_abbrev is not None:
+        locals()[_c.ascii_abbrev] = _c
