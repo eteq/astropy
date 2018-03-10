@@ -19,9 +19,10 @@ Astronomical Coordinate Systems (`astropy.coordinates`)
 Introduction
 ============
 
-The `~astropy.coordinates` package provides classes for representing a variety
-of celestial/spatial coordinates and their velocity components, as well as tools
-for converting between common coordinate systems in a uniform way.
+.. image:: spatial_orientation.png
+    :scale: 50 %
+
+Also, velocities.
 
 Getting Started
 ===============
