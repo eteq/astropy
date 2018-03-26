@@ -29,9 +29,12 @@ try:
     from .wcs import *
     from . import utils
     from .base_low_level_api import *
+    from .fitswcs_low_level_api import *
+    from .high_level_api import *
 except ImportError:
     if not _ASTROPY_SETUP_:
         raise
+
 
 def get_include():
     """
