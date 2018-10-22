@@ -774,6 +774,8 @@ class BaseCoordinateFrame(ShapedLikeNDArray, metaclass=FrameMeta):
         # This exists as a class method only to support handling frame inputs
         # without units, which are deprecated and will be removed.  This can be
         # moved into the representation_info property at that time.
+        # note that if so moved, the cache should be acceessed as
+        # self.__class__._frame_class_cache
 
         if '_representation_info' not in cls._frame_class_cache:
             repr_attrs = {}
@@ -824,15 +826,18 @@ class BaseCoordinateFrame(ShapedLikeNDArray, metaclass=FrameMeta):
         return self._get_representation_info()
 
     def get_representation_component_names(self, which='base'):
-        out = OrderedDict()
-        repr_or_diff_cls = self.get_representation_cls(which)
-        if repr_or_diff_cls is None:
-            return out
-        data_names = repr_or_diff_cls.attr_classes.keys()
-        repr_names = self.representation_info[repr_or_diff_cls]['names']
-        for repr_name, data_name in zip(repr_names, data_names):
-            out[repr_name] = data_name
-        return out
+        if 'representation_component_names' not in self.__class__._frame_class_cache:
+            self.__class__._frame_class_cache['representation_component_names'] = {}
+        if which not in self.__class__._frame_class_cache['representation_component_names']:
+            res = OrderedDict()
+            repr_or_diff_cls = self.get_representation_cls(which)
+            if repr_or_diff_cls is not None:
+                data_names = repr_or_diff_cls.attr_classes.keys()
+                repr_names = self.representation_info[repr_or_diff_cls]['names']
+                for repr_name, data_name in zip(repr_names, data_names):
+                    res[repr_name] = data_name
+            self.__class__._frame_class_cache['representation_component_names'][which] = res
+        return self.__class__._frame_class_cache['representation_component_names'][which]
 
     def get_representation_component_units(self, which='base'):
         out = OrderedDict()
