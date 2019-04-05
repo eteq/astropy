@@ -152,7 +152,10 @@ def check_builtin_matches_remote(download_url=True):
     for name in builtin_registry.names:
         in_dl[name] = name in dl_registry
         if in_dl[name]:
-            matches[name] = quantity_allclose(builtin_registry[name], dl_registry[name])
+            xm = quantity_allclose(builtin_registry[name].x, dl_registry[name].x)
+            ym = quantity_allclose(builtin_registry[name].y, dl_registry[name].y)
+            zm = quantity_allclose(builtin_registry[name].z, dl_registry[name].z)
+            matches[name] = xm and ym and zm
         else:
             matches[name] = False
 
