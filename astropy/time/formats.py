@@ -1141,6 +1141,11 @@ class TimeJulianEpoch(TimeEpochDate):
     epoch_to_jd = 'epj2jd'
     jd_to_epoch = 'epj'
 
+    def _check_scale(self, scale):
+        if scale is None:
+            self.scale = scale = 'tt' # J epochs are conventionally TT
+        super()._check_scale(scale)
+
 
 class TimeEpochDateString(TimeString):
     """
@@ -1180,6 +1185,11 @@ class TimeEpochDateString(TimeString):
         str_fmt = self.epoch_prefix + '%.' + str(self.precision) + 'f'
         outs = [str_fmt % year for year in years.flat]
         return np.array(outs).reshape(self.jd1.shape)
+
+    def _check_scale(self, scale):
+        if scale is None:
+            self.scale = scale = 'tt'  # J-strings epochs are conventionally TT
+        super()._check_scale(scale)
 
 
 class TimeBesselianEpochString(TimeEpochDateString):
