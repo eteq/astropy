@@ -249,6 +249,9 @@ astropy.tests
 astropy.time
 ^^^^^^^^^^^^
 
+- The default time scale for J-strings (e.g., "J2000") has been changed to TT
+  instead of UTC.  This is more in line with convention. [#8594]
+
 astropy.uncertainty
 ^^^^^^^^^^^^^^^^^^^
 

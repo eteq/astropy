@@ -59,7 +59,7 @@ into an `~astropy.time.Time` object with UTC scale (see
 
     >>> f = FK5(equinox='J1975')
     >>> f.equinox
-    <Time object: scale='utc' format='jyear_str' value=J1975.000>
+    <Time object: scale='tt' format='jyear_str' value=J1975.000>
     >>> f = FK5(equinox='2011-05-15T12:13:14')
     >>> f.equinox
     <Time object: scale='utc' format='isot' value=2011-05-15T12:13:14.000>

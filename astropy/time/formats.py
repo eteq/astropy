@@ -1144,7 +1144,7 @@ class TimeJulianEpoch(TimeEpochDate):
     def _check_scale(self, scale):
         if scale is None:
             self.scale = scale = 'tt' # J epochs are conventionally TT
-        super()._check_scale(scale)
+        return super()._check_scale(scale)
 
 
 class TimeEpochDateString(TimeString):
@@ -1189,7 +1189,7 @@ class TimeEpochDateString(TimeString):
     def _check_scale(self, scale):
         if scale is None:
             self.scale = scale = 'tt'  # J-strings epochs are conventionally TT
-        super()._check_scale(scale)
+        return super()._check_scale(scale)
 
 
 class TimeBesselianEpochString(TimeEpochDateString):

@@ -55,9 +55,10 @@ def test_regression_5085():
     ras = Longitude([310.50095400, 314.67109920, 319.56507428]*u.deg)
     decs = Latitude([-18.25190443, -17.1556676, -15.71616522]*u.deg)
     distances = u.Quantity([1.78309901, 1.710874, 1.61326649]*u.au)
+    J2000_utc = Time('J2000', scale='utc')
     expected_result = GCRS(ra=ras, dec=decs,
-                           distance=distances, obstime="J2000").cartesian.xyz
-    actual_result = coo.transform_to(GCRS(obstime="J2000")).cartesian.xyz
+                           distance=distances, obstime=J2000_utc).cartesian.xyz
+    actual_result = coo.transform_to(GCRS(obstime=J2000_utc)).cartesian.xyz
     assert_quantity_allclose(expected_result, actual_result)
 
 
