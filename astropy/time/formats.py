@@ -1186,11 +1186,6 @@ class TimeEpochDateString(TimeString):
         outs = [str_fmt % year for year in years.flat]
         return np.array(outs).reshape(self.jd1.shape)
 
-    def _check_scale(self, scale):
-        if scale is None:
-            self.scale = scale = 'tt'  # J-strings epochs are conventionally TT
-        return super()._check_scale(scale)
-
 
 class TimeBesselianEpochString(TimeEpochDateString):
     """Besselian Epoch year as string value(s) like 'B1950.0'"""
@@ -1206,6 +1201,11 @@ class TimeJulianEpochString(TimeEpochDateString):
     epoch_to_jd = 'epj2jd'
     jd_to_epoch = 'epj'
     epoch_prefix = 'J'
+
+    def _check_scale(self, scale):
+        if scale is None:
+            self.scale = scale = 'tt'  # J-strings epochs are conventionally TT
+        return super()._check_scale(scale)
 
 
 class TimeDeltaFormatMeta(TimeFormatMeta):
