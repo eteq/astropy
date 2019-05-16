@@ -12,6 +12,7 @@ from astropy.io import registry as io_registry
 from astropy.table import Table
 from astropy.table.column import BaseColumn
 from astropy.units import Quantity
+from astropy.coordinates import SkyCoord
 
 from astropy import coordinates
 
@@ -226,10 +227,37 @@ def extract_skycoord_from_table(tab):
     csdct = _votable_meta_to_coo_frames(votable)
     main_colnames = find_columns_by_ucd(tab, 'meta.main')
 
-    maincol0 = tab[main_colnames[0]]
-    maincol0.
+    for colname in main_colnames:
+        cmeta = tab[colname].meta
+        if 'ucd' in cmeta and cmeta['ucd'].startswith('pos'):
+            maincolpos0 = tab[colname]
+            break
+    else:
+        raise ValueError('The meta.main columns in this table do not have the '
+                         'metadata to identify the coordinate data.')
 
-    component_names_to_ucd = _FRAME_COMPONENT_NAMES_TO_UCD[csdct[0]]
+    if maincolpos0.meta['ref'] is not None:
+        ref = maincolpos0.meta['ref']
+        main_frame = csdct[ref]
+    else:
+        main_frame = csdct[0]
+
+    component_names_to_ucd = _FRAME_COMPONENT_NAMES_TO_UCD[main_frame]
+    component_quantities = {}
+    for component_name, ucd_name in component_names_to_ucd.items():
+        for colname in main_colnames:
+            col = tab[colname]
+            if 'ucd' in col.meta and col.meta['ucd'].startswith(ucd_name):
+                component_quantities[component_name] = Quantity(col)
+                break
+        else:
+            raise ValueError('Failed to find a column with UCD {1} for '
+                             'component {0}'.format(component_name, ucd_name))
+
+    kwargs = {'frame': main_frame}
+    kwargs.update(component_quantities)
+    return SkyCoord(**kwargs)
+
 
 io_registry.register_reader('votable', Table, read_table_votable)
 io_registry.register_writer('votable', Table, write_table_votable)
