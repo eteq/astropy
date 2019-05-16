@@ -182,7 +182,7 @@ def extract_frame_from_coosys(coosys):
     return frame
 
 
-def votable_meta_to_coo_frames(votable):
+def _votable_meta_to_coo_frames(votable):
     """
     Generate coordinate frame dictionaries from VOTable Table-formatted
     metadata.
@@ -210,6 +210,11 @@ def votable_meta_to_coo_frames(votable):
             csdct[cs.ID] = frame
     return csdct
 
+def extract_skycoord_from_table(tab):
+    votable = tab.meta['votable']
+    csdct = _votable_meta_to_coo_frames(votable)
+
+    tab
 
 
 
