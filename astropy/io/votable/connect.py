@@ -6,6 +6,8 @@ import os
 
 from . import parse, from_table
 from .tree import VOTableFile, Table as VOTable
+from .ucd import find_columns_by_ucd
+
 from astropy.io import registry as io_registry
 from astropy.table import Table
 from astropy.table.column import BaseColumn
@@ -210,13 +212,24 @@ def _votable_meta_to_coo_frames(votable):
             csdct[cs.ID] = frame
     return csdct
 
+
+_EQ_UCDS = {'ra': 'pos.eq.ra', 'dec': 'pos.eq.dec'}
+_FRAME_COMPONENT_NAMES_TO_UCD = {coordinates.ICRS: _EQ_UCDS,
+                                 coordinates.FK5: _EQ_UCDS,
+                                 coordinates.FK4: _EQ_UCDS,
+                                 coordinates.Galactic: {'l': 'pos.galactic.lon', 'b': 'pos.galactic.lat'},
+                                 coordinates.Supergalactic: {'sgl': 'pos.supergalactic.lon', 'sgb': 'pos.supergalactic.lat'}}
+
+
 def extract_skycoord_from_table(tab):
     votable = tab.meta['votable']
     csdct = _votable_meta_to_coo_frames(votable)
+    main_colnames = find_columns_by_ucd(tab, 'meta.main')
 
-    tab
+    maincol0 = tab[main_colnames[0]]
+    maincol0.
 
-
+    component_names_to_ucd = _FRAME_COMPONENT_NAMES_TO_UCD[csdct[0]]
 
 io_registry.register_reader('votable', Table, read_table_votable)
 io_registry.register_writer('votable', Table, write_table_votable)
