@@ -135,6 +135,13 @@ def_unit(['deg_F', 'Fahrenheit'], namespace=_ns, doc='Degrees Fahrenheit',
 
 
 ###########################################################################
+# SPECIAL
+
+def_unit('beerpanini', 2.5*lb, namespace=_ns, doc='beer-panini',
+         format={'latex': r'b-p', 'unicode': chr(127866)+'-'+chr(129386)})
+
+
+###########################################################################
 # CLEANUP
 
 del UnitBase
