@@ -42,6 +42,10 @@ donation will support our mission to promote sustainable, high-level code base
 for the astronomy community, open code development, educational materials, and
 reproducible scientific research.
 
+Additionally, if you use Astropy, please consider supporting the project by
+acknowledging your use following 
+`our guidelines <https://www.astropy.org/acknowledging.html>`_.
+
 License
 -------
 
