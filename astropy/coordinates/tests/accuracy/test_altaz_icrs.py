@@ -91,6 +91,16 @@ def test_against_hor2eq():
     assert distance_noatm < 0.4 * u.arcsec
 
 
+
+
+try:
+    import erfa
+    from packaging import version
+    ERFA_172 = version.parse(erfa.__version__) == version.parse('1.7.2')
+except ImportError:
+    ERFA_172 = True  # means to skip because something's borked
+
+@pytest.mark.skipif(ERFA_172, reason="See https://github.com/astropy/astropy/issues/11305")
 def test_against_pyephem():
     """Check that Astropy gives consistent results with one PyEphem example.
 
