@@ -23,6 +23,8 @@ For system packagers: Please install Astropy with the command::
 This will prevent the astropy_helpers bootstrap script from attempting to
 reach out to PyPI.
 
+Changed something
+
 Project Status
 --------------
 
