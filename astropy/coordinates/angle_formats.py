@@ -27,7 +27,7 @@ from .errors import (IllegalHourWarning, IllegalHourError,
                      IllegalMinuteWarning, IllegalMinuteError,
                      IllegalSecondWarning, IllegalSecondError)
 from astropy.utils import format_exception, parsing
-from astropy.utils.decorator import deprecated
+from astropy.utils.decorators import deprecated
 from astropy import units as u
 
 
