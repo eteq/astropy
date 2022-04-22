@@ -413,7 +413,7 @@ def degrees_to_dms(d):
 def dms_to_degrees(d, m, s=None):
     """
     Convert degrees, arcminute, arcsecond to a float degrees value.
-     """
+    """
     _check_minute_range(m)
     _check_second_range(s)
 
