@@ -27,7 +27,7 @@ from .errors import (IllegalHourWarning, IllegalHourError,
                      IllegalMinuteWarning, IllegalMinuteError,
                      IllegalSecondWarning, IllegalSecondError)
 from astropy.utils import format_exception, parsing
-from astropy.utils.exceptions import AstropyDeprecationWarning
+from astropy.utils.decorator import deprecated
 from astropy import units as u
 
 
@@ -410,17 +410,16 @@ def degrees_to_dms(d):
     return np.floor(sign * d), sign * np.floor(m), sign * s
 
 
+@deprecated("dms_to_degrees (or creating an Angle with a tuple) has ambiguous "
+            "behavior when the degree value is 0",
+            alternative="another way of creating angles instead (e.g. a less "
+                         "ambiguous string like '-1d2m3.4s'")
 def dms_to_degrees(d, m, s=None):
     """
     Convert degrees, arcminute, arcsecond to a float degrees value.
     """
     _check_minute_range(m)
     _check_second_range(s)
-
-    warn("dms_to_degrees (or creating an Angle with a tuple) has ambiguous "
-         "behavior when the degree value is 0, and as a result is deprecated. "
-         "Use another way of creating angles instead (e.g. strings like "
-         "'-1d2m3s')", AstropyDeprecationWarning)
 
     # determine sign
     sign = np.copysign(1.0, d)
