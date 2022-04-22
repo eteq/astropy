@@ -410,20 +410,33 @@ def degrees_to_dms(d):
     return np.floor(sign * d), sign * np.floor(m), sign * s
 
 
-def dms_to_degrees(d, m, s=None):
+def dms_to_degrees(d, m, s=None, negative_behavior=None):
     """
     Convert degrees, arcminute, arcsecond to a float degrees value.
+
+    ``negative_behavior`` can be:
+    *  ``None`` - (the approach prior to Astropy v5.1,  which raises a
+       deprecation warning due to ambiguity)
+    * ``'simple'`` - ``d + m/60 + s/3600``
      """
     _check_minute_range(m)
     _check_second_range(s)
 
-    warn("dms_to_degrees (or creating an Angle with a tuple) has ambiguous "
-         "behavior when the degree value is 0, and as a result is deprecated. "
-         "Use another way of creating angles instead (e.g. strings like "
-         "'-1d2m3s')", AstropyDeprecationWarning)
+    if negative_behavior is None:
+        warn("dms_to_degrees (or creating an Angle with a tuple) has ambiguous "
+            "behavior when the degree value is 0, and as a result is deprecated"
+            ". Use another way of creating angles instead (e.g. strings like "
+            "'-1d2m3s'), or use the ", AstropyDeprecationWarning)
 
-    # determine sign
-    sign = np.copysign(1.0, d)
+        # determine sign
+        sign = np.copysign(1.0, d)
+
+    elif negative_behavior == 'simple':
+        return d + m / 60. + s / 3600.
+
+    else:
+        raise ValueError(f'invalid negative_behavior option {negative_behavior}')
+
 
     try:
         d = np.floor(np.abs(d))
@@ -439,6 +452,7 @@ def dms_to_degrees(d, m, s=None):
             "converted to numbers.", d, m, s)) from err
 
     return sign * (d + m / 60. + s / 3600.)
+
 
 
 def hms_to_hours(h, m, s=None):
