@@ -27,6 +27,7 @@ from .errors import (IllegalHourWarning, IllegalHourError,
                      IllegalMinuteWarning, IllegalMinuteError,
                      IllegalSecondWarning, IllegalSecondError)
 from astropy.utils import format_exception, parsing
+from astropy.utils.exceptions import AstropyDeprecationWarning
 from astropy import units as u
 
 
@@ -415,19 +416,14 @@ def dms_to_degrees(d, m, s=None):
      """
     _check_minute_range(m)
     _check_second_range(s)
-    
-    # if d is a scaler
-    d = np.atleast_1d(d)
-    m = np.atleast_1d(m)
-    s = np.atleast_1d(s)
-    dmss = np.array([d,m,s]).T
-    sign = [1 for dms in dmss]
-    for k in range(0,dmss.size/3):
-        # looking for first non zero
-        for i in dmss[k]:
-            if i!=0:
-                sign[k] = np.copysign(1,i); break;
 
+    warn("dms_to_degrees (or creating an Angle with a tuple) has ambiguous "
+         "behavior when the degree value is 0, and as a result is deprecated. "
+         "Use another way of creating angles instead (e.g. strings like "
+         "'-1d2m3s')", AstropyDeprecationWarning)
+
+    # determine sign
+    sign = np.copysign(1.0, d)
 
     try:
         d = np.floor(np.abs(d))
