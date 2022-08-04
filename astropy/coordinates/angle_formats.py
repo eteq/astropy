@@ -22,9 +22,14 @@ from warnings import warn
 
 import numpy as np
 
-from .errors import (IllegalHourWarning, IllegalHourError,
-                     IllegalMinuteWarning, IllegalMinuteError,
-                     IllegalSecondWarning, IllegalSecondError)
+from .errors import (
+    IllegalHourWarning,
+    IllegalHourError,
+    IllegalMinuteWarning,
+    IllegalMinuteError,
+    IllegalSecondWarning,
+    IllegalSecondError,
+)
 from astropy.utils import format_exception, parsing
 from astropy.utils.decorators import deprecated
 from astropy import units as u
@@ -44,6 +49,7 @@ class _AngleParser:
     This class should not be used directly.  Use `parse_angle`
     instead.
     """
+
     # For safe multi-threaded operation all class (but not instance)
     # members that carry state should be thread-local. They are stored
     # in the following class member
@@ -58,13 +64,14 @@ class _AngleParser:
         # For some discussion of this problem, see
         # https://github.com/astropy/astropy/issues/5350#issuecomment-248770151
         if '_parser' not in _AngleParser._thread_local.__dict__:
-            (_AngleParser._thread_local._parser,
-             _AngleParser._thread_local._lexer) = self._make_parser()
+            (
+                _AngleParser._thread_local._parser,
+                _AngleParser._thread_local._lexer,
+            ) = self._make_parser()
 
     @classmethod
     def _get_simple_unit_names(cls):
-        simple_units = set(
-            u.radian.find_equivalent_units(include_prefix_units=True))
+        simple_units = set(u.radian.find_equivalent_units(include_prefix_units=True))
         simple_unit_names = set()
         # We filter out degree and hourangle, since those are treated
         # separately.
@@ -89,7 +96,7 @@ class _AngleParser:
             'SECOND',
             'SIMPLE_UNIT',
             'EASTWEST',
-            'NORTHSOUTH'
+            'NORTHSOUTH',
         )
 
         # NOTE THE ORDERING OF THESE RULES IS IMPORTANT!!
@@ -135,7 +142,8 @@ class _AngleParser:
             return t
 
         t_SIMPLE_UNIT.__doc__ = '|'.join(
-            f'(?:{x})' for x in cls._get_simple_unit_names())
+            f'(?:{x})' for x in cls._get_simple_unit_names()
+        )
 
         t_COLON = ':'
         t_DEGREE = r'd(eg(ree(s)?)?)?|°'
@@ -148,8 +156,7 @@ class _AngleParser:
 
         # Error handling rule
         def t_error(t):
-            raise ValueError(
-                f"Invalid character at col {t.lexpos}")
+            raise ValueError(f"Invalid character at col {t.lexpos}")
 
         lexer = parsing.lex(lextab='angle_lextab', package='astropy/coordinates')
 
@@ -300,13 +307,13 @@ class _AngleParser:
     def parse(self, angle, unit, debug=False):
         try:
             found_angle, found_unit = self._thread_local._parser.parse(
-                angle, lexer=self._thread_local._lexer, debug=debug)
+                angle, lexer=self._thread_local._lexer, debug=debug
+            )
         except ValueError as e:
             if str(e):
                 raise ValueError(f"{str(e)} in angle {angle!r}") from e
             else:
-                raise ValueError(
-                    f"Syntax error parsing angle {angle!r}")  from e
+                raise ValueError(f"Syntax error parsing angle {angle!r}") from e
 
         if unit is None and found_unit is None:
             raise u.UnitsError("No unit specified")
@@ -318,9 +325,9 @@ def _check_hour_range(hrs):
     """
     Checks that the given value is in the range (-24, 24).
     """
-    if np.any(np.abs(hrs) == 24.):
+    if np.any(np.abs(hrs) == 24.0):
         warn(IllegalHourWarning(hrs, 'Treating as 24 hr'))
-    elif np.any(hrs < -24.) or np.any(hrs > 24.):
+    elif np.any(hrs < -24.0) or np.any(hrs > 24.0):
         raise IllegalHourError(hrs)
 
 
@@ -329,9 +336,9 @@ def _check_minute_range(m):
     Checks that the given value is in the range [0,60].  If the value
     is equal to 60, then a warning is raised.
     """
-    if np.any(m == 60.):
+    if np.any(m == 60.0):
         warn(IllegalMinuteWarning(m, 'Treating as 0 min, +1 hr/deg'))
-    elif np.any(m < -60.) or np.any(m > 60.):
+    elif np.any(m < -60.0) or np.any(m > 60.0):
         # "Error: minutes not in range [-60,60) ({0}).".format(min))
         raise IllegalMinuteError(m)
 
@@ -341,11 +348,11 @@ def _check_second_range(sec):
     Checks that the given value is in the range [0,60].  If the value
     is equal to 60, then a warning is raised.
     """
-    if np.any(sec == 60.):
+    if np.any(sec == 60.0):
         warn(IllegalSecondWarning(sec, 'Treating as 0 sec, +1 min'))
     elif sec is None:
         pass
-    elif np.any(sec < -60.) or np.any(sec > 60.):
+    elif np.any(sec < -60.0) or np.any(sec > 60.0):
         # "Error: seconds not in range [-60,60) ({0}).".format(sec))
         raise IllegalSecondError(sec)
 
@@ -403,16 +410,18 @@ def degrees_to_dms(d):
     sign = np.copysign(1.0, d)
 
     (df, d) = np.modf(np.abs(d))  # (degree fraction, degree)
-    (mf, m) = np.modf(df * 60.)  # (minute fraction, minute)
-    s = mf * 60.
+    (mf, m) = np.modf(df * 60.0)  # (minute fraction, minute)
+    s = mf * 60.0
 
     return np.floor(sign * d), sign * np.floor(m), sign * s
 
 
-@deprecated("dms_to_degrees (or creating an Angle with a tuple) has ambiguous "
-            "behavior when the degree value is 0",
-            alternative="another way of creating angles instead (e.g. a less "
-                         "ambiguous string like '-0d1m2.3s'")
+@deprecated(
+    "dms_to_degrees (or creating an Angle with a tuple) has ambiguous "
+    "behavior when the degree value is 0",
+    alternative="another way of creating angles instead (e.g. a less "
+    "ambiguous string like '-0d1m2.3s'",
+)
 def dms_to_degrees(d, m, s=None):
     """
     Convert degrees, arcminute, arcsecond to a float degrees value.
@@ -432,17 +441,25 @@ def dms_to_degrees(d, m, s=None):
             m = np.floor(np.abs(m))
             s = np.abs(s)
     except ValueError as err:
-        raise ValueError(format_exception(
-            "{func}: dms values ({1[0]},{2[1]},{3[2]}) could not be "
-            "converted to numbers.", d, m, s)) from err
+        raise ValueError(
+            format_exception(
+                "{func}: dms values ({1[0]},{2[1]},{3[2]}) could not be "
+                "converted to numbers.",
+                d,
+                m,
+                s,
+            )
+        ) from err
 
-    return sign * (d + m / 60. + s / 3600.)
+    return sign * (d + m / 60.0 + s / 3600.0)
 
 
-@deprecated("hms_to_hours (or creating an Angle with a tuple) has ambiguous "
-            "behavior when the hour value is 0",
-            alternative="another way of creating angles instead (e.g. a less "
-                         "ambiguous string like '-0h1m2.3s'")
+@deprecated(
+    "hms_to_hours (or creating an Angle with a tuple) has ambiguous "
+    "behavior when the hour value is 0",
+    alternative="another way of creating angles instead (e.g. a less "
+    "ambiguous string like '-0h1m2.3s'",
+)
 def hms_to_hours(h, m, s=None):
     """
     Convert hour, minute, second to a float hour value.
@@ -462,11 +479,17 @@ def hms_to_hours(h, m, s=None):
             m = np.floor(np.abs(m))
             s = np.abs(s)
     except ValueError as err:
-        raise ValueError(format_exception(
-            "{func}: HMS values ({1[0]},{2[1]},{3[2]}) could not be "
-            "converted to numbers.", h, m, s)) from err
+        raise ValueError(
+            format_exception(
+                "{func}: HMS values ({1[0]},{2[1]},{3[2]}) could not be "
+                "converted to numbers.",
+                h,
+                m,
+                s,
+            )
+        ) from err
 
-    return sign * (h + m / 60. + s / 3600.)
+    return sign * (h + m / 60.0 + s / 3600.0)
 
 
 def hms_to_degrees(h, m, s):
@@ -474,7 +497,7 @@ def hms_to_degrees(h, m, s):
     Convert hour, minute, second to a float degrees value.
     """
 
-    return hms_to_hours(h, m, s) * 15.
+    return hms_to_hours(h, m, s) * 15.0
 
 
 def hms_to_radians(h, m, s):
@@ -499,6 +522,7 @@ def hours_to_decimal(h):
     Convert any parseable hour value into a float value.
     """
     from . import angles
+
     return angles.Angle(h, unit=u.hourangle).hour
 
 
@@ -558,8 +582,7 @@ def radians_to_dms(r):
     return degrees_to_dms(degrees)
 
 
-def sexagesimal_to_string(values, precision=None, pad=False, sep=(':',),
-                          fields=3):
+def sexagesimal_to_string(values, precision=None, pad=False, sep=(':',), fields=3):
     """
     Given an already separated tuple of sexagesimal values, returns
     a string.
@@ -587,8 +610,7 @@ def sexagesimal_to_string(values, precision=None, pad=False, sep=(':',),
         sep = tuple(sep)
 
     if fields < 1 or fields > 3:
-        raise ValueError(
-            "fields must be 1, 2, or 3")
+        raise ValueError("fields must be 1, 2, or 3")
 
     if not sep:  # empty string, False, or None, etc.
         sep = ('', '', '')
@@ -603,16 +625,17 @@ def sexagesimal_to_string(values, precision=None, pad=False, sep=(':',),
         sep = sep + ('',)
     elif len(sep) != 3:
         raise ValueError(
-            "Invalid separator specification for converting angle to string.")
+            "Invalid separator specification for converting angle to string."
+        )
 
     # Simplify the expression based on the requested precision.  For
     # example, if the seconds will round up to 60, we should convert
     # it to 0 and carry upwards.  If the field is hidden (by the
     # fields kwarg) we round up around the middle, 30.0.
     if precision is None:
-        rounding_thresh = 60.0 - (10.0 ** -8)
+        rounding_thresh = 60.0 - (10.0**-8)
     else:
-        rounding_thresh = 60.0 - (10.0 ** -precision)
+        rounding_thresh = 60.0 - (10.0**-precision)
 
     if fields == 3 and values[2] >= rounding_thresh:
         values[2] = 0.0
@@ -636,20 +659,22 @@ def sexagesimal_to_string(values, precision=None, pad=False, sep=(':',),
             last_value = f'{abs(values[2]):.8f}'
             last_value = last_value.rstrip('0').rstrip('.')
         else:
-            last_value = '{0:.{precision}f}'.format(
-                abs(values[2]), precision=precision)
+            last_value = '{0:.{precision}f}'.format(abs(values[2]), precision=precision)
         if len(last_value) == 1 or last_value[1] == '.':
             last_value = '0' + last_value
         literal.append('{last_value}{sep[2]}')
     literal = ''.join(literal)
-    return literal.format(np.copysign(values[0], sign),
-                          int(values[1]), values[2],
-                          sep=sep, pad=pad,
-                          last_value=last_value)
+    return literal.format(
+        np.copysign(values[0], sign),
+        int(values[1]),
+        values[2],
+        sep=sep,
+        pad=pad,
+        last_value=last_value,
+    )
 
 
-def hours_to_string(h, precision=5, pad=False, sep=('h', 'm', 's'),
-                    fields=3):
+def hours_to_string(h, precision=5, pad=False, sep=('h', 'm', 's'), fields=3):
     """
     Takes a decimal hour value and returns a string formatted as hms with
     separator specified by the 'sep' parameter.
@@ -657,8 +682,9 @@ def hours_to_string(h, precision=5, pad=False, sep=('h', 'm', 's'),
     ``h`` must be a scalar.
     """
     h, m, s = hours_to_hms(h)
-    return sexagesimal_to_string((h, m, s), precision=precision, pad=pad,
-                                 sep=sep, fields=fields)
+    return sexagesimal_to_string(
+        (h, m, s), precision=precision, pad=pad, sep=sep, fields=fields
+    )
 
 
 def degrees_to_string(d, precision=5, pad=False, sep=':', fields=3):
@@ -669,5 +695,6 @@ def degrees_to_string(d, precision=5, pad=False, sep=':', fields=3):
     ``d`` must be a scalar.
     """
     d, m, s = degrees_to_dms(d)
-    return sexagesimal_to_string((d, m, s), precision=precision, pad=pad,
-                                 sep=sep, fields=fields)
+    return sexagesimal_to_string(
+        (d, m, s), precision=precision, pad=pad, sep=sep, fields=fields
+    )

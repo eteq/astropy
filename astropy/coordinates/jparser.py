@@ -34,7 +34,7 @@ def search(name, raise_=False):
 
 
 def to_ra_dec_angles(name):
-    """get RA in hourangle and DEC in degrees by parsing name """
+    """get RA in hourangle and DEC in degrees by parsing name"""
     groups = search(name, True).groups()
     prefix, hms, dms = np.split(groups, [1, 6])
     ra = (_sexagesimal(hms) / (1, 60, 60 * 60) * u.hourangle).sum()

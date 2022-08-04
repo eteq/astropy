@@ -1,10 +1,12 @@
 # Licensed under a 3-clause BSD style license - see LICENSE.rst
 
 from astropy.utils.decorators import format_doc
-from astropy.coordinates.representation import CartesianRepresentation, CartesianDifferential
+from astropy.coordinates.representation import (
+    CartesianRepresentation,
+    CartesianDifferential,
+)
 from astropy.coordinates.baseframe import BaseCoordinateFrame, base_doc
-from astropy.coordinates.attributes import (TimeAttribute,
-                                            EarthLocationAttribute)
+from astropy.coordinates.attributes import TimeAttribute, EarthLocationAttribute
 from .utils import DEFAULT_OBSTIME, EARTH_CENTER
 
 __all__ = ['ITRS']
@@ -76,6 +78,7 @@ class ITRS(BaseCoordinateFrame):
 
         cart = self.represent_as(CartesianRepresentation)
         return EarthLocation(x=cart.x, y=cart.y, z=cart.z)
+
 
 # Self-transform is in intermediate_rotation_transforms.py with all the other
 # ITRS transforms

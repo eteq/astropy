@@ -30,12 +30,12 @@ DEFAULT_OBSTIME = Time('J2000', scale='tt')
 
 # This is an EarthLocation that is the default "location" when such an attribute is
 # necessary. It is the centre of the Earth.
-EARTH_CENTER = EarthLocation(0*u.km, 0*u.km, 0*u.km)
+EARTH_CENTER = EarthLocation(0 * u.km, 0 * u.km, 0 * u.km)
 
-PIOVER2 = np.pi / 2.
+PIOVER2 = np.pi / 2.0
 
 # comes from the mean of the 1962-2014 IERS B data
-_DEFAULT_PM = (0.035, 0.29)*u.arcsec
+_DEFAULT_PM = (0.035, 0.29) * u.arcsec
 
 
 def get_polar_motion(time):
@@ -218,15 +218,15 @@ def aticq(srepr, astrom):
     # Aberration, giving GCRS natural direction
     d = np.zeros_like(ppr)
     for j in range(2):
-        before = norm(ppr-d)
+        before = norm(ppr - d)
         after = erfa.ab(before, astrom['v'], astrom['em'], astrom['bm1'])
         d = after - before
-    pnat = norm(ppr-d)
+    pnat = norm(ppr - d)
 
     # Light deflection by the Sun, giving BCRS coordinate direction
     d = np.zeros_like(pnat)
     for j in range(5):
-        before = norm(pnat-d)
+        before = norm(pnat - d)
         if ignore_distance:
             # No distance to object, assume a long way away
             q = before
@@ -246,7 +246,7 @@ def aticq(srepr, astrom):
 
         after = erfa.ld(1.0, before, q, astrom['eh'], astrom['em'], 1e-6)
         d = after - before
-    pco = norm(pnat-d)
+    pco = norm(pnat - d)
 
     # ICRS astrometric RA, Dec
     rc, dc = erfa.c2s(pco)
@@ -352,6 +352,7 @@ def prepare_earth_position_vel(time):
         get_body_barycentric_posvel,
         solar_system_ephemeris,
     )
+
     # get barycentric position and velocity of earth
 
     ephemeris = solar_system_ephemeris.get()
@@ -378,7 +379,7 @@ def prepare_earth_position_vel(time):
         # a structured dtype.
         earth_pv = pav2pv(
             earth_p.get_xyz(xyz_axis=-1).to_value(u.au),
-            earth_v.get_xyz(xyz_axis=-1).to_value(u.au / u.d)
+            earth_v.get_xyz(xyz_axis=-1).to_value(u.au / u.d),
         )
 
     return earth_pv, earth_heliocentric
@@ -405,6 +406,7 @@ def get_offset_sun_from_barycenter(time, include_velocity=False, reverse=False):
     if include_velocity:
         # Import here to avoid a circular import
         from astropy.coordinates.solar_system import get_body_barycentric_posvel
+
         offset_pos, offset_vel = get_body_barycentric_posvel('sun', time)
         if reverse:
             offset_pos, offset_vel = -offset_pos, -offset_vel
@@ -414,6 +416,7 @@ def get_offset_sun_from_barycenter(time, include_velocity=False, reverse=False):
     else:
         # Import here to avoid a circular import
         from astropy.coordinates.solar_system import get_body_barycentric
+
         offset_pos = get_body_barycentric('sun', time)
         if reverse:
             offset_pos = -offset_pos

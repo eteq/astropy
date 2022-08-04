@@ -5,21 +5,24 @@ import pytest
 import numpy as np
 
 from astropy import units as u
-from astropy.coordinates import (SphericalRepresentation, Longitude, Latitude,
-                                 SphericalDifferential)
+from astropy.coordinates import (
+    SphericalRepresentation,
+    Longitude,
+    Latitude,
+    SphericalDifferential,
+)
 from astropy.units.quantity_helper.function_helpers import ARRAY_FUNCTION_ENABLED
 from .test_representation import representation_equal
 
 
-@pytest.fixture(params=[True, False] if ARRAY_FUNCTION_ENABLED
-                else [True])
+@pytest.fixture(params=[True, False] if ARRAY_FUNCTION_ENABLED else [True])
 def method(request):
     return request.param
 
 
 needs_array_function = pytest.mark.xfail(
-    not ARRAY_FUNCTION_ENABLED,
-    reason="Needs __array_function__ support")
+    not ARRAY_FUNCTION_ENABLED, reason="Needs __array_function__ support"
+)
 
 
 class ShapeSetup:
@@ -41,18 +44,21 @@ class ShapeSetup:
             lon[:, np.newaxis] * np.ones(lat.shape),
             lat * np.ones(lon.shape)[:, np.newaxis],
             np.ones(lon.shape + lat.shape) * u.kpc,
-            copy=False)
+            copy=False,
+        )
 
         cls.diff = SphericalDifferential(
-            d_lon=np.ones(cls.s0.shape)*u.mas/u.yr,
-            d_lat=np.ones(cls.s0.shape)*u.mas/u.yr,
-            d_distance=np.ones(cls.s0.shape)*u.km/u.s,
-            copy=False)
+            d_lon=np.ones(cls.s0.shape) * u.mas / u.yr,
+            d_lat=np.ones(cls.s0.shape) * u.mas / u.yr,
+            d_distance=np.ones(cls.s0.shape) * u.km / u.s,
+            copy=False,
+        )
         cls.s0 = cls.s0.with_differentials(cls.diff)
 
         # With unequal arrays -> these will be broadcasted.
-        cls.s1 = SphericalRepresentation(lon[:, np.newaxis], lat, 1. * u.kpc,
-                                         differentials=cls.diff, copy=False)
+        cls.s1 = SphericalRepresentation(
+            lon[:, np.newaxis], lat, 1.0 * u.kpc, differentials=cls.diff, copy=False
+        )
 
         # For completeness on some tests, also a cartesian one
         cls.c0 = cls.s0.to_cartesian()
@@ -278,8 +284,9 @@ class TestSetShape(ShapeSetup):
 
         # Finally, a more complicated one that checks that things get reset
         # properly if it is not the first component that fails.
-        s2 = SphericalRepresentation(self.s1.lon.copy(), self.s1.lat,
-                                     self.s1.distance, copy=False)
+        s2 = SphericalRepresentation(
+            self.s1.lon.copy(), self.s1.lat, self.s1.distance, copy=False
+        )
         assert 0 not in s2.lon.strides
         assert 0 in s2.lat.strides
         with pytest.raises(AttributeError):
@@ -327,8 +334,8 @@ class TestShapeFunctions(ShapeSetup):
         sc_broadcast = np.broadcast_to(sc, (3, 6, 7))
         assert np.may_share_memory(sc_broadcast.lon, sc.lon)
         # Can only write to copy, not to broadcast version.
-        sc.lon[0, 0] = 22. * u.hourangle
-        assert np.all(sc_broadcast.lon[:, 0, 0] == 22. * u.hourangle)
+        sc.lon[0, 0] = 22.0 * u.hourangle
+        assert np.all(sc_broadcast.lon[:, 0, 0] == 22.0 * u.hourangle)
 
     @needs_array_function
     def test_atleast_1d(self):
@@ -353,10 +360,8 @@ class TestShapeFunctions(ShapeSetup):
         assert self.s0.ndim == 2
         s0_3d, s1_3d = np.atleast_3d(self.s0, self.s1)
         assert s0_3d.ndim == s1_3d.ndim == 3
-        assert np.all(representation_equal(self.s0[:, :, np.newaxis],
-                                           s0_3d))
-        assert np.all(representation_equal(self.s1[:, :, np.newaxis],
-                                           s1_3d))
+        assert np.all(representation_equal(self.s0[:, :, np.newaxis], s0_3d))
+        assert np.all(representation_equal(self.s1[:, :, np.newaxis], s1_3d))
         assert np.may_share_memory(s0_3d.lon, self.s0.lon)
 
     def test_move_axis(self):

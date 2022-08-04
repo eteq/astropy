@@ -15,8 +15,11 @@ import astropy.units as u
 from astropy.utils.exceptions import AstropyWarning
 
 from .builtin_frames.utils import (
-    get_jd12, get_cip, prepare_earth_position_vel, get_polar_motion,
-    pav2pv
+    get_jd12,
+    get_cip,
+    prepare_earth_position_vel,
+    get_polar_motion,
+    pav2pv,
 )
 from .matrix_utilities import rotation_matrix
 
@@ -31,6 +34,7 @@ class ErfaAstrom:
     erfa functions from frame attributes, call the corresponding
     erfa functions and return the astrom object.
     '''
+
     @staticmethod
     def apco(frame_or_coord):
         '''
@@ -60,18 +64,29 @@ class ErfaAstrom:
                 frame_or_coord.pressure.to_value(u.hPa),
                 frame_or_coord.temperature.to_value(u.deg_C),
                 frame_or_coord.relative_humidity.value,
-                frame_or_coord.obswl.to_value(u.micron)
+                frame_or_coord.obswl.to_value(u.micron),
             )
         else:
             # This is not an AltAz frame, so don't bother computing refraction
             refa, refb = 0.0, 0.0
 
         return erfa.apco(
-            jd1_tt, jd2_tt, earth_pv, earth_heliocentric, x, y, s, era,
+            jd1_tt,
+            jd2_tt,
+            earth_pv,
+            earth_heliocentric,
+            x,
+            y,
+            s,
+            era,
             lon.to_value(u.radian),
             lat.to_value(u.radian),
             height.to_value(u.m),
-            xp, yp, sp, refa, refb
+            xp,
+            yp,
+            sp,
+            refa,
+            refb,
         )
 
     @staticmethod
@@ -89,9 +104,11 @@ class ErfaAstrom:
         jd1_tt, jd2_tt = get_jd12(frame_or_coord.obstime, 'tt')
         obs_pv = pav2pv(
             frame_or_coord.obsgeoloc.get_xyz(xyz_axis=-1).value,
-            frame_or_coord.obsgeovel.get_xyz(xyz_axis=-1).value
+            frame_or_coord.obsgeovel.get_xyz(xyz_axis=-1).value,
         )
-        earth_pv, earth_heliocentric = prepare_earth_position_vel(frame_or_coord.obstime)
+        earth_pv, earth_heliocentric = prepare_earth_position_vel(
+            frame_or_coord.obstime
+        )
         return erfa.apcs(jd1_tt, jd2_tt, obs_pv, earth_pv, earth_heliocentric)
 
     @staticmethod
@@ -128,10 +145,12 @@ class ErfaAstrom:
         astrom = np.zeros(frame_or_coord.obstime.shape, dtype=erfa.dt_eraASTROM)
 
         # Form the rotation matrix, CIRS to apparent [HA,Dec].
-        r = (rotation_matrix(elong, 'z', unit=u.radian)
-             @ rotation_matrix(-yp, 'x', unit=u.radian)
-             @ rotation_matrix(-xp, 'y', unit=u.radian)
-             @ rotation_matrix(theta+sp, 'z', unit=u.radian))
+        r = (
+            rotation_matrix(elong, 'z', unit=u.radian)
+            @ rotation_matrix(-yp, 'x', unit=u.radian)
+            @ rotation_matrix(-xp, 'y', unit=u.radian)
+            @ rotation_matrix(theta + sp, 'z', unit=u.radian)
+        )
 
         # Solve for local Earth rotation angle.
         a = r[..., 0, 0]
@@ -141,7 +160,7 @@ class ErfaAstrom:
 
         # Solve for polar motion [X,Y] with respect to local meridian.
         c = r[..., 0, 2]
-        astrom['xpl'] = np.arctan2(c, np.sqrt(a*a+b*b))
+        astrom['xpl'] = np.arctan2(c, np.sqrt(a * a + b * b))
         a = r[..., 1, 2]
         b = r[..., 2, 2]
         astrom['ypl'] = -np.arctan2(a, b)
@@ -162,7 +181,7 @@ class ErfaAstrom:
             frame_or_coord.pressure.to_value(u.hPa),
             frame_or_coord.temperature.to_value(u.deg_C),
             frame_or_coord.relative_humidity.value,
-            frame_or_coord.obswl.to_value(u.micron)
+            frame_or_coord.obswl.to_value(u.micron),
         )
         return astrom
 
@@ -213,7 +232,7 @@ class ErfaAstromInterpolator(ErfaAstrom):
                 ' below 10 microseconds might lead to numerical inaccuracies'
                 ' as the MJD-based interpolation is limited by floating point '
                 ' precision to about a microsecond of precision',
-                AstropyWarning
+                AstropyWarning,
             )
         self.mjd_resolution = time_resolution.to_value(u.day)
 
@@ -229,10 +248,14 @@ class ErfaAstromInterpolator(ErfaAstrom):
         mjd_scaled = np.ravel(obstime.mjd / self.mjd_resolution)
 
         # unique already does sorting
-        mjd_u = np.unique(np.concatenate([
-            np.floor(mjd_scaled),
-            np.ceil(mjd_scaled),
-        ]))
+        mjd_u = np.unique(
+            np.concatenate(
+                [
+                    np.floor(mjd_scaled),
+                    np.ceil(mjd_scaled),
+                ]
+            )
+        )
 
         return Time(
             mjd_u * self.mjd_resolution,
@@ -256,9 +279,7 @@ class ErfaAstromInterpolator(ErfaAstrom):
         for dim in range(3):
             for key in 'pv':
                 earth_pv[key][..., dim] = np.interp(
-                    obstime.mjd,
-                    support.mjd,
-                    pv_support[key][..., dim]
+                    obstime.mjd, support.mjd, pv_support[key][..., dim]
                 )
             earth_heliocentric[..., dim] = np.interp(
                 obstime.mjd, support.mjd, heliocentric_support[..., dim]
@@ -279,7 +300,9 @@ class ErfaAstromInterpolator(ErfaAstrom):
         c2i = np.empty(obstime.shape + (3, 3))
         for dim1 in range(3):
             for dim2 in range(3):
-                c2i[..., dim1, dim2] = np.interp(obstime.mjd, support.mjd, c2i_support[..., dim1, dim2])
+                c2i[..., dim1, dim2] = np.interp(
+                    obstime.mjd, support.mjd, c2i_support[..., dim1, dim2]
+                )
         return c2i
 
     @staticmethod
@@ -329,7 +352,9 @@ class ErfaAstromInterpolator(ErfaAstrom):
 
         # get the position and velocity arrays for the observatory.  Need to
         # have xyz in last dimension, and pos/vel in one-but-last.
-        earth_pv, earth_heliocentric = self._prepare_earth_position_vel(support, obstime)
+        earth_pv, earth_heliocentric = self._prepare_earth_position_vel(
+            support, obstime
+        )
 
         xp, yp = self._get_polar_motion(support, obstime)
         sp = erfa.sp00(jd1_tt, jd2_tt)
@@ -343,18 +368,29 @@ class ErfaAstromInterpolator(ErfaAstrom):
                 frame_or_coord.pressure.to_value(u.hPa),
                 frame_or_coord.temperature.to_value(u.deg_C),
                 frame_or_coord.relative_humidity.value,
-                frame_or_coord.obswl.to_value(u.micron)
+                frame_or_coord.obswl.to_value(u.micron),
             )
         else:
             # a CIRS like frame - no refraction
             refa, refb = 0.0, 0.0
 
         return erfa.apco(
-            jd1_tt, jd2_tt, earth_pv, earth_heliocentric, x, y, s, era,
+            jd1_tt,
+            jd2_tt,
+            earth_pv,
+            earth_heliocentric,
+            x,
+            y,
+            s,
+            era,
             lon.to_value(u.radian),
             lat.to_value(u.radian),
             height.to_value(u.m),
-            xp, yp, sp, refa, refb
+            xp,
+            yp,
+            sp,
+            refa,
+            refb,
         )
 
     def apcs(self, frame_or_coord):
@@ -373,10 +409,12 @@ class ErfaAstromInterpolator(ErfaAstrom):
 
         # get the position and velocity arrays for the observatory.  Need to
         # have xyz in last dimension, and pos/vel in one-but-last.
-        earth_pv, earth_heliocentric = self._prepare_earth_position_vel(support, obstime)
+        earth_pv, earth_heliocentric = self._prepare_earth_position_vel(
+            support, obstime
+        )
         pv = pav2pv(
             frame_or_coord.obsgeoloc.get_xyz(xyz_axis=-1).value,
-            frame_or_coord.obsgeovel.get_xyz(xyz_axis=-1).value
+            frame_or_coord.obsgeovel.get_xyz(xyz_axis=-1).value,
         )
 
         jd1_tt, jd2_tt = get_jd12(obstime, 'tt')

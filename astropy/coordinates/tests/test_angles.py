@@ -11,8 +11,12 @@ from numpy.testing import assert_allclose, assert_array_equal
 import astropy.units as u
 from astropy.coordinates.angles import Longitude, Latitude, Angle
 from astropy.coordinates.errors import (
-    IllegalSecondError, IllegalMinuteError, IllegalHourError,
-    IllegalSecondWarning, IllegalMinuteWarning)
+    IllegalSecondError,
+    IllegalMinuteError,
+    IllegalHourError,
+    IllegalSecondWarning,
+    IllegalMinuteWarning,
+)
 from astropy.utils.exceptions import AstropyDeprecationWarning
 
 
@@ -118,7 +122,7 @@ def test_create_angles():
 
 
 def test_angle_from_view():
-    q = np.arange(3.) * u.deg
+    q = np.arange(3.0) * u.deg
     a = q.view(Angle)
     assert type(a) is Angle
     assert a.unit is q.unit
@@ -166,15 +170,15 @@ def test_angle_ops():
     assert a1 <= a5
 
     # check operations with non-angular result give Quantity.
-    a6 = Angle(45., u.degree)
+    a6 = Angle(45.0, u.degree)
     a7 = a6 * a5
     assert type(a7) is u.Quantity
 
     # but those with angular result yield Angle.
     # (a9 is regression test for #5327)
-    a8 = a1 + 1.*u.deg
+    a8 = a1 + 1.0 * u.deg
     assert type(a8) is Angle
-    a9 = 1.*u.deg + a1
+    a9 = 1.0 * u.deg + a1
     assert type(a9) is Angle
 
     with pytest.raises(TypeError):
@@ -190,25 +194,25 @@ def test_angle_ops():
 def test_angle_methods():
     # Most methods tested as part of the Quantity tests.
     # A few tests here which caused problems before: #8368
-    a = Angle([0., 2.], 'deg')
+    a = Angle([0.0, 2.0], 'deg')
     a_mean = a.mean()
     assert type(a_mean) is Angle
-    assert a_mean == 1. * u.degree
+    assert a_mean == 1.0 * u.degree
     a_std = a.std()
     assert type(a_std) is Angle
-    assert a_std == 1. * u.degree
+    assert a_std == 1.0 * u.degree
     a_var = a.var()
     assert type(a_var) is u.Quantity
-    assert a_var == 1. * u.degree ** 2
+    assert a_var == 1.0 * u.degree**2
     a_ptp = a.ptp()
     assert type(a_ptp) is Angle
-    assert a_ptp == 2. * u.degree
+    assert a_ptp == 2.0 * u.degree
     a_max = a.max()
     assert type(a_max) is Angle
-    assert a_max == 2. * u.degree
+    assert a_max == 2.0 * u.degree
     a_min = a.min()
     assert type(a_min) is Angle
-    assert a_min == 0. * u.degree
+    assert a_min == 0.0 * u.degree
 
 
 def test_angle_convert():
@@ -289,13 +293,20 @@ def test_angle_formatting():
     # tuple or list
 
     res = 'Angle as HMS: 3h36m29.7888s'
-    assert "Angle as HMS: {}".format(angle.to_string(unit=u.hour,
-                                                   sep=("h", "m", "s"),
-                                                   precision=4)) == res
+    assert (
+        "Angle as HMS: {}".format(
+            angle.to_string(unit=u.hour, sep=("h", "m", "s"), precision=4)
+        )
+        == res
+    )
 
     res = 'Angle as HMS: 3-36|29.7888'
-    assert "Angle as HMS: {}".format(angle.to_string(unit=u.hour, sep=["-", "|"],
-                                                   precision=4)) == res
+    assert (
+        "Angle as HMS: {}".format(
+            angle.to_string(unit=u.hour, sep=["-", "|"], precision=4)
+        )
+        == res
+    )
 
     res = 'Angle as HMS: 3-36-29.7888'
     assert f"Angle as HMS: {angle.to_string(unit=u.hour, sep='-', precision=4)}" == res
@@ -314,34 +325,49 @@ def test_angle_formatting():
     assert f"Angle as DMS: {angle.to_string(unit=u.degree, sep=':')}" == res
 
     res = 'Angle as DMS: 3:36:29.79'
-    assert "Angle as DMS: {}".format(angle.to_string(unit=u.degree, sep=":",
-                                      precision=2)) == res
+    assert (
+        "Angle as DMS: {}".format(angle.to_string(unit=u.degree, sep=":", precision=2))
+        == res
+    )
 
     # Note that you can provide one, two, or three separators passed as a
     # tuple or list
 
     res = 'Angle as DMS: 3d36m29.7888s'
-    assert "Angle as DMS: {}".format(angle.to_string(unit=u.degree,
-                                                   sep=("d", "m", "s"),
-                                                   precision=4)) == res
+    assert (
+        "Angle as DMS: {}".format(
+            angle.to_string(unit=u.degree, sep=("d", "m", "s"), precision=4)
+        )
+        == res
+    )
 
     res = 'Angle as DMS: 3-36|29.7888'
-    assert "Angle as DMS: {}".format(angle.to_string(unit=u.degree, sep=["-", "|"],
-                                                   precision=4)) == res
+    assert (
+        "Angle as DMS: {}".format(
+            angle.to_string(unit=u.degree, sep=["-", "|"], precision=4)
+        )
+        == res
+    )
 
     res = 'Angle as DMS: 3-36-29.7888'
-    assert "Angle as DMS: {}".format(angle.to_string(unit=u.degree, sep="-",
-                                                    precision=4)) == res
+    assert (
+        "Angle as DMS: {}".format(angle.to_string(unit=u.degree, sep="-", precision=4))
+        == res
+    )
 
     res = 'Angle as DMS: 03d36m29.7888s'
-    assert "Angle as DMS: {}".format(angle.to_string(unit=u.degree, precision=4,
-                                                  pad=True)) == res
+    assert (
+        "Angle as DMS: {}".format(angle.to_string(unit=u.degree, precision=4, pad=True))
+        == res
+    )
 
     res = 'Angle as rad: 0.0629763rad'
     assert f"Angle as rad: {angle.to_string(unit=u.radian)}" == res
 
     res = 'Angle as rad decimal: 0.0629763'
-    assert f"Angle as rad decimal: {angle.to_string(unit=u.radian, decimal=True)}" == res
+    assert (
+        f"Angle as rad decimal: {angle.to_string(unit=u.radian, decimal=True)}" == res
+    )
 
     # check negative angles
 
@@ -357,9 +383,11 @@ def test_angle_formatting():
 
 def test_to_string_vector():
     # Regression test for the fact that vectorize doesn't work with Numpy 1.6
-    assert Angle([1./7., 1./7.], unit='deg').to_string()[0] == "0d08m34.28571429s"
-    assert Angle([1./7.], unit='deg').to_string()[0] == "0d08m34.28571429s"
-    assert Angle(1./7., unit='deg').to_string() == "0d08m34.28571429s"
+    assert (
+        Angle([1.0 / 7.0, 1.0 / 7.0], unit='deg').to_string()[0] == "0d08m34.28571429s"
+    )
+    assert Angle([1.0 / 7.0], unit='deg').to_string()[0] == "0d08m34.28571429s"
+    assert Angle(1.0 / 7.0, unit='deg').to_string() == "0d08m34.28571429s"
 
 
 def test_angle_format_roundtripping():
@@ -453,71 +481,71 @@ def test_radec():
 def test_negative_zero_dms():
     # Test for DMS parser
     a = Angle('-00:00:10', u.deg)
-    assert_allclose(a.degree, -10. / 3600.)
+    assert_allclose(a.degree, -10.0 / 3600.0)
 
     # Unicode minus
     a = Angle('−00:00:10', u.deg)
-    assert_allclose(a.degree, -10. / 3600.)
+    assert_allclose(a.degree, -10.0 / 3600.0)
 
 
 def test_negative_zero_dm():
     # Test for DM parser
     a = Angle('-00:10', u.deg)
-    assert_allclose(a.degree, -10. / 60.)
+    assert_allclose(a.degree, -10.0 / 60.0)
 
 
 def test_negative_zero_hms():
     # Test for HMS parser
     a = Angle('-00:00:10', u.hour)
-    assert_allclose(a.hour, -10. / 3600.)
+    assert_allclose(a.hour, -10.0 / 3600.0)
 
 
 def test_negative_zero_hm():
     # Test for HM parser
     a = Angle('-00:10', u.hour)
-    assert_allclose(a.hour, -10. / 60.)
+    assert_allclose(a.hour, -10.0 / 60.0)
 
 
 def test_negative_sixty_hm():
     # Test for HM parser
     with pytest.warns(IllegalMinuteWarning):
         a = Angle('-00:60', u.hour)
-    assert_allclose(a.hour, -1.)
+    assert_allclose(a.hour, -1.0)
 
 
 def test_plus_sixty_hm():
     # Test for HM parser
     with pytest.warns(IllegalMinuteWarning):
         a = Angle('00:60', u.hour)
-    assert_allclose(a.hour, 1.)
+    assert_allclose(a.hour, 1.0)
 
 
 def test_negative_fifty_nine_sixty_dms():
     # Test for DMS parser
     with pytest.warns(IllegalSecondWarning):
         a = Angle('-00:59:60', u.deg)
-    assert_allclose(a.degree, -1.)
+    assert_allclose(a.degree, -1.0)
 
 
 def test_plus_fifty_nine_sixty_dms():
     # Test for DMS parser
     with pytest.warns(IllegalSecondWarning):
         a = Angle('+00:59:60', u.deg)
-    assert_allclose(a.degree, 1.)
+    assert_allclose(a.degree, 1.0)
 
 
 def test_negative_sixty_dms():
     # Test for DMS parser
     with pytest.warns(IllegalSecondWarning):
         a = Angle('-00:00:60', u.deg)
-    assert_allclose(a.degree, -1. / 60.)
+    assert_allclose(a.degree, -1.0 / 60.0)
 
 
 def test_plus_sixty_dms():
     # Test for DMS parser
     with pytest.warns(IllegalSecondWarning):
         a = Angle('+00:00:60', u.deg)
-    assert_allclose(a.degree, 1. / 60.)
+    assert_allclose(a.degree, 1.0 / 60.0)
 
 
 def test_angle_to_is_angle():
@@ -536,15 +564,15 @@ def test_angle_to_quantity():
 
 
 def test_quantity_to_angle():
-    a = Angle(1.0*u.deg)
+    a = Angle(1.0 * u.deg)
     assert isinstance(a, Angle)
     with pytest.raises(u.UnitsError):
-        Angle(1.0*u.meter)
-    a = Angle(1.0*u.hour)
+        Angle(1.0 * u.meter)
+    a = Angle(1.0 * u.hour)
     assert isinstance(a, Angle)
     assert a.unit is u.hourangle
     with pytest.raises(u.UnitsError):
-        Angle(1.0*u.min)
+        Angle(1.0 * u.min)
 
 
 def test_angle_string():
@@ -661,7 +689,7 @@ def test_wrap_at_inplace():
     a = Angle([-20, 150, 350, 360] * u.deg)
     out = a.wrap_at('180d', inplace=True)
     assert out is None
-    assert np.all(a.degree == np.array([-20., 150., -10., 0.]))
+    assert np.all(a.degree == np.array([-20.0, 150.0, -10.0, 0.0]))
 
 
 def test_latitude():
@@ -677,7 +705,7 @@ def test_latitude():
     # and that comparison with angles works
     assert np.all(lat == Angle(['90d', '89d']))
     # check setitem works
-    lat[1] = 45. * u.deg
+    lat[1] = 45.0 * u.deg
     assert np.all(lat == Angle(['90d', '45d']))
     # but not with values out of range
     with pytest.raises(ValueError):
@@ -696,11 +724,11 @@ def test_latitude():
     assert angle[0] == -100 * u.deg
 
     lat = Latitude('80d')
-    angle = lat / 2.
+    angle = lat / 2.0
     assert type(angle) is Angle
     assert angle == 40 * u.deg
 
-    angle = lat * 2.
+    angle = lat * 2.0
     assert type(angle) is Angle
     assert angle == 160 * u.deg
 
@@ -712,13 +740,17 @@ def test_latitude():
     with pytest.raises(TypeError) as excinfo:
         lon = Longitude(10, 'deg')
         lat = Latitude(lon)
-    assert "A Latitude angle cannot be created from a Longitude angle" in str(excinfo.value)
+    assert "A Latitude angle cannot be created from a Longitude angle" in str(
+        excinfo.value
+    )
 
     with pytest.raises(TypeError) as excinfo:
         lon = Longitude(10, 'deg')
         lat = Latitude([20], 'deg')
         lat[0] = lon
-    assert "A Longitude angle cannot be assigned to a Latitude angle" in str(excinfo.value)
+    assert "A Longitude angle cannot be assigned to a Latitude angle" in str(
+        excinfo.value
+    )
 
     # Check we can work around the Lat vs Long checks by casting explicitly to Angle.
     lon = Longitude(10, 'deg')
@@ -749,12 +781,12 @@ def test_longitude():
     assert angle.wrap_angle == lon.wrap_angle
 
     # but not on calculations
-    angle = lon / 2.
+    angle = lon / 2.0
     assert np.all(angle == Angle(['5d', '44d']))
     assert type(angle) is Angle
     assert not hasattr(angle, 'wrap_angle')
 
-    angle = lon * 2. + 400 * u.deg
+    angle = lon * 2.0 + 400 * u.deg
     assert np.all(angle == Angle(['420d', '576d']))
     assert type(angle) is Angle
 
@@ -764,15 +796,17 @@ def test_longitude():
 
     # Test wrapping and try hitting some edge cases
     lon = Longitude(np.array([0, 0.5, 1.0, 1.5, 2.0]) * np.pi, unit=u.radian)
-    assert np.all(lon.degree == np.array([0., 90, 180, 270, 0]))
+    assert np.all(lon.degree == np.array([0.0, 90, 180, 270, 0]))
 
-    lon = Longitude(np.array([0, 0.5, 1.0, 1.5, 2.0]) * np.pi, unit=u.radian, wrap_angle='180d')
-    assert np.all(lon.degree == np.array([0., 90, -180, -90, 0]))
+    lon = Longitude(
+        np.array([0, 0.5, 1.0, 1.5, 2.0]) * np.pi, unit=u.radian, wrap_angle='180d'
+    )
+    assert np.all(lon.degree == np.array([0.0, 90, -180, -90, 0]))
 
     # Wrap on setting wrap_angle property (also test auto-conversion of wrap_angle to an Angle)
     lon = Longitude(np.array([0, 0.5, 1.0, 1.5, 2.0]) * np.pi, unit=u.radian)
     lon.wrap_angle = '180d'
-    assert np.all(lon.degree == np.array([0., 90, -180, -90, 0]))
+    assert np.all(lon.degree == np.array([0.0, 90, -180, -90, 0]))
 
     lon = Longitude('460d')
     assert lon == Angle('100d')
@@ -793,7 +827,7 @@ def test_longitude():
     assert lon.wrap_angle.__class__ is Angle
 
     # check that wrap_angle is not copied
-    wrap_angle=180 * u.deg
+    wrap_angle = 180 * u.deg
     lon = Longitude(lon, wrap_angle=wrap_angle)
     assert lon.wrap_angle == 180 * u.deg
     assert np.may_share_memory(lon.wrap_angle, wrap_angle)
@@ -811,13 +845,17 @@ def test_longitude():
     with pytest.raises(TypeError) as excinfo:
         lat = Latitude(10, 'deg')
         lon = Longitude(lat)
-    assert "A Longitude angle cannot be created from a Latitude angle" in str(excinfo.value)
+    assert "A Longitude angle cannot be created from a Latitude angle" in str(
+        excinfo.value
+    )
 
     with pytest.raises(TypeError) as excinfo:
         lat = Latitude(10, 'deg')
         lon = Longitude([20], 'deg')
         lon[0] = lat
-    assert "A Latitude angle cannot be assigned to a Longitude angle" in str(excinfo.value)
+    assert "A Latitude angle cannot be assigned to a Longitude angle" in str(
+        excinfo.value
+    )
 
     # Check we can work around the Lat vs Long checks by casting explicitly to Angle.
     lat = Latitude(10, 'deg')
@@ -832,11 +870,15 @@ def test_longitude():
 
 def test_wrap_at():
     a = Angle([-20, 150, 350, 360] * u.deg)
-    assert np.all(a.wrap_at(360 * u.deg).degree == np.array([340., 150., 350., 0.]))
-    assert np.all(a.wrap_at(Angle(360, unit=u.deg)).degree == np.array([340., 150., 350., 0.]))
-    assert np.all(a.wrap_at('360d').degree == np.array([340., 150., 350., 0.]))
-    assert np.all(a.wrap_at('180d').degree == np.array([-20., 150., -10., 0.]))
-    assert np.all(a.wrap_at(np.pi * u.rad).degree == np.array([-20., 150., -10., 0.]))
+    assert np.all(a.wrap_at(360 * u.deg).degree == np.array([340.0, 150.0, 350.0, 0.0]))
+    assert np.all(
+        a.wrap_at(Angle(360, unit=u.deg)).degree == np.array([340.0, 150.0, 350.0, 0.0])
+    )
+    assert np.all(a.wrap_at('360d').degree == np.array([340.0, 150.0, 350.0, 0.0]))
+    assert np.all(a.wrap_at('180d').degree == np.array([-20.0, 150.0, -10.0, 0.0]))
+    assert np.all(
+        a.wrap_at(np.pi * u.rad).degree == np.array([-20.0, 150.0, -10.0, 0.0])
+    )
 
     # Test wrapping a scalar Angle
     a = Angle('190d')
@@ -875,10 +917,10 @@ def test_regression_formatting_negative():
     #
     # >>> Angle(-1., unit='deg').to_string()
     # '-1d00m-0s'
-    assert Angle(-0., unit='deg').to_string() == '-0d00m00s'
-    assert Angle(-1., unit='deg').to_string() == '-1d00m00s'
-    assert Angle(-0., unit='hour').to_string() == '-0h00m00s'
-    assert Angle(-1., unit='hour').to_string() == '-1h00m00s'
+    assert Angle(-0.0, unit='deg').to_string() == '-0d00m00s'
+    assert Angle(-1.0, unit='deg').to_string() == '-1d00m00s'
+    assert Angle(-0.0, unit='hour').to_string() == '-0h00m00s'
+    assert Angle(-1.0, unit='hour').to_string() == '-1h00m00s'
 
 
 def test_regression_formatting_default_precision():
@@ -906,11 +948,11 @@ def test_create_tuple():
 
 
 def test_list_of_quantities():
-    a1 = Angle([1*u.deg, 1*u.hourangle])
+    a1 = Angle([1 * u.deg, 1 * u.hourangle])
     assert a1.unit == u.deg
     assert_allclose(a1.value, [1, 15])
 
-    a2 = Angle([1*u.hourangle, 1*u.deg], u.deg)
+    a2 = Angle([1 * u.hourangle, 1 * u.deg], u.deg)
     assert a2.unit == u.deg
     assert_allclose(a2.value, [15, 1])
 
@@ -924,17 +966,17 @@ def test_multiply_divide():
     assert a3.unit == (u.deg * u.deg)
 
     a3 = a1 / a2
-    assert_allclose(a3.value, [.25, .4, .5])
+    assert_allclose(a3.value, [0.25, 0.4, 0.5])
     assert a3.unit == u.dimensionless_unscaled
 
 
 def test_mixed_string_and_quantity():
-    a1 = Angle(['1d', 1. * u.deg])
-    assert_array_equal(a1.value, [1., 1.])
+    a1 = Angle(['1d', 1.0 * u.deg])
+    assert_array_equal(a1.value, [1.0, 1.0])
     assert a1.unit == u.deg
 
     a2 = Angle(['1d', 1 * u.rad * np.pi, '3d'])
-    assert_array_equal(a2.value, [1., 180., 3.])
+    assert_array_equal(a2.value, [1.0, 180.0, 3.0])
     assert a2.unit == u.deg
 
 
@@ -951,8 +993,8 @@ def test_wrap_at_without_new():
     depend on array_finalize to set state.  Longitude is used because the
     bug was in its _wrap_angle not getting initialized correctly
     """
-    l1 = Longitude([1]*u.deg)
-    l2 = Longitude([2]*u.deg)
+    l1 = Longitude([1] * u.deg)
+    l2 = Longitude([2] * u.deg)
 
     l = np.concatenate([l1, l2])
     assert l._wrap_angle is not None
@@ -996,7 +1038,7 @@ def test_repr_latex():
     assert rlscangle.split('$')[1] in rlarrangle
 
     # make sure the ... appears for large arrays
-    bigarrangle = Angle(np.ones(50000)/50000., u.deg)
+    bigarrangle = Angle(np.ones(50000) / 50000.0, u.deg)
     assert '...' in bigarrangle._repr_latex_()
 
 
@@ -1007,8 +1049,10 @@ def test_angle_with_cds_units_enabled():
     https://github.com/astropy/astropy/issues/5350#issuecomment-248770151
     """
     from astropy.units import cds
+
     # the problem is with the parser, so remove it temporarily
     from astropy.coordinates.angle_formats import _AngleParser
+
     del _AngleParser._thread_local._parser
     with cds.enable():
         Angle('5d')
@@ -1030,59 +1074,44 @@ def test_angle_wrap_at_nan():
     # Check that no attempt is made to wrap a NaN angle
     angle = Angle([0, np.nan, 1] * u.deg)
     angle.flags.writeable = False  # to force an error if a write is attempted
-    angle.wrap_at(180*u.deg, inplace=True)
+    angle.wrap_at(180 * u.deg, inplace=True)
 
 
 def test_angle_multithreading():
     """
     Regression test for issue #7168
     """
-    angles = ['00:00:00']*10000
+    angles = ['00:00:00'] * 10000
 
     def parse_test(i=0):
         Angle(angles, unit='hour')
+
     for i in range(10):
         threading.Thread(target=parse_test, args=(i,)).start()
 
 
 @pytest.mark.parametrize("cls", [Angle, Longitude, Latitude])
-@pytest.mark.parametrize("input, expstr, exprepr",
-                         [(np.nan*u.deg,
-                           "nan",
-                           "nan deg"),
-                          ([np.nan, 5, 0]*u.deg,
-                           "[nan 5d00m00s 0d00m00s]",
-                           "[nan, 5., 0.] deg"),
-                          ([6, np.nan, 0]*u.deg,
-                           "[6d00m00s nan 0d00m00s]",
-                           "[6., nan, 0.] deg"),
-                          ([np.nan, np.nan, np.nan]*u.deg,
-                           "[nan nan nan]",
-                           "[nan, nan, nan] deg"),
-                          (np.nan*u.hour,
-                           "nan",
-                           "nan hourangle"),
-                          ([np.nan, 5, 0]*u.hour,
-                           "[nan 5h00m00s 0h00m00s]",
-                           "[nan, 5., 0.] hourangle"),
-                          ([6, np.nan, 0]*u.hour,
-                           "[6h00m00s nan 0h00m00s]",
-                           "[6., nan, 0.] hourangle"),
-                          ([np.nan, np.nan, np.nan]*u.hour,
-                           "[nan nan nan]",
-                           "[nan, nan, nan] hourangle"),
-                          (np.nan*u.rad,
-                           "nan",
-                           "nan rad"),
-                          ([np.nan, 1, 0]*u.rad,
-                           "[nan 1rad 0rad]",
-                           "[nan, 1., 0.] rad"),
-                          ([1.50, np.nan, 0]*u.rad,
-                           "[1.5rad nan 0rad]",
-                           "[1.5, nan, 0.] rad"),
-                          ([np.nan, np.nan, np.nan]*u.rad,
-                           "[nan nan nan]",
-                           "[nan, nan, nan] rad")])
+@pytest.mark.parametrize(
+    "input, expstr, exprepr",
+    [
+        (np.nan * u.deg, "nan", "nan deg"),
+        ([np.nan, 5, 0] * u.deg, "[nan 5d00m00s 0d00m00s]", "[nan, 5., 0.] deg"),
+        ([6, np.nan, 0] * u.deg, "[6d00m00s nan 0d00m00s]", "[6., nan, 0.] deg"),
+        ([np.nan, np.nan, np.nan] * u.deg, "[nan nan nan]", "[nan, nan, nan] deg"),
+        (np.nan * u.hour, "nan", "nan hourangle"),
+        ([np.nan, 5, 0] * u.hour, "[nan 5h00m00s 0h00m00s]", "[nan, 5., 0.] hourangle"),
+        ([6, np.nan, 0] * u.hour, "[6h00m00s nan 0h00m00s]", "[6., nan, 0.] hourangle"),
+        (
+            [np.nan, np.nan, np.nan] * u.hour,
+            "[nan nan nan]",
+            "[nan, nan, nan] hourangle",
+        ),
+        (np.nan * u.rad, "nan", "nan rad"),
+        ([np.nan, 1, 0] * u.rad, "[nan 1rad 0rad]", "[nan, 1., 0.] rad"),
+        ([1.50, np.nan, 0] * u.rad, "[1.5rad nan 0rad]", "[1.5, nan, 0.] rad"),
+        ([np.nan, np.nan, np.nan] * u.rad, "[nan nan nan]", "[nan, nan, nan] rad"),
+    ],
+)
 def test_str_repr_angles_nan(cls, input, expstr, exprepr):
     """
     Regression test for issue #11473
@@ -1091,4 +1120,4 @@ def test_str_repr_angles_nan(cls, input, expstr, exprepr):
     assert str(q) == expstr
     # Deleting whitespaces since repr appears to be adding them for some values
     # making the test fail.
-    assert repr(q).replace(" ", "") == f'<{cls.__name__}{exprepr}>'.replace(" ","")
+    assert repr(q).replace(" ", "") == f'<{cls.__name__}{exprepr}>'.replace(" ", "")

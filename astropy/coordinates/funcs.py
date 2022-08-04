@@ -23,8 +23,14 @@ from .builtin_frames import GCRS, PrecessedGeocentric
 from .representation import SphericalRepresentation, CartesianRepresentation
 from .builtin_frames.utils import get_jd12
 
-__all__ = ['cartesian_to_spherical', 'spherical_to_cartesian', 'get_sun',
-           'get_constellation', 'concatenate_representations', 'concatenate']
+__all__ = [
+    'cartesian_to_spherical',
+    'spherical_to_cartesian',
+    'get_sun',
+    'get_constellation',
+    'concatenate_representations',
+    'concatenate',
+]
 
 
 def cartesian_to_spherical(x, y, z):
@@ -155,16 +161,19 @@ def get_sun(time):
     earth_v = earth_pv_bary['v']
 
     # convert barycentric velocity to units of c, but keep as array for passing in to erfa
-    earth_v /= c.to_value(u.au/u.d)
+    earth_v /= c.to_value(u.au / u.d)
 
     dsun = np.sqrt(np.sum(earth_p**2, axis=-1))
-    invlorentz = (1-np.sum(earth_v**2, axis=-1))**0.5
-    properdir = erfa.ab(earth_p/dsun.reshape(dsun.shape + (1,)),
-                        -earth_v, dsun, invlorentz)
+    invlorentz = (1 - np.sum(earth_v**2, axis=-1)) ** 0.5
+    properdir = erfa.ab(
+        earth_p / dsun.reshape(dsun.shape + (1,)), -earth_v, dsun, invlorentz
+    )
 
-    cartrep = CartesianRepresentation(x=-dsun*properdir[..., 0] * u.AU,
-                                      y=-dsun*properdir[..., 1] * u.AU,
-                                      z=-dsun*properdir[..., 2] * u.AU)
+    cartrep = CartesianRepresentation(
+        x=-dsun * properdir[..., 0] * u.AU,
+        y=-dsun * properdir[..., 1] * u.AU,
+        z=-dsun * properdir[..., 2] * u.AU,
+    )
     return SkyCoord(cartrep, frame=GCRS(obstime=time))
 
 
@@ -208,9 +217,12 @@ def get_constellation(coord, short_name=False, constellation_list='iau'):
     if not _constellation_data:
         cdata = data.get_pkg_data_contents('data/constellation_data_roman87.dat')
         ctable = ascii.read(cdata, names=['ral', 'rau', 'decl', 'name'])
-        cnames = data.get_pkg_data_contents('data/constellation_names.dat', encoding='UTF8')
-        cnames_short_to_long = {l[:3]: l[4:] for l in cnames.split('\n')
-                                if not l.startswith('#')}
+        cnames = data.get_pkg_data_contents(
+            'data/constellation_names.dat', encoding='UTF8'
+        )
+        cnames_short_to_long = {
+            l[:3]: l[4:] for l in cnames.split('\n') if not l.startswith('#')
+        }
         cnames_long = np.array([cnames_short_to_long[nm] for nm in ctable['name']])
 
         _constellation_data['ctable'] = ctable
@@ -247,7 +259,9 @@ def get_constellation(coord, short_name=False, constellation_list='iau'):
         if np.sum(notided) == 0:
             break
     else:
-        raise ValueError(f'Could not find constellation for coordinates {constel_coord[notided]}')
+        raise ValueError(
+            f'Could not find constellation for coordinates {constel_coord[notided]}'
+        )
 
     if short_name:
         names = ctable['name'][constellidx]
@@ -261,7 +275,7 @@ def get_constellation(coord, short_name=False, constellation_list='iau'):
 
 
 def _concatenate_components(reps_difs, names):
-    """ Helper function for the concatenate function below. Gets and
+    """Helper function for the concatenate function below. Gets and
     concatenates all of the individual components for an iterable of
     representations or differentials.
     """
@@ -299,8 +313,9 @@ def concatenate_representations(reps):
 
     """
     if not isinstance(reps, (Sequence, np.ndarray)):
-        raise TypeError('Input must be a list or iterable of representation '
-                        'objects.')
+        raise TypeError(
+            'Input must be a list or iterable of representation ' 'objects.'
+        )
 
     # First, validate that the representations are the same, and
     # concatenate all of the positional data:
@@ -310,26 +325,30 @@ def concatenate_representations(reps):
 
     # Construct the new representation with the concatenated data from the
     # representations passed in
-    values = _concatenate_components(reps,
-                                     rep_type.attr_classes.keys())
+    values = _concatenate_components(reps, rep_type.attr_classes.keys())
     new_rep = rep_type(*values)
 
     has_diff = any('s' in rep.differentials for rep in reps)
     if has_diff and any('s' not in rep.differentials for rep in reps):
-        raise ValueError('Input representations must either all contain '
-                         'differentials, or not contain differentials.')
+        raise ValueError(
+            'Input representations must either all contain '
+            'differentials, or not contain differentials.'
+        )
 
     if has_diff:
         dif_type = type(reps[0].differentials['s'])
 
-        if any('s' not in r.differentials or
-                type(r.differentials['s']) != dif_type
-               for r in reps):
-            raise TypeError('All input representations must have the same '
-                            'differential type.')
+        if any(
+            's' not in r.differentials or type(r.differentials['s']) != dif_type
+            for r in reps
+        ):
+            raise TypeError(
+                'All input representations must have the same ' 'differential type.'
+            )
 
-        values = _concatenate_components([r.differentials['s'] for r in reps],
-                                         dif_type.attr_classes.keys())
+        values = _concatenate_components(
+            [r.differentials['s'] for r in reps], dif_type.attr_classes.keys()
+        )
         new_dif = dif_type(*values)
         new_rep = new_rep.with_differentials({'s': new_dif})
 
@@ -365,10 +384,12 @@ def concatenate(coords):
     # Check that all frames are equivalent
     for sc in scs[1:]:
         if not sc.is_equivalent_frame(scs[0]):
-            raise ValueError("All inputs must have equivalent frames: "
-                             "{} != {}".format(sc, scs[0]))
+            raise ValueError(
+                "All inputs must have equivalent frames: " "{} != {}".format(sc, scs[0])
+            )
 
     # TODO: this can be changed to SkyCoord.from_representation() for a speed
     # boost when we switch to using classmethods
-    return SkyCoord(concatenate_representations([c.data for c in coords]),
-                    frame=scs[0].frame)
+    return SkyCoord(
+        concatenate_representations([c.data for c in coords]), frame=scs[0].frame
+    )

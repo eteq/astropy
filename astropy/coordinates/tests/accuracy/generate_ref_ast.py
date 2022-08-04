@@ -26,11 +26,11 @@ def ref_fk4_no_e_fk4(fnout='fk4_no_e_fk4.csv'):
     # Sample uniformly on the unit sphere. These will be either the FK4
     # coordinates for the transformation to FK5, or the FK5 coordinates for the
     # transformation to FK4.
-    ra = np.random.uniform(0., 360., N)
-    dec = np.degrees(np.arcsin(np.random.uniform(-1., 1., N)))
+    ra = np.random.uniform(0.0, 360.0, N)
+    dec = np.degrees(np.arcsin(np.random.uniform(-1.0, 1.0, N)))
 
     # Generate random observation epoch and equinoxes
-    obstime = [f"B{x:7.2f}" for x in np.random.uniform(1950., 2000., N)]
+    obstime = [f"B{x:7.2f}" for x in np.random.uniform(1950.0, 2000.0, N)]
 
     ra_fk4ne, dec_fk4ne = [], []
     ra_fk4, dec_fk4 = [], []
@@ -63,8 +63,10 @@ def ref_fk4_no_e_fk4(fnout='fk4_no_e_fk4.csv'):
     t.add_column(Column(name='ra_fk4', data=ra_fk4))
     t.add_column(Column(name='dec_fk4', data=dec_fk4))
     f = open(os.path.join('data', fnout), 'wb')
-    f.write("# This file was generated with the {} script, and the reference "
-            "values were computed using AST\n".format(os.path.basename(__file__)))
+    f.write(
+        "# This file was generated with the {} script, and the reference "
+        "values were computed using AST\n".format(os.path.basename(__file__))
+    )
     t.write(f, format='ascii', delimiter=',')
 
 
@@ -83,13 +85,13 @@ def ref_fk4_no_e_fk5(fnout='fk4_no_e_fk5.csv'):
     # Sample uniformly on the unit sphere. These will be either the FK4
     # coordinates for the transformation to FK5, or the FK5 coordinates for the
     # transformation to FK4.
-    ra = np.random.uniform(0., 360., N)
-    dec = np.degrees(np.arcsin(np.random.uniform(-1., 1., N)))
+    ra = np.random.uniform(0.0, 360.0, N)
+    dec = np.degrees(np.arcsin(np.random.uniform(-1.0, 1.0, N)))
 
     # Generate random observation epoch and equinoxes
-    obstime = [f"B{x:7.2f}" for x in np.random.uniform(1950., 2000., N)]
-    equinox_fk4 = [f"B{x:7.2f}" for x in np.random.uniform(1925., 1975., N)]
-    equinox_fk5 = [f"J{x:7.2f}" for x in np.random.uniform(1975., 2025., N)]
+    obstime = [f"B{x:7.2f}" for x in np.random.uniform(1950.0, 2000.0, N)]
+    equinox_fk4 = [f"B{x:7.2f}" for x in np.random.uniform(1925.0, 1975.0, N)]
+    equinox_fk5 = [f"J{x:7.2f}" for x in np.random.uniform(1975.0, 2025.0, N)]
 
     ra_fk4, dec_fk4 = [], []
     ra_fk5, dec_fk5 = [], []
@@ -97,8 +99,12 @@ def ref_fk4_no_e_fk5(fnout='fk4_no_e_fk5.csv'):
     for i in range(N):
 
         # Set up frames for AST
-        frame_fk4 = Ast.SkyFrame(f'System=FK4-NO-E,Epoch={obstime[i]},Equinox={equinox_fk4[i]}')
-        frame_fk5 = Ast.SkyFrame(f'System=FK5,Epoch={obstime[i]},Equinox={equinox_fk5[i]}')
+        frame_fk4 = Ast.SkyFrame(
+            f'System=FK4-NO-E,Epoch={obstime[i]},Equinox={equinox_fk4[i]}'
+        )
+        frame_fk5 = Ast.SkyFrame(
+            f'System=FK5,Epoch={obstime[i]},Equinox={equinox_fk5[i]}'
+        )
 
         # FK4 to FK5
         frameset = frame_fk4.convert(frame_fk5)
@@ -124,8 +130,10 @@ def ref_fk4_no_e_fk5(fnout='fk4_no_e_fk5.csv'):
     t.add_column(Column(name='ra_fk4', data=ra_fk4))
     t.add_column(Column(name='dec_fk4', data=dec_fk4))
     f = open(os.path.join('data', fnout), 'wb')
-    f.write("# This file was generated with the {} script, and the reference "
-            "values were computed using AST\n".format(os.path.basename(__file__)))
+    f.write(
+        "# This file was generated with the {} script, and the reference "
+        "values were computed using AST\n".format(os.path.basename(__file__))
+    )
     t.write(f, format='ascii', delimiter=',')
 
 
@@ -144,12 +152,12 @@ def ref_galactic_fk4(fnout='galactic_fk4.csv'):
     # Sample uniformly on the unit sphere. These will be either the ICRS
     # coordinates for the transformation to FK5, or the FK5 coordinates for the
     # transformation to ICRS.
-    lon = np.random.uniform(0., 360., N)
-    lat = np.degrees(np.arcsin(np.random.uniform(-1., 1., N)))
+    lon = np.random.uniform(0.0, 360.0, N)
+    lat = np.degrees(np.arcsin(np.random.uniform(-1.0, 1.0, N)))
 
     # Generate random observation epoch and equinoxes
-    obstime = [f"B{x:7.2f}" for x in np.random.uniform(1950., 2000., N)]
-    equinox_fk4 = [f"J{x:7.2f}" for x in np.random.uniform(1975., 2025., N)]
+    obstime = [f"B{x:7.2f}" for x in np.random.uniform(1950.0, 2000.0, N)]
+    equinox_fk4 = [f"J{x:7.2f}" for x in np.random.uniform(1975.0, 2025.0, N)]
 
     lon_gal, lat_gal = [], []
     ra_fk4, dec_fk4 = [], []
@@ -158,7 +166,9 @@ def ref_galactic_fk4(fnout='galactic_fk4.csv'):
 
         # Set up frames for AST
         frame_gal = Ast.SkyFrame(f'System=Galactic,Epoch={obstime[i]}')
-        frame_fk4 = Ast.SkyFrame(f'System=FK4,Epoch={obstime[i]},Equinox={equinox_fk4[i]}')
+        frame_fk4 = Ast.SkyFrame(
+            f'System=FK4,Epoch={obstime[i]},Equinox={equinox_fk4[i]}'
+        )
 
         # ICRS to FK5
         frameset = frame_gal.convert(frame_fk4)
@@ -183,8 +193,10 @@ def ref_galactic_fk4(fnout='galactic_fk4.csv'):
     t.add_column(Column(name='lon_gal', data=lon_gal))
     t.add_column(Column(name='lat_gal', data=lat_gal))
     f = open(os.path.join('data', fnout), 'wb')
-    f.write("# This file was generated with the {} script, and the reference "
-            "values were computed using AST\n".format(os.path.basename(__file__)))
+    f.write(
+        "# This file was generated with the {} script, and the reference "
+        "values were computed using AST\n".format(os.path.basename(__file__))
+    )
     t.write(f, format='ascii', delimiter=',')
 
 
@@ -203,12 +215,12 @@ def ref_icrs_fk5(fnout='icrs_fk5.csv'):
     # Sample uniformly on the unit sphere. These will be either the ICRS
     # coordinates for the transformation to FK5, or the FK5 coordinates for the
     # transformation to ICRS.
-    ra = np.random.uniform(0., 360., N)
-    dec = np.degrees(np.arcsin(np.random.uniform(-1., 1., N)))
+    ra = np.random.uniform(0.0, 360.0, N)
+    dec = np.degrees(np.arcsin(np.random.uniform(-1.0, 1.0, N)))
 
     # Generate random observation epoch and equinoxes
-    obstime = [f"B{x:7.2f}" for x in np.random.uniform(1950., 2000., N)]
-    equinox_fk5 = [f"J{x:7.2f}" for x in np.random.uniform(1975., 2025., N)]
+    obstime = [f"B{x:7.2f}" for x in np.random.uniform(1950.0, 2000.0, N)]
+    equinox_fk5 = [f"J{x:7.2f}" for x in np.random.uniform(1975.0, 2025.0, N)]
 
     ra_icrs, dec_icrs = [], []
     ra_fk5, dec_fk5 = [], []
@@ -217,7 +229,9 @@ def ref_icrs_fk5(fnout='icrs_fk5.csv'):
 
         # Set up frames for AST
         frame_icrs = Ast.SkyFrame(f'System=ICRS,Epoch={obstime[i]}')
-        frame_fk5 = Ast.SkyFrame(f'System=FK5,Epoch={obstime[i]},Equinox={equinox_fk5[i]}')
+        frame_fk5 = Ast.SkyFrame(
+            f'System=FK5,Epoch={obstime[i]},Equinox={equinox_fk5[i]}'
+        )
 
         # ICRS to FK5
         frameset = frame_icrs.convert(frame_fk5)
@@ -242,8 +256,10 @@ def ref_icrs_fk5(fnout='icrs_fk5.csv'):
     t.add_column(Column(name='ra_icrs', data=ra_icrs))
     t.add_column(Column(name='dec_icrs', data=dec_icrs))
     f = open(os.path.join('data', fnout), 'wb')
-    f.write("# This file was generated with the {} script, and the reference "
-            "values were computed using AST\n".format(os.path.basename(__file__)))
+    f.write(
+        "# This file was generated with the {} script, and the reference "
+        "values were computed using AST\n".format(os.path.basename(__file__))
+    )
     t.write(f, format='ascii', delimiter=',')
 
 

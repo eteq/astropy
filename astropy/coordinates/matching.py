@@ -11,11 +11,17 @@ from astropy import units as u
 from . import Angle
 from .sky_coordinate import SkyCoord
 
-__all__ = ['match_coordinates_3d', 'match_coordinates_sky', 'search_around_3d',
-           'search_around_sky']
+__all__ = [
+    'match_coordinates_3d',
+    'match_coordinates_sky',
+    'search_around_3d',
+    'search_around_sky',
+]
 
 
-def match_coordinates_3d(matchcoord, catalogcoord, nthneighbor=1, storekdtree='kdtree_3d'):
+def match_coordinates_3d(
+    matchcoord, catalogcoord, nthneighbor=1, storekdtree='kdtree_3d'
+):
     """
     Finds the nearest 3-dimensional matches of a coordinate or coordinates in
     a set of catalog coordinates.
@@ -62,8 +68,9 @@ def match_coordinates_3d(matchcoord, catalogcoord, nthneighbor=1, storekdtree='k
     or it will fail.
     """
     if catalogcoord.isscalar or len(catalogcoord) < 1:
-        raise ValueError('The catalog for coordinate matching cannot be a '
-                         'scalar or length-0.')
+        raise ValueError(
+            'The catalog for coordinate matching cannot be a ' 'scalar or length-0.'
+        )
 
     kdt = _get_cartesian_kdtree(catalogcoord, storekdtree)
 
@@ -88,10 +95,16 @@ def match_coordinates_3d(matchcoord, catalogcoord, nthneighbor=1, storekdtree='k
         idx = idx[:, -1]
 
     sep2d = catalogcoord[idx].separation(matchcoord)
-    return idx.reshape(matchxyz.shape[1:]), sep2d, dist.reshape(matchxyz.shape[1:]) * catunit
+    return (
+        idx.reshape(matchxyz.shape[1:]),
+        sep2d,
+        dist.reshape(matchxyz.shape[1:]) * catunit,
+    )
 
 
-def match_coordinates_sky(matchcoord, catalogcoord, nthneighbor=1, storekdtree='kdtree_sky'):
+def match_coordinates_sky(
+    matchcoord, catalogcoord, nthneighbor=1, storekdtree='kdtree_sky'
+):
     """
     Finds the nearest on-sky matches of a coordinate or coordinates in
     a set of catalog coordinates.
@@ -140,8 +153,9 @@ def match_coordinates_sky(matchcoord, catalogcoord, nthneighbor=1, storekdtree='
     or it will fail.
     """
     if catalogcoord.isscalar or len(catalogcoord) < 1:
-        raise ValueError('The catalog for coordinate matching cannot be a '
-                         'scalar or length-0.')
+        raise ValueError(
+            'The catalog for coordinate matching cannot be a ' 'scalar or length-0.'
+        )
 
     # send to catalog frame
     if isinstance(matchcoord, SkyCoord):
@@ -161,11 +175,15 @@ def match_coordinates_sky(matchcoord, catalogcoord, nthneighbor=1, storekdtree='
     # it's based on UnitSphericalRepresentation.
     storekdtree = catalogcoord.cache.get(storekdtree, storekdtree)
 
-    idx, sep2d, sep3d = match_coordinates_3d(newmatch_u, newcat_u, nthneighbor, storekdtree)
+    idx, sep2d, sep3d = match_coordinates_3d(
+        newmatch_u, newcat_u, nthneighbor, storekdtree
+    )
     # sep3d is *wrong* above, because the distance information was removed,
     # unless one of the catalogs doesn't have a real distance
-    if not (isinstance(catalogcoord.data, UnitSphericalRepresentation) or
-            isinstance(newmatch.data, UnitSphericalRepresentation)):
+    if not (
+        isinstance(catalogcoord.data, UnitSphericalRepresentation)
+        or isinstance(newmatch.data, UnitSphericalRepresentation)
+    ):
         sep3d = catalogcoord[idx].separation_3d(newmatch)
 
     # update the kdtree on the actual passed-in coordinate
@@ -237,17 +255,22 @@ def search_around_3d(coords1, coords2, distlimit, storekdtree='kdtree_3d'):
         raise ValueError('distlimit must be a scalar in search_around_3d')
 
     if coords1.isscalar or coords2.isscalar:
-        raise ValueError('One of the inputs to search_around_3d is a scalar. '
-                         'search_around_3d is intended for use with array '
-                         'coordinates, not scalars.  Instead, use '
-                         '``coord1.separation_3d(coord2) < distlimit`` to find '
-                         'the coordinates near a scalar coordinate.')
+        raise ValueError(
+            'One of the inputs to search_around_3d is a scalar. '
+            'search_around_3d is intended for use with array '
+            'coordinates, not scalars.  Instead, use '
+            '``coord1.separation_3d(coord2) < distlimit`` to find '
+            'the coordinates near a scalar coordinate.'
+        )
 
     if len(coords1) == 0 or len(coords2) == 0:
         # Empty array input: return empty match
-        return (np.array([], dtype=int), np.array([], dtype=int),
-                Angle([], u.deg),
-                u.Quantity([], coords1.distance.unit))
+        return (
+            np.array([], dtype=int),
+            np.array([], dtype=int),
+            Angle([], u.deg),
+            u.Quantity([], coords1.distance.unit),
+        )
 
     kdt2 = _get_cartesian_kdtree(coords2, storekdtree)
     cunit = coords2.cartesian.x.unit
@@ -337,11 +360,13 @@ def search_around_sky(coords1, coords2, seplimit, storekdtree='kdtree_sky'):
         raise ValueError('seplimit must be a scalar in search_around_sky')
 
     if coords1.isscalar or coords2.isscalar:
-        raise ValueError('One of the inputs to search_around_sky is a scalar. '
-                         'search_around_sky is intended for use with array '
-                         'coordinates, not scalars.  Instead, use '
-                         '``coord1.separation(coord2) < seplimit`` to find the '
-                         'coordinates near a scalar coordinate.')
+        raise ValueError(
+            'One of the inputs to search_around_sky is a scalar. '
+            'search_around_sky is intended for use with array '
+            'coordinates, not scalars.  Instead, use '
+            '``coord1.separation(coord2) < seplimit`` to find the '
+            'coordinates near a scalar coordinate.'
+        )
 
     if len(coords1) == 0 or len(coords2) == 0:
         # Empty array input: return empty match
@@ -349,9 +374,12 @@ def search_around_sky(coords1, coords2, seplimit, storekdtree='kdtree_sky'):
             distunit = u.dimensionless_unscaled
         else:
             distunit = coords1.distance.unit
-        return (np.array([], dtype=int), np.array([], dtype=int),
-                Angle([], u.deg),
-                u.Quantity([], distunit))
+        return (
+            np.array([], dtype=int),
+            np.array([], dtype=int),
+            Angle([], u.deg),
+            u.Quantity([], distunit),
+        )
 
     # we convert coord1 to match coord2's frame.  We do it this way
     # so that if the conversion does happen, the KD tree of coord2 at least gets
@@ -436,11 +464,14 @@ def _get_cartesian_kdtree(coord, attrname_or_kdt='kdtree', forceunit=None):
 
     # without scipy this will immediately fail
     from scipy import spatial
+
     try:
         KDTree = spatial.cKDTree
     except Exception:
-        warn('C-based KD tree not found, falling back on (much slower) '
-             'python implementation')
+        warn(
+            'C-based KD tree not found, falling back on (much slower) '
+            'python implementation'
+        )
         KDTree = spatial.KDTree
 
     if attrname_or_kdt is True:  # backwards compatibility for pre v0.4
@@ -450,15 +481,18 @@ def _get_cartesian_kdtree(coord, attrname_or_kdt='kdtree', forceunit=None):
     if isinstance(attrname_or_kdt, str):
         kdt = coord.cache.get(attrname_or_kdt, None)
         if kdt is not None and not isinstance(kdt, KDTree):
-            raise TypeError(f'The `attrname_or_kdt` "{attrname_or_kdt}" is not a scipy KD tree!')
+            raise TypeError(
+                f'The `attrname_or_kdt` "{attrname_or_kdt}" is not a scipy KD tree!'
+            )
     elif isinstance(attrname_or_kdt, KDTree):
         kdt = attrname_or_kdt
         attrname_or_kdt = None
     elif not attrname_or_kdt:
         kdt = None
     else:
-        raise TypeError('Invalid `attrname_or_kdt` argument for KD-Tree:' +
-                        str(attrname_or_kdt))
+        raise TypeError(
+            'Invalid `attrname_or_kdt` argument for KD-Tree:' + str(attrname_or_kdt)
+        )
 
     if kdt is None:
         # need to build the cartesian KD-tree for the catalog

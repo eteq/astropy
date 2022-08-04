@@ -53,16 +53,24 @@ def test_against_hor2eq():
     """
     # Observatory position for `kpno` from here:
     # http://idlastro.gsfc.nasa.gov/ftp/pro/astro/observatory.pro
-    location = EarthLocation(lon=Angle('-111d36.0m'),
-                             lat=Angle('31d57.8m'),
-                             height=2120. * u.m)
+    location = EarthLocation(
+        lon=Angle('-111d36.0m'), lat=Angle('31d57.8m'), height=2120.0 * u.m
+    )
 
     obstime = Time(2451545.0, format='jd', scale='ut1')
 
-    altaz_frame = AltAz(obstime=obstime, location=location,
-                        temperature=0 * u.deg_C, pressure=0.781 * u.bar)
-    altaz_frame_noatm = AltAz(obstime=obstime, location=location,
-                              temperature=0 * u.deg_C, pressure=0.0 * u.bar)
+    altaz_frame = AltAz(
+        obstime=obstime,
+        location=location,
+        temperature=0 * u.deg_C,
+        pressure=0.781 * u.bar,
+    )
+    altaz_frame_noatm = AltAz(
+        obstime=obstime,
+        location=location,
+        temperature=0 * u.deg_C,
+        pressure=0.0 * u.bar,
+    )
     altaz = SkyCoord('264d55m06s 37d54m41s', frame=altaz_frame)
     altaz_noatm = SkyCoord('264d55m06s 37d54m41s', frame=altaz_frame_noatm)
 
@@ -92,10 +100,10 @@ def run_pyephem():
     import ephem
 
     observer = ephem.Observer()
-    observer.lon = -1 * np.radians(109 + 24/60. + 53.1/60**2)
-    observer.lat = np.radians(33 + 41/60. + 46.0/60.**2)
+    observer.lon = -1 * np.radians(109 + 24 / 60.0 + 53.1 / 60**2)
+    observer.lat = np.radians(33 + 41 / 60.0 + 46.0 / 60.0**2)
     observer.elevation = 300
-    observer.date = 2455822.868055556-ephem.julian_date(0)
+    observer.date = 2455822.868055556 - ephem.julian_date(0)
 
     ra, dec = observer.radec_of(np.radians(6.8927), np.radians(60.7665))
     print(f"EPHEM: {observer.date}: {np.degrees(ra)}, {np.degrees(dec)}")
@@ -113,14 +121,18 @@ def test_against_pyephem():
     https://github.com/phn/pytpm/issues/2#issuecomment-3698679
     """
     obstime = Time('2011-09-18 08:50:00')
-    location = EarthLocation(lon=Angle('-109d24m53.1s'),
-                             lat=Angle('33d41m46.0s'),
-                             height=300. * u.m)
+    location = EarthLocation(
+        lon=Angle('-109d24m53.1s'), lat=Angle('33d41m46.0s'), height=300.0 * u.m
+    )
     # We are using the default pressure and temperature in PyEphem
     # relative_humidity = ?
     # obswl = ?
-    altaz_frame = AltAz(obstime=obstime, location=location,
-                        temperature=15 * u.deg_C, pressure=1.010 * u.bar)
+    altaz_frame = AltAz(
+        obstime=obstime,
+        location=location,
+        temperature=15 * u.deg_C,
+        pressure=1.010 * u.bar,
+    )
 
     altaz = SkyCoord('6.8927d +60.7665d', frame=altaz_frame)
     radec_actual = altaz.transform_to('icrs')
@@ -145,9 +157,9 @@ def test_against_jpl_horizons():
     http://ssd.jpl.nasa.gov/?horizons_tutorial
     """
     obstime = Time('1998-07-28 03:00')
-    location = EarthLocation(lon=Angle('248.405300d'),
-                             lat=Angle('31.9585d'),
-                             height=2.06 * u.km)
+    location = EarthLocation(
+        lon=Angle('248.405300d'), lat=Angle('31.9585d'), height=2.06 * u.km
+    )
     # No atmosphere
     altaz_frame = AltAz(obstime=obstime, location=location)
 
@@ -167,15 +179,19 @@ def test_fk5_equinox_and_epoch_j2000_0_to_topocentric_observed():
     """
     # Observatory position for `kpno` from here:
     # http://idlastro.gsfc.nasa.gov/ftp/pro/astro/observatory.pro
-    location = EarthLocation(lon=Angle('-111.598333d'),
-                             lat=Angle('31.956389d'),
-                             height=2093.093 * u.m)  # TODO: height correct?
+    location = EarthLocation(
+        lon=Angle('-111.598333d'), lat=Angle('31.956389d'), height=2093.093 * u.m
+    )  # TODO: height correct?
 
     obstime = Time('2010-01-01 12:00:00')
     # relative_humidity = ?
     # obswl = ?
-    altaz_frame = AltAz(obstime=obstime, location=location,
-                        temperature=0 * u.deg_C, pressure=0.781 * u.bar)
+    altaz_frame = AltAz(
+        obstime=obstime,
+        location=location,
+        temperature=0 * u.deg_C,
+        pressure=0.781 * u.bar,
+    )
 
     radec = SkyCoord('12h22m54.899s 15d49m20.57s', frame='fk5')
 

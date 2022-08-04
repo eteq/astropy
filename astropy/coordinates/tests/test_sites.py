@@ -4,7 +4,11 @@ from astropy.tests.helper import assert_quantity_allclose
 from astropy.units import allclose as quantity_allclose
 from astropy import units as u
 from astropy.coordinates import Longitude, Latitude, EarthLocation
-from astropy.coordinates.sites import get_builtin_sites, get_downloaded_sites, SiteRegistry
+from astropy.coordinates.sites import (
+    get_builtin_sites,
+    get_downloaded_sites,
+    SiteRegistry,
+)
 
 
 def test_builtin_sites():
@@ -12,11 +16,9 @@ def test_builtin_sites():
 
     greenwich = reg['greenwich']
     lon, lat, el = greenwich.to_geodetic()
-    assert_quantity_allclose(lon, Longitude('0:0:0', unit=u.deg),
-                             atol=10*u.arcsec)
-    assert_quantity_allclose(lat, Latitude('51:28:40', unit=u.deg),
-                             atol=1*u.arcsec)
-    assert_quantity_allclose(el, 46*u.m, atol=1*u.m)
+    assert_quantity_allclose(lon, Longitude('0:0:0', unit=u.deg), atol=10 * u.arcsec)
+    assert_quantity_allclose(lat, Latitude('51:28:40', unit=u.deg), atol=1 * u.arcsec)
+    assert_quantity_allclose(el, 46 * u.m, atol=1 * u.m)
 
     names = reg.names
     assert 'greenwich' in names
@@ -24,7 +26,10 @@ def test_builtin_sites():
 
     with pytest.raises(KeyError) as exc:
         reg['nonexistent site']
-    assert exc.value.args[0] == "Site 'nonexistent site' not in database. Use the 'names' attribute to see available sites."
+    assert (
+        exc.value.args[0]
+        == "Site 'nonexistent site' not in database. Use the 'names' attribute to see available sites."
+    )
 
 
 @pytest.mark.remote_data(source='astropy')
@@ -33,11 +38,11 @@ def test_online_sites():
 
     keck = reg['keck']
     lon, lat, el = keck.to_geodetic()
-    assert_quantity_allclose(lon, -Longitude('155:28.7', unit=u.deg),
-                             atol=0.001*u.deg)
-    assert_quantity_allclose(lat, Latitude('19:49.7', unit=u.deg),
-                             atol=0.001*u.deg)
-    assert_quantity_allclose(el, 4160*u.m, atol=1*u.m)
+    assert_quantity_allclose(
+        lon, -Longitude('155:28.7', unit=u.deg), atol=0.001 * u.deg
+    )
+    assert_quantity_allclose(lat, Latitude('19:49.7', unit=u.deg), atol=0.001 * u.deg)
+    assert_quantity_allclose(el, 4160 * u.m, atol=1 * u.m)
 
     names = reg.names
     assert 'keck' in names
@@ -50,11 +55,17 @@ def test_online_sites():
 
     with pytest.raises(KeyError) as exc:
         reg['nonexistent site']
-    assert exc.value.args[0] == "Site 'nonexistent site' not in database. Use the 'names' attribute to see available sites."
+    assert (
+        exc.value.args[0]
+        == "Site 'nonexistent site' not in database. Use the 'names' attribute to see available sites."
+    )
 
     with pytest.raises(KeyError) as exc:
         reg['kec']
-    assert exc.value.args[0] == "Site 'kec' not in database. Use the 'names' attribute to see available sites. Did you mean one of: 'keck'?'"
+    assert (
+        exc.value.args[0]
+        == "Site 'kec' not in database. Use the 'names' attribute to see available sites. Did you mean one of: 'keck'?'"
+    )
 
 
 @pytest.mark.remote_data(source='astropy')
@@ -63,11 +74,9 @@ def test_online_sites():
 def test_EarthLocation_basic():
     greenwichel = EarthLocation.of_site('greenwich')
     lon, lat, el = greenwichel.to_geodetic()
-    assert_quantity_allclose(lon, Longitude('0:0:0', unit=u.deg),
-                             atol=10*u.arcsec)
-    assert_quantity_allclose(lat, Latitude('51:28:40', unit=u.deg),
-                             atol=1*u.arcsec)
-    assert_quantity_allclose(el, 46*u.m, atol=1*u.m)
+    assert_quantity_allclose(lon, Longitude('0:0:0', unit=u.deg), atol=10 * u.arcsec)
+    assert_quantity_allclose(lat, Latitude('51:28:40', unit=u.deg), atol=1 * u.arcsec)
+    assert_quantity_allclose(el, 46 * u.m, atol=1 * u.m)
 
     names = EarthLocation.get_site_names()
     assert 'greenwich' in names
@@ -75,7 +84,10 @@ def test_EarthLocation_basic():
 
     with pytest.raises(KeyError) as exc:
         EarthLocation.of_site('nonexistent site')
-    assert exc.value.args[0] == "Site 'nonexistent site' not in database. Use EarthLocation.get_site_names to see available sites."
+    assert (
+        exc.value.args[0]
+        == "Site 'nonexistent site' not in database. Use EarthLocation.get_site_names to see available sites."
+    )
 
 
 def test_EarthLocation_state_offline():
@@ -109,7 +121,7 @@ def test_registry():
     assert len(reg.names) == 0
 
     names = ['sitea', 'site A']
-    loc = EarthLocation.from_geodetic(lat=1*u.deg, lon=2*u.deg, height=3*u.km)
+    loc = EarthLocation.from_geodetic(lat=1 * u.deg, lon=2 * u.deg, height=3 * u.km)
     reg.add_site(names, loc)
 
     assert len(reg.names) == 2
@@ -126,6 +138,7 @@ def test_non_EarthLocation():
     A regression test for a typo bug pointed out at the bottom of
     https://github.com/astropy/astropy/pull/4042
     """
+
     class EarthLocation2(EarthLocation):
         pass
 
@@ -156,7 +169,9 @@ def check_builtin_matches_remote(download_url=True):
     for name in builtin_registry.names:
         in_dl[name] = name in dl_registry
         if in_dl[name]:
-            matches[name] = quantity_allclose(builtin_registry[name].geocentric, dl_registry[name].geocentric)
+            matches[name] = quantity_allclose(
+                builtin_registry[name].geocentric, dl_registry[name].geocentric
+            )
         else:
             matches[name] = False
 
@@ -169,13 +184,23 @@ def check_builtin_matches_remote(download_url=True):
         print("In both but not the same value:")
         for name in matches:
             if not matches[name] and in_dl[name]:
-                print('    ', name, 'builtin:', builtin_registry[name], 'download:', dl_registry[name])
-        assert False, "Builtin and download registry aren't consistent - failures printed to stdout"
+                print(
+                    '    ',
+                    name,
+                    'builtin:',
+                    builtin_registry[name],
+                    'download:',
+                    dl_registry[name],
+                )
+        assert (
+            False
+        ), "Builtin and download registry aren't consistent - failures printed to stdout"
 
 
 def test_meta_present():
     reg = get_builtin_sites()
 
     greenwich = reg['greenwich']
-    assert greenwich.info.meta['source'] == ('Ordnance Survey via '
-           'http://gpsinformation.net/main/greenwich.htm and UNESCO')
+    assert greenwich.info.meta['source'] == (
+        'Ordnance Survey via ' 'http://gpsinformation.net/main/greenwich.htm and UNESCO'
+    )

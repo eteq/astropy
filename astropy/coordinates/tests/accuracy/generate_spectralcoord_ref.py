@@ -24,22 +24,33 @@ if __name__ == "__main__":
     target_lon = np.random.uniform(0, 360, N) * u.deg
     target_lat = np.degrees(np.arcsin(np.random.uniform(-1, 1, N))) * u.deg
     tab['target'] = SkyCoord(target_lon, target_lat, frame='fk5')
-    tab['obstime'] = Time(np.random.uniform(Time('1997-01-01').mjd, Time('2017-12-31').mjd, N), format='mjd', scale='utc')
+    tab['obstime'] = Time(
+        np.random.uniform(Time('1997-01-01').mjd, Time('2017-12-31').mjd, N),
+        format='mjd',
+        scale='utc',
+    )
     tab['obslon'] = Angle(np.random.uniform(-180, 180, N) * u.deg)
     tab['obslat'] = Angle(np.arcsin(np.random.uniform(-1, 1, N)) * u.deg)
-    tab['geocent'] = 0.
-    tab['heliocent'] = 0.
-    tab['lsrk'] = 0.
-    tab['lsrd'] = 0.
-    tab['galactoc'] = 0.
-    tab['localgrp'] = 0.
+    tab['geocent'] = 0.0
+    tab['heliocent'] = 0.0
+    tab['lsrk'] = 0.0
+    tab['lsrd'] = 0.0
+    tab['galactoc'] = 0.0
+    tab['localgrp'] = 0.0
 
     for row in tab:
 
         # Produce input file for rv command
         with open('rv.input', 'w') as f:
-            f.write(row['obslon'].to_string('deg', sep=' ') + ' ' + row['obslat'].to_string('deg', sep=' ') + '\n')
-            f.write(f"{row['obstime'].datetime.year} {row['obstime'].datetime.month} {row['obstime'].datetime.day} 1\n")
+            f.write(
+                row['obslon'].to_string('deg', sep=' ')
+                + ' '
+                + row['obslat'].to_string('deg', sep=' ')
+                + '\n'
+            )
+            f.write(
+                f"{row['obstime'].datetime.year} {row['obstime'].datetime.month} {row['obstime'].datetime.day} 1\n"
+            )
             f.write(row['target'].to_string('hmsdms', sep=' ') + ' J2000\n')
             f.write('END\n')
 
@@ -69,9 +80,23 @@ if __name__ == "__main__":
         # we want to ignore. It sometimes includes '(' followed by a space which
         # can cause issues with splitting, hence why we get rid of the space.
         lis_line = lis_line.replace('(  ', '(').replace('( ', '(')
-        year, month, day, time, zd, row['geocent'], row['heliocent'], _, \
-            row['lsrk'], row['lsrd'], row['galactoc'], row['localgrp'] = lis_line.split()
-        row['obstime'] = Time(f'{year}-{month}-{day}T{time}:00', format='isot', scale='utc')
+        (
+            year,
+            month,
+            day,
+            time,
+            zd,
+            row['geocent'],
+            row['heliocent'],
+            _,
+            row['lsrk'],
+            row['lsrd'],
+            row['galactoc'],
+            row['localgrp'],
+        ) = lis_line.split()
+        row['obstime'] = Time(
+            f'{year}-{month}-{day}T{time}:00', format='isot', scale='utc'
+        )
 
     # We sampled 100 coordinates above since some may not have results - we now
     # truncate to 50 sources since this is sufficient.

@@ -30,6 +30,7 @@ class SiteRegistry(Mapping):
     lower-case, and even if you ask for something that's got mixed case, it will
     be interpreted as the all lower-case version.
     """
+
     def __init__(self):
         # the keys to this are always lower-case
         self._lowercase_names_to_locations = {}
@@ -52,10 +53,14 @@ class SiteRegistry(Mapping):
         """
         if site_name.lower() not in self._lowercase_names_to_locations:
             # If site name not found, find close matches and suggest them in error
-            close_names = get_close_matches(site_name, self._lowercase_names_to_locations)
+            close_names = get_close_matches(
+                site_name, self._lowercase_names_to_locations
+            )
             close_names = sorted(close_names, key=len)
 
-            raise UnknownSiteException(site_name, "the 'names' attribute", close_names=close_names)
+            raise UnknownSiteException(
+                site_name, "the 'names' attribute", close_names=close_names
+            )
 
         return self._lowercase_names_to_locations[site_name.lower()]
 
@@ -102,9 +107,11 @@ class SiteRegistry(Mapping):
         reg = cls()
         for site in jsondb:
             site_info = jsondb[site].copy()
-            location = EarthLocation.from_geodetic(site_info.pop('longitude') * u.Unit(site_info.pop('longitude_unit')),
-                                                   site_info.pop('latitude') * u.Unit(site_info.pop('latitude_unit')),
-                                                   site_info.pop('elevation') * u.Unit(site_info.pop('elevation_unit')))
+            location = EarthLocation.from_geodetic(
+                site_info.pop('longitude') * u.Unit(site_info.pop('longitude_unit')),
+                site_info.pop('latitude') * u.Unit(site_info.pop('latitude_unit')),
+                site_info.pop('elevation') * u.Unit(site_info.pop('elevation_unit')),
+            )
             name = site_info.pop('name')
             location.info.name = name
             aliases = [alias for alias in site_info.pop('aliases') if alias]

@@ -5,10 +5,18 @@
 
 from astropy.utils.exceptions import AstropyWarning
 
-__all__ = ['RangeError', 'BoundsError', 'IllegalHourError',
-           'IllegalMinuteError', 'IllegalSecondError', 'ConvertError',
-           'IllegalHourWarning', 'IllegalMinuteWarning', 'IllegalSecondWarning',
-           'UnknownSiteException']
+__all__ = [
+    'RangeError',
+    'BoundsError',
+    'IllegalHourError',
+    'IllegalMinuteError',
+    'IllegalSecondError',
+    'ConvertError',
+    'IllegalHourWarning',
+    'IllegalMinuteWarning',
+    'IllegalSecondWarning',
+    'UnknownSiteException',
+]
 
 
 class RangeError(ValueError):
@@ -39,6 +47,7 @@ class IllegalHourError(RangeError):
         if not 0 <= hr < 24:
            raise IllegalHourError(hour)
     """
+
     def __init__(self, hour):
         self.hour = hour
 
@@ -54,12 +63,15 @@ class IllegalHourWarning(AstropyWarning):
     ----------
     hour : int, float
     """
+
     def __init__(self, hour, alternativeactionstr=None):
         self.hour = hour
         self.alternativeactionstr = alternativeactionstr
 
     def __str__(self):
-        message = f"'hour' was found  to be '{self.hour}', which is not in range (-24, 24)."
+        message = (
+            f"'hour' was found  to be '{self.hour}', which is not in range (-24, 24)."
+        )
         if self.alternativeactionstr is not None:
             message += ' ' + self.alternativeactionstr
         return message
@@ -82,6 +94,7 @@ class IllegalMinuteError(RangeError):
             raise IllegalMinuteError(minute)
 
     """
+
     def __init__(self, minute):
         self.minute = minute
 
@@ -97,12 +110,15 @@ class IllegalMinuteWarning(AstropyWarning):
     ----------
     minute : int, float
     """
+
     def __init__(self, minute, alternativeactionstr=None):
         self.minute = minute
         self.alternativeactionstr = alternativeactionstr
 
     def __str__(self):
-        message = f"'minute' was found  to be '{self.minute}', which is not in range [0,60)."
+        message = (
+            f"'minute' was found  to be '{self.minute}', which is not in range [0,60)."
+        )
         if self.alternativeactionstr is not None:
             message += ' ' + self.alternativeactionstr
         return message
@@ -124,6 +140,7 @@ class IllegalSecondError(RangeError):
         if not 0 <= sec < 60:
             raise IllegalSecondError(second)
     """
+
     def __init__(self, second):
         self.second = second
 
@@ -139,12 +156,15 @@ class IllegalSecondWarning(AstropyWarning):
     ----------
     second : int, float
     """
+
     def __init__(self, second, alternativeactionstr=None):
         self.second = second
         self.alternativeactionstr = alternativeactionstr
 
     def __str__(self):
-        message = f"'second' was found  to be '{self.second}', which is not in range [0,60)."
+        message = (
+            f"'second' was found  to be '{self.second}', which is not in range [0,60)."
+        )
         if self.alternativeactionstr is not None:
             message += ' ' + self.alternativeactionstr
         return message
@@ -165,7 +185,9 @@ class ConvertError(Exception):
 
 class UnknownSiteException(KeyError):
     def __init__(self, site, attribute, close_names=None):
-        message = f"Site '{site}' not in database. Use {attribute} to see available sites."
+        message = (
+            f"Site '{site}' not in database. Use {attribute} to see available sites."
+        )
         if close_names:
             message += " Did you mean one of: '{}'?'".format("', '".join(close_names))
         self.site = site

@@ -1,6 +1,9 @@
 from astropy.tests.helper import assert_quantity_allclose
 from astropy.time import Time
-from astropy.coordinates.builtin_frames.utils import get_polar_motion, get_offset_sun_from_barycenter
+from astropy.coordinates.builtin_frames.utils import (
+    get_polar_motion,
+    get_offset_sun_from_barycenter,
+)
 from astropy.coordinates.solar_system import get_body_barycentric_posvel
 from astropy.utils.exceptions import AstropyWarning
 import pytest
@@ -32,6 +35,8 @@ def test_sun_from_barycenter_offset():
     assert_quantity_allclose(reverse.xyz, -pos.xyz)
     assert not bool(reverse.differentials)
 
-    reverse_with_vel = get_offset_sun_from_barycenter(time, reverse=True, include_velocity=True)
+    reverse_with_vel = get_offset_sun_from_barycenter(
+        time, reverse=True, include_velocity=True
+    )
     assert_quantity_allclose(reverse_with_vel.xyz, -pos.xyz)
     assert_quantity_allclose(reverse_with_vel.differentials['s'].d_xyz, -vel.xyz)

@@ -22,8 +22,13 @@ from .representation import CartesianRepresentation, CartesianDifferential
 from .builtin_frames import GCRS, ICRS, ITRS, TETE
 from .builtin_frames.utils import get_jd12
 
-__all__ = ["get_body", "get_moon", "get_body_barycentric",
-           "get_body_barycentric_posvel", "solar_system_ephemeris"]
+__all__ = [
+    "get_body",
+    "get_moon",
+    "get_body_barycentric",
+    "get_body_barycentric_posvel",
+    "solar_system_ephemeris",
+]
 
 
 DEFAULT_JPL_EPHEMERIS = 'de430'
@@ -72,7 +77,9 @@ One can check which bodies are covered by a given ephemeris using::
 
     >>> solar_system_ephemeris.bodies
     ('earth', 'sun', 'moon', 'mercury', 'venus', 'earth-moon-barycenter', 'mars', 'jupiter', 'saturn', 'uranus', 'neptune')
-"""[1:-1]
+"""[
+    1:-1
+]
 
 
 class solar_system_ephemeris(ScienceState):
@@ -108,6 +115,7 @@ class solar_system_ephemeris(ScienceState):
     .. [2] https://naif.jpl.nasa.gov/pub/naif/generic_kernels/spk/planets/aareadme_de432s.txt
     .. [3] https://naif.jpl.nasa.gov/pub/naif/generic_kernels/spk/planets/a_old_versions/
     """
+
     _value = 'builtin'
     _kernel = None
 
@@ -143,8 +151,9 @@ class solar_system_ephemeris(ScienceState):
         if cls._value is None:
             return None
         if cls._value.lower() == 'builtin':
-            return (('earth', 'sun', 'moon') +
-                    tuple(PLAN94_BODY_NAME_TO_PLANET_INDEX.keys()))
+            return ('earth', 'sun', 'moon') + tuple(
+                PLAN94_BODY_NAME_TO_PLANET_INDEX.keys()
+            )
         else:
             return tuple(BODY_NAME_TO_KERNEL_SPEC.keys())
 
@@ -160,17 +169,21 @@ def _get_kernel(value):
     try:
         from jplephem.spk import SPK
     except ImportError:
-        raise ImportError("Solar system JPL ephemeris calculations require "
-                          "the jplephem package "
-                          "(https://pypi.org/project/jplephem/)")
+        raise ImportError(
+            "Solar system JPL ephemeris calculations require "
+            "the jplephem package "
+            "(https://pypi.org/project/jplephem/)"
+        )
 
     if value.lower() == 'jpl':
         # Get the default JPL ephemeris URL
         value = DEFAULT_JPL_EPHEMERIS
 
     if re.compile(r'de[0-9][0-9][0-9]s?').match(value.lower()):
-        value = ('https://naif.jpl.nasa.gov/pub/naif/generic_kernels'
-                 '/spk/planets/{:s}.bsp'.format(value.lower()))
+        value = (
+            'https://naif.jpl.nasa.gov/pub/naif/generic_kernels'
+            '/spk/planets/{:s}.bsp'.format(value.lower())
+        )
 
     elif os.path.isfile(value):
         return SPK.open(value)
@@ -179,14 +192,15 @@ def _get_kernel(value):
         try:
             urlparse(value)
         except Exception:
-            raise ValueError('{} was not one of the standard strings and '
-                             'could not be parsed as a file path or URL'.format(value))
+            raise ValueError(
+                '{} was not one of the standard strings and '
+                'could not be parsed as a file path or URL'.format(value)
+            )
 
     return SPK.open(download_file(value, cache=True))
 
 
-def _get_body_barycentric_posvel(body, time, ephemeris=None,
-                                 get_velocity=True):
+def _get_body_barycentric_posvel(body, time, ephemeris=None, get_velocity=True):
     """Calculate the barycentric position (and velocity) of a solar system body.
 
     Parameters
@@ -248,18 +262,22 @@ def _get_body_barycentric_posvel(body, time, ephemeris=None,
                     try:
                         body_index = PLAN94_BODY_NAME_TO_PLANET_INDEX[body]
                     except KeyError:
-                        raise KeyError("{}'s position and velocity cannot be "
-                                       "calculated with the '{}' ephemeris."
-                                       .format(body, ephemeris))
+                        raise KeyError(
+                            "{}'s position and velocity cannot be "
+                            "calculated with the '{}' ephemeris.".format(
+                                body, ephemeris
+                            )
+                        )
                     body_pv_helio = erfa.plan94(jd1, jd2, body_index)
                     body_pv_bary = erfa.pvppv(body_pv_helio, sun_pv_bary)
 
             body_pos_bary = CartesianRepresentation(
-                body_pv_bary['p'], unit=u.au, xyz_axis=-1, copy=False)
+                body_pv_bary['p'], unit=u.au, xyz_axis=-1, copy=False
+            )
             if get_velocity:
                 body_vel_bary = CartesianRepresentation(
-                    body_pv_bary['v'], unit=u.au/u.day, xyz_axis=-1,
-                    copy=False)
+                    body_pv_bary['v'], unit=u.au / u.day, xyz_axis=-1, copy=False
+                )
 
         else:
             if isinstance(body, str):
@@ -267,8 +285,10 @@ def _get_body_barycentric_posvel(body, time, ephemeris=None,
                 try:
                     kernel_spec = BODY_NAME_TO_KERNEL_SPEC[body.lower()]
                 except KeyError:
-                    raise KeyError("{}'s position cannot be calculated with "
-                                   "the {} ephemeris.".format(body, ephemeris))
+                    raise KeyError(
+                        "{}'s position cannot be calculated with "
+                        "the {} ephemeris.".format(body, ephemeris)
+                    )
             else:
                 # otherwise, assume the user knows what their doing and intentionally
                 # passed in a kernel chain
@@ -280,8 +300,9 @@ def _get_body_barycentric_posvel(body, time, ephemeris=None,
                 jd1, jd2 = jd1.ravel(), jd2.ravel()
                 # Note that we use the new jd1.shape here to create a 1D result array.
                 # It is reshaped below.
-            body_posvel_bary = np.zeros((2 if get_velocity else 1, 3) +
-                                        getattr(jd1, 'shape', ()))
+            body_posvel_bary = np.zeros(
+                (2 if get_velocity else 1, 3) + getattr(jd1, 'shape', ())
+            )
             for pair in kernel_spec:
                 spk = kernel[pair]
                 if spk.data_type == 3:
@@ -296,16 +317,19 @@ def _get_body_barycentric_posvel(body, time, ephemeris=None,
                     # derivative. If no velocities are desired, body_posvel_bary
                     # has only one element and thus the loop ends after a single
                     # iteration, avoiding the velocity calculation.
-                    for body_p_or_v, p_or_v in zip(body_posvel_bary,
-                                                   spk.generate(jd1, jd2)):
+                    for body_p_or_v, p_or_v in zip(
+                        body_posvel_bary, spk.generate(jd1, jd2)
+                    ):
                         body_p_or_v += p_or_v
 
             body_posvel_bary.shape = body_posvel_bary.shape[:2] + jd1_shape
-            body_pos_bary = CartesianRepresentation(body_posvel_bary[0],
-                                                    unit=u.km, copy=False)
+            body_pos_bary = CartesianRepresentation(
+                body_posvel_bary[0], unit=u.km, copy=False
+            )
             if get_velocity:
-                body_vel_bary = CartesianRepresentation(body_posvel_bary[1],
-                                                        unit=u.km/u.day, copy=False)
+                body_vel_bary = CartesianRepresentation(
+                    body_posvel_bary[1], unit=u.km / u.day, copy=False
+                )
 
         return (body_pos_bary, body_vel_bary) if get_velocity else body_pos_bary
 
@@ -375,8 +399,7 @@ def get_body_barycentric(body, time, ephemeris=None):
     -----
     {_EPHEMERIS_NOTE}
     """
-    return _get_body_barycentric_posvel(body, time, ephemeris,
-                                        get_velocity=False)
+    return _get_body_barycentric_posvel(body, time, ephemeris, get_velocity=False)
 
 
 def _get_apparent_body_position(body, time, ephemeris, obsgeoloc=None):
@@ -411,18 +434,17 @@ def _get_apparent_body_position(body, time, ephemeris, obsgeoloc=None):
         ephemeris = solar_system_ephemeris.get()
 
     # Calculate position given approximate light travel time.
-    delta_light_travel_time = 20. * u.s
+    delta_light_travel_time = 20.0 * u.s
     emitted_time = time
-    light_travel_time = 0. * u.s
+    light_travel_time = 0.0 * u.s
     earth_loc = get_body_barycentric('earth', time, ephemeris)
     if obsgeoloc is not None:
         earth_loc += obsgeoloc
-    while np.any(np.fabs(delta_light_travel_time) > 1.0e-8*u.s):
+    while np.any(np.fabs(delta_light_travel_time) > 1.0e-8 * u.s):
         body_loc = get_body_barycentric(body, emitted_time, ephemeris)
         earth_distance = (body_loc - earth_loc).norm()
-        delta_light_travel_time = (light_travel_time -
-                                   earth_distance/speed_of_light)
-        light_travel_time = earth_distance/speed_of_light
+        delta_light_travel_time = light_travel_time - earth_distance / speed_of_light
+        light_travel_time = earth_distance / speed_of_light
         emitted_time = time - light_travel_time
 
     return get_body_barycentric(body, emitted_time, ephemeris)
@@ -473,9 +495,9 @@ def get_body(body, time, location=None, ephemeris=None):
 
     cartrep = _get_apparent_body_position(body, time, ephemeris, obsgeoloc)
     icrs = ICRS(cartrep)
-    gcrs = icrs.transform_to(GCRS(obstime=time,
-                                  obsgeoloc=obsgeoloc,
-                                  obsgeovel=obsgeovel))
+    gcrs = icrs.transform_to(
+        GCRS(obstime=time, obsgeoloc=obsgeoloc, obsgeovel=obsgeovel)
+    )
 
     return SkyCoord(gcrs)
 
@@ -517,8 +539,11 @@ def get_moon(time, location=None, ephemeris=None):
 
 # Add note about the ephemeris choices to the docstrings of relevant functions.
 # Note: sadly, one cannot use f-strings for docstrings, so we format explicitly.
-for f in [f for f in locals().values() if callable(f) and f.__doc__ is not None
-          and '{_EPHEMERIS_NOTE}' in f.__doc__]:
+for f in [
+    f
+    for f in locals().values()
+    if callable(f) and f.__doc__ is not None and '{_EPHEMERIS_NOTE}' in f.__doc__
+]:
     f.__doc__ = f.__doc__.format(_EPHEMERIS_NOTE=indent(_EPHEMERIS_NOTE)[4:])
 
 
@@ -538,9 +563,12 @@ def _apparent_position_in_true_coordinates(skycoord):
     location = getattr(skycoord, 'location', None)
     if location is None:
         gcrs_rep = skycoord.obsgeoloc.with_differentials(
-            {'s': CartesianDifferential.from_cartesian(skycoord.obsgeovel)})
-        location = (GCRS(gcrs_rep, obstime=skycoord.obstime)
-                    .transform_to(ITRS(obstime=skycoord.obstime))
-                    .earth_location)
+            {'s': CartesianDifferential.from_cartesian(skycoord.obsgeovel)}
+        )
+        location = (
+            GCRS(gcrs_rep, obstime=skycoord.obstime)
+            .transform_to(ITRS(obstime=skycoord.obstime))
+            .earth_location
+        )
     tete_frame = TETE(obstime=skycoord.obstime, location=location)
     return skycoord.transform_to(tete_frame)

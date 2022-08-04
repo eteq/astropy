@@ -38,19 +38,19 @@ def test_to_string_decimal():
     # test for the bug in issue #1323 which caused decimal formatting to not
     # work
 
-    angle1 = Angle(2., unit=u.degree)
+    angle1 = Angle(2.0, unit=u.degree)
 
     assert angle1.to_string(decimal=True, precision=3) == '2.000'
     assert angle1.to_string(decimal=True, precision=1) == '2.0'
     assert angle1.to_string(decimal=True, precision=0) == '2'
 
-    angle2 = Angle(3., unit=u.hourangle)
+    angle2 = Angle(3.0, unit=u.hourangle)
 
     assert angle2.to_string(decimal=True, precision=3) == '3.000'
     assert angle2.to_string(decimal=True, precision=1) == '3.0'
     assert angle2.to_string(decimal=True, precision=0) == '3'
 
-    angle3 = Angle(4., unit=u.radian)
+    angle3 = Angle(4.0, unit=u.radian)
 
     assert angle3.to_string(decimal=True, precision=3) == '4.000'
     assert angle3.to_string(decimal=True, precision=1) == '4.0'
@@ -123,7 +123,7 @@ def test_to_string_radian_with_precision():
     """
 
     # Check that specifying the precision works
-    a = Angle(3., unit=u.rad)
+    a = Angle(3.0, unit=u.rad)
     assert a.to_string(precision=3, sep='fromunit') == '3.000rad'
 
 

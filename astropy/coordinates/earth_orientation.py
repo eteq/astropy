@@ -42,7 +42,7 @@ def eccentricity(jd):
     """
     T = (jd - jd1950) / 36525.0
 
-    p = (-0.000000126, - 0.00004193, 0.01673011)
+    p = (-0.000000126, -0.00004193, 0.01673011)
 
     return np.polyval(p, T)
 
@@ -71,7 +71,7 @@ def mean_lon_of_perigee(jd):
 
     p = (0.012, 1.65, 6190.67, 1015489.951)
 
-    return np.polyval(p, T) / 3600.
+    return np.polyval(p, T) / 3600.0
 
 
 def obliquity(jd, algorithm=2006):
@@ -116,7 +116,7 @@ def obliquity(jd, algorithm=2006):
     else:
         raise ValueError('invalid algorithm year for computing obliquity')
 
-    return (np.polyval(p, T) + corr) / 3600.
+    return (np.polyval(p, T) + corr) / 3600.0
 
 
 # TODO: replace this with SOFA equivalent
@@ -142,8 +142,7 @@ def precession_matrix_Capitaine(fromepoch, toepoch):
     ----------
     USNO Circular 179
     """
-    mat_fromto2000 = matrix_transpose(
-        _precess_from_J2000_Capitaine(fromepoch.jyear))
+    mat_fromto2000 = matrix_transpose(_precess_from_J2000_Capitaine(fromepoch.jyear))
     mat_2000toto = _precess_from_J2000_Capitaine(toepoch.jyear)
 
     return np.dot(mat_2000toto, mat_fromto2000)
@@ -170,9 +169,11 @@ def _precess_from_J2000_Capitaine(epoch):
     z = np.polyval(pz, T) / 3600.0
     theta = np.polyval(ptheta, T) / 3600.0
 
-    return matrix_product(rotation_matrix(-z, 'z'),
-                          rotation_matrix(theta, 'y'),
-                          rotation_matrix(-zeta, 'z'))
+    return matrix_product(
+        rotation_matrix(-z, 'z'),
+        rotation_matrix(theta, 'y'),
+        rotation_matrix(-zeta, 'z'),
+    )
 
 
 def _precession_matrix_besselian(epoch1, epoch2):
@@ -205,9 +206,11 @@ def _precession_matrix_besselian(epoch1, epoch2):
     ptheta = (theta3, theta2, theta1, 0)
     theta = np.polyval(ptheta, dt) / 3600
 
-    return matrix_product(rotation_matrix(-z, 'z'),
-                          rotation_matrix(theta, 'y'),
-                          rotation_matrix(-zeta, 'z'))
+    return matrix_product(
+        rotation_matrix(-z, 'z'),
+        rotation_matrix(theta, 'y'),
+        rotation_matrix(-zeta, 'z'),
+    )
 
 
 def _load_nutation_data(datastr, seriestype):
@@ -218,40 +221,45 @@ def _load_nutation_data(datastr, seriestype):
     """
 
     if seriestype == 'lunisolar':
-        dtypes = [('nl', int),
-                  ('nlp', int),
-                  ('nF', int),
-                  ('nD', int),
-                  ('nOm', int),
-                  ('ps', float),
-                  ('pst', float),
-                  ('pc', float),
-                  ('ec', float),
-                  ('ect', float),
-                  ('es', float)]
+        dtypes = [
+            ('nl', int),
+            ('nlp', int),
+            ('nF', int),
+            ('nD', int),
+            ('nOm', int),
+            ('ps', float),
+            ('pst', float),
+            ('pc', float),
+            ('ec', float),
+            ('ect', float),
+            ('es', float),
+        ]
     elif seriestype == 'planetary':
-        dtypes = [('nl', int),
-                  ('nF', int),
-                  ('nD', int),
-                  ('nOm', int),
-                  ('nme', int),
-                  ('nve', int),
-                  ('nea', int),
-                  ('nma', int),
-                  ('nju', int),
-                  ('nsa', int),
-                  ('nur', int),
-                  ('nne', int),
-                  ('npa', int),
-                  ('sp', int),
-                  ('cp', int),
-                  ('se', int),
-                  ('ce', int)]
+        dtypes = [
+            ('nl', int),
+            ('nF', int),
+            ('nD', int),
+            ('nOm', int),
+            ('nme', int),
+            ('nve', int),
+            ('nea', int),
+            ('nma', int),
+            ('nju', int),
+            ('nsa', int),
+            ('nur', int),
+            ('nne', int),
+            ('npa', int),
+            ('sp', int),
+            ('cp', int),
+            ('se', int),
+            ('ce', int),
+        ]
     else:
         raise ValueError('requested invalid nutation series type')
 
-    lines = [l for l in datastr.split('\n')
-             if not l.startswith('#') if not l.strip() == '']
+    lines = [
+        l for l in datastr.split('\n') if not l.startswith('#') if not l.strip() == ''
+    ]
 
     lists = [[] for _ in dtypes]
     for l in lines:
@@ -340,7 +348,9 @@ _nut_data_00b = """
 -2 0 2 2 2 1383.0 0.0 -2.0 -594.0 0.0 -2.0
 -1 0 0 0 2 1405.0 0.0 4.0 -610.0 0.0 2.0
 1 1 2 -2 2 1290.0 0.0 0.0 -556.0 0.0 0.0
-"""[1:-1]
+"""[
+    1:-1
+]
 _nut_data_00b = _load_nutation_data(_nut_data_00b, 'lunisolar')
 
 # TODO: replace w/SOFA equivalent
@@ -406,6 +416,8 @@ def nutation_matrix(epoch):
     # TODO: implement higher precision 2006/2000A model if requested/needed
     epsa, dpsi, deps = nutation_components2000B(epoch.jd)  # all in radians
 
-    return matrix_product(rotation_matrix(-(epsa + deps), 'x', False),
-                          rotation_matrix(-dpsi, 'z', False),
-                          rotation_matrix(epsa, 'x', False))
+    return matrix_product(
+        rotation_matrix(-(epsa + deps), 'x', False),
+        rotation_matrix(-dpsi, 'z', False),
+        rotation_matrix(epsa, 'x', False),
+    )

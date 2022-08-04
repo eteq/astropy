@@ -11,8 +11,15 @@ from astropy.tests.helper import assert_quantity_allclose as assert_allclose
 from astropy.utils.compat import NUMPY_LT_1_19, NUMPY_LT_1_24
 from astropy.utils.exceptions import AstropyDeprecationWarning
 
-from astropy.coordinates import (Angle, ICRS, FK4, FK5, Galactic, SkyCoord,
-                                 CartesianRepresentation)
+from astropy.coordinates import (
+    Angle,
+    ICRS,
+    FK4,
+    FK5,
+    Galactic,
+    SkyCoord,
+    CartesianRepresentation,
+)
 
 
 def test_angle_arrays():
@@ -20,16 +27,14 @@ def test_angle_arrays():
     Test arrays values with Angle objects.
     """
     # Tests incomplete
-    a1 = Angle([0, 45, 90, 180, 270, 360, 720.], unit=u.degree)
-    npt.assert_almost_equal([0., 45., 90., 180., 270., 360., 720.], a1.value)
+    a1 = Angle([0, 45, 90, 180, 270, 360, 720.0], unit=u.degree)
+    npt.assert_almost_equal([0.0, 45.0, 90.0, 180.0, 270.0, 360.0, 720.0], a1.value)
 
     a2 = Angle(np.array([-90, -45, 0, 45, 90, 180, 270, 360]), unit=u.degree)
-    npt.assert_almost_equal([-90, -45, 0, 45, 90, 180, 270, 360],
-                            a2.value)
+    npt.assert_almost_equal([-90, -45, 0, 45, 90, 180, 270, 360], a2.value)
 
     a3 = Angle(["12 degrees", "3 hours", "5 deg", "4rad"])
-    npt.assert_almost_equal([12., 45., 5., 229.18311805],
-                            a3.value)
+    npt.assert_almost_equal([12.0, 45.0, 5.0, 229.18311805], a3.value)
     assert a3.unit == u.degree
 
     a4 = Angle(["12 degrees", "3 hours", "5 deg", "4rad"], u.radian)
@@ -49,8 +54,10 @@ def test_angle_arrays():
             # nesting.
             if not NUMPY_LT_1_19:
                 stack.enter_context(
-                    pytest.warns(DeprecationWarning,
-                                 match='automatic object dtype is deprecated'))
+                    pytest.warns(
+                        DeprecationWarning, match='automatic object dtype is deprecated'
+                    )
+                )
         else:
             stack.enter_context(pytest.raises(ValueError))
 
@@ -82,7 +89,7 @@ def test_hms():
     npt.assert_almost_equal(s, [0, 0, -0])
 
     hms = a1.hms
-    hours = hms[0] + hms[1] / 60. + hms[2] / 3600.
+    hours = hms[0] + hms[1] / 60.0 + hms[2] / 3600.0
     npt.assert_almost_equal(a1.hour, hours)
 
     with pytest.warns(AstropyDeprecationWarning, match='hms_to_hours'):
@@ -95,16 +102,18 @@ def test_array_coordinates_creation():
     """
     Test creating coordinates from arrays.
     """
-    c = ICRS(np.array([1, 2])*u.deg, np.array([3, 4])*u.deg)
+    c = ICRS(np.array([1, 2]) * u.deg, np.array([3, 4]) * u.deg)
     assert not c.ra.isscalar
 
     with pytest.raises(ValueError):
-        c = ICRS(np.array([1, 2])*u.deg, np.array([3, 4, 5])*u.deg)
+        c = ICRS(np.array([1, 2]) * u.deg, np.array([3, 4, 5]) * u.deg)
     with pytest.raises(ValueError):
-        c = ICRS(np.array([1, 2, 4, 5])*u.deg, np.array([[3, 4], [5, 6]])*u.deg)
+        c = ICRS(np.array([1, 2, 4, 5]) * u.deg, np.array([[3, 4], [5, 6]]) * u.deg)
 
     # make sure cartesian initialization also works
-    cart = CartesianRepresentation(x=[1., 2.]*u.kpc, y=[3., 4.]*u.kpc, z=[5., 6.]*u.kpc)
+    cart = CartesianRepresentation(
+        x=[1.0, 2.0] * u.kpc, y=[3.0, 4.0] * u.kpc, z=[5.0, 6.0] * u.kpc
+    )
     c = ICRS(cart)
 
     # also ensure strings can be arrays
@@ -122,17 +131,31 @@ def test_array_coordinates_distances():
     Test creating coordinates from arrays and distances.
     """
     # correct way
-    ICRS(ra=np.array([1, 2])*u.deg, dec=np.array([3, 4])*u.deg, distance=[.1, .2] * u.kpc)
+    ICRS(
+        ra=np.array([1, 2]) * u.deg,
+        dec=np.array([3, 4]) * u.deg,
+        distance=[0.1, 0.2] * u.kpc,
+    )
 
     with pytest.raises(ValueError):
         # scalar distance and mismatched array coordinates
-        ICRS(ra=np.array([1, 2, 3])*u.deg, dec=np.array([[3, 4], [5, 6]])*u.deg, distance=2. * u.kpc)
+        ICRS(
+            ra=np.array([1, 2, 3]) * u.deg,
+            dec=np.array([[3, 4], [5, 6]]) * u.deg,
+            distance=2.0 * u.kpc,
+        )
     with pytest.raises(ValueError):
         # more distance values than coordinates
-        ICRS(ra=np.array([1, 2])*u.deg, dec=np.array([3, 4])*u.deg, distance=[.1, .2, 3.] * u.kpc)
+        ICRS(
+            ra=np.array([1, 2]) * u.deg,
+            dec=np.array([3, 4]) * u.deg,
+            distance=[0.1, 0.2, 3.0] * u.kpc,
+        )
 
 
-@pytest.mark.parametrize(('arrshape', 'distance'), [((2, ), None), ((4, 2, 5), None), ((4, 2, 5), 2 * u.kpc)])
+@pytest.mark.parametrize(
+    ('arrshape', 'distance'), [((2,), None), ((4, 2, 5), None), ((4, 2, 5), 2 * u.kpc)]
+)
 def test_array_coordinates_transformations(arrshape, distance):
     """
     Test transformation on coordinates with array content (first length-2 1D, then a 3D array)
@@ -144,7 +167,7 @@ def test_array_coordinates_transformations(arrshape, distance):
         distance = np.ones(arrshape) * distance
 
     print(raarr, decarr, distance)
-    c = ICRS(ra=raarr*u.deg, dec=decarr*u.deg, distance=distance)
+    c = ICRS(ra=raarr * u.deg, dec=decarr * u.deg, distance=distance)
     g = c.transform_to(Galactic())
 
     assert g.l.shape == arrshape
@@ -187,7 +210,7 @@ def test_array_precession():
     j2000 = Time('J2000')
     j1975 = Time('J1975')
 
-    fk5 = FK5([1, 1.1]*u.radian, [0.5, 0.6]*u.radian)
+    fk5 = FK5([1, 1.1] * u.radian, [0.5, 0.6] * u.radian)
     assert fk5.equinox.jyear == j2000.jyear
     fk5_2 = fk5.transform_to(FK5(equinox=j1975))
     assert fk5_2.equinox.jyear == j1975.jyear
@@ -197,13 +220,13 @@ def test_array_precession():
 
 
 def test_array_separation():
-    c1 = ICRS([0, 0]*u.deg, [0, 0]*u.deg)
-    c2 = ICRS([1, 2]*u.deg, [0, 0]*u.deg)
+    c1 = ICRS([0, 0] * u.deg, [0, 0] * u.deg)
+    c2 = ICRS([1, 2] * u.deg, [0, 0] * u.deg)
 
     npt.assert_array_almost_equal(c1.separation(c2).degree, [1, 2])
 
-    c3 = ICRS([0, 3.]*u.deg, [0., 0]*u.deg, distance=[1, 1.] * u.kpc)
-    c4 = ICRS([1, 1.]*u.deg, [0., 0]*u.deg, distance=[1, 1.] * u.kpc)
+    c3 = ICRS([0, 3.0] * u.deg, [0.0, 0] * u.deg, distance=[1, 1.0] * u.kpc)
+    c4 = ICRS([1, 1.0] * u.deg, [0.0, 0] * u.deg, distance=[1, 1.0] * u.kpc)
 
     # the 3-1 separation should be twice the 0-1 separation, but not *exactly* the same
     sep = c3.separation_3d(c4)
@@ -218,7 +241,7 @@ def test_array_indexing():
     dec = np.linspace(-90, 90, 10)
     j1975 = Time(1975, format='jyear')
 
-    c1 = FK5(ra*u.deg, dec*u.deg, equinox=j1975)
+    c1 = FK5(ra * u.deg, dec * u.deg, equinox=j1975)
 
     c2 = c1[4]
     assert c2.ra.degree == 160
@@ -245,24 +268,24 @@ def test_array_len():
         ra = np.linspace(0, 360, length)
         dec = np.linspace(0, 90, length)
 
-        c = ICRS(ra*u.deg, dec*u.deg)
+        c = ICRS(ra * u.deg, dec * u.deg)
 
         assert len(c) == length
 
         assert c.shape == (length,)
 
     with pytest.raises(TypeError):
-        c = ICRS(0*u.deg, 0*u.deg)
+        c = ICRS(0 * u.deg, 0 * u.deg)
         len(c)
 
     assert c.shape == tuple()
 
 
 def test_array_eq():
-    c1 = ICRS([1, 2]*u.deg, [3, 4]*u.deg)
-    c2 = ICRS([1, 2]*u.deg, [3, 5]*u.deg)
-    c3 = ICRS([1, 3]*u.deg, [3, 4]*u.deg)
-    c4 = ICRS([1, 2]*u.deg, [3, 4.2]*u.deg)
+    c1 = ICRS([1, 2] * u.deg, [3, 4] * u.deg)
+    c2 = ICRS([1, 2] * u.deg, [3, 5] * u.deg)
+    c3 = ICRS([1, 3] * u.deg, [3, 4] * u.deg)
+    c4 = ICRS([1, 2] * u.deg, [3, 4.2] * u.deg)
 
     assert np.all(c1 == c1)
     assert np.any(c1 != c2)
